@@ -8,6 +8,10 @@ import type {
   TopicItem,
   TopicDetail,
   WatchlistItem,
+  XAccount,
+  XHealth,
+  XPost,
+  XRefreshResult,
 } from '../types/api';
 
 const now = new Date();
@@ -303,6 +307,80 @@ export const mockStreamStatus: StreamStatus = {
   status: 'planned',
   last_event_at: isoMinutesAgo(1),
   retry_interval_ms: 3000,
+};
+
+export const mockXHealth: XHealth = {
+  enabled: true,
+  bridge_configured: true,
+  bridge_healthy: true,
+  bridge_status: 'ok:grok.com',
+  provider_name: 'grok-bridge',
+  last_success_at: isoMinutesAgo(6),
+  last_failure_at: null,
+  consecutive_failures: 0,
+  total_fetches: 2,
+  total_failures: 0,
+  avg_latency_ms: 2410,
+  last_error: null,
+};
+
+export const mockXAccounts: XAccount[] = [
+  {
+    id: 1,
+    handle: 'DeItaone',
+    display_name: 'Delta One',
+    market_focus: 'us',
+    is_active: true,
+    priority: 100,
+    notes: 'Macro and market headlines',
+  },
+  {
+    id: 2,
+    handle: 'SawyerMerritt',
+    display_name: 'Sawyer Merritt',
+    market_focus: 'us',
+    is_active: true,
+    priority: 80,
+    notes: 'Tech and EV chatter',
+  },
+];
+
+export const mockXPosts: XPost[] = [
+  {
+    id: 1,
+    account_handle: 'DeItaone',
+    account_display_name: 'Delta One',
+    content_text: 'NVIDIA suppliers remain in focus as AI infrastructure demand signals stay firm into the next quarter.',
+    canonical_url: 'https://x.com/DeItaone/status/190001',
+    market: 'us',
+    sentiment_label: 'positive',
+    relevance_score: 0.92,
+    posted_at: isoMinutesAgo(13),
+    captured_at: isoMinutesAgo(5),
+    symbols: ['NVDA'],
+  },
+  {
+    id: 2,
+    account_handle: 'SawyerMerritt',
+    account_display_name: 'Sawyer Merritt',
+    content_text: 'Tesla supply chain comments are weighing on near-term EV sentiment after softer delivery expectations.',
+    canonical_url: 'https://x.com/SawyerMerritt/status/190002',
+    market: 'us',
+    sentiment_label: 'negative',
+    relevance_score: 0.84,
+    posted_at: isoMinutesAgo(18),
+    captured_at: isoMinutesAgo(6),
+    symbols: ['TSLA'],
+  },
+];
+
+export const mockXRefreshResult: XRefreshResult = {
+  started_at: isoMinutesAgo(1),
+  finished_at: isoMinutesAgo(1),
+  fetched_count: 2,
+  inserted_count: 1,
+  error: null,
+  latency_ms: 2634,
 };
 
 export const mockStreamEvents: StreamEnvelope[] = [

@@ -7,6 +7,10 @@ from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
 from app.models.watchlist_item import WatchlistItem
+from app.models.x_account import XAccount
+from app.models.x_post import XPost
+from app.models.x_post_symbol_mention import XPostSymbolMention
+from app.models.x_source_health import XSourceHealth
 
 __all__ = [
     "ArticleContent",
@@ -18,4 +22,8 @@ __all__ = [
     "TopicCluster",
     "TopicNewsLink",
     "WatchlistItem",
+    "XAccount",
+    "XPost",
+    "XPostSymbolMention",
+    "XSourceHealth",
 ]

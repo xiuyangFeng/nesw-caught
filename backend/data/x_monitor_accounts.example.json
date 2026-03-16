@@ -1,0 +1,20 @@
+{
+  "accounts": [
+    {
+      "handle": "DeItaone",
+      "display_name": "Delta One",
+      "market_focus": "us",
+      "is_active": true,
+      "priority": 100,
+      "notes": "Macro and breaking market headlines"
+    },
+    {
+      "handle": "SawyerMerritt",
+      "display_name": "Sawyer Merritt",
+      "market_focus": "us",
+      "is_active": true,
+      "priority": 80,
+      "notes": "Tech and EV market chatter"
+    }
+  ]
+}

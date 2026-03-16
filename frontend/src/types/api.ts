@@ -1,4 +1,4 @@
-export type Market = 'hk' | 'us';
+export type Market = 'hk' | 'us' | 'cn';
 export type SentimentLabel = 'positive' | 'negative' | 'neutral' | 'mixed' | 'unknown';
 export type ExtractStatus = 'pending' | 'success' | 'failed' | 'not_requested';
 
@@ -10,6 +10,8 @@ export interface HealthStatus {
   database: string;
   stream_mode: string;
   ai_enabled: boolean;
+  x_bridge_enabled?: boolean;
+  x_bridge_healthy?: boolean;
 }
 
 export interface NewsItem {
@@ -127,5 +129,61 @@ export interface NewsQuery {
   q?: string;
   source_name?: string;
   sentiment_label?: SentimentLabel | '';
+  limit?: number;
+}
+
+export interface XAccount {
+  id: number;
+  handle: string;
+  display_name: string;
+  market_focus: string | null;
+  is_active: boolean;
+  priority: number;
+  notes: string | null;
+}
+
+export interface XPost {
+  id: number;
+  account_handle: string;
+  account_display_name: string;
+  content_text: string;
+  canonical_url: string | null;
+  market: Market;
+  sentiment_label: SentimentLabel;
+  relevance_score: number | null;
+  posted_at: string | null;
+  captured_at: string;
+  symbols: string[];
+}
+
+export interface XRefreshResult {
+  started_at: string;
+  finished_at: string;
+  fetched_count: number;
+  inserted_count: number;
+  error: string | null;
+  latency_ms: number;
+}
+
+export interface XHealth {
+  enabled: boolean;
+  bridge_configured: boolean;
+  bridge_healthy: boolean;
+  bridge_status: string;
+  provider_name: string;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  consecutive_failures: number;
+  total_fetches: number;
+  total_failures: number;
+  avg_latency_ms: number | null;
+  last_error: string | null;
+}
+
+export interface XPostQuery {
+  account_handle?: string;
+  market?: Market | '';
+  q?: string;
+  symbol?: string;
   limit?: number;
 }

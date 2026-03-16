@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     stream_mode: str = "sse"
     ai_enabled: bool = False
     http_timeout_seconds: float = 10.0
+    news_sources_file: str | None = None
+    x_monitor_enabled: bool = False
+    grok_bridge_base_url: str | None = None
+    grok_bridge_timeout_seconds: float = 60.0
+    x_monitor_accounts_file: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

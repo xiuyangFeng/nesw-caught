@@ -8,7 +8,7 @@
 - 返回时间：统一为 UTC ISO 8601
 - 分页能力：v0 阶段暂未强制，先支持基础列表接口
 - 推送方式：v0 阶段默认 SSE
-- 市场枚举：`hk` | `us`
+- 市场枚举：`hk` | `us` | `cn`
 - 情绪枚举：`positive` | `negative` | `neutral` | `mixed` | `unknown`
 - 正文提取状态枚举：`pending` | `success` | `failed` | `not_requested`
 - 所有只读接口允许返回空数组或 `null` 字段，前端必须按降级状态展示
@@ -31,7 +31,50 @@
   "now_utc": "2026-03-15T10:00:00Z",
   "database": "configured",
   "stream_mode": "sse",
-  "ai_enabled": false
+  "ai_enabled": false,
+  "x_bridge_enabled": true,
+  "x_bridge_healthy": true
+}
+```
+
+### `GET /api/health/sources`
+
+响应示例：
+
+```json
+[
+  {
+    "source_name": "The Verge",
+    "source_type": "rss",
+    "last_success_at": "2026-03-16T07:10:36Z",
+    "last_failure_at": null,
+    "consecutive_failures": 0,
+    "total_fetches": 1,
+    "total_failures": 0,
+    "avg_latency_ms": 1037.02,
+    "is_disabled": false
+  }
+]
+```
+
+### `GET /api/health/x`
+
+响应示例：
+
+```json
+{
+  "enabled": true,
+  "bridge_configured": true,
+  "bridge_healthy": true,
+  "bridge_status": "ok:grok.com",
+  "provider_name": "grok-bridge",
+  "last_success_at": "2026-03-16T07:10:36Z",
+  "last_failure_at": null,
+  "consecutive_failures": 0,
+  "total_fetches": 2,
+  "total_failures": 0,
+  "avg_latency_ms": 2410,
+  "last_error": null
 }
 ```
 
@@ -42,10 +85,37 @@
 查询参数约定：
 
 - `market`: `hk` | `us`
+- `market`: `hk` | `us` | `cn`
 - `q`: 关键词
 - `source_name`: 来源名
 - `sentiment_label`: 情绪标签
 - `limit`: 返回条数，默认由后端决定
+
+### `POST /api/news/refresh`
+
+用于手动抓取内置公开源和自定义配置源。
+
+响应示例：
+
+```json
+{
+  "started_at": "2026-03-16T07:10:35Z",
+  "finished_at": "2026-03-16T07:10:37Z",
+  "fetched_count": 86,
+  "inserted_count": 86,
+  "results": [
+    {
+      "source_name": "WSJ World News",
+      "source_type": "rss",
+      "status": "ok",
+      "fetched_count": 20,
+      "inserted_count": 20,
+      "error": null,
+      "latency_ms": 835.29
+    }
+  ]
+}
+```
 
 响应示例：
 
@@ -211,6 +281,71 @@
   "status": "planned",
   "last_event_at": null,
   "retry_interval_ms": 3000
+}
+```
+
+## 7. X Monitor
+
+### `GET /api/x/accounts`
+
+响应示例：
+
+```json
+[
+  {
+    "id": 1,
+    "handle": "DeItaone",
+    "display_name": "Delta One",
+    "market_focus": "us",
+    "is_active": true,
+    "priority": 100,
+    "notes": "Macro and breaking market headlines"
+  }
+]
+```
+
+### `GET /api/x/posts`
+
+查询参数约定：
+
+- `account_handle`: 博主 handle
+- `symbol`: 股票代码
+- `market`: `hk` | `us` | `cn`
+- `q`: 关键词
+- `limit`: 返回条数
+
+响应示例：
+
+```json
+[
+  {
+    "id": 1,
+    "account_handle": "DeItaone",
+    "account_display_name": "Delta One",
+    "content_text": "NVIDIA suppliers remain in focus as AI infrastructure demand signals stay firm into the next quarter.",
+    "canonical_url": "https://x.com/DeItaone/status/190001",
+    "market": "us",
+    "sentiment_label": "positive",
+    "relevance_score": 0.92,
+    "posted_at": "2026-03-16T07:00:00Z",
+    "captured_at": "2026-03-16T07:05:00Z",
+    "symbols": ["NVDA"]
+  }
+]
+```
+
+### `POST /api/x/refresh`
+
+响应示例：
+
+```json
+{
+  "started_at": "2026-03-16T07:10:35Z",
+  "finished_at": "2026-03-16T07:10:38Z",
+  "fetched_count": 6,
+  "inserted_count": 3,
+  "error": null,
+  "latency_ms": 2634
 }
 ```
 

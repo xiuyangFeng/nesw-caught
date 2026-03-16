@@ -9,6 +9,11 @@ import type {
   TopicItem,
   WatchlistItem,
   WatchlistItemCreate,
+  XAccount,
+  XHealth,
+  XPost,
+  XPostQuery,
+  XRefreshResult,
 } from '../types/api';
 import { getJson, postJson } from './http';
 import {
@@ -21,6 +26,10 @@ import {
   mockTopicDetails,
   mockTopics,
   mockWatchlist,
+  mockXAccounts,
+  mockXHealth,
+  mockXPosts,
+  mockXRefreshResult,
 } from './mock';
 
 const withQuery = (base: string, query?: Record<string, string | number | undefined>) => {
@@ -97,5 +106,30 @@ export const apiClient = {
   },
   getStreamStatus() {
     return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), () => mockStreamStatus);
+  },
+  getXHealth() {
+    return withMockFallback<XHealth>(() => getJson('/api/health/x'), () => mockXHealth);
+  },
+  getXAccounts() {
+    return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), () => mockXAccounts);
+  },
+  getXPosts(query: XPostQuery = {}) {
+    return withMockFallback<XPost[]>(
+      () => getJson(withQuery('/api/x/posts', query)),
+      () => {
+        const filtered = mockXPosts.filter((item) => {
+          const accountOk = !query.account_handle || item.account_handle === query.account_handle;
+          const marketOk = !query.market || item.market === query.market;
+          const searchText = query.q?.toLowerCase();
+          const searchOk = !searchText || item.content_text.toLowerCase().includes(searchText);
+          const symbolOk = !query.symbol || item.symbols.includes(query.symbol);
+          return accountOk && marketOk && searchOk && symbolOk;
+        });
+        return filtered.slice(0, query.limit ?? filtered.length);
+      },
+    );
+  },
+  refreshXPosts() {
+    return withMockFallback<XRefreshResult>(() => postJson('/api/x/refresh', {}), () => mockXRefreshResult);
   },
 };

@@ -20,6 +20,7 @@ const navItems = [
   { label: 'Dashboard', to: '/dashboard' },
   { label: 'News Feed', to: '/news' },
   { label: 'Watchlist', to: '/watchlist' },
+  { label: 'X Monitor', to: '/x-monitor' },
 ];
 
 const connectionSummary = computed(() => {
