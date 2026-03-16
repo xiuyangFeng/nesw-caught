@@ -131,6 +131,8 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
 
 项目根目录下的 [ANGENT.md](/Users/xiuyang/Desktop/news-caught/ANGENT.md) 已生效。
 
+另外，项目已新增 [AGENTS.md](/Users/xiuyang/Desktop/news-caught/AGENTS.md) 作为基于 `obra/superpowers` 的开发流程约束。后续若使用 Codex 协作开发，需要先确保相关 superpowers skills 已安装到 `~/.codex/skills`，并在安装后重启 Codex 使其生效。
+
 从现在开始，任何代码、配置、文档、脚本、接口或测试修改，都必须同步回填到：
 
 - [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)
