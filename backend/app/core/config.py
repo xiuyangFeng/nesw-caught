@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     grok_bridge_base_url: str | None = None
     grok_bridge_timeout_seconds: float = 60.0
     x_monitor_accounts_file: str | None = None
+    market_quote_provider: str = "yahoo_finance"
+    market_quote_cache_ttl_seconds: int = 180
 
     model_config = SettingsConfigDict(
         env_file=".env",

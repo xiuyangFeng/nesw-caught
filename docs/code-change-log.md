@@ -2,6 +2,38 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-16 21:05
+
+- 修改人：Codex
+- 修改范围：自选股真实行情接入、批量总览与详情页、后端缓存与接口、依赖与文档
+- 变更内容：后端新增真实行情 provider 抽象、符号规范化、行情服务和 `/api/market/watchlist`、`/api/market/symbols/{symbol}` 接口，并扩展 `price_snapshot` 缓存字段；前端将自选股总览切换到新行情接口，新增单股详情页，展示价格、涨跌、开盘、昨收、最高、最低、成交量和相关新闻；同步补充 `yfinance` 依赖、README 和 API 契约说明。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/price_snapshot.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/market_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/quote_provider.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/quote_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/backend/pyproject.toml`
+  - `/Users/xiuyang/Desktop/news-caught/requirements.txt`
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/api-contract.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过；`npm --prefix frontend run build` 通过；新增 `backend/tests/test_market.py` 覆盖自选股行情总览和详情接口
+- 风险/后续事项：当前默认免费源为 `yfinance`，稳定性和字段覆盖受 Yahoo Finance 公共接口影响；本轮未完成 A 股支持；本地已存在旧 `price_snapshot` 表时依赖启动时补列
+
 ## 2026-03-16 20:41
 
 - 修改人：Codex

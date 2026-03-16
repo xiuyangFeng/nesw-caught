@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import('../views/WatchlistView.vue'),
     },
     {
+      path: '/watchlist/:symbol',
+      name: 'watchlist-detail',
+      component: () => import('../views/WatchlistDetailView.vue'),
+    },
+    {
       path: '/x-monitor',
       name: 'x-monitor',
       component: () => import('../views/XMonitorView.vue'),

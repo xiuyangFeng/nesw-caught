@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive } from 'vue';
+import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import WatchlistTable from '../components/watchlist/WatchlistTable.vue';
-import { useMarketStore } from '../stores/marketStore';
 import { useWatchlistStore } from '../stores/watchlistStore';
 import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
 
-const marketStore = useMarketStore();
+const router = useRouter();
 const watchlistStore = useWatchlistStore();
 const form = reactive({
   symbol: '',
@@ -19,12 +19,8 @@ const form = reactive({
   alert_threshold: '',
 });
 
-const watchlistRows = computed(() =>
-  watchlistStore.items.map((item) => ({
-    ...item,
-    snapshot: marketStore.snapshots.find((snapshot) => snapshot.symbol === item.symbol),
-  })),
-);
+const watchlistRows = computed(() => watchlistStore.quotes);
+const abnormalMovers = computed(() => watchlistStore.quotes.filter((item) => item.is_abnormal));
 
 const relatedNews = computed(() => {
   const symbol = watchlistStore.selectedSymbol;
@@ -33,6 +29,7 @@ const relatedNews = computed(() => {
 
 async function selectSymbol(symbol: string) {
   await watchlistStore.loadRelatedNews(symbol);
+  await router.push(`/watchlist/${encodeURIComponent(symbol)}`);
 }
 
 async function submitWatchlist() {
@@ -63,11 +60,8 @@ onMounted(async () => {
   if (!watchlistStore.items.length) {
     await watchlistStore.loadWatchlist();
   }
-  if (!marketStore.snapshots.length) {
-    await marketStore.loadSnapshots();
-  }
   if (watchlistStore.selectedSymbol) {
-    await selectSymbol(watchlistStore.selectedSymbol);
+    await watchlistStore.loadRelatedNews(watchlistStore.selectedSymbol);
   }
 });
 </script>
@@ -77,15 +71,15 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1 class="page-title">Watchlist</h1>
-        <p class="page-subtitle">自选股、异动状态和关联新闻联动展示，支持盘中快速定位消息源。</p>
+        <p class="page-subtitle">批量查看自选股实时行情，点击股票进入详情页查看更多指标和相关新闻。</p>
       </div>
-      <StaleBadge :stale="watchlistStore.stale || marketStore.stale" label="自选股与行情" />
+      <StaleBadge :stale="watchlistStore.stale" label="自选股与行情" />
     </header>
 
     <StatusBanner
-      :title="marketStore.abnormalMovers.length ? '检测到自选股异动' : '当前没有明显异动'"
-      :tone="marketStore.abnormalMovers.length ? 'warning' : 'default'"
-      detail="列表展示价格、涨跌幅、异动原因，右侧保留股票关联新闻入口。"
+      :title="abnormalMovers.length ? '检测到自选股异动' : '当前没有明显异动'"
+      :tone="abnormalMovers.length ? 'warning' : 'default'"
+      detail="列表展示价格、涨跌、开盘、昨收、最高、最低和成交量。"
     />
 
     <section class="watchlist-layout">
@@ -117,8 +111,8 @@ onMounted(async () => {
         </form>
       </SectionCard>
 
-      <SectionCard title="自选股总览" subtitle="价格和异动来自 /api/market/snapshots，列表来自 /api/watchlist">
-        <LoadingBlock :loading="watchlistStore.loading || marketStore.loading" :empty="watchlistRows.length === 0">
+      <SectionCard title="自选股总览" subtitle="行情来自 /api/market/watchlist，点击任一股票进入详情页">
+        <LoadingBlock :loading="watchlistStore.loading" :empty="watchlistRows.length === 0">
           <WatchlistTable
             :rows="watchlistRows"
             :selected-symbol="watchlistStore.selectedSymbol"
@@ -127,7 +121,7 @@ onMounted(async () => {
         </LoadingBlock>
       </SectionCard>
 
-      <SectionCard title="关联新闻" subtitle="从自选股跳转到命中新闻，保留来源、情绪和市场时区">
+      <SectionCard title="关联新闻" subtitle="这里保留为快速预览，完整行情指标请进入单股详情页查看">
         <LoadingBlock
           :loading="watchlistStore.relatedLoading"
           :empty="!watchlistStore.selectedSymbol || relatedNews.length === 0"

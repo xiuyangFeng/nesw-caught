@@ -58,14 +58,26 @@ export interface MarketSnapshot {
   symbol: string;
   market: Market;
   display_name: string | null;
-  price: number;
+  provider_symbol: string | null;
+  price: number | null;
   change_amount: number | null;
-  change_percent: number;
+  change_percent: number | null;
+  open_price: number | null;
+  previous_close: number | null;
+  day_high: number | null;
+  day_low: number | null;
   volume: number | null;
+  status: 'ok' | 'delayed' | 'unavailable' | 'symbol_not_supported' | 'fetch_failed';
+  source: string | null;
+  message: string | null;
   is_abnormal: boolean;
   abnormal_reason: string | null;
   fetched_at: string;
 }
+
+export interface WatchlistQuoteSummary extends MarketSnapshot {}
+
+export interface StockQuoteDetail extends WatchlistQuoteSummary {}
 
 export interface WatchlistItem {
   id: number;

@@ -193,16 +193,67 @@
     "symbol": "AAPL",
     "market": "us",
     "display_name": "Apple",
+    "provider_symbol": "AAPL",
     "price": 215.32,
     "change_amount": 3.01,
     "change_percent": 1.42,
+    "open_price": 214.8,
+    "previous_close": 212.31,
+    "day_high": 216.4,
+    "day_low": 213.7,
     "volume": 18230000,
+    "status": "ok",
+    "source": "yahoo_finance",
+    "message": null,
     "is_abnormal": true,
     "abnormal_reason": "price_breakout",
     "fetched_at": "2026-03-15T10:00:00Z"
   }
 ]
 ```
+
+### `GET /api/market/watchlist`
+
+返回当前自选股的批量行情总览，支持部分失败状态回传。
+
+响应示例：
+
+```json
+[
+  {
+    "symbol": "HK253",
+    "market": "hk",
+    "display_name": "智谱",
+    "provider_symbol": "0253.HK",
+    "price": 18.25,
+    "change_amount": 0.5,
+    "change_percent": 2.82,
+    "open_price": 17.9,
+    "previous_close": 17.75,
+    "day_high": 18.4,
+    "day_low": 17.6,
+    "volume": 1200000,
+    "status": "ok",
+    "source": "yahoo_finance",
+    "message": null,
+    "is_abnormal": false,
+    "abnormal_reason": null,
+    "fetched_at": "2026-03-16T12:05:00Z"
+  }
+]
+```
+
+### `GET /api/market/symbols/{symbol}`
+
+返回单只股票的详情行情。路由参数支持自选股中原始符号，例如 `HK253`、`0700.HK`、`AAPL`。
+
+响应字段与 `/api/market/watchlist` 一致，额外要求前端按 `status` 展示降级状态：
+
+- `ok`
+- `delayed`
+- `unavailable`
+- `symbol_not_supported`
+- `fetch_failed`
 
 ## 4. 自选股列表
 

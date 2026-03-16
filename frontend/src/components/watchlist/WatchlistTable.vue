@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { MarketSnapshot, WatchlistItem } from '../../types/api';
+import type { WatchlistQuoteSummary } from '../../types/api';
 import { formatNumber, formatPercent } from '../../utils/format';
 import { formatMarketTime, getMarketTimezoneLabel } from '../../utils/time';
 
 defineProps<{
-  rows: Array<WatchlistItem & { snapshot?: MarketSnapshot }>;
+  rows: WatchlistQuoteSummary[];
   selectedSymbol: string | null;
 }>();
 
@@ -22,6 +22,11 @@ const emit = defineEmits<{
           <th>市场</th>
           <th>价格</th>
           <th>涨跌幅</th>
+          <th>开盘</th>
+          <th>昨收</th>
+          <th>最高</th>
+          <th>最低</th>
+          <th>成交量</th>
           <th>异动</th>
           <th>更新时间</th>
         </tr>
@@ -38,18 +43,23 @@ const emit = defineEmits<{
             <span>{{ row.symbol }}</span>
           </td>
           <td>{{ row.market.toUpperCase() }}</td>
-          <td>{{ formatNumber(row.snapshot?.price) }}</td>
-          <td :class="{ positive: (row.snapshot?.change_percent ?? 0) > 0, negative: (row.snapshot?.change_percent ?? 0) < 0 }">
-            {{ formatPercent(row.snapshot?.change_percent) }}
+          <td>{{ formatNumber(row.price) }}</td>
+          <td :class="{ positive: (row.change_percent ?? 0) > 0, negative: (row.change_percent ?? 0) < 0 }">
+            {{ formatPercent(row.change_percent) }}
           </td>
+          <td>{{ formatNumber(row.open_price) }}</td>
+          <td>{{ formatNumber(row.previous_close) }}</td>
+          <td>{{ formatNumber(row.day_high) }}</td>
+          <td>{{ formatNumber(row.day_low) }}</td>
+          <td>{{ formatNumber(row.volume, 0) }}</td>
           <td>
-            <span v-if="row.snapshot?.is_abnormal" class="pill negative">{{ row.snapshot?.abnormal_reason ?? 'abnormal' }}</span>
-            <span v-else>正常</span>
+            <span v-if="row.is_abnormal" class="pill negative">{{ row.abnormal_reason ?? 'abnormal' }}</span>
+            <span v-else>{{ row.status }}</span>
           </td>
           <td>
             {{
-              row.snapshot?.fetched_at
-                ? `${formatMarketTime(row.snapshot?.fetched_at, row.market)} ${getMarketTimezoneLabel(row.market)}`
+              row.fetched_at
+                ? `${formatMarketTime(row.fetched_at, row.market)} ${getMarketTimezoneLabel(row.market)}`
                 : '--'
             }}
           </td>

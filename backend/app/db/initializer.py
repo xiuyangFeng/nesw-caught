@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import inspect, text
 from sqlalchemy import select
 
 from app.db.base import Base
@@ -17,8 +18,32 @@ from app.models.x_post_symbol_mention import XPostSymbolMention
 from app.models.x_source_health import XSourceHealth
 
 
+def ensure_price_snapshot_columns() -> None:
+    inspector = inspect(engine)
+    if "price_snapshot" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("price_snapshot")}
+    required_columns = {
+        "open_price": "ALTER TABLE price_snapshot ADD COLUMN open_price FLOAT",
+        "previous_close": "ALTER TABLE price_snapshot ADD COLUMN previous_close FLOAT",
+        "day_high": "ALTER TABLE price_snapshot ADD COLUMN day_high FLOAT",
+        "day_low": "ALTER TABLE price_snapshot ADD COLUMN day_low FLOAT",
+        "provider_name": "ALTER TABLE price_snapshot ADD COLUMN provider_name VARCHAR(64)",
+        "provider_symbol": "ALTER TABLE price_snapshot ADD COLUMN provider_symbol VARCHAR(32)",
+        "quote_status": "ALTER TABLE price_snapshot ADD COLUMN quote_status VARCHAR(32)",
+        "status_message": "ALTER TABLE price_snapshot ADD COLUMN status_message VARCHAR(255)",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in required_columns.items():
+            if column_name not in existing:
+                connection.execute(text(statement))
+
+
 def initialize_database() -> None:
     Base.metadata.create_all(bind=engine)
+    ensure_price_snapshot_columns()
 
     with SessionLocal() as session:
         has_watchlist = session.scalar(select(WatchlistItem.id).limit(1)) is not None
@@ -176,7 +201,14 @@ def initialize_database() -> None:
                         price=332.4,
                         change_amount=10.7,
                         change_percent=3.33,
+                        open_price=325.0,
+                        previous_close=321.7,
+                        day_high=334.8,
+                        day_low=323.2,
                         volume=18233000,
+                        provider_name="seed",
+                        provider_symbol="0700.HK",
+                        quote_status="ok",
                         fetched_at=now - timedelta(minutes=2),
                     ),
                     PriceSnapshot(
@@ -185,7 +217,14 @@ def initialize_database() -> None:
                         price=215.32,
                         change_amount=-2.84,
                         change_percent=-1.30,
+                        open_price=217.1,
+                        previous_close=218.16,
+                        day_high=219.4,
+                        day_low=214.8,
                         volume=18230000,
+                        provider_name="seed",
+                        provider_symbol="AAPL",
+                        quote_status="ok",
                         fetched_at=now - timedelta(minutes=4),
                     ),
                 ]

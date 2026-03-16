@@ -4,11 +4,13 @@ import type {
   NewsDetail,
   NewsItem,
   NewsQuery,
+  StockQuoteDetail,
   StreamStatus,
   TopicDetail,
   TopicItem,
   WatchlistItem,
   WatchlistItemCreate,
+  WatchlistQuoteSummary,
   XAccount,
   XHealth,
   XPost,
@@ -22,10 +24,12 @@ import {
   mockNews,
   mockNewsDetails,
   mockRelatedNews,
+  mockStockQuoteDetails,
   mockStreamStatus,
   mockTopicDetails,
   mockTopics,
   mockWatchlist,
+  mockWatchlistQuotes,
   mockXAccounts,
   mockXHealth,
   mockXPosts,
@@ -85,6 +89,15 @@ export const apiClient = {
   },
   getMarketSnapshots() {
     return withMockFallback<MarketSnapshot[]>(() => getJson('/api/market/snapshots'), () => mockMarketSnapshots);
+  },
+  getWatchlistQuotes() {
+    return withMockFallback<WatchlistQuoteSummary[]>(() => getJson('/api/market/watchlist'), () => mockWatchlistQuotes);
+  },
+  getStockQuoteDetail(symbol: string) {
+    return withMockFallback<StockQuoteDetail | null>(
+      () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}`),
+      () => mockStockQuoteDetails[symbol] ?? null,
+    );
   },
   getWatchlist() {
     return withMockFallback<WatchlistItem[]>(() => getJson('/api/watchlist'), () => mockWatchlist);
