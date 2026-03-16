@@ -1,0 +1,11 @@
+name: news-caught
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - nodejs=20
+  - pip
+  - pip:
+      - -r requirements.txt
+      - -e ./backend
