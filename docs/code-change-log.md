@@ -2,6 +2,18 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-16 20:41
+
+- 修改人：Codex
+- 修改范围：自选股真实行情接入实现计划文档
+- 变更内容：新增自选股真实行情接入 implementation plan，按后端行情服务、前端总览与详情页、依赖与验证拆成可执行的 TDD 任务，作为后续实现基线。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-16-watchlist-real-market-data-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：计划文档已落盘，已与已确认 spec 对齐自检
+- 风险/后续事项：计划未经过子评审；当前环境无 subagent，将在本会话按该计划执行
+
 ## 2026-03-16 20:32
 
 - 修改人：Codex
