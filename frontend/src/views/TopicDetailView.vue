@@ -15,6 +15,8 @@ const topicStore = useTopicStore();
 const viewMode = ref<'grouped' | 'timeline'>('grouped');
 const sentimentFilter = ref<'all' | 'positive' | 'negative' | 'neutral'>('all');
 const symbolFilter = ref<string>('all');
+const keywordQuery = ref('');
+const originalOnly = ref(false);
 
 const topicId = computed(() => Number(route.params.id));
 const detail = computed(() => topicStore.detailMap[topicId.value] ?? null);
@@ -27,7 +29,12 @@ const sortedSources = computed(() =>
         detail.value?.related_symbols.includes(symbolFilter.value) === false ||
         item.summary?.includes(symbolFilter.value) ||
         item.title.includes(symbolFilter.value);
-      return sentimentOk && Boolean(symbolOk);
+      const keyword = keywordQuery.value.trim().toLowerCase();
+      const keywordOk =
+        !keyword ||
+        `${item.title} ${item.summary ?? ''} ${item.source_name}`.toLowerCase().includes(keyword);
+      const originalOk = !originalOnly.value || Boolean(item.canonical_url);
+      return sentimentOk && Boolean(symbolOk) && keywordOk && originalOk;
     })
     .sort(
     (left, right) => new Date(right.published_at).getTime() - new Date(left.published_at).getTime(),
@@ -148,6 +155,11 @@ onMounted(async () => {
                   <option value="all">全部股票</option>
                   <option v-for="symbol in availableSymbols" :key="symbol" :value="symbol">{{ symbol }}</option>
                 </select>
+                <input v-model.trim="keywordQuery" type="search" placeholder="按关键词、来源或摘要过滤" />
+                <label class="toggle-filter">
+                  <input v-model="originalOnly" type="checkbox" />
+                  <span>只看带原文链接</span>
+                </label>
               </div>
               <button
                 class="switch-button"
@@ -339,6 +351,27 @@ onMounted(async () => {
   padding: 8px 12px;
   font: inherit;
   color: var(--muted);
+}
+
+.filters input[type='search'] {
+  min-width: 220px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 12px;
+  font: inherit;
+}
+
+.toggle-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .switch-button {

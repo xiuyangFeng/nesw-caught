@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.article_content import ArticleContent
@@ -12,8 +12,36 @@ class NewsRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def list_recent(self, limit: int = 50) -> list[NewsItem]:
-        stmt = select(NewsItem).order_by(NewsItem.fetched_at.desc()).limit(limit)
+    def list_recent(
+        self,
+        *,
+        limit: int = 50,
+        market: str | None = None,
+        source_name: str | None = None,
+        sentiment_label: str | None = None,
+        query: str | None = None,
+    ) -> list[NewsItem]:
+        stmt = select(NewsItem)
+
+        if market:
+            stmt = stmt.where(NewsItem.market == market)
+
+        if source_name:
+            stmt = stmt.where(NewsItem.source_name == source_name)
+
+        if sentiment_label:
+            stmt = stmt.where(NewsItem.sentiment_label == sentiment_label)
+
+        if query:
+            keyword = f"%{query.strip().lower()}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(NewsItem.title).like(keyword),
+                    func.lower(func.coalesce(NewsItem.summary, "")).like(keyword),
+                )
+            )
+
+        stmt = stmt.order_by(NewsItem.fetched_at.desc()).limit(limit)
         return list(self.session.scalars(stmt))
 
     def get_by_id(self, news_id: int) -> NewsItem | None:

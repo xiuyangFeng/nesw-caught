@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel
+
+from app.schemas.common import UTCDateTime
 
 
 class PriceSnapshotView(BaseModel):
@@ -13,4 +13,4 @@ class PriceSnapshotView(BaseModel):
     volume: int | None = None
     is_abnormal: bool = False
     abnormal_reason: str | None = None
-    fetched_at: datetime
+    fetched_at: UTCDateTime

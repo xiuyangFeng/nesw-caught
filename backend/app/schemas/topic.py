@@ -1,7 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel
 
+from app.schemas.common import UTCDateTime
 from app.schemas.news import NewsItemSummary
 
 
@@ -14,7 +13,7 @@ class TopicItemView(BaseModel):
     sentiment_label: str
     importance_score: float
     news_count: int
-    last_seen_at: datetime
+    last_seen_at: UTCDateTime
     related_symbols: list[str]
 
 

@@ -9,6 +9,7 @@ import StatusBanner from '../components/common/StatusBanner.vue';
 import NewsVirtualList from '../components/news/NewsVirtualList.vue';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
+import { getNewsBody, getNewsSummary } from '../utils/news';
 import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
 
 const newsStore = useNewsStore();
@@ -25,6 +26,8 @@ const filters = reactive<{
 });
 
 const activeDetail = computed(() => (activeId.value ? newsStore.detailMap[activeId.value] ?? null : null));
+const activeSummary = computed(() => (activeDetail.value ? getNewsSummary(activeDetail.value) : null));
+const activeBody = computed(() => (activeDetail.value ? getNewsBody(activeDetail.value) : null));
 const sourceOptions = computed(() => [...new Set(newsStore.items.map((item) => item.source_name))]);
 const selectedSource = ref('');
 
@@ -82,6 +85,7 @@ onMounted(async () => {
           <div class="filters">
             <select v-model="filters.market">
               <option value="">全部市场</option>
+              <option value="cn">A股/国内</option>
               <option value="hk">港股</option>
               <option value="us">美股</option>
             </select>
@@ -110,7 +114,7 @@ onMounted(async () => {
               <span class="pill" :class="activeDetail.sentiment_label">{{ activeDetail.sentiment_label }}</span>
               <strong>{{ activeDetail.title }}</strong>
             </div>
-            <p class="detail-summary">{{ activeDetail.summary }}</p>
+            <p v-if="activeSummary" class="detail-summary">{{ activeSummary }}</p>
             <div class="detail-meta">
               <span>{{ activeDetail.source_name }}</span>
               <span>
@@ -126,7 +130,7 @@ onMounted(async () => {
                 {{ activeDetail.article?.extract_status ?? 'not_requested' }}
                 <span v-if="activeDetail.article?.extract_error"> · {{ activeDetail.article.extract_error }}</span>
               </p>
-              <p>{{ activeDetail.article?.content_text ?? '正文缺失时仍保留新闻和主题入口。' }}</p>
+              <p>{{ activeBody ?? '正文缺失时仍保留新闻和主题入口。' }}</p>
             </div>
 
             <div class="detail-block">

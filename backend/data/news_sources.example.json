@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "name": "Example IR RSS",
+      "source_type": "rss",
+      "url": "https://investor.example.com/rss/news.xml",
+      "market": "us",
+      "language": "en",
+      "item_limit": 20
+    },
+    {
+      "name": "Example IR HTML",
+      "source_type": "html",
+      "url": "https://investor.example.com/news",
+      "market": "us",
+      "language": "en",
+      "parser": "selector_html",
+      "item_limit": 20,
+      "entry_selector": ".news-item",
+      "title_selector": ".news-item__title",
+      "link_selector": ".news-item__title a",
+      "time_selector": "time",
+      "content_selector": ".news-item__summary"
+    }
+  ]
+}

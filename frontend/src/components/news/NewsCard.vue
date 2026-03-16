@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NewsDetail, NewsItem } from '../../types/api';
 import { sentimentText } from '../../utils/format';
+import { getNewsSummary } from '../../utils/news';
 import { formatMarketTime, getMarketTimezoneLabel } from '../../utils/time';
 
 defineProps<{
@@ -22,7 +23,7 @@ const emit = defineEmits<{
       <span class="source">{{ item.source_name }}</span>
     </div>
     <h3>{{ item.title }}</h3>
-    <p>{{ item.summary ?? '摘要待补充' }}</p>
+    <p>{{ getNewsSummary(item) ?? '摘要待补充' }}</p>
     <div class="card-meta">
       <span>{{ formatMarketTime(item.published_at, item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
       <span>{{ detail?.mentions.length ?? 0 }} 个关联股票</span>

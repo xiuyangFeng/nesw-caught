@@ -1,17 +1,56 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
 from app.schemas.news import NewsArticleView, NewsDetailView, NewsItemSummary, NewsMentionView, NewsTopicRefView
+from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView
+from app.services.news_ingestion import NewsIngestionService
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[NewsItemSummary])
-def list_news(session: Session = Depends(get_db_session)) -> list[NewsItemSummary]:
+def list_news(
+    market: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    source_name: str | None = Query(default=None),
+    sentiment_label: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
+    session: Session = Depends(get_db_session),
+) -> list[NewsItemSummary]:
     repository = NewsRepository(session)
-    return [NewsItemSummary.model_validate(item, from_attributes=True) for item in repository.list_recent(limit=200)]
+    items = repository.list_recent(
+        limit=limit,
+        market=market,
+        source_name=source_name,
+        sentiment_label=sentiment_label,
+        query=q,
+    )
+    return [NewsItemSummary.model_validate(item, from_attributes=True) for item in items]
+
+
+@router.post("/refresh", response_model=NewsRefreshResponse)
+def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefreshResponse:
+    summary = NewsIngestionService(session).refresh_all()
+    return NewsRefreshResponse(
+        started_at=summary.started_at,
+        finished_at=summary.finished_at,
+        fetched_count=summary.fetched_count,
+        inserted_count=summary.inserted_count,
+        results=[
+            SourceFetchResultView(
+                source_name=item.source_name,
+                source_type=item.source_type,
+                status=item.status,
+                fetched_count=item.fetched_count,
+                inserted_count=item.inserted_count,
+                error=item.error,
+                latency_ms=item.latency_ms,
+            )
+            for item in summary.results
+        ],
+    )
 
 
 @router.get("/{news_id}", response_model=NewsDetailView)

@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel
+
+from app.schemas.common import UTCDateTime
 
 
 class NewsItemSummary(BaseModel):
@@ -11,8 +11,8 @@ class NewsItemSummary(BaseModel):
     canonical_url: str | None = None
     market: str
     sentiment_label: str | None = None
-    published_at: datetime | None = None
-    fetched_at: datetime
+    published_at: UTCDateTime | None = None
+    fetched_at: UTCDateTime
 
 
 class NewsMentionView(BaseModel):
@@ -26,14 +26,14 @@ class NewsTopicRefView(BaseModel):
     id: int
     topic_title: str
     importance_score: float
-    last_seen_at: datetime | None = None
+    last_seen_at: UTCDateTime | None = None
 
 
 class NewsArticleView(BaseModel):
     content_text: str | None = None
     extract_status: str
     extract_error: str | None = None
-    extracted_at: datetime | None = None
+    extracted_at: UTCDateTime | None = None
 
 
 class NewsDetailView(NewsItemSummary):
