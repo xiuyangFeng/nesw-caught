@@ -2,6 +2,51 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-17 23:00
+
+- 修改人：Codex
+- 修改范围：新闻详情页 LLM 标的分析、多 provider 配置接口、分析结果持久化、前后端测试
+- 变更内容：后端新增 `LLM` 配置表、分析结果表、配置仓储、分析仓储、`openai-compatible` provider 和新闻分析服务；新增 `GET/POST /api/llm/config` 及 `GET/POST /api/news/{id}/analysis|analyze` 接口，支持后端保存当前活动 provider/model/API key，并对单条新闻手动触发结构化分析，返回首选标的、候选列表、摘要、风险提示与上下文限制；前端扩展 API 类型、client、mock 和 `newsStore`，在新闻详情页新增“LLM 标的分析”区块，支持未配置空状态、加载态、重新分析和结果展示；同时补充后端配置/分析测试与前端详情页测试。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/api/router.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/api/routes/llm.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/models/__init__.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/models/llm_provider_config.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/models/news_analysis_result.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/repositories/llm_provider_config_repository.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/repositories/news_analysis_repository.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/schemas/llm.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/services/llm_providers.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/services/news_analysis.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/tests/test_llm_config.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/tests/test_news_analysis.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/stores/newsStore.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/views/NewsDetailView.vue`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/views/NewsDetailView.test.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/specs/2026-03-17-llm-news-analysis-design.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/plans/2026-03-17-llm-news-analysis-plan.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过（28 个用例）；`npm --prefix frontend run test -- --run` 通过（3 个文件 / 9 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 API key 仍为后端单租户明文存储方案，适合你个人先用，不适合直接多人共享；第一版 provider 实现只做 `openai-compatible` 协议抽象，后续若接 `Anthropic/智谱/通义` 仍需补具体 client；分析结果是模型建议而非事实字段，也未与自选股或自动操作联动
+
+## 2026-03-17 17:18
+
+- 修改人：Codex
+- 修改范围：LLM 新闻标的分析实现计划文档
+- 变更内容：新增新闻详情页手动触发 LLM 标的分析的实现计划，按 provider 配置持久化、新闻分析结果落库、后端分析接口、前端详情页交互和验证步骤拆成可执行任务，并明确每个任务先写失败测试再实现。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/plans/2026-03-17-llm-news-analysis-plan.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：计划文档已落盘，内容与已确认 spec 对齐自检
+- 风险/后续事项：当前仅完成 implementation plan，尚未进入代码实现；实际落地时需要继续处理 API Key 存储安全边界和 provider 错误语义
+
 ## 2026-03-17 22:32
 
 - 修改人：Codex
@@ -15,6 +60,18 @@
 - 接口/数据结构变化：无
 - 验证情况：`conda run -n news-caught pytest backend/tests` 通过（21 个用例）；`npm --prefix frontend test -- --run` 通过（3 个文件 / 7 个用例）；`npm --prefix frontend run build` 通过
 - 风险/后续事项：本次只修正了候选分支可合并性问题，未处理同一 worktree 中已有但与本次审查无关的未提交设计文档和记录变更
+
+## 2026-03-17 17:10
+
+- 修改人：Codex
+- 修改范围：LLM 新闻标的分析设计文档
+- 变更内容：新增新闻详情页手动触发 LLM 标的分析的设计文档，明确多 provider 抽象、后端统一保存活动 provider 配置、单条新闻结构化分析结果落库，以及与 `X Monitor/grok-bridge` 链路隔离的边界；同时约束第一版仅支持详情页手动触发，不接入新闻抓取、定时分析或自动交易动作。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/specs/2026-03-17-llm-news-analysis-design.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：设计文档已落盘，内容与已确认的产品边界和架构方向自检一致
+- 风险/后续事项：当前仅完成 spec，尚未进入 implementation plan 与代码实现；`ANGENT.md` 在主仓库约束中仍被引用，后续交付时需继续确认记录要求的一致性
 
 ## 2026-03-17 16:12
 

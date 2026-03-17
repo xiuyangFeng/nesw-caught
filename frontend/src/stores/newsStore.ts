@@ -2,12 +2,16 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 
 import { apiClient } from '../api/client';
-import type { NewsDetail, NewsItem, NewsQuery } from '../types/api';
+import type { LLMConfigSummary, NewsAnalysis, NewsDetail, NewsItem, NewsQuery } from '../types/api';
 import { isStale } from '../utils/time';
 
 export const useNewsStore = defineStore('newsStore', () => {
   const items = ref<NewsItem[]>([]);
   const detailMap = ref<Record<number, NewsDetail | null>>({});
+  const analysisMap = ref<Record<number, NewsAnalysis | null>>({});
+  const analysisLoadingMap = ref<Record<number, boolean>>({});
+  const analysisErrorMap = ref<Record<number, string | null>>({});
+  const llmConfig = ref<LLMConfigSummary | null>(null);
   const loading = ref(false);
   const detailLoading = ref(false);
   const usingMock = ref(false);
@@ -34,6 +38,43 @@ export const useNewsStore = defineStore('newsStore', () => {
     detailLoading.value = false;
   }
 
+  async function loadLlmConfig() {
+    const response = await apiClient.getLlmConfig();
+    llmConfig.value = response.data;
+    usingMock.value = usingMock.value || response.degraded;
+  }
+
+  async function loadAnalysis(id: number) {
+    analysisLoadingMap.value[id] = true;
+    analysisErrorMap.value[id] = null;
+    try {
+      const response = await apiClient.getNewsAnalysis(id);
+      analysisMap.value[id] = response.data;
+      usingMock.value = usingMock.value || response.degraded;
+    } catch (error) {
+      analysisErrorMap.value[id] = error instanceof Error ? error.message : '加载分析结果失败';
+      analysisMap.value[id] = null;
+    } finally {
+      analysisLoadingMap.value[id] = false;
+    }
+  }
+
+  async function analyzeNews(id: number) {
+    analysisLoadingMap.value[id] = true;
+    analysisErrorMap.value[id] = null;
+    try {
+      const response = await apiClient.analyzeNews(id);
+      analysisMap.value[id] = response.data;
+      usingMock.value = usingMock.value || response.degraded;
+      return response.data;
+    } catch (error) {
+      analysisErrorMap.value[id] = error instanceof Error ? error.message : '分析失败';
+      throw error;
+    } finally {
+      analysisLoadingMap.value[id] = false;
+    }
+  }
+
   async function refreshNews() {
     const response = await apiClient.refreshNews();
     usingMock.value = usingMock.value || response.degraded;
@@ -58,6 +99,10 @@ export const useNewsStore = defineStore('newsStore', () => {
   return {
     items,
     detailMap,
+    analysisMap,
+    analysisLoadingMap,
+    analysisErrorMap,
+    llmConfig,
     loading,
     detailLoading,
     usingMock,
@@ -66,6 +111,9 @@ export const useNewsStore = defineStore('newsStore', () => {
     activeQuery,
     loadNews,
     loadDetail,
+    loadLlmConfig,
+    loadAnalysis,
+    analyzeNews,
     refreshNews,
     upsertNews,
   };

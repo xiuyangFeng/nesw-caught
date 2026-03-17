@@ -1,6 +1,8 @@
 import type {
   HealthStatus,
+  LLMConfigSummary,
   MarketSnapshot,
+  NewsAnalysis,
   NewsDetail,
   NewsItem,
   NewsQuery,
@@ -21,7 +23,9 @@ import type {
 import { getJson, postJson } from './http';
 import {
   mockHealth,
+  mockLlmConfig,
   mockMarketSnapshots,
+  mockNewsAnalyses,
   mockNews,
   mockNewsDetails,
   mockNewsRefreshResult,
@@ -87,6 +91,21 @@ export const apiClient = {
     return withMockFallback<NewsDetail | null>(
       () => getJson(`/api/news/${id}`),
       () => mockNewsDetails[id] ?? null,
+    );
+  },
+  getLlmConfig() {
+    return withMockFallback<LLMConfigSummary>(() => getJson('/api/llm/config'), () => mockLlmConfig);
+  },
+  getNewsAnalysis(id: number) {
+    return withMockFallback<NewsAnalysis | null>(
+      () => getJson(`/api/news/${id}/analysis`),
+      () => mockNewsAnalyses[id] ?? null,
+    );
+  },
+  analyzeNews(id: number) {
+    return withMockFallback<NewsAnalysis>(
+      () => postJson(`/api/news/${id}/analyze`, {}),
+      () => mockNewsAnalyses[id],
     );
   },
   refreshNews() {

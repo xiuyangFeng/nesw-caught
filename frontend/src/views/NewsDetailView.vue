@@ -19,6 +19,10 @@ const topicStore = useTopicStore();
 const newsId = computed(() => Number(route.params.id));
 const detail = computed(() => newsStore.detailMap[newsId.value] ?? null);
 const detailSummary = computed(() => (detail.value ? getNewsSummary(detail.value) : null));
+const analysis = computed(() => newsStore.analysisMap[newsId.value] ?? null);
+const analysisLoading = computed(() => newsStore.analysisLoadingMap[newsId.value] ?? false);
+const analysisError = computed(() => newsStore.analysisErrorMap[newsId.value] ?? null);
+const llmConfig = computed(() => newsStore.llmConfig);
 const topicDetail = computed(() => {
   const topicId = detail.value?.topic?.id;
   return topicId ? topicStore.detailMap[topicId] ?? null : null;
@@ -46,10 +50,18 @@ function openSibling(newsIdToOpen: number) {
   router.push({ name: 'news-detail', params: { id: newsIdToOpen } });
 }
 
+async function runAnalysis() {
+  await newsStore.analyzeNews(newsId.value);
+}
+
 onMounted(async () => {
   if (!detail.value) {
     await newsStore.loadDetail(newsId.value);
   }
+  if (!llmConfig.value) {
+    await newsStore.loadLlmConfig();
+  }
+  await newsStore.loadAnalysis(newsId.value);
 });
 
 watch(
@@ -68,6 +80,7 @@ watch(
     if (!newsStore.detailMap[id]) {
       await newsStore.loadDetail(id);
     }
+    await newsStore.loadAnalysis(id);
   },
 );
 </script>
@@ -103,6 +116,70 @@ watch(
           <button v-if="detail.topic" class="topic-link" type="button" @click="openTopic(detail.topic.id)">
             查看主题：{{ detail.topic.topic_title }}
           </button>
+        </SectionCard>
+
+        <SectionCard title="LLM 标的分析" subtitle="手动触发单条新闻分析，返回首选标的和候选列表">
+          <div v-if="llmConfig && !llmConfig.configured" class="analysis-empty">
+            <strong>尚未配置 LLM</strong>
+            <p class="subtle">请先在后端保存 provider、model 和 API key，之后再回来分析这条新闻。</p>
+          </div>
+          <div v-else class="analysis-stack">
+            <div class="analysis-toolbar">
+              <div class="subtle">
+                <template v-if="analysis">
+                  {{ analysis.provider_name }} / {{ analysis.model_name }} · {{ formatMarketTime(analysis.analyzed_at, detail.market) }}
+                </template>
+                <template v-else-if="llmConfig?.configured">
+                  当前模型：{{ llmConfig.provider_name }} / {{ llmConfig.model_name }}
+                </template>
+              </div>
+              <button class="topic-link" type="button" :disabled="analysisLoading" @click="runAnalysis">
+                {{ analysis ? '重新分析' : '分析标的' }}
+              </button>
+            </div>
+
+            <p v-if="analysisLoading" class="subtle">正在调用模型分析这条新闻...</p>
+            <p v-else-if="analysisError" class="subtle">{{ analysisError }}</p>
+            <div v-else-if="analysis" class="analysis-stack">
+              <div v-if="analysis.top_pick" class="top-pick-card">
+                <div class="analysis-label">Top Pick</div>
+                <h3>{{ analysis.top_pick.symbol }}</h3>
+                <p class="subtle">
+                  {{ analysis.top_pick.company_name ?? '未提供公司名' }} · {{ Math.round((analysis.top_pick.confidence ?? 0) * 100) }}%
+                </p>
+                <p>{{ analysis.top_pick.reason }}</p>
+              </div>
+              <div v-else class="analysis-empty">
+                <strong>暂无明确首选标的</strong>
+                <p class="subtle">模型没有给出单一最值得关注的上市公司映射。</p>
+              </div>
+
+              <div class="analysis-meta-grid">
+                <div>
+                  <strong>摘要</strong>
+                  <p class="subtle">{{ analysis.summary ?? '暂无摘要' }}</p>
+                </div>
+                <div>
+                  <strong>风险提示</strong>
+                  <p class="subtle">{{ analysis.risk_notes ?? '暂无风险提示' }}</p>
+                </div>
+              </div>
+
+              <div v-if="analysis.candidates.length" class="candidate-list">
+                <article v-for="candidate in analysis.candidates" :key="`${candidate.symbol}-${candidate.market}`" class="candidate-card">
+                  <div class="candidate-head">
+                    <strong>{{ candidate.symbol }}</strong>
+                    <span class="subtle">{{ Math.round((candidate.confidence ?? 0) * 100) }}%</span>
+                  </div>
+                  <p class="subtle">{{ candidate.company_name ?? '未提供公司名' }}</p>
+                  <p>{{ candidate.reason }}</p>
+                </article>
+              </div>
+
+              <p v-if="analysis.context_limitations" class="subtle">上下文限制：{{ analysis.context_limitations }}</p>
+            </div>
+            <p v-else class="subtle">还没有这条新闻的分析结果，点击右侧按钮开始分析。</p>
+          </div>
         </SectionCard>
 
         <SectionCard title="同主题来源导航" subtitle="在同一主题下顺序切换不同来源，便于横向对比">
@@ -142,6 +219,49 @@ watch(
 .detail-layout {
   display: grid;
   gap: 16px;
+}
+
+.analysis-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.analysis-empty,
+.top-pick-card,
+.candidate-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #fffdf8;
+}
+
+.analysis-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--neutral);
+}
+
+.analysis-meta-grid,
+.candidate-list {
+  display: grid;
+  gap: 12px;
+}
+
+.candidate-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .meta-row,

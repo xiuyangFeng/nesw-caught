@@ -1,6 +1,8 @@
 import type {
   HealthStatus,
+  LLMConfigSummary,
   MarketSnapshot,
+  NewsAnalysis,
   NewsDetail,
   NewsItem,
   NewsRefreshResult,
@@ -152,6 +154,54 @@ export const mockNewsDetails: Record<number, NewsDetail> = {
       importance_score: 0.94,
       last_seen_at: isoMinutesAgo(8),
     },
+  },
+};
+
+export const mockLlmConfig: LLMConfigSummary = {
+  configured: true,
+  provider_name: 'openai_compatible',
+  display_name: 'OpenAI Compatible',
+  model_name: 'deepseek-chat',
+  base_url: 'https://example-llm.test/v1',
+  api_key_set: true,
+  updated_at: isoMinutesAgo(5),
+};
+
+export const mockNewsAnalyses: Record<number, NewsAnalysis> = {
+  101: {
+    news_id: 101,
+    provider_name: 'openai_compatible',
+    model_name: 'deepseek-chat',
+    analysis_status: 'success',
+    top_pick: {
+      symbol: '0700.HK',
+      market: 'hk',
+      company_name: 'Tencent',
+      confidence: 0.91,
+      reason: '企业 AI 代理产品扩张最直接映射到腾讯云与企业软件叙事。',
+    },
+    candidates: [
+      {
+        symbol: '0700.HK',
+        market: 'hk',
+        company_name: 'Tencent',
+        confidence: 0.91,
+        reason: '企业 AI 代理产品扩张最直接映射到腾讯云与企业软件叙事。',
+      },
+      {
+        symbol: '9988.HK',
+        market: 'hk',
+        company_name: 'Alibaba',
+        confidence: 0.54,
+        reason: '同样受益于中国云与 AI 应用扩张，但新闻直连度较弱。',
+      },
+    ],
+    summary: '腾讯是这条企业 AI 新闻里最直接的权益映射。',
+    risk_notes: '单一来源新闻仍需与公司后续披露交叉验证。',
+    sentiment: 'positive',
+    context_limitations: null,
+    analyzed_at: isoMinutesAgo(4),
+    analysis_error: null,
   },
 };
 

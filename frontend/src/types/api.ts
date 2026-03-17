@@ -54,6 +54,39 @@ export interface NewsDetail extends NewsItem {
   topic: NewsTopicRef | null;
 }
 
+export interface LLMConfigSummary {
+  configured: boolean;
+  provider_name: string | null;
+  display_name: string | null;
+  model_name: string | null;
+  base_url: string | null;
+  api_key_set: boolean;
+  updated_at: string | null;
+}
+
+export interface NewsAnalysisCandidate {
+  symbol: string;
+  market: Market;
+  company_name: string | null;
+  confidence: number | null;
+  reason: string;
+}
+
+export interface NewsAnalysis {
+  news_id: number;
+  provider_name: string;
+  model_name: string;
+  analysis_status: string;
+  top_pick: NewsAnalysisCandidate | null;
+  candidates: NewsAnalysisCandidate[];
+  summary: string | null;
+  risk_notes: string | null;
+  sentiment: SentimentLabel | string | null;
+  context_limitations: string | null;
+  analyzed_at: string;
+  analysis_error: string | null;
+}
+
 export interface MarketSnapshot {
   symbol: string;
   market: Market;
