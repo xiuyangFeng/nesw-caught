@@ -1,6 +1,9 @@
 import type {
   HealthStatus,
+  LLMConfigSummary,
+  LLMConfigUpdateRequest,
   MarketSnapshot,
+  NewsAnalysis,
   NewsDetail,
   NewsItem,
   NewsQuery,
@@ -21,7 +24,9 @@ import type {
 import { getJson, postJson } from './http';
 import {
   mockHealth,
+  mockLlmConfig,
   mockMarketSnapshots,
+  mockNewsAnalyses,
   mockNews,
   mockNewsDetails,
   mockNewsRefreshResult,
@@ -87,6 +92,41 @@ export const apiClient = {
     return withMockFallback<NewsDetail | null>(
       () => getJson(`/api/news/${id}`),
       () => mockNewsDetails[id] ?? null,
+    );
+  },
+  getLlmConfig() {
+    return withMockFallback<LLMConfigSummary>(() => getJson('/api/llm/config'), () => mockLlmConfig);
+  },
+  saveLlmConfig(payload: LLMConfigUpdateRequest) {
+    return withMockFallback<LLMConfigSummary>(
+      () => postJson('/api/llm/config', payload),
+      () => {
+        const hasNewKey = Boolean(payload.api_key && payload.api_key.trim() !== '');
+        const updated = {
+          ...mockLlmConfig,
+          configured: true,
+          provider_name: payload.provider_name,
+          model_name: payload.model_name,
+          display_name: payload.display_name ?? mockLlmConfig.display_name,
+          base_url: payload.base_url ?? mockLlmConfig.base_url,
+          updated_at: new Date().toISOString(),
+          api_key_set: hasNewKey || mockLlmConfig.api_key_set,
+        };
+        Object.assign(mockLlmConfig, updated);
+        return { ...mockLlmConfig };
+      },
+    );
+  },
+  getNewsAnalysis(id: number) {
+    return withMockFallback<NewsAnalysis | null>(
+      () => getJson(`/api/news/${id}/analysis`),
+      () => mockNewsAnalyses[id] ?? null,
+    );
+  },
+  analyzeNews(id: number) {
+    return withMockFallback<NewsAnalysis>(
+      () => postJson(`/api/news/${id}/analyze`, {}),
+      () => mockNewsAnalyses[id],
     );
   },
   refreshNews() {

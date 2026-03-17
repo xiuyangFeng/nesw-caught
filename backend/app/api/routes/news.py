@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
 from app.schemas.news import NewsArticleView, NewsDetailView, NewsItemSummary, NewsMentionView, NewsTopicRefView
+from app.schemas.llm import NewsAnalysisView
 from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView
+from app.services.news_analysis import NewsAnalysisError, NewsAnalysisService
 from app.services.news_ingestion import NewsIngestionService
 
 router = APIRouter()
@@ -51,6 +53,25 @@ def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefr
             for item in summary.results
         ],
     )
+
+
+@router.get("/{news_id}/analysis", response_model=NewsAnalysisView | None)
+def get_news_analysis(news_id: int, session: Session = Depends(get_db_session)) -> NewsAnalysisView | None:
+    return NewsAnalysisService(session).get_latest(news_id)
+
+
+@router.post("/{news_id}/analyze", response_model=NewsAnalysisView)
+def analyze_news(news_id: int, session: Session = Depends(get_db_session)) -> NewsAnalysisView:
+    service = NewsAnalysisService(session)
+    try:
+        return service.analyze_news(news_id)
+    except NewsAnalysisError as exc:
+        detail = str(exc)
+        if detail == "news not found":
+            raise HTTPException(status_code=404, detail=detail) from exc
+        if detail == "llm provider is not configured":
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=502, detail=detail) from exc
 
 
 @router.get("/{news_id}", response_model=NewsDetailView)
