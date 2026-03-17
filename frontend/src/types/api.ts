@@ -64,6 +64,14 @@ export interface LLMConfigSummary {
   updated_at: string | null;
 }
 
+export interface LLMConfigUpdateRequest {
+  provider_name: string;
+  model_name: string;
+  display_name?: string | null;
+  base_url?: string | null;
+  api_key?: string;
+}
+
 export interface NewsAnalysisCandidate {
   symbol: string;
   market: Market;

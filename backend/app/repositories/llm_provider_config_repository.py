@@ -23,10 +23,13 @@ class LLMProviderConfigRepository:
         display_name: str | None,
         base_url: str | None,
         model_name: str,
-        api_key: str,
+        api_key: str | None,
     ) -> LLMProviderConfig:
         existing = self.get_active()
         self.session.execute(update(LLMProviderConfig).values(is_active=False))
+        effective_api_key = api_key if api_key else (existing.api_key if existing is not None else None)
+        if not effective_api_key:
+            raise ValueError("api key is required when creating the first llm config")
 
         if existing is None:
             existing = LLMProviderConfig(
@@ -34,7 +37,7 @@ class LLMProviderConfigRepository:
                 display_name=display_name,
                 base_url=base_url,
                 model_name=model_name,
-                api_key=api_key,
+                api_key=effective_api_key,
                 is_active=True,
             )
             self.session.add(existing)
@@ -43,7 +46,7 @@ class LLMProviderConfigRepository:
             existing.display_name = display_name
             existing.base_url = base_url
             existing.model_name = model_name
-            existing.api_key = api_key
+            existing.api_key = effective_api_key
             existing.is_active = True
 
         self.session.commit()

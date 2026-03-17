@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
+import { useLlmStore } from '../stores/llmStore';
 import { useNewsStore } from '../stores/newsStore';
 import { useTopicStore } from '../stores/topicStore';
 import { sentimentText } from '../utils/format';
@@ -15,6 +16,7 @@ const route = useRoute();
 const router = useRouter();
 const newsStore = useNewsStore();
 const topicStore = useTopicStore();
+const llmStore = useLlmStore();
 
 const newsId = computed(() => Number(route.params.id));
 const detail = computed(() => newsStore.detailMap[newsId.value] ?? null);
@@ -22,7 +24,7 @@ const detailSummary = computed(() => (detail.value ? getNewsSummary(detail.value
 const analysis = computed(() => newsStore.analysisMap[newsId.value] ?? null);
 const analysisLoading = computed(() => newsStore.analysisLoadingMap[newsId.value] ?? false);
 const analysisError = computed(() => newsStore.analysisErrorMap[newsId.value] ?? null);
-const llmConfig = computed(() => newsStore.llmConfig);
+const llmConfig = computed(() => llmStore.config);
 const topicDetail = computed(() => {
   const topicId = detail.value?.topic?.id;
   return topicId ? topicStore.detailMap[topicId] ?? null : null;
@@ -59,7 +61,7 @@ onMounted(async () => {
     await newsStore.loadDetail(newsId.value);
   }
   if (!llmConfig.value) {
-    await newsStore.loadLlmConfig();
+    await llmStore.loadConfig();
   }
   await newsStore.loadAnalysis(newsId.value);
 });

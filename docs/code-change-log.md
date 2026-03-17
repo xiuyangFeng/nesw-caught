@@ -2,6 +2,46 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-17 23:52
+
+- 修改人：Codex
+- 修改范围：LLM 设置页、配置更新保留 key 语义、前后端测试
+- 变更内容：后端 `POST /api/llm/config` 现在在首次创建时要求提供 `api_key`，但编辑既有配置时允许空 key 并保留后端原值，避免前端设置页误清空已保存的密钥；前端新增独立的 `LLM Settings` 页面、`/settings/llm` 路由、左侧导航入口和 `llmStore`，支持查看当前活动配置、编辑 provider/display/base_url/model，并在不重输 key 的情况下保存；新闻详情页改为从 `llmStore` 读取配置状态；同时补充设置页测试和后端 preserve-key 测试。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/api/routes/llm.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/repositories/llm_provider_config_repository.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/app/schemas/llm.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/tests/test_llm_config.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/router/index.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/stores/llmStore.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/stores/newsStore.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/views/LlmSettingsView.vue`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/views/LlmSettingsView.test.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/views/NewsDetailView.vue`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/frontend/src/views/NewsDetailView.test.ts`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/specs/2026-03-17-llm-settings-page-design.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/plans/2026-03-17-llm-settings-page-plan.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过（30 个用例）；`npm --prefix frontend run test -- --run` 通过（4 个文件 / 11 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前设置页仍然基于后端单租户明文存储 key 的假设，适合内部个人使用，不适合直接开放到多用户生产场景；“空 key 保留原值”已解决误清空问题，但如果未来要支持显式删除 key，需要再补单独的删除动作和更清晰的交互
+
+## 2026-03-17 23:18
+
+- 修改人：Codex
+- 修改范围：LLM 设置页设计与实现计划文档
+- 变更内容：新增 `LLM Settings` 页的设计文档与实现计划，明确单活动配置表单、前端独立设置页入口，以及后端配置更新时“空 key 保留原 key”的语义，作为下一阶段让用户直接在页面中录入和维护大模型配置的实现基线。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/specs/2026-03-17-llm-settings-page-design.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/superpowers/plans/2026-03-17-llm-settings-page-plan.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：设计与计划文档已落盘，内容与当前后端配置接口和下一阶段 UI 目标对齐自检
+- 风险/后续事项：当前仅完成 spec 和 implementation plan，尚未进入代码实现；后续需要谨慎处理“保留原 key”与“显式清空 key”的交互边界
+
 ## 2026-03-17 23:00
 
 - 修改人：Codex

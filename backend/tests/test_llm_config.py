@@ -63,3 +63,57 @@ def test_post_llm_config_persists_active_provider_without_exposing_raw_key() -> 
     assert follow_up_payload["model_name"] == "deepseek-chat"
     assert follow_up_payload["api_key_set"] is True
     assert "api_key" not in follow_up_payload
+
+
+def test_post_llm_config_preserves_existing_key_when_update_omits_new_key() -> None:
+    _cleanup_llm_config_table()
+    client = TestClient(app)
+
+    initial = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+    assert initial.status_code == 200
+
+    updated = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v2",
+            "model_name": "deepseek-reasoner",
+            "api_key": "",
+        },
+    )
+
+    assert updated.status_code == 200
+    payload = updated.json()
+    assert payload["configured"] is True
+    assert payload["model_name"] == "deepseek-reasoner"
+    assert payload["base_url"] == "https://example-llm.test/v2"
+    assert payload["api_key_set"] is True
+
+
+def test_post_llm_config_requires_key_when_creating_first_config() -> None:
+    _cleanup_llm_config_table()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "api key is required when creating the first llm config"

@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 
 import { apiClient } from '../api/client';
-import type { LLMConfigSummary, NewsAnalysis, NewsDetail, NewsItem, NewsQuery } from '../types/api';
+import type { NewsAnalysis, NewsDetail, NewsItem, NewsQuery } from '../types/api';
 import { isStale } from '../utils/time';
 
 export const useNewsStore = defineStore('newsStore', () => {
@@ -11,7 +11,6 @@ export const useNewsStore = defineStore('newsStore', () => {
   const analysisMap = ref<Record<number, NewsAnalysis | null>>({});
   const analysisLoadingMap = ref<Record<number, boolean>>({});
   const analysisErrorMap = ref<Record<number, string | null>>({});
-  const llmConfig = ref<LLMConfigSummary | null>(null);
   const loading = ref(false);
   const detailLoading = ref(false);
   const usingMock = ref(false);
@@ -36,12 +35,6 @@ export const useNewsStore = defineStore('newsStore', () => {
     detailMap.value[id] = response.data;
     usingMock.value = usingMock.value || response.degraded;
     detailLoading.value = false;
-  }
-
-  async function loadLlmConfig() {
-    const response = await apiClient.getLlmConfig();
-    llmConfig.value = response.data;
-    usingMock.value = usingMock.value || response.degraded;
   }
 
   async function loadAnalysis(id: number) {
@@ -102,7 +95,6 @@ export const useNewsStore = defineStore('newsStore', () => {
     analysisMap,
     analysisLoadingMap,
     analysisErrorMap,
-    llmConfig,
     loading,
     detailLoading,
     usingMock,
@@ -111,7 +103,6 @@ export const useNewsStore = defineStore('newsStore', () => {
     activeQuery,
     loadNews,
     loadDetail,
-    loadLlmConfig,
     loadAnalysis,
     analyzeNews,
     refreshNews,

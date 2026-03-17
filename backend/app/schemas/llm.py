@@ -8,7 +8,7 @@ class LLMConfigUpsertRequest(BaseModel):
     display_name: str | None = None
     base_url: str | None = None
     model_name: str
-    api_key: str
+    api_key: str | None = None
 
 
 class LLMConfigView(BaseModel):

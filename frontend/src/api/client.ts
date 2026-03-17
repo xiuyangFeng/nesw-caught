@@ -1,6 +1,7 @@
 import type {
   HealthStatus,
   LLMConfigSummary,
+  LLMConfigUpdateRequest,
   MarketSnapshot,
   NewsAnalysis,
   NewsDetail,
@@ -95,6 +96,26 @@ export const apiClient = {
   },
   getLlmConfig() {
     return withMockFallback<LLMConfigSummary>(() => getJson('/api/llm/config'), () => mockLlmConfig);
+  },
+  saveLlmConfig(payload: LLMConfigUpdateRequest) {
+    return withMockFallback<LLMConfigSummary>(
+      () => postJson('/api/llm/config', payload),
+      () => {
+        const hasNewKey = Boolean(payload.api_key && payload.api_key.trim() !== '');
+        const updated = {
+          ...mockLlmConfig,
+          configured: true,
+          provider_name: payload.provider_name,
+          model_name: payload.model_name,
+          display_name: payload.display_name ?? mockLlmConfig.display_name,
+          base_url: payload.base_url ?? mockLlmConfig.base_url,
+          updated_at: new Date().toISOString(),
+          api_key_set: hasNewKey || mockLlmConfig.api_key_set,
+        };
+        Object.assign(mockLlmConfig, updated);
+        return { ...mockLlmConfig };
+      },
+    );
   },
   getNewsAnalysis(id: number) {
     return withMockFallback<NewsAnalysis | null>(

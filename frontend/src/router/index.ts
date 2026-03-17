@@ -38,6 +38,11 @@ const router = createRouter({
       component: () => import('../views/XMonitorView.vue'),
     },
     {
+      path: '/settings/llm',
+      name: 'llm-settings',
+      component: () => import('../views/LlmSettingsView.vue'),
+    },
+    {
       path: '/topics/:id',
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),

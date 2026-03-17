@@ -38,11 +38,9 @@ const newsStore = {
   analysisMap: {} as Record<number, any>,
   analysisLoadingMap: {} as Record<number, boolean>,
   analysisErrorMap: {} as Record<number, string | null>,
-  llmConfig: null as any,
   detailLoading: false,
   stale: false,
   loadDetail: vi.fn(),
-  loadLlmConfig: vi.fn(),
   loadAnalysis: vi.fn(),
   analyzeNews: vi.fn(),
 };
@@ -50,6 +48,11 @@ const newsStore = {
 const topicStore = {
   detailMap: {},
   loadDetail: vi.fn(),
+};
+
+const llmStore = {
+  config: null as any,
+  loadConfig: vi.fn(),
 };
 
 vi.mock('vue-router', () => ({
@@ -67,18 +70,22 @@ vi.mock('../stores/topicStore', () => ({
   useTopicStore: () => topicStore,
 }));
 
+vi.mock('../stores/llmStore', () => ({
+  useLlmStore: () => llmStore,
+}));
+
 describe('NewsDetailView', () => {
   beforeEach(() => {
     mockPush.mockReset();
     newsStore.loadDetail.mockReset();
-    newsStore.loadLlmConfig.mockReset();
     newsStore.loadAnalysis.mockReset();
     newsStore.analyzeNews.mockReset();
     topicStore.loadDetail.mockReset();
+    llmStore.loadConfig.mockReset();
     newsStore.analysisMap = {};
     newsStore.analysisLoadingMap = {};
     newsStore.analysisErrorMap = {};
-    newsStore.llmConfig = null;
+    llmStore.config = null;
   });
 
   it('keeps source link but hides the redundant article body section', () => {
@@ -90,7 +97,7 @@ describe('NewsDetailView', () => {
   });
 
   it('shows an explicit empty state when llm is not configured', () => {
-    newsStore.llmConfig = {
+    llmStore.config = {
       configured: false,
       provider_name: null,
       display_name: null,
@@ -106,7 +113,7 @@ describe('NewsDetailView', () => {
   });
 
   it('renders the top pick and recommendation reason when analysis exists', () => {
-    newsStore.llmConfig = {
+    llmStore.config = {
       configured: true,
       provider_name: 'openai_compatible',
       display_name: 'OpenAI Compatible',

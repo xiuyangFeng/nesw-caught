@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
@@ -32,13 +32,16 @@ def upsert_llm_config(
     session: Session = Depends(get_db_session),
 ) -> LLMConfigView:
     repository = LLMProviderConfigRepository(session)
-    config = repository.upsert_active(
-        provider_name=payload.provider_name.strip(),
-        display_name=payload.display_name.strip() if payload.display_name else None,
-        base_url=payload.base_url.strip() if payload.base_url else None,
-        model_name=payload.model_name.strip(),
-        api_key=payload.api_key.strip(),
-    )
+    try:
+        config = repository.upsert_active(
+            provider_name=payload.provider_name.strip(),
+            display_name=payload.display_name.strip() if payload.display_name else None,
+            base_url=payload.base_url.strip() if payload.base_url else None,
+            model_name=payload.model_name.strip(),
+            api_key=payload.api_key.strip() if payload.api_key is not None else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return LLMConfigView(
         configured=True,
         provider_name=config.provider_name,
