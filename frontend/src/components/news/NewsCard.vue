@@ -17,6 +17,10 @@ const props = withDefaults(
 );
 
 const summary = computed(() => getNewsSummary(props.entry.detail ?? props.entry.item) ?? '摘要待补充');
+const publishedLabel = computed(
+  () => `${formatMarketTime(getNewsDisplayTimestamp(props.entry.item), props.entry.item.market)} ${getMarketTimezoneLabel(props.entry.item.market)}`,
+);
+const topicLabel = computed(() => props.entry.detail?.topic?.topic_title ?? '未归主题');
 
 const emit = defineEmits<{
   open: [id: number];
@@ -30,13 +34,28 @@ const emit = defineEmits<{
       <span class="market-tag">{{ entry.item.market.toUpperCase() }}</span>
       <span class="source">{{ entry.item.source_name }}</span>
     </div>
-    <h3>{{ entry.item.title }}</h3>
-    <p class="summary">{{ summary }}</p>
-    <div class="card-meta">
-      <span>{{ formatMarketTime(getNewsDisplayTimestamp(entry.item), entry.item.market) }} {{ getMarketTimezoneLabel(entry.item.market) }}</span>
-      <span v-if="entry.detail?.topic">{{ entry.detail.topic.topic_title }}</span>
-      <span v-else>未归主题</span>
-    </div>
+
+    <template v-if="variant === 'supporting'">
+      <div class="news-card__supporting-body">
+        <div class="news-card__supporting-copy">
+          <h3>{{ entry.item.title }}</h3>
+          <p class="summary">{{ summary }}</p>
+        </div>
+        <div class="news-card__supporting-meta">
+          <span>{{ publishedLabel }}</span>
+          <span>{{ topicLabel }}</span>
+        </div>
+      </div>
+    </template>
+
+    <template v-else>
+      <h3>{{ entry.item.title }}</h3>
+      <p class="summary">{{ summary }}</p>
+      <div class="card-meta">
+        <span>{{ publishedLabel }}</span>
+        <span>{{ topicLabel }}</span>
+      </div>
+    </template>
   </article>
 </template>
 
@@ -59,7 +78,8 @@ const emit = defineEmits<{
 }
 
 .news-card--supporting {
-  min-height: 172px;
+  gap: 14px;
+  min-height: 0;
 }
 
 .card-head,
@@ -83,6 +103,38 @@ h3 {
   font-size: 21px;
 }
 
+.news-card__supporting-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(138px, 0.55fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.news-card__supporting-copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.news-card__supporting-meta {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  justify-items: start;
+  padding-left: 14px;
+  border-left: 1px solid rgba(111, 93, 66, 0.18);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.news-card__supporting-meta span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+}
+
 .summary {
   margin: 0;
   color: var(--muted);
@@ -94,10 +146,23 @@ h3 {
 }
 
 .news-card--supporting .summary {
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 .news-card--stream .summary {
   -webkit-line-clamp: 4;
+}
+
+@media (max-width: 860px) {
+  .news-card__supporting-body {
+    grid-template-columns: 1fr;
+  }
+
+  .news-card__supporting-meta {
+    padding-left: 0;
+    border-left: none;
+    padding-top: 10px;
+    border-top: 1px solid rgba(111, 93, 66, 0.18);
+  }
 }
 </style>

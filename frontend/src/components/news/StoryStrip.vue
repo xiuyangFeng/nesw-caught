@@ -50,7 +50,13 @@ const emit = defineEmits<{
   gap: 14px;
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1099px) {
+  .strip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
   .strip-grid {
     grid-template-columns: 1fr;
   }
