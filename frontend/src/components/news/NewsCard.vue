@@ -63,9 +63,9 @@ const emit = defineEmits<{
 .news-card {
   display: grid;
   gap: 12px;
-  border-radius: 24px;
-  padding: 20px 22px;
-  background: rgba(255, 252, 247, 0.9);
+  border-radius: 18px;
+  padding: 18px 18px;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
   cursor: pointer;
@@ -73,8 +73,8 @@ const emit = defineEmits<{
 
 .news-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(31, 94, 168, 0.18);
-  box-shadow: 0 16px 36px rgba(76, 57, 28, 0.08);
+  border-color: rgba(102, 184, 255, 0.24);
+  box-shadow: 0 16px 36px rgba(2, 6, 12, 0.28);
 }
 
 .news-card--supporting {
@@ -94,7 +94,7 @@ const emit = defineEmits<{
 
 h3 {
   margin: 0;
-  font-size: 23px;
+  font-size: 22px;
   line-height: 1.28;
   letter-spacing: -0.02em;
 }
@@ -122,7 +122,7 @@ h3 {
   align-content: start;
   justify-items: start;
   padding-left: 14px;
-  border-left: 1px solid rgba(111, 93, 66, 0.18);
+  border-left: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
@@ -137,9 +137,9 @@ h3 {
 
 .summary {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-soft);
   font-size: 14px;
-  line-height: 1.7;
+  line-height: 1.65;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -162,7 +162,7 @@ h3 {
     padding-left: 0;
     border-left: none;
     padding-top: 10px;
-    border-top: 1px solid rgba(111, 93, 66, 0.18);
+    border-top: 1px solid var(--border);
   }
 }
 </style>

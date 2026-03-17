@@ -42,14 +42,15 @@ function makeEntry(): EditorialStoryEntry {
 }
 
 describe('StoryStrip', () => {
-  it('renders supporting cards with a dedicated horizontal body wrapper', () => {
+  it('renders supporting cards with a terminal section label and dedicated body wrapper', () => {
     const wrapper = mount(StoryStrip, {
       props: {
-        title: 'Supporting Stories',
+        title: 'Signal Queue',
         stories: [makeEntry()],
       },
     });
 
+    expect(wrapper.find('[data-role="story-strip-label"]').text()).toBe('Signal Queue');
     expect(wrapper.find('.strip-grid').exists()).toBe(true);
     expect(wrapper.find('.news-card--supporting .news-card__supporting-body').exists()).toBe(true);
     expect(wrapper.find('.news-card--supporting .news-card__supporting-meta').exists()).toBe(true);

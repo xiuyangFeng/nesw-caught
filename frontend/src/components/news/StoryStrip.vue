@@ -15,7 +15,7 @@ const emit = defineEmits<{
 <template>
   <section class="story-strip">
     <header class="strip-header">
-      <h2>{{ title }}</h2>
+      <h2 data-role="story-strip-label">{{ title }}</h2>
     </header>
     <div class="strip-grid">
       <NewsCard
@@ -37,11 +37,11 @@ const emit = defineEmits<{
 
 .strip-header h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--neutral);
+  letter-spacing: 0.18em;
+  color: var(--system);
 }
 
 .strip-grid {

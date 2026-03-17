@@ -40,14 +40,14 @@ const emit = defineEmits<{
 <style scoped>
 .lead-story {
   display: grid;
-  gap: 16px;
-  padding: 32px;
-  border-radius: 32px;
+  gap: 14px;
+  padding: 28px;
+  border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(199, 161, 89, 0.12), transparent 28%),
-    rgba(255, 252, 247, 0.96);
-  border: 1px solid rgba(93, 67, 28, 0.12);
-  box-shadow: 0 24px 60px rgba(88, 64, 30, 0.12);
+    radial-gradient(circle at top right, rgba(255, 159, 47, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(17, 25, 37, 0.98), rgba(10, 15, 24, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 24px 60px rgba(2, 6, 12, 0.34);
   cursor: pointer;
 }
 
@@ -64,8 +64,8 @@ const emit = defineEmits<{
 .edition-tag {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--neutral);
+  letter-spacing: 0.16em;
+  color: var(--accent);
 }
 
 h2 {
@@ -79,8 +79,8 @@ h2 {
 .lead-excerpt {
   margin: 0;
   max-width: 72ch;
-  color: #50483f;
+  color: var(--text-soft);
   font-size: 16px;
-  line-height: 1.8;
+  line-height: 1.75;
 }
 </style>

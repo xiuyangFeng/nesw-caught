@@ -2,6 +2,47 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 01:43
+
+- 修改人：Codex
+- 修改范围：前端全局终端式视觉系统、AppShell、共享组件、News Feed、Dashboard、前端测试
+- 变更内容：将前端主视觉从暖色杂志风切换为冷色金融终端风，重写全局 design tokens、焦点态和语义色；重做 `AppShell` 侧栏为终端式系统导航与状态模块；为 `SectionCard`、`StatusBanner`、`HeroMetrics` 增加终端语义结构并统一深色表面；将 `News Feed` 重命名和重构为 `Signal Desk / Primary Signal / Signal Queue / News Stream` 的终端化阅读流；将 `Dashboard` 收敛为 `Market Control / Signal Overview / Live Movers` 的控制台式总览；同时新增和更新组件/页面测试覆盖这些结构与文案钩子。
+- 影响文件：
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/assets/main.css`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/common/SectionCard.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/common/SectionCard.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/common/StatusBanner.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/common/StatusBanner.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/dashboard/HeroMetrics.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/dashboard/HeroMetrics.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/news/LeadStoryCard.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/news/NewsCard.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/news/StoryStrip.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/components/news/StoryStrip.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run` 通过（11 个文件 / 19 个用例）；`npm --prefix frontend run build` 通过；Playwright 实测 `1400px/1280px/1050px/760px` 下 shell 与新闻网格按预期折叠，`Tab` 焦点在深色背景下保持可见
+- 风险/后续事项：本轮主要覆盖共享框架、News Feed 和 Dashboard，其余详情页与设置页主要继承新 token，尚未逐页做更深的视觉微调；开发态仍会对不存在的 `/api/stream/events` 打出 404 console 错误，但当前 mock/降级路径不受影响
+
+## 2026-03-18 01:37
+
+- 修改人：Codex
+- 修改范围：前端终端化 UI 改造设计与实现计划文档
+- 变更内容：新增前端终端式 UI 改造的设计文档与实现计划，明确从暖色杂志风切换为冷色金融终端风的目标，收敛橙色主信号与蓝色系统信号的语义边界，并把全局 token、AppShell、共享卡片、News Feed、Dashboard、响应式和验证拆成可执行任务。
+- 影响文件：
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/docs/superpowers/specs/2026-03-18-frontend-terminal-ui-design.md`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/docs/superpowers/plans/2026-03-18-frontend-terminal-ui-plan.md`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex/frontend-terminal-ui/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：设计与计划文档已落盘；spec 与 plan 各经过独立 reviewer 检查并按反馈补齐验收边界、测试归属与响应式验证要求
+- 风险/后续事项：当前仅完成文档阶段，尚未进入前端代码实现；后续执行时需严格保持路由和数据流不变，并验证深色主题下的可读性和焦点态
+
 ## 2026-03-18 00:48
 
 - 修改人：Codex

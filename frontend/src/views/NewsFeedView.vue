@@ -81,12 +81,13 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1 class="page-title">News Feed</h1>
-        <p class="page-subtitle">按编辑部首页的阅读节奏重排新闻：先看头条，再顺着次级新闻和常规流往下读。</p>
+        <p class="page-subtitle">Signal Desk：先看最该读的主信号，再顺着次级线索和新闻流快速扫描。</p>
       </div>
       <StaleBadge :stale="newsStore.stale" label="新闻列表" />
     </header>
 
     <StatusBanner
+      kicker="System"
       :title="newsStore.usingMock ? '已启用 mock 兼容层' : '历史数据来自 REST 接口'"
       :tone="newsStore.usingMock ? 'warning' : 'default'"
       detail="当详情接口或主题接口缺失时，页面保留空状态和降级文案，不臆造字段。"
@@ -95,11 +96,11 @@ onMounted(async () => {
     <section class="edition-surface surface">
       <div class="edition-head">
         <div>
-          <p class="edition-label">Edition</p>
-          <h2>Top Story Selection</h2>
-          <p class="edition-copy">混合考虑主题热度、上下文完整度和发布时间，让首页先展示值得先看的那条新闻。</p>
+          <p class="edition-label">Signal Desk</p>
+          <h2>Primary Signal</h2>
+          <p class="edition-copy">混合考虑主题热度、上下文完整度和发布时间，让首页优先暴露最值得跟踪的主信号。</p>
         </div>
-        <div class="filters">
+        <div class="filters" data-role="filter-bar">
           <select v-model="filters.market">
             <option value="">全部市场</option>
             <option value="cn">A股/国内</option>
@@ -130,14 +131,15 @@ onMounted(async () => {
 
           <StoryStrip
             v-if="editorialGroup.supporting.length"
-            title="Supporting Stories"
+            title="Signal Queue"
             :stories="editorialGroup.supporting"
             @open="openStory"
           />
 
           <SectionCard
-            title="More in the Edition"
-            subtitle="顺序流保留更多新闻，但改为适合长标题和长摘要的可变高度卡片。"
+            eyebrow="Live Flow"
+            title="News Stream"
+            subtitle="保留更多新闻，但改成更适合快速扫读和连续跟踪的终端式流卡片。"
             compact
           >
             <div class="story-stream">
@@ -159,7 +161,7 @@ onMounted(async () => {
 <style scoped>
 .page {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .page-header {
@@ -171,24 +173,29 @@ onMounted(async () => {
 
 .edition-surface {
   display: grid;
-  gap: 22px;
-  padding: 24px;
-  border-radius: 32px;
+  gap: 20px;
+  padding: 22px;
+  border-radius: 24px;
 }
 
 .filters {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .filters select,
 .filters input {
   min-width: 138px;
-  border-radius: 999px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  background: #fffdf8;
+  background: rgba(7, 11, 17, 0.86);
   padding: 10px 12px;
+  color: var(--text);
 }
 
 .filters input {
@@ -204,10 +211,10 @@ onMounted(async () => {
 
 .edition-label {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--neutral);
+  letter-spacing: 0.18em;
+  color: var(--system);
 }
 
 .edition-head h2 {
@@ -220,11 +227,12 @@ onMounted(async () => {
   max-width: 60ch;
   margin: 10px 0 0;
   color: var(--muted);
+  line-height: 1.7;
 }
 
 .editorial-flow {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
 .story-stream {

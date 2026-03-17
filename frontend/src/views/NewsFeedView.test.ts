@@ -1,0 +1,96 @@
+import { mount } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { NewsDetail, NewsItem } from '../types/api';
+import NewsFeedView from './NewsFeedView.vue';
+
+const mockPush = vi.fn();
+
+const items: NewsItem[] = [
+  {
+    id: 1,
+    title: 'NVIDIA rallies as AI capex estimates move higher',
+    summary: 'Lead story summary.',
+    source_name: 'Bloomberg',
+    canonical_url: null,
+    market: 'us',
+    sentiment_label: 'positive',
+    published_at: '2026-03-18T08:00:00Z',
+    fetched_at: '2026-03-18T08:03:00Z',
+  },
+  {
+    id: 2,
+    title: 'TSMC supply chain remains in focus',
+    summary: 'Supporting summary.',
+    source_name: 'Reuters',
+    canonical_url: null,
+    market: 'us',
+    sentiment_label: 'neutral',
+    published_at: '2026-03-18T07:00:00Z',
+    fetched_at: '2026-03-18T07:05:00Z',
+  },
+];
+
+const detailMap: Record<number, NewsDetail> = {
+  1: {
+    ...items[0],
+    sentiment_score: null,
+    article: null,
+    mentions: [],
+    topic: {
+      id: 1,
+      topic_title: 'AI Infra',
+      importance_score: 0.93,
+      last_seen_at: '2026-03-18T08:00:00Z',
+    },
+  },
+  2: {
+    ...items[1],
+    sentiment_score: null,
+    article: null,
+    mentions: [],
+    topic: {
+      id: 2,
+      topic_title: 'Semiconductor',
+      importance_score: 0.82,
+      last_seen_at: '2026-03-18T07:00:00Z',
+    },
+  },
+};
+
+const newsStore = {
+  items,
+  detailMap,
+  loading: false,
+  stale: false,
+  usingMock: false,
+  loadNews: vi.fn(async () => undefined),
+  loadDetail: vi.fn(async () => undefined),
+};
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
+vi.mock('../stores/newsStore', () => ({
+  useNewsStore: () => newsStore,
+}));
+
+describe('NewsFeedView', () => {
+  beforeEach(() => {
+    mockPush.mockReset();
+    newsStore.loadNews.mockClear();
+    newsStore.loadDetail.mockClear();
+  });
+
+  it('renders terminal header labels and system-style stream sections', () => {
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.text()).toContain('Signal Desk');
+    expect(wrapper.text()).toContain('Primary Signal');
+    expect(wrapper.text()).toContain('Signal Queue');
+    expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
+  });
+});

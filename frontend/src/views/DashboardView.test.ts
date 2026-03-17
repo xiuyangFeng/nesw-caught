@@ -1,0 +1,81 @@
+import { mount } from '@vue/test-utils';
+import { reactive } from 'vue';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import DashboardView from './DashboardView.vue';
+
+const connectionStore = reactive({
+  state: 'live',
+  usingMock: false,
+  streamError: null as string | null,
+});
+
+const newsStore = reactive({
+  items: [
+    {
+      id: 1,
+      title: 'AI infrastructure names lead the session',
+      summary: 'Lead item summary',
+      source_name: 'Bloomberg',
+      canonical_url: null,
+      market: 'us',
+      sentiment_label: 'positive',
+      published_at: '2026-03-18T08:00:00Z',
+      fetched_at: '2026-03-18T08:03:00Z',
+    },
+  ],
+  loading: false,
+  stale: false,
+});
+
+const marketStore = reactive({
+  abnormalMovers: [
+    {
+      symbol: 'NVDA',
+      market: 'us',
+      display_name: 'NVIDIA',
+      abnormal_reason: 'price_spike',
+    },
+  ],
+  loading: false,
+  stale: false,
+});
+
+const topicStore = reactive({
+  topTopics: [],
+  loading: false,
+  stale: false,
+});
+
+vi.mock('../stores/connectionStore', () => ({
+  useConnectionStore: () => connectionStore,
+}));
+
+vi.mock('../stores/newsStore', () => ({
+  useNewsStore: () => newsStore,
+}));
+
+vi.mock('../stores/marketStore', () => ({
+  useMarketStore: () => marketStore,
+}));
+
+vi.mock('../stores/topicStore', () => ({
+  useTopicStore: () => topicStore,
+}));
+
+describe('DashboardView', () => {
+  beforeEach(() => {
+    connectionStore.state = 'live';
+    connectionStore.usingMock = false;
+    connectionStore.streamError = null;
+  });
+
+  it('renders terminal-style dashboard labels and live modules', () => {
+    const wrapper = mount(DashboardView);
+
+    expect(wrapper.text()).toContain('Market Control');
+    expect(wrapper.text()).toContain('Signal Overview');
+    expect(wrapper.text()).toContain('Live Movers');
+    expect(wrapper.find('[data-role="dashboard-hero"]').exists()).toBe(true);
+  });
+});

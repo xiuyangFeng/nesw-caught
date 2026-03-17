@@ -54,27 +54,31 @@ const metrics = computed(() => {
     <header class="page-header">
       <div>
         <h1 class="page-title">Dashboard</h1>
-        <p class="page-subtitle">连接状态、情绪概览、主题聚合和自选股异动都在这里聚合。</p>
+        <p class="page-subtitle">Market Control：把连接状态、情绪概览、主题聚合和自选股异动压缩到同一块总览面板里。</p>
       </div>
       <StaleBadge :stale="newsStore.stale || marketStore.stale || topicStore.stale" label="全局数据" />
     </header>
 
     <StatusBanner
+      kicker="System"
       :title="connectionStore.state === 'live' ? 'SSE 增量更新正常' : '当前处于降级或断线状态'"
       :tone="connectionStore.state === 'live' ? 'success' : 'warning'"
       :detail="connectionStore.usingMock ? '后端未就绪时已自动使用 mock 兼容层。' : connectionStore.streamError ?? '历史数据仍通过 REST 可用。'"
     />
 
-    <HeroMetrics :metrics="metrics" />
+    <div data-role="dashboard-hero">
+      <p class="dashboard-label">Signal Overview</p>
+      <HeroMetrics :metrics="metrics" />
+    </div>
 
     <section class="dashboard-grid">
-      <SectionCard title="主题聚合" subtitle="按重要度排序，保留股票和情绪入口">
+      <SectionCard eyebrow="Topic Radar" title="主题聚合" subtitle="按重要度排序，保留股票和情绪入口">
         <LoadingBlock :loading="topicStore.loading" :empty="topicStore.topTopics.length === 0">
           <TopicBoard :topics="topicStore.topTopics" />
         </LoadingBlock>
       </SectionCard>
 
-      <SectionCard title="自选股异动" subtitle="盘中优先观察异常波动和量能变化">
+      <SectionCard eyebrow="Live Movers" title="自选股异动" subtitle="盘中优先观察异常波动和量能变化">
         <LoadingBlock :loading="marketStore.loading" :empty="marketStore.abnormalMovers.length === 0" empty-text="暂无异动">
           <div class="movement-list">
             <article v-for="item in marketStore.abnormalMovers" :key="item.symbol" class="movement-card">
@@ -86,7 +90,7 @@ const metrics = computed(() => {
         </LoadingBlock>
       </SectionCard>
 
-      <SectionCard title="最新新闻" subtitle="为 News Feed 提供快速跳转入口">
+      <SectionCard eyebrow="News Wire" title="最新新闻" subtitle="为 News Feed 提供快速跳转入口">
         <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
           <div class="headline-list">
             <article v-for="item in newsStore.items.slice(0, 6)" :key="item.id" class="headline-card">
@@ -116,10 +120,18 @@ const metrics = computed(() => {
   justify-content: space-between;
 }
 
+.dashboard-label {
+  margin: 0 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--system);
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
-  gap: 16px;
+  gap: 14px;
 }
 
 .dashboard-grid > :last-child {
@@ -134,9 +146,9 @@ const metrics = computed(() => {
 
 .movement-card,
 .headline-card {
-  border-radius: 18px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
 }
 
@@ -155,5 +167,11 @@ const metrics = computed(() => {
 .headline-card strong {
   display: block;
   margin-bottom: 8px;
+}
+
+@media (max-width: 1320px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -88,38 +88,50 @@ onBeforeUnmount(() => {
 <template>
   <div class="shell">
     <aside class="surface sidebar">
-      <div class="sidebar-top">
+      <div class="sidebar-top" data-role="system-header">
         <div class="brand">
-          <p>News Caught</p>
-          <span>港美股消息跟踪台</span>
+          <p>NEWS CAUGHT</p>
+          <span>Market Intelligence Terminal</span>
         </div>
         <div class="sidebar-intro">
-          <strong>Editor&apos;s Desk</strong>
-          <small>按主题热度、事件节奏和市场动向安排阅读顺序。</small>
+          <strong>System Desk</strong>
+          <small>跟踪新闻、主题热度、自选股异动与流式连接状态。</small>
         </div>
       </div>
-      <nav class="nav-group">
+      <nav class="nav-group" data-role="primary-nav">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
           :to="item.to"
           class="nav-link"
           :class="{ active: route.path === item.to }"
+          :data-route-active="route.path === item.to ? 'true' : 'false'"
         >
+          <span v-if="route.path === item.to" class="nav-signal" data-role="nav-active-signal" />
           <span class="nav-index">{{ item.index }}</span>
-          <span class="nav-text">{{ item.label }}</span>
+          <span class="nav-copy">
+            <span class="nav-text">{{ item.label }}</span>
+            <span class="nav-meta">MODULE</span>
+          </span>
         </RouterLink>
       </nav>
-      <div class="sidebar-foot">
+      <div class="sidebar-foot" data-role="system-status">
         <div class="status-card">
-          <span class="pill" :class="connectionStore.state === 'live' ? 'positive' : 'neutral'">
-            {{ connectionSummary }}
+          <div class="status-label-row">
+            <strong>System Status</strong>
+            <span class="pill" :class="connectionStore.state === 'live' ? 'positive' : 'neutral'">
+              {{ connectionSummary }}
+            </span>
+          </div>
+          <span class="status-line">
+            Feed heartbeat
           </span>
           <small>
             最近事件:
             {{ connectionStore.lastEventAt ? formatMarketTime(connectionStore.lastEventAt, 'hk') : '--' }}
             HKT
           </small>
+          <small>Workspace: multi-market watch</small>
         </div>
       </div>
     </aside>
@@ -133,52 +145,55 @@ onBeforeUnmount(() => {
 <style scoped>
 .shell {
   display: grid;
-  grid-template-columns: 256px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 18px;
   min-height: 100vh;
-  padding: 20px;
+  padding: 18px;
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 24px;
-  border-radius: 32px;
-  padding: 24px 18px 18px;
+  gap: 22px;
+  border-radius: 24px;
+  padding: 20px 16px 16px;
   position: sticky;
-  top: 20px;
-  min-height: calc(100vh - 40px);
+  top: 18px;
+  min-height: calc(100vh - 36px);
 }
 
 .sidebar-top {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .brand p {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
+  letter-spacing: 0.14em;
 }
 
 .brand span {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .sidebar-intro {
   display: grid;
   gap: 6px;
-  padding: 14px 14px 0;
+  padding: 14px 0 0;
   border-top: 1px solid var(--border);
 }
 
 .sidebar-intro strong {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--neutral);
+  letter-spacing: 0.18em;
+  color: var(--system, var(--neutral));
 }
 
 .sidebar-intro small {
@@ -192,36 +207,60 @@ onBeforeUnmount(() => {
 }
 
 .nav-link {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
   align-items: center;
   gap: 12px;
-  border-radius: 18px;
-  padding: 14px 14px;
+  border-radius: 16px;
+  padding: 13px 14px;
   font-weight: 600;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid transparent;
+}
+
+.nav-signal {
+  width: 3px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent, #ff9f2f);
+  box-shadow: 0 0 18px rgba(255, 159, 47, 0.35);
 }
 
 .nav-index {
   min-width: 24px;
   font-size: 11px;
   letter-spacing: 0.14em;
-  color: rgba(111, 103, 92, 0.82);
+  color: rgba(127, 142, 163, 0.88);
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.nav-copy {
+  display: grid;
+  gap: 2px;
 }
 
 .nav-text {
-  font-size: 17px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.nav-meta {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--muted);
 }
 
 .nav-link.active {
-  background: #17130f;
-  color: #fffaf0;
-  border-color: rgba(255, 250, 240, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-color: var(--border);
 }
 
-.nav-link.active .nav-index {
-  color: rgba(255, 250, 240, 0.72);
+.nav-link.active .nav-index,
+.nav-link.active .nav-meta {
+  color: var(--text-soft, rgba(243, 247, 251, 0.72));
 }
 
 .sidebar-foot {
@@ -230,13 +269,33 @@ onBeforeUnmount(() => {
 
 .status-card {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   padding: 14px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.44);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
+}
+
+.status-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status-label-row strong {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text);
+}
+
+.status-line {
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 12px;
+  color: var(--text-soft, rgba(243, 247, 251, 0.78));
 }
 
 .main-content {
