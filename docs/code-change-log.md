@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-17 22:32
+
+- 修改人：Codex
+- 修改范围：候选合并分支审查修正、测试初始化、本地产物清理
+- 变更内容：在审查 `codex/invalid-request` 时补充后端测试初始化夹具，确保新闻相关测试在创建 `TestClient` 前完成数据库建表和种子初始化，消除 `news_item/article_content` 缺表导致的 5 个失败用例；同时恢复仍被 README 引用的 `ANGENT.md`，并移除误提交的 `.superpowers` brainstorm 产物与 `backend/news_caught.db`，补充 `.gitignore` 以避免再次入库。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/backend/tests/conftest.py`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/.gitignore`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/ANGENT.md`
+  - `/Users/xiuyang/.codex/worktrees/5132/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`conda run -n news-caught pytest backend/tests` 通过（21 个用例）；`npm --prefix frontend test -- --run` 通过（3 个文件 / 7 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本次只修正了候选分支可合并性问题，未处理同一 worktree 中已有但与本次审查无关的未提交设计文档和记录变更
+
 ## 2026-03-17 16:12
 
 - 修改人：Codex

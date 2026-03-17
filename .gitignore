@@ -11,9 +11,11 @@ __pycache__/
 .coverage
 
 # Local data
+backend/news_caught.db
 backend/data/*.db
 backend/data/*.sqlite
 backend/data/*.sqlite3
+.superpowers/
 
 # Frontend
 frontend/node_modules/
