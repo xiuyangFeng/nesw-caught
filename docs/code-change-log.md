@@ -2,6 +2,22 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 00:48
+
+- 修改人：Codex
+- 修改范围：News Feed supporting stories 横向卡片布局、前端测试、设计与计划文档
+- 变更内容：为 `Supporting Stories` 区块补充独立的 supporting 卡片结构，将原先标题和摘要纵向堆叠的高卡片改成更紧凑的横向信息卡；桌面端保持 3 列，平板降为 2 列，手机降为 1 列；同时新增组件测试覆盖 supporting 卡片专用 body/meta 包裹层，并补充本轮设计与实现计划文档。
+- 影响文件：
+  - `/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/frontend/src/components/news/NewsCard.vue`
+  - `/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/frontend/src/components/news/StoryStrip.vue`
+  - `/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/frontend/src/components/news/StoryStrip.test.ts`
+  - `/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/docs/superpowers/specs/2026-03-18-supporting-stories-horizontal-layout-design.md`
+  - `/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/docs/superpowers/plans/2026-03-18-supporting-stories-horizontal-layout-plan.md`
+  - `/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/news/StoryStrip.test.ts` 先失败后通过（1 个文件 / 1 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 3/2/1 列切换断点采用 `1099px` 和 `768px`，如果你希望平板更早或更晚切成双列，可以继续微调 [`/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/frontend/src/components/news/StoryStrip.vue`](/Users/xiuyang/.codex/worktrees/news-caught-frontend-polish/frontend/src/components/news/StoryStrip.vue) 中的媒体查询阈值
+
 ## 2026-03-17 23:52
 
 - 修改人：Codex
