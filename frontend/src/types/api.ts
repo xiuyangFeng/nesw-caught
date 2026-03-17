@@ -22,7 +22,7 @@ export interface NewsItem {
   canonical_url: string | null;
   market: Market;
   sentiment_label: SentimentLabel;
-  published_at: string;
+  published_at: string | null;
   fetched_at: string;
 }
 
@@ -175,6 +175,22 @@ export interface XRefreshResult {
   inserted_count: number;
   error: string | null;
   latency_ms: number;
+}
+
+export interface NewsRefreshResult {
+  started_at: string;
+  finished_at: string;
+  fetched_count: number;
+  inserted_count: number;
+  results: Array<{
+    source_name: string;
+    source_type: string;
+    status: string;
+    fetched_count: number;
+    inserted_count: number;
+    error: string | null;
+    latency_ms: number;
+  }>;
 }
 
 export interface XHealth {

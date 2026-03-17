@@ -41,7 +41,11 @@ class NewsRepository:
                 )
             )
 
-        stmt = stmt.order_by(NewsItem.fetched_at.desc()).limit(limit)
+        stmt = stmt.order_by(
+            NewsItem.published_at.is_(None).asc(),
+            NewsItem.published_at.desc(),
+            NewsItem.fetched_at.desc(),
+        ).limit(limit)
         return list(self.session.scalars(stmt))
 
     def get_by_id(self, news_id: int) -> NewsItem | None:

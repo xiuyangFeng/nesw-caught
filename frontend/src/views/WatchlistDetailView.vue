@@ -7,7 +7,7 @@ import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import { useWatchlistStore } from '../stores/watchlistStore';
 import { formatNumber, formatPercent } from '../utils/format';
-import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
+import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const route = useRoute();
 const router = useRouter();
@@ -117,7 +117,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
                 <strong>{{ item.title }}</strong>
                 <p>{{ item.summary }}</p>
                 <span class="muted-text">
-                  {{ formatMarketTime(item.published_at, item.market) }} {{ getMarketTimezoneLabel(item.market) }}
+                  {{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}
                 </span>
               </article>
             </div>

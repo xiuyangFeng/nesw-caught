@@ -8,8 +8,8 @@ import StaleBadge from '../components/common/StaleBadge.vue';
 import { useNewsStore } from '../stores/newsStore';
 import { useTopicStore } from '../stores/topicStore';
 import { sentimentText } from '../utils/format';
-import { getNewsBody, getNewsSummary } from '../utils/news';
-import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
+import { getNewsSummary } from '../utils/news';
+import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,7 +19,6 @@ const topicStore = useTopicStore();
 const newsId = computed(() => Number(route.params.id));
 const detail = computed(() => newsStore.detailMap[newsId.value] ?? null);
 const detailSummary = computed(() => (detail.value ? getNewsSummary(detail.value) : null));
-const detailBody = computed(() => (detail.value ? getNewsBody(detail.value) : null));
 const topicDetail = computed(() => {
   const topicId = detail.value?.topic?.id;
   return topicId ? topicStore.detailMap[topicId] ?? null : null;
@@ -89,17 +88,9 @@ watch(
           <div class="meta-row">
             <span class="pill" :class="detail.sentiment_label">{{ sentimentText(detail.sentiment_label) }}</span>
             <span>{{ detail.source_name }}</span>
-            <span>{{ formatMarketTime(detail.published_at, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
+            <span>{{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
             <a v-if="detail.canonical_url" :href="detail.canonical_url" target="_blank" rel="noreferrer">打开原文</a>
           </div>
-        </SectionCard>
-
-        <SectionCard title="正文内容" subtitle="正文抓取失败时仍保留来源与聚合信息">
-          <p class="body-text">{{ detailBody ?? '正文暂不可用' }}</p>
-          <p class="subtle">
-            {{ detail.article?.extract_status ?? 'not_requested' }}
-            <span v-if="detail.article?.extract_error"> · {{ detail.article.extract_error }}</span>
-          </p>
         </SectionCard>
 
         <SectionCard title="关联信息" subtitle="股票命中和主题聚合入口">

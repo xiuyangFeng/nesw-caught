@@ -4,6 +4,7 @@ import type {
   NewsDetail,
   NewsItem,
   NewsQuery,
+  NewsRefreshResult,
   StockQuoteDetail,
   StreamStatus,
   TopicDetail,
@@ -23,6 +24,7 @@ import {
   mockMarketSnapshots,
   mockNews,
   mockNewsDetails,
+  mockNewsRefreshResult,
   mockRelatedNews,
   mockStockQuoteDetails,
   mockStreamStatus,
@@ -86,6 +88,9 @@ export const apiClient = {
       () => getJson(`/api/news/${id}`),
       () => mockNewsDetails[id] ?? null,
     );
+  },
+  refreshNews() {
+    return withMockFallback<NewsRefreshResult>(() => postJson('/api/news/refresh', {}), () => mockNewsRefreshResult);
   },
   getMarketSnapshots() {
     return withMockFallback<MarketSnapshot[]>(() => getJson('/api/market/snapshots'), () => mockMarketSnapshots);

@@ -6,15 +6,15 @@ import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
-import NewsVirtualList from '../components/news/NewsVirtualList.vue';
+import LeadStoryCard from '../components/news/LeadStoryCard.vue';
+import NewsCard from '../components/news/NewsCard.vue';
+import StoryStrip from '../components/news/StoryStrip.vue';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
-import { getNewsBody, getNewsSummary } from '../utils/news';
-import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
+import { groupEditorialStories } from '../utils/newsEditorial';
 
 const newsStore = useNewsStore();
 const router = useRouter();
-const activeId = ref<number | null>(null);
 const filters = reactive<{
   market: Market | '';
   sentiment_label: SentimentLabel | '';
@@ -25,11 +25,32 @@ const filters = reactive<{
   q: '',
 });
 
-const activeDetail = computed(() => (activeId.value ? newsStore.detailMap[activeId.value] ?? null : null));
-const activeSummary = computed(() => (activeDetail.value ? getNewsSummary(activeDetail.value) : null));
-const activeBody = computed(() => (activeDetail.value ? getNewsBody(activeDetail.value) : null));
 const sourceOptions = computed(() => [...new Set(newsStore.items.map((item) => item.source_name))]);
 const selectedSource = ref('');
+const hydratingIds = new Set<number>();
+const editorialGroup = computed(() => groupEditorialStories(newsStore.items, newsStore.detailMap, { supportingCount: 3 }));
+
+async function hydrateEditorialDetails() {
+  const idsToLoad = newsStore.items
+    .slice(0, 8)
+    .map((item) => item.id)
+    .filter((id) => !newsStore.detailMap[id] && !hydratingIds.has(id));
+
+  if (!idsToLoad.length) {
+    return;
+  }
+
+  idsToLoad.forEach((id) => hydratingIds.add(id));
+  await Promise.all(
+    idsToLoad.map(async (id) => {
+      try {
+        await newsStore.loadDetail(id);
+      } finally {
+        hydratingIds.delete(id);
+      }
+    }),
+  );
+}
 
 watch(
   () => ({ ...filters, source_name: selectedSource.value }),
@@ -39,27 +60,19 @@ watch(
       source_name: selectedSource.value,
       limit: 300,
     });
+    await hydrateEditorialDetails();
   },
 );
 
-async function selectNews(id: number) {
-  activeId.value = id;
-  if (!newsStore.detailMap[id]) {
-    await newsStore.loadDetail(id);
-  }
-}
-
-function openTopic(topicId: number) {
-  router.push({ name: 'topic-detail', params: { id: topicId } });
+function openStory(id: number) {
+  router.push({ name: 'news-detail', params: { id } });
 }
 
 onMounted(async () => {
   if (!newsStore.items.length) {
     await newsStore.loadNews({ limit: 300 });
   }
-  if (newsStore.items.length > 0 && !activeId.value) {
-    await selectNews(newsStore.items[0].id);
-  }
+  await hydrateEditorialDetails();
 });
 </script>
 
@@ -68,7 +81,7 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1 class="page-title">News Feed</h1>
-        <p class="page-subtitle">从一开始按长列表方案搭建，筛选、详情、股票关联和主题入口同屏可见。</p>
+        <p class="page-subtitle">按编辑部首页的阅读节奏重排新闻：先看头条，再顺着次级新闻和常规流往下读。</p>
       </div>
       <StaleBadge :stale="newsStore.stale" label="新闻列表" />
     </header>
@@ -79,80 +92,66 @@ onMounted(async () => {
       detail="当详情接口或主题接口缺失时，页面保留空状态和降级文案，不臆造字段。"
     />
 
-    <section class="feed-layout">
-      <SectionCard title="筛选与列表" subtitle="虚拟列表窗口，后续数据增长时不需要重构">
-        <template #actions>
-          <div class="filters">
-            <select v-model="filters.market">
-              <option value="">全部市场</option>
-              <option value="cn">A股/国内</option>
-              <option value="hk">港股</option>
-              <option value="us">美股</option>
-            </select>
-            <select v-model="filters.sentiment_label">
-              <option value="">全部情绪</option>
-              <option value="positive">偏利好</option>
-              <option value="negative">偏利空</option>
-              <option value="neutral">中性</option>
-            </select>
-            <select v-model="selectedSource">
-              <option value="">全部来源</option>
-              <option v-for="source in sourceOptions" :key="source" :value="source">{{ source }}</option>
-            </select>
-            <input v-model="filters.q" type="search" placeholder="搜索标题或摘要" />
-          </div>
-        </template>
-        <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
-          <NewsVirtualList :items="newsStore.items" :detail-map="newsStore.detailMap" :active-id="activeId" @select="selectNews" />
-        </LoadingBlock>
-      </SectionCard>
+    <section class="edition-surface surface">
+      <div class="edition-head">
+        <div>
+          <p class="edition-label">Edition</p>
+          <h2>Top Story Selection</h2>
+          <p class="edition-copy">混合考虑主题热度、上下文完整度和发布时间，让首页先展示值得先看的那条新闻。</p>
+        </div>
+        <div class="filters">
+          <select v-model="filters.market">
+            <option value="">全部市场</option>
+            <option value="cn">A股/国内</option>
+            <option value="hk">港股</option>
+            <option value="us">美股</option>
+          </select>
+          <select v-model="filters.sentiment_label">
+            <option value="">全部情绪</option>
+            <option value="positive">偏利好</option>
+            <option value="negative">偏利空</option>
+            <option value="neutral">中性</option>
+          </select>
+          <select v-model="selectedSource">
+            <option value="">全部来源</option>
+            <option v-for="source in sourceOptions" :key="source" :value="source">{{ source }}</option>
+          </select>
+          <input v-model="filters.q" type="search" placeholder="搜索标题或摘要" />
+        </div>
+      </div>
 
-      <SectionCard title="详情与关联" subtitle="正文提取、股票命中、主题聚合和时间展示按市场时区区分">
-        <LoadingBlock :loading="newsStore.detailLoading" :empty="!activeDetail" empty-text="选择一条新闻查看详情">
-          <div v-if="activeDetail" class="detail-panel">
-            <div class="detail-head">
-              <span class="pill" :class="activeDetail.sentiment_label">{{ activeDetail.sentiment_label }}</span>
-              <strong>{{ activeDetail.title }}</strong>
-            </div>
-            <p v-if="activeSummary" class="detail-summary">{{ activeSummary }}</p>
-            <div class="detail-meta">
-              <span>{{ activeDetail.source_name }}</span>
-              <span>
-                {{ formatMarketTime(activeDetail.published_at, activeDetail.market) }}
-                {{ getMarketTimezoneLabel(activeDetail.market) }}
-              </span>
-              <a v-if="activeDetail.canonical_url" :href="activeDetail.canonical_url" target="_blank" rel="noreferrer">原文</a>
-            </div>
+      <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
+        <div class="editorial-flow">
+          <LeadStoryCard
+            v-if="editorialGroup.lead"
+            :entry="editorialGroup.lead"
+            @open="openStory"
+          />
 
-            <div class="detail-block">
-              <h3>正文提取状态</h3>
-              <p>
-                {{ activeDetail.article?.extract_status ?? 'not_requested' }}
-                <span v-if="activeDetail.article?.extract_error"> · {{ activeDetail.article.extract_error }}</span>
-              </p>
-              <p>{{ activeBody ?? '正文缺失时仍保留新闻和主题入口。' }}</p>
-            </div>
+          <StoryStrip
+            v-if="editorialGroup.supporting.length"
+            title="Supporting Stories"
+            :stories="editorialGroup.supporting"
+            @open="openStory"
+          />
 
-            <div class="detail-block">
-              <h3>股票关联</h3>
-              <div class="mention-list">
-                <span v-for="mention in activeDetail.mentions" :key="`${mention.symbol}-${mention.mention_type}`" class="pill neutral">
-                  {{ mention.symbol }} · {{ Math.round(mention.confidence * 100) }}%
-                </span>
-                <span v-if="activeDetail.mentions.length === 0">暂无股票关联</span>
-              </div>
+          <SectionCard
+            title="More in the Edition"
+            subtitle="顺序流保留更多新闻，但改为适合长标题和长摘要的可变高度卡片。"
+            compact
+          >
+            <div class="story-stream">
+              <NewsCard
+                v-for="entry in editorialGroup.stream"
+                :key="entry.item.id"
+                :entry="entry"
+                variant="stream"
+                @open="openStory"
+              />
             </div>
-
-            <div class="detail-block">
-              <h3>主题聚合</h3>
-              <button v-if="activeDetail.topic" class="topic-button" type="button" @click="openTopic(activeDetail.topic.id)">
-                {{ activeDetail.topic.topic_title }} · 热度 {{ activeDetail.topic.importance_score.toFixed(2) }}
-              </button>
-              <p v-else>尚未聚合到主题。</p>
-            </div>
-          </div>
-        </LoadingBlock>
-      </SectionCard>
+          </SectionCard>
+        </div>
+      </LoadingBlock>
     </section>
   </div>
 </template>
@@ -160,86 +159,94 @@ onMounted(async () => {
 <style scoped>
 .page {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
 }
 
-.feed-layout {
+.edition-surface {
   display: grid;
-  grid-template-columns: 1.35fr 0.8fr;
-  gap: 16px;
-  align-items: start;
+  gap: 22px;
+  padding: 24px;
+  border-radius: 32px;
 }
 
 .filters {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .filters select,
 .filters input {
-  border-radius: 12px;
+  min-width: 138px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: #fffdf8;
   padding: 10px 12px;
 }
 
-.detail-panel {
-  display: grid;
-  gap: 16px;
+.filters input {
+  min-width: 240px;
 }
 
-.detail-head {
-  display: grid;
-  gap: 10px;
+.edition-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
 }
 
-.detail-head strong {
-  font-size: 22px;
+.edition-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--neutral);
 }
 
-.detail-summary,
-.detail-meta,
-.detail-block p {
+.edition-head h2 {
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.04em;
+}
+
+.edition-copy {
+  max-width: 60ch;
+  margin: 10px 0 0;
   color: var(--muted);
 }
 
-.detail-meta {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+.editorial-flow {
+  display: grid;
+  gap: 20px;
 }
 
-.detail-block {
-  border-radius: 18px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid var(--border);
+.story-stream {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.detail-block h3 {
-  margin: 0 0 10px;
+@media (max-width: 1320px) {
+  .story-stream {
+    grid-template-columns: 1fr;
+  }
 }
 
-.mention-list {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+@media (max-width: 1120px) {
+  .edition-head {
+    flex-direction: column;
+  }
 
-.topic-button {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 14px;
-  font: inherit;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #1453a3, #1e7acb);
-  cursor: pointer;
+  .filters input,
+  .filters select {
+    min-width: 0;
+  }
 }
 </style>

@@ -1,54 +1,65 @@
 <script setup lang="ts">
-import type { NewsDetail, NewsItem } from '../../types/api';
+import { computed } from 'vue';
+
+import type { EditorialStoryEntry } from '../../utils/newsEditorial';
 import { sentimentText } from '../../utils/format';
 import { getNewsSummary } from '../../utils/news';
-import { formatMarketTime, getMarketTimezoneLabel } from '../../utils/time';
+import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../../utils/time';
 
-defineProps<{
-  item: NewsItem;
-  detail?: NewsDetail | null;
-  active?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    entry: EditorialStoryEntry;
+    variant?: 'supporting' | 'stream';
+  }>(),
+  {
+    variant: 'stream',
+  },
+);
+
+const summary = computed(() => getNewsSummary(props.entry.detail ?? props.entry.item) ?? '摘要待补充');
 
 const emit = defineEmits<{
-  select: [id: number];
+  open: [id: number];
 }>();
 </script>
 
 <template>
-  <article class="news-card" :data-active="Boolean(active)" @click="emit('select', item.id)">
+  <article class="news-card" :class="`news-card--${variant}`" @click="emit('open', entry.item.id)">
     <div class="card-head">
-      <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
-      <span class="market-tag">{{ item.market.toUpperCase() }}</span>
-      <span class="source">{{ item.source_name }}</span>
+      <span class="pill" :class="entry.item.sentiment_label">{{ sentimentText(entry.item.sentiment_label) }}</span>
+      <span class="market-tag">{{ entry.item.market.toUpperCase() }}</span>
+      <span class="source">{{ entry.item.source_name }}</span>
     </div>
-    <h3>{{ item.title }}</h3>
-    <p>{{ getNewsSummary(item) ?? '摘要待补充' }}</p>
+    <h3>{{ entry.item.title }}</h3>
+    <p class="summary">{{ summary }}</p>
     <div class="card-meta">
-      <span>{{ formatMarketTime(item.published_at, item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
-      <span>{{ detail?.mentions.length ?? 0 }} 个关联股票</span>
-      <span>{{ detail?.topic?.topic_title ?? '未归主题' }}</span>
+      <span>{{ formatMarketTime(getNewsDisplayTimestamp(entry.item), entry.item.market) }} {{ getMarketTimezoneLabel(entry.item.market) }}</span>
+      <span v-if="entry.detail?.topic">{{ entry.detail.topic.topic_title }}</span>
+      <span v-else>未归主题</span>
     </div>
   </article>
 </template>
 
 <style scoped>
 .news-card {
-  height: 100%;
-  border-radius: 20px;
-  padding: 18px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid transparent;
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.news-card[data-active='true'] {
-  border-color: rgba(31, 94, 168, 0.28);
-  box-shadow: 0 14px 30px rgba(31, 94, 168, 0.12);
+  display: grid;
+  gap: 12px;
+  border-radius: 24px;
+  padding: 20px 22px;
+  background: rgba(255, 252, 247, 0.9);
+  border: 1px solid var(--border);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  cursor: pointer;
 }
 
 .news-card:hover {
   transform: translateY(-2px);
+  border-color: rgba(31, 94, 168, 0.18);
+  box-shadow: 0 16px 36px rgba(76, 57, 28, 0.08);
+}
+
+.news-card--supporting {
+  min-height: 172px;
 }
 
 .card-head,
@@ -62,13 +73,31 @@ const emit = defineEmits<{
 }
 
 h3 {
-  margin: 14px 0 10px;
-  font-size: 17px;
+  margin: 0;
+  font-size: 23px;
+  line-height: 1.28;
+  letter-spacing: -0.02em;
 }
 
-p {
+.news-card--stream h3 {
+  font-size: 21px;
+}
+
+.summary {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.7;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.news-card--supporting .summary {
+  -webkit-line-clamp: 3;
+}
+
+.news-card--stream .summary {
+  -webkit-line-clamp: 4;
 }
 </style>

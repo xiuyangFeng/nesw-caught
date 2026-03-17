@@ -8,7 +8,7 @@ import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import WatchlistTable from '../components/watchlist/WatchlistTable.vue';
 import { useWatchlistStore } from '../stores/watchlistStore';
-import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
+import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const router = useRouter();
 const watchlistStore = useWatchlistStore();
@@ -136,7 +136,7 @@ onMounted(async () => {
               <strong>{{ item.title }}</strong>
               <p>{{ item.summary }}</p>
               <span class="related-time">
-                {{ formatMarketTime(item.published_at, item.market) }} {{ getMarketTimezoneLabel(item.market) }}
+                {{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}
               </span>
             </article>
           </div>

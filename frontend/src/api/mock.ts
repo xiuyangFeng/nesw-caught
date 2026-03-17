@@ -3,6 +3,7 @@ import type {
   MarketSnapshot,
   NewsDetail,
   NewsItem,
+  NewsRefreshResult,
   StockQuoteDetail,
   StreamEnvelope,
   StreamStatus,
@@ -444,6 +445,14 @@ export const mockXRefreshResult: XRefreshResult = {
   inserted_count: 1,
   error: null,
   latency_ms: 2634,
+};
+
+export const mockNewsRefreshResult: NewsRefreshResult = {
+  started_at: isoMinutesAgo(1),
+  finished_at: isoMinutesAgo(1),
+  fetched_count: 4,
+  inserted_count: 0,
+  results: [],
 };
 
 export const mockStreamEvents: StreamEnvelope[] = [

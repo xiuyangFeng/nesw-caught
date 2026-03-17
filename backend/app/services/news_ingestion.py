@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from hashlib import sha256
+import html
 import json
+import re
 import time
 from typing import Literal
 from urllib.parse import urljoin
@@ -47,6 +49,9 @@ class SourceItem:
     summary: str | None
     content_text: str | None
     published_at: datetime | None
+    content_html: str | None = None
+    extract_status: str | None = None
+    extract_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -259,12 +264,92 @@ def _parse_anchor_list_html(content: str, source: SourceDefinition) -> list[Sour
                 canonical_url=canonical_url,
                 summary=None,
                 content_text=None,
+                content_html=None,
                 published_at=None,
             )
         )
         if len(items) >= source.item_limit:
             break
     return items
+
+
+def _decode_next_data_chunks(content: str) -> list[str]:
+    pattern = re.compile(r'self\.__next_f\.push\(\[1,"((?:\\.|[^"\\])*)"\]\)', re.DOTALL)
+    chunks: list[str] = []
+    for raw in pattern.findall(content):
+        try:
+            chunks.append(json.loads(f'"{raw}"'))
+        except json.JSONDecodeError:
+            continue
+    return chunks
+
+
+def _parse_minimax_detail_html(
+    content: str,
+    source: SourceDefinition,
+    *,
+    canonical_url: str,
+    fallback_title: str,
+) -> SourceItem:
+    del source
+    normalized_content = (
+        content
+        .replace("\\u003c", "<")
+        .replace("\\u003e", ">")
+        .replace("\\u0026", "&")
+        .replace('\\"', '"')
+        .replace("\\/", "/")
+    )
+
+    title_match = re.search(
+        r'ArticleTitle","props":\{"date":"(?P<date>\d{4}-\d{2}-\d{2})","title":"(?P<title>[^"]+)"\}',
+        normalized_content,
+    )
+    published_at = _parse_feed_datetime(f"{title_match.group('date')}T00:00:00+00:00") if title_match else None
+    title = title_match.group("title") if title_match else fallback_title
+
+    content_html = None
+    raw_body_marker = 'self.__next_f.push([1,"\\u003cdiv style=\\"margin: 0; padding: 40px 20px;'
+    raw_body_start = content.find(raw_body_marker)
+    if raw_body_start != -1:
+        raw_body_end = content.find('"])</script>', raw_body_start)
+        raw_body = content[raw_body_start + len('self.__next_f.push([1,"') : raw_body_end]
+        content_html = (
+            raw_body
+            .replace("\\u003c", "<")
+            .replace("\\u003e", ">")
+            .replace("\\u0026", "&")
+            .replace('\\"', '"')
+            .replace("\\/", "/")
+            .strip()
+        )
+    else:
+        body_match = None
+        for pattern in (
+            r'(<div[^>]*max-width:\s*768px;[^>]*>[\s\S]*?</div>)',
+            r'(<div[^>]*>[\s\S]*?今天，我们介绍MiniMax[\s\S]*?</div>)',
+        ):
+            body_match = re.search(pattern, normalized_content)
+            if body_match:
+                break
+        content_html = html.unescape(body_match.group(1)).strip() if body_match else None
+    content_text = _clean_text(content_html) if content_html else None
+    if not content_text:
+        text_match = re.search(r"(今天，我们介绍MiniMax[\s\S]+?)(?:欢迎使用[\s\S]+?！)", content)
+        if text_match:
+            content_text = _clean_text(text_match.group(0))
+
+    if not published_at and not content_text:
+        raise ValueError(f"minimax detail payload not found for {canonical_url}")
+
+    return SourceItem(
+        title=title,
+        canonical_url=canonical_url,
+        summary=(content_text[:280] if content_text else None),
+        content_text=content_text,
+        content_html=content_html,
+        published_at=published_at,
+    )
 
 
 def _parse_zhipu_news_inline_json(content: str, source: SourceDefinition) -> list[SourceItem]:
@@ -305,6 +390,7 @@ def _parse_zhipu_news_inline_json(content: str, source: SourceDefinition) -> lis
                 canonical_url=_canonicalize_url(f"/zh/news/{item_id}", source.url),
                 summary=summary[:280] if summary else None,
                 content_text=summary,
+                content_html=None,
                 published_at=published_at,
             )
         )
@@ -433,21 +519,23 @@ class NewsIngestionService:
         try:
             with HttpClientFactory().create() as client:
                 response = client.get(source.url)
-            response.raise_for_status()
-            if source.source_type == "rss":
-                items = _parse_rss_or_atom(response.text, source)
-            elif source.parser == "anchor_list_html":
-                items = _parse_anchor_list_html(response.text, source)
-            elif source.parser == "zhipu_news_inline_json":
-                items = _parse_zhipu_news_inline_json(response.text, source)
-            elif source.parser == "selector_html":
-                items = _parse_selector_html(response.text, source)
-            else:
-                raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
+                response.raise_for_status()
+                if source.source_type == "rss":
+                    items = _parse_rss_or_atom(response.text, source)
+                elif source.parser == "anchor_list_html":
+                    items = _parse_anchor_list_html(response.text, source)
+                elif source.parser == "zhipu_news_inline_json":
+                    items = _parse_zhipu_news_inline_json(response.text, source)
+                elif source.parser == "selector_html":
+                    items = _parse_selector_html(response.text, source)
+                else:
+                    raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
 
-            inserted_count = 0
-            for item in items:
-                inserted_count += self._persist_item(source, item)
+                inserted_count = 0
+                for item in items:
+                    if source.name == "MiniMax News":
+                        item = self._hydrate_minimax_detail_item(client, source, item)
+                    inserted_count += self._persist_item(source, item)
 
             latency_ms = round((time.perf_counter() - started) * 1000, 2)
             health.last_success_at = _utc_now()
@@ -491,8 +579,9 @@ class NewsIngestionService:
     def _persist_item(self, source: SourceDefinition, item: SourceItem) -> int:
         canonical_url = item.canonical_url
         url_hash = sha256(canonical_url.encode("utf-8")).hexdigest()
-        existing = self.session.scalar(select(NewsItem.id).where(NewsItem.url_hash == url_hash))
+        existing = self.session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
         if existing is not None:
+            self._update_existing_item(existing, item)
             return 0
 
         news_item = NewsItem(
@@ -512,15 +601,115 @@ class NewsIngestionService:
         )
         self.session.add(news_item)
         self.session.flush()
-        if item.content_text:
+        extract_status = item.extract_status or ("success" if item.content_text else None)
+        if extract_status:
             self.session.add(
                 ArticleContent(
                     news_id=news_item.id,
                     content_text=item.content_text,
-                    content_html=None,
-                    extract_status="success",
-                    extract_error=None,
+                    content_html=item.content_html,
+                    extract_status=extract_status,
+                    extract_error=item.extract_error,
                     extracted_at=_utc_now(),
                 )
             )
         return 1
+
+    def _update_existing_item(self, news_item: NewsItem, item: SourceItem) -> None:
+        if item.summary and (
+            not news_item.summary
+            or news_item.summary.startswith("模型 文本 ")
+        ):
+            news_item.summary = item.summary
+        if item.published_at and news_item.published_at is None:
+            news_item.published_at = item.published_at
+
+        extract_status = item.extract_status or ("success" if item.content_text else None)
+        if not extract_status:
+            return
+
+        article = self.session.scalar(select(ArticleContent).where(ArticleContent.news_id == news_item.id))
+        if article is None:
+            self.session.add(
+                ArticleContent(
+                    news_id=news_item.id,
+                    content_text=item.content_text,
+                    content_html=item.content_html,
+                    extract_status=extract_status,
+                    extract_error=item.extract_error,
+                    extracted_at=_utc_now(),
+                )
+            )
+            return
+
+        if extract_status == "success" and (
+            article.extract_status != "success"
+            or (article.content_text or "").startswith("模型 文本 ")
+        ):
+            article.content_text = item.content_text
+            article.content_html = item.content_html
+            article.extract_status = "success"
+            article.extract_error = None
+            article.extracted_at = _utc_now()
+            return
+
+        if article.extract_status == "pending":
+            article.extract_status = extract_status
+            article.extract_error = item.extract_error
+            article.content_text = item.content_text
+            article.content_html = item.content_html
+            article.extracted_at = _utc_now()
+
+    def _hydrate_minimax_detail_item(
+        self,
+        client,
+        source: SourceDefinition,
+        item: SourceItem,
+    ) -> SourceItem:
+        canonical_url = item.canonical_url
+        url_hash = sha256(canonical_url.encode("utf-8")).hexdigest()
+        existing = self.session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
+        if existing is not None:
+            article = self.session.scalar(select(ArticleContent).where(ArticleContent.news_id == existing.id))
+            article_looks_complete = (
+                article is not None
+                and article.extract_status == "success"
+                and not (article.content_text or "").startswith("模型 文本 ")
+            )
+            if existing.published_at is not None and article_looks_complete:
+                return item
+
+        try:
+            response = client.get(canonical_url)
+            response.raise_for_status()
+            detail_item = _parse_minimax_detail_html(
+                response.text,
+                source,
+                canonical_url=canonical_url,
+                fallback_title=item.title,
+            )
+            if existing is not None and existing.summary and not detail_item.summary:
+                detail_item = SourceItem(
+                    title=detail_item.title,
+                    canonical_url=detail_item.canonical_url,
+                    summary=existing.summary,
+                    content_text=detail_item.content_text,
+                    published_at=detail_item.published_at,
+                    content_html=detail_item.content_html,
+                    extract_status=detail_item.extract_status,
+                    extract_error=detail_item.extract_error,
+                )
+            return detail_item
+        except Exception as exc:
+            if existing is not None and existing.published_at is not None:
+                return item
+            return SourceItem(
+                title=item.title,
+                canonical_url=item.canonical_url,
+                summary=item.summary,
+                content_text=None,
+                content_html=None,
+                published_at=item.published_at,
+                extract_status="failed",
+                extract_error=str(exc),
+            )

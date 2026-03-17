@@ -1,0 +1,388 @@
+<h2>新闻页布局方向</h2>
+<p class="subtitle">目标是把 News Feed 改成更像杂志流的阅读体验，同时修复左侧导航重心不稳和新闻内容挤压的问题。</p>
+
+<style>
+  .preview-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 18px;
+    min-height: 620px;
+    background: linear-gradient(180deg, #efe6d7 0%, #f8f4ec 100%);
+    border-radius: 28px;
+    padding: 18px;
+  }
+
+  .preview-sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 24px;
+    padding: 22px 18px;
+    border-radius: 24px;
+    background: rgba(255, 250, 242, 0.78);
+    border: 1px solid rgba(92, 69, 36, 0.12);
+  }
+
+  .preview-brand {
+    display: grid;
+    gap: 6px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(92, 69, 36, 0.1);
+  }
+
+  .preview-brand strong {
+    font-size: 22px;
+  }
+
+  .preview-brand span,
+  .preview-note,
+  .mini-meta {
+    color: #74695d;
+    font-size: 12px;
+  }
+
+  .preview-nav {
+    display: grid;
+    gap: 10px;
+  }
+
+  .preview-link {
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-weight: 600;
+    color: #6d6358;
+    background: rgba(255, 255, 255, 0.44);
+  }
+
+  .preview-link.active {
+    color: #fff9ef;
+    background: #1a1511;
+  }
+
+  .preview-main {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 22px 26px;
+    border-radius: 24px;
+    background: rgba(255, 252, 247, 0.82);
+    border: 1px solid rgba(92, 69, 36, 0.1);
+  }
+
+  .masthead h3 {
+    margin: 0 0 8px;
+    font-size: 28px;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(92, 69, 36, 0.1);
+    font-size: 12px;
+    color: #5d544a;
+  }
+
+  .hero-grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .hero-a {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);
+  }
+
+  .hero-b {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-c {
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  }
+
+  .lead-story,
+  .panel,
+  .story-card {
+    border-radius: 24px;
+    background: rgba(255, 251, 246, 0.82);
+    border: 1px solid rgba(92, 69, 36, 0.1);
+  }
+
+  .lead-story {
+    padding: 28px;
+    display: grid;
+    gap: 14px;
+    min-height: 280px;
+  }
+
+  .lead-story h4 {
+    margin: 0;
+    font-size: 34px;
+    line-height: 1.18;
+  }
+
+  .lead-story p,
+  .story-card p,
+  .panel p {
+    margin: 0;
+    color: #62594f;
+  }
+
+  .story-stack,
+  .story-list {
+    display: grid;
+    gap: 14px;
+  }
+
+  .story-card {
+    padding: 18px 20px;
+    min-height: 118px;
+  }
+
+  .story-card strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 19px;
+    line-height: 1.3;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+
+  .panel h4 {
+    margin: 0 0 12px;
+    font-size: 16px;
+  }
+
+  .rail-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .rail-item {
+    padding-top: 10px;
+    border-top: 1px solid rgba(92, 69, 36, 0.08);
+  }
+
+  .rail-item:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .feed-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .feed-single {
+    display: grid;
+    gap: 14px;
+  }
+
+  .micro-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .label-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8b7e6f;
+  }
+
+  .layout-caption {
+    display: grid;
+    gap: 8px;
+  }
+
+  .layout-caption p {
+    font-size: 13px;
+  }
+</style>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-shell">
+        <aside class="preview-sidebar">
+          <div class="preview-brand">
+            <strong>News Caught</strong>
+            <span>编辑台 / News Desk</span>
+          </div>
+          <div class="preview-nav">
+            <div class="preview-link">Dashboard</div>
+            <div class="preview-link active">News Feed</div>
+            <div class="preview-link">Watchlist</div>
+            <div class="preview-link">X Monitor</div>
+          </div>
+          <div class="preview-note">将导航整体上移，加入分组感和状态信息，避免按钮悬在中间。</div>
+        </aside>
+        <div class="preview-main">
+          <div class="masthead">
+            <div>
+              <h3>Top Stories</h3>
+              <div class="mini-meta">头条优先，二级新闻放到右侧快览和下方双列流。</div>
+            </div>
+            <div class="toolbar">
+              <div class="chip">HK / US / CN</div>
+              <div class="chip">来源</div>
+              <div class="chip">情绪</div>
+            </div>
+          </div>
+          <div class="hero-grid hero-a">
+            <article class="lead-story">
+              <div class="label-row"><span>Lead</span><span>Breaking</span></div>
+              <h4>阿联酋迪拜机场事件牵动多条国内航线，头条位完整展示标题与摘要。</h4>
+              <p>主新闻保留更大字号、更多留白和更清晰的来源时间信息，解决现在标题互相压住的问题。</p>
+            </article>
+            <div class="story-stack">
+              <article class="story-card">
+                <strong>中国生物发布新一代猴痘减毒活疫苗研究成果</strong>
+                <p>右侧两到三条次重点新闻，保留摘要一句。</p>
+              </article>
+              <article class="story-card">
+                <strong>外交部回应中朝恢复客运航班</strong>
+                <p>适合你想要的“重点先突出，其他往下排”。</p>
+              </article>
+            </div>
+          </div>
+          <div class="feed-columns">
+            <article class="story-card"><strong>港股科技股午后走强，腾讯带动平台经济板块反弹</strong><p>常规新闻双列继续往下流。</p></article>
+            <article class="story-card"><strong>苹果供应链消息推动相关概念股关注度上升</strong><p>阅读密度适中。</p></article>
+            <article class="story-card"><strong>美联储官员讲话引发美元与美债收益率波动</strong><p>适合长标题。</p></article>
+            <article class="story-card"><strong>SEC 新披露指引引发中概股合规讨论</strong><p>卡片高度不固定，避免重叠。</p></article>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body layout-caption">
+      <h3>A. 头条 + 侧栏快览</h3>
+      <p>主新闻最突出，右侧展示 2-3 条次重点，再往下进入双列新闻流。阅读节奏最像财经杂志首页。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-shell">
+        <aside class="preview-sidebar">
+          <div class="preview-brand">
+            <strong>News Caught</strong>
+            <span>Morning Edition</span>
+          </div>
+          <div class="preview-nav">
+            <div class="preview-link">Dashboard</div>
+            <div class="preview-link active">News Feed</div>
+            <div class="preview-link">Watchlist</div>
+            <div class="preview-link">X Monitor</div>
+          </div>
+          <div class="preview-note">侧栏更安静，类似报纸边栏。</div>
+        </aside>
+        <div class="preview-main">
+          <div class="masthead">
+            <div>
+              <h3>Edition</h3>
+              <div class="mini-meta">头条横跨全宽，下方按阅读顺序单列展开。</div>
+            </div>
+            <div class="toolbar">
+              <div class="chip">市场筛选</div>
+              <div class="chip">搜索</div>
+            </div>
+          </div>
+          <div class="hero-grid hero-b">
+            <article class="lead-story">
+              <div class="label-row"><span>Cover Story</span><span>High Impact</span></div>
+              <h4>一条头条吃满整行，像封面文章，下面新闻按时间和重要性顺序瀑布式排开。</h4>
+              <p>这套最强调头条，但次级新闻会明显更少，同屏数量最低。</p>
+            </article>
+            <div class="feed-single">
+              <article class="story-card"><strong>重点二号新闻</strong><p>保留比较长的摘要与来源。</p></article>
+              <article class="story-card"><strong>重点三号新闻</strong><p>更沉浸，但工具属性最弱。</p></article>
+              <article class="story-card"><strong>更多新闻</strong><p>单列连续阅读，类似长篇专题页。</p></article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body layout-caption">
+      <h3>B. 全宽封面头条</h3>
+      <p>最像杂志封面，视觉最强，但会明显降低新闻密度，适合极度强调“今天头条”。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-shell">
+        <aside class="preview-sidebar">
+          <div class="preview-brand">
+            <strong>News Caught</strong>
+            <span>Desk + Briefing</span>
+          </div>
+          <div class="preview-nav">
+            <div class="preview-link">Dashboard</div>
+            <div class="preview-link active">News Feed</div>
+            <div class="preview-link">Watchlist</div>
+            <div class="preview-link">X Monitor</div>
+          </div>
+          <div class="preview-note">保留更多工具信息，但视觉上还是上置、非居中。</div>
+        </aside>
+        <div class="preview-main">
+          <div class="masthead">
+            <div>
+              <h3>Briefing</h3>
+              <div class="mini-meta">左侧大头条，右侧保留一个“快讯导读”栏。</div>
+            </div>
+            <div class="toolbar">
+              <div class="chip">Filter Bar</div>
+              <div class="chip">Live</div>
+            </div>
+          </div>
+          <div class="hero-grid hero-c">
+            <article class="lead-story">
+              <div class="label-row"><span>Lead</span><span>Analysis</span></div>
+              <h4>头条与新闻流保持一套视觉节奏，但右侧改成信息导读，而不是次新闻卡片。</h4>
+              <p>适合想兼顾头条感和工具效率，但没有 A 那么直接强调“二号、三号新闻”。</p>
+            </article>
+            <aside class="panel">
+              <h4>快讯导读</h4>
+              <div class="rail-list">
+                <div class="rail-item">阿联酋航空暂停运营</div>
+                <div class="rail-item">猴痘疫苗研发进展</div>
+                <div class="rail-item">恢复中朝客运航班</div>
+                <div class="rail-item">港股异动监控</div>
+              </div>
+            </aside>
+          </div>
+          <div class="micro-grid">
+            <article class="story-card"><strong>新闻一</strong><p>网格式次级内容。</p></article>
+            <article class="story-card"><strong>新闻二</strong><p>更像 Briefing 卡片。</p></article>
+            <article class="story-card"><strong>新闻三</strong><p>密度最高。</p></article>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body layout-caption">
+      <h3>C. 头条 + 快讯导读栏</h3>
+      <p>兼顾工具属性和杂志感，信息更丰富，但“重点新闻排序感”不如 A 明确。</p>
+    </div>
+  </div>
+</div>

@@ -34,6 +34,17 @@ export const useNewsStore = defineStore('newsStore', () => {
     detailLoading.value = false;
   }
 
+  async function refreshNews() {
+    const response = await apiClient.refreshNews();
+    usingMock.value = usingMock.value || response.degraded;
+    if (response.degraded) {
+      return false;
+    }
+
+    await loadNews(activeQuery.value);
+    return true;
+  }
+
   function upsertNews(item: NewsItem) {
     const existingIndex = items.value.findIndex((candidate) => candidate.id === item.id);
     if (existingIndex >= 0) {
@@ -55,6 +66,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     activeQuery,
     loadNews,
     loadDetail,
+    refreshNews,
     upsertNews,
   };
 });

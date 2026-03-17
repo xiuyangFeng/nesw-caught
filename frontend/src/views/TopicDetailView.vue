@@ -7,7 +7,7 @@ import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import { useTopicStore } from '../stores/topicStore';
 import { sentimentText } from '../utils/format';
-import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
+import { compareNewsTimestamps, formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const route = useRoute();
 const router = useRouter();
@@ -36,9 +36,7 @@ const sortedSources = computed(() =>
       const originalOk = !originalOnly.value || Boolean(item.canonical_url);
       return sentimentOk && Boolean(symbolOk) && keywordOk && originalOk;
     })
-    .sort(
-    (left, right) => new Date(right.published_at).getTime() - new Date(left.published_at).getTime(),
-  ),
+    .sort((left, right) => compareNewsTimestamps(left, right)),
 );
 const availableSymbols = computed(() => detail.value?.related_symbols ?? []);
 const sourceGroups = computed(() => {
@@ -59,27 +57,29 @@ const sourceGroups = computed(() => {
     if (existing) {
       existing.count += 1;
       existing.items.push(item);
-      if (new Date(item.published_at).getTime() > new Date(existing.latestPublishedAt).getTime()) {
-        existing.latestPublishedAt = item.published_at;
+      const itemTimestamp = getNewsDisplayTimestamp(item) ?? '';
+      if (compareNewsTimestamps({ published_at: existing.latestPublishedAt }, { published_at: itemTimestamp }) > 0) {
+        existing.latestPublishedAt = itemTimestamp;
       }
-      if (new Date(item.published_at).getTime() < new Date(existing.firstPublishedAt).getTime()) {
-        existing.firstPublishedAt = item.published_at;
+      if (compareNewsTimestamps({ published_at: itemTimestamp }, { published_at: existing.firstPublishedAt }) > 0) {
+        existing.firstPublishedAt = itemTimestamp;
       }
       existing.sentimentCounts[item.sentiment_label] = (existing.sentimentCounts[item.sentiment_label] ?? 0) + 1;
     } else {
+      const timestamp = getNewsDisplayTimestamp(item) ?? '';
       groups.set(item.source_name, {
         sourceName: item.source_name,
         count: 1,
         items: [item],
-        latestPublishedAt: item.published_at,
-        firstPublishedAt: item.published_at,
+        latestPublishedAt: timestamp,
+        firstPublishedAt: timestamp,
         sentimentCounts: { [item.sentiment_label]: 1 },
       });
     }
   }
 
-  return [...groups.values()].sort(
-    (left, right) => new Date(right.latestPublishedAt).getTime() - new Date(left.latestPublishedAt).getTime(),
+  return [...groups.values()].sort((left, right) =>
+    compareNewsTimestamps({ published_at: left.latestPublishedAt }, { published_at: right.latestPublishedAt }),
   );
 });
 const sourceStats = computed(() =>
@@ -215,7 +215,7 @@ onMounted(async () => {
                 >
                   <div class="source-head">
                     <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
-                    <span>{{ formatMarketTime(item.published_at, item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
+                    <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                   </div>
                   <strong>{{ item.title }}</strong>
                   <p>{{ item.summary ?? '摘要待补充' }}</p>
@@ -253,7 +253,7 @@ onMounted(async () => {
                 <div class="source-head">
                   <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
                   <span>{{ item.source_name }}</span>
-                  <span>{{ formatMarketTime(item.published_at, item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
+                  <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                 </div>
                 <strong>{{ item.title }}</strong>
                 <p>{{ item.summary ?? '摘要待补充' }}</p>

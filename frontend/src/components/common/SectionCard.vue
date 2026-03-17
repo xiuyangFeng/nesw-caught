@@ -2,11 +2,12 @@
 defineProps<{
   title: string;
   subtitle?: string;
+  compact?: boolean;
 }>();
 </script>
 
 <template>
-  <section class="surface section-card">
+  <section class="surface section-card" :class="{ compact }">
     <header>
       <div>
         <h2>{{ title }}</h2>
@@ -26,6 +27,10 @@ defineProps<{
   padding: 22px;
 }
 
+.section-card.compact {
+  padding: 18px 20px;
+}
+
 header {
   display: flex;
   align-items: flex-start;
@@ -37,6 +42,7 @@ header {
 h2 {
   margin: 0;
   font-size: 18px;
+  line-height: 1.3;
 }
 
 p {
