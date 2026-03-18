@@ -44,9 +44,47 @@ def ensure_price_snapshot_columns() -> None:
                 connection.execute(text(statement))
 
 
+def ensure_news_item_columns() -> None:
+    inspector = inspect(engine)
+    if "news_item" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("news_item")}
+    required_columns = {
+        "signal_status": "ALTER TABLE news_item ADD COLUMN signal_status VARCHAR(32)",
+        "signal_error": "ALTER TABLE news_item ADD COLUMN signal_error TEXT",
+        "signal_updated_at": "ALTER TABLE news_item ADD COLUMN signal_updated_at DATETIME",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in required_columns.items():
+            if column_name not in existing:
+                connection.execute(text(statement))
+
+
+def ensure_topic_cluster_columns() -> None:
+    inspector = inspect(engine)
+    if "topic_cluster" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("topic_cluster")}
+    required_columns = {
+        "topic_key": "ALTER TABLE topic_cluster ADD COLUMN topic_key VARCHAR(255)",
+        "cluster_version": "ALTER TABLE topic_cluster ADD COLUMN cluster_version INTEGER DEFAULT 1",
+        "llm_refined_at": "ALTER TABLE topic_cluster ADD COLUMN llm_refined_at DATETIME",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in required_columns.items():
+            if column_name not in existing:
+                connection.execute(text(statement))
+
+
 def initialize_database() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_price_snapshot_columns()
+    ensure_news_item_columns()
+    ensure_topic_cluster_columns()
 
     with SessionLocal() as session:
         has_watchlist = session.scalar(select(WatchlistItem.id).limit(1)) is not None

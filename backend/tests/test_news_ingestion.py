@@ -361,3 +361,172 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
             "published_at": "2025-03-17T09:00:00+00:00",
         }
     ]
+
+
+def test_refresh_all_runs_signal_pipeline_for_inserted_items(monkeypatch) -> None:
+    source = SourceDefinition(
+        name="Pipeline Refresh",
+        source_type="rss",
+        url="https://example.com/pipeline-feed",
+        market="us",
+        language="en",
+    )
+    feed = """
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Pipeline refresh item</title>
+          <link>https://example.com/pipeline-refresh-item</link>
+          <description>Fresh signal text</description>
+          <pubDate>Wed, 19 Mar 2026 10:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>
+    """
+    url_hash = sha256("https://example.com/pipeline-refresh-item".encode("utf-8")).hexdigest()
+
+    class FakeResponse:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, url: str) -> FakeResponse:
+            assert url == source.url
+            return FakeResponse(feed)
+
+    class FakeFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    calls: list[list[int]] = []
+
+    class FakePipelineService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def process_news_ids(self, news_ids: list[int]) -> None:
+            calls.append(news_ids)
+
+    monkeypatch.setattr("app.services.news_ingestion.load_sources", lambda: [source])
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", lambda: FakeFactory())
+    monkeypatch.setattr("app.services.news_ingestion.NewsSignalPipelineService", FakePipelineService)
+
+    with SessionLocal() as session:
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+        session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+        session.commit()
+
+        summary = NewsIngestionService(session).refresh_all()
+
+        assert summary.inserted_count == 1
+        assert len(summary.inserted_items) == 1
+        assert calls == [[summary.inserted_items[0].id]]
+
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+        session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+        session.commit()
+
+
+def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> None:
+    source = SourceDefinition(
+        name="Pipeline Backfill",
+        source_type="rss",
+        url="https://example.com/pipeline-backfill-feed",
+        market="us",
+        language="en",
+    )
+    existing_url = "https://example.com/pipeline-existing-item"
+    url_hash = sha256(existing_url.encode("utf-8")).hexdigest()
+    feed = f"""
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Already known item</title>
+          <link>{existing_url}</link>
+          <description>Repeated item</description>
+          <pubDate>Wed, 19 Mar 2026 11:00:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>
+    """
+
+    class FakeResponse:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, url: str) -> FakeResponse:
+            assert url == source.url
+            return FakeResponse(feed)
+
+    class FakeFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    calls: list[list[int]] = []
+
+    class FakePipelineService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def list_pending_news_ids(self, *, limit: int) -> list[int]:
+            del limit
+            return [pending.id]
+
+        def process_news_ids(self, news_ids: list[int]) -> None:
+            calls.append(news_ids)
+
+    monkeypatch.setattr("app.services.news_ingestion.load_sources", lambda: [source])
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", lambda: FakeFactory())
+    monkeypatch.setattr("app.services.news_ingestion.NewsSignalPipelineService", FakePipelineService)
+
+    with SessionLocal() as session:
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+        session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+        pending = NewsItem(
+            source_name="Pipeline Backfill",
+            source_url=source.url,
+            title="Already known item",
+            summary="Repeated item",
+            canonical_url=existing_url,
+            url_hash=url_hash,
+            market="us",
+            language="en",
+            sentiment_label=None,
+            sentiment_score=None,
+            signal_status=None,
+            signal_error=None,
+            signal_updated_at=None,
+            published_at=datetime(2026, 3, 19, 11, 0, tzinfo=timezone.utc),
+            fetched_at=datetime(2026, 3, 19, 11, 1, tzinfo=timezone.utc),
+            ingest_status="ingested",
+        )
+        session.add(pending)
+        session.commit()
+
+        summary = NewsIngestionService(session).refresh_all()
+
+        assert summary.inserted_count == 0
+        assert calls == [[pending.id]]
+
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+        session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+        session.commit()

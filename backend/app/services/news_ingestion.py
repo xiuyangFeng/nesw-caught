@@ -21,6 +21,7 @@ from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
 from app.services.http_client import HttpClientFactory
+from app.services.news_signal_pipeline import NewsSignalPipelineService
 
 SourceType = Literal["rss", "html"]
 
@@ -504,7 +505,7 @@ class NewsIngestionService:
             inserted_items.extend(result.inserted_items)
 
         finished_at = _utc_now()
-        return RefreshSummary(
+        summary = RefreshSummary(
             started_at=started_at,
             finished_at=finished_at,
             fetched_count=fetched_count,
@@ -512,6 +513,14 @@ class NewsIngestionService:
             results=results,
             inserted_items=inserted_items,
         )
+        pipeline = NewsSignalPipelineService(self.session)
+        target_news_ids = [item.id for item in inserted_items]
+        if not target_news_ids:
+            target_news_ids = pipeline.list_pending_news_ids(limit=50)
+        if target_news_ids:
+            pipeline.process_news_ids(target_news_ids)
+            self.session.commit()
+        return summary
 
     def _refresh_source(self, source: SourceDefinition) -> SourceFetchResult:
         started = time.perf_counter()

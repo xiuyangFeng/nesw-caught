@@ -2,6 +2,30 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-19 11:20
+
+- 修改人：Codex
+- 修改范围：新闻 refresh 后自动情绪标注与主题聚合增量流水线、后端测试、设计与计划文档
+- 变更内容：新增 `NewsSignalPipelineService`、规则情绪分类器和信号结果持久化，在每次 `POST /api/news/refresh` 成功插入新闻后自动对增量新闻生成 `sentiment_label` / `sentiment_score`、归并到 `topic_cluster` 并写入 `topic_news_link`；当本次 refresh 没有新增新闻时，会顺手回填一批历史 `signal_status is null` 的新闻，避免库里已有未打标新闻长期不被处理；新增 `news_item` 信号状态字段、`topic_cluster` 归并字段和 `news_signal_result` 表，并补充增量分类/聚合/降级/refresh 触发的后端测试及本轮设计、计划文档。
+- 影响文件：
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/db/initializer.py`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/models/__init__.py`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/models/news_item.py`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/models/news_signal_result.py`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/models/topic_cluster.py`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/repositories/news_signal_repository.py`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/services/news_signal_classifier.py`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/app/services/news_signal_pipeline.py`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/backend/tests/test_news_signal_pipeline.py`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/docs/superpowers/specs/2026-03-19-auto-signal-topic-pipeline-design.md`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/docs/superpowers/plans/2026-03-19-auto-signal-topic-pipeline-plan.md`（新增）
+  - `/Users/xiuyang/.config/superpowers/worktrees/news-caught/codex-auto-signal-topic/docs/code-change-log.md`
+- 接口/数据结构变化：有（`news_item` 新增 `signal_status`、`signal_error`、`signal_updated_at`；`topic_cluster` 新增 `topic_key`、`cluster_version`、`llm_refined_at`；新增 `news_signal_result` 表，但现有 API 契约保持兼容）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_signal_pipeline.py backend/tests/test_news_ingestion.py -q` 通过（13 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（55 个用例）
+- 风险/后续事项：当前主题聚合仍以规则 token/topic key 为主，适合先把空值和无聚合问题补齐，但复杂跨语种话题的命名质量仍取决于后续启用 `ai_enabled` 后的 LLM 提炼；SQLite 现有库通过启动时补列兼容升级，若后续要上更严格索引或唯一约束，建议引入正式 migration
+
 ## 2026-03-18 21:35
 
 - 修改人：Codex
