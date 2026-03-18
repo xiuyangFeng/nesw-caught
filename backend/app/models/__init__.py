@@ -1,4 +1,5 @@
 from app.models.article_content import ArticleContent
+from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
@@ -16,6 +17,7 @@ from app.models.x_source_health import XSourceHealth
 
 __all__ = [
     "ArticleContent",
+    "FeishuNotifyConfig",
     "LLMProviderConfig",
     "NewsAnalysisResult",
     "NewsItem",

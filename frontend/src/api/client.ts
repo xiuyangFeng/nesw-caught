@@ -1,4 +1,7 @@
 import type {
+  FeishuNotifyConfig,
+  FeishuNotifyConfigUpdate,
+  FeishuTestResult,
   HealthStatus,
   LLMConfigSummary,
   LLMConfigUpdateRequest,
@@ -23,6 +26,8 @@ import type {
 } from '../types/api';
 import { getJson, postJson } from './http';
 import {
+  mockFeishuConfig,
+  mockFeishuTestResult,
   mockHealth,
   mockLlmConfig,
   mockMarketSnapshots,
@@ -189,5 +194,41 @@ export const apiClient = {
   },
   refreshXPosts() {
     return withMockFallback<XRefreshResult>(() => postJson('/api/x/refresh', {}), () => mockXRefreshResult);
+  },
+  getFeishuConfig() {
+    return withMockFallback<FeishuNotifyConfig>(
+      () => getJson('/api/notify/feishu/config'),
+      () => mockFeishuConfig,
+    );
+  },
+  saveFeishuConfig(payload: FeishuNotifyConfigUpdate) {
+    return withMockFallback<FeishuNotifyConfig>(
+      () => postJson('/api/notify/feishu/config', payload),
+      () => {
+        const updated = {
+          ...mockFeishuConfig,
+          configured: true,
+          app_id: payload.app_id,
+          app_secret_set: payload.app_secret ? true : mockFeishuConfig.app_secret_set,
+          target_type: payload.target_type,
+          target_id: payload.target_id,
+          news_enabled: payload.news_enabled,
+          news_keywords: payload.news_keywords ?? null,
+          news_batch_interval_minutes: payload.news_batch_interval_minutes,
+          alert_enabled: payload.alert_enabled,
+          analysis_enabled: payload.analysis_enabled,
+          is_active: payload.is_active,
+          updated_at: new Date().toISOString(),
+        };
+        Object.assign(mockFeishuConfig, updated);
+        return { ...mockFeishuConfig };
+      },
+    );
+  },
+  testFeishuNotify() {
+    return withMockFallback<FeishuTestResult>(
+      () => postJson('/api/notify/feishu/test', {}),
+      () => mockFeishuTestResult,
+    );
   },
 };

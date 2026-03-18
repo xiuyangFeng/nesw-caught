@@ -6,12 +6,16 @@ from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.initializer import initialize_database
+from app.services.notification_service import get_notification_service
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     initialize_database()
+    notification_service = get_notification_service()
+    notification_service.start()
     yield
+    notification_service.stop()
 
 
 def create_app() -> FastAPI:

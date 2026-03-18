@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from hashlib import sha256
@@ -63,6 +63,7 @@ class SourceFetchResult:
     inserted_count: int
     error: str | None
     latency_ms: float
+    inserted_items: list[NewsItem] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,7 @@ class RefreshSummary:
     fetched_count: int
     inserted_count: int
     results: list[SourceFetchResult]
+    inserted_items: list[NewsItem] = field(default_factory=list)
 
 
 def _utc_now() -> datetime:
@@ -490,6 +492,7 @@ class NewsIngestionService:
         fetched_count = 0
         inserted_count = 0
         results: list[SourceFetchResult] = []
+        inserted_items: list[NewsItem] = []
 
         for source in load_sources():
             if source.disabled:
@@ -498,6 +501,7 @@ class NewsIngestionService:
             fetched_count += result.fetched_count
             inserted_count += result.inserted_count
             results.append(result)
+            inserted_items.extend(result.inserted_items)
 
         finished_at = _utc_now()
         return RefreshSummary(
@@ -506,6 +510,7 @@ class NewsIngestionService:
             fetched_count=fetched_count,
             inserted_count=inserted_count,
             results=results,
+            inserted_items=inserted_items,
         )
 
     def _refresh_source(self, source: SourceDefinition) -> SourceFetchResult:
@@ -532,10 +537,14 @@ class NewsIngestionService:
                     raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
 
                 inserted_count = 0
+                inserted_items: list[NewsItem] = []
                 for item in items:
                     if source.name == "MiniMax News":
                         item = self._hydrate_minimax_detail_item(client, source, item)
-                    inserted_count += self._persist_item(source, item)
+                    inserted_item = self._persist_item(source, item)
+                    if inserted_item is not None:
+                        inserted_count += 1
+                        inserted_items.append(inserted_item)
 
             latency_ms = round((time.perf_counter() - started) * 1000, 2)
             health.last_success_at = _utc_now()
@@ -554,6 +563,7 @@ class NewsIngestionService:
                 inserted_count=inserted_count,
                 error=None,
                 latency_ms=latency_ms,
+                inserted_items=inserted_items,
             )
         except Exception as exc:
             self.session.rollback()
@@ -576,13 +586,13 @@ class NewsIngestionService:
                 latency_ms=latency_ms,
             )
 
-    def _persist_item(self, source: SourceDefinition, item: SourceItem) -> int:
+    def _persist_item(self, source: SourceDefinition, item: SourceItem) -> NewsItem | None:
         canonical_url = item.canonical_url
         url_hash = sha256(canonical_url.encode("utf-8")).hexdigest()
         existing = self.session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
         if existing is not None:
             self._update_existing_item(existing, item)
-            return 0
+            return None
 
         news_item = NewsItem(
             source_name=source.name,
@@ -613,7 +623,7 @@ class NewsIngestionService:
                     extracted_at=_utc_now(),
                 )
             )
-        return 1
+        return news_item
 
     def _update_existing_item(self, news_item: NewsItem, item: SourceItem) -> None:
         if item.summary and (

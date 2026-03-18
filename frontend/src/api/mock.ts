@@ -1,4 +1,6 @@
 import type {
+  FeishuNotifyConfig,
+  FeishuTestResult,
   HealthStatus,
   LLMConfigSummary,
   MarketSnapshot,
@@ -512,3 +514,23 @@ export const mockStreamEvents: StreamEnvelope[] = [
     payload: { status: 'ok' },
   },
 ];
+
+export const mockFeishuConfig: FeishuNotifyConfig = {
+  configured: false,
+  app_id: null,
+  app_secret_set: false,
+  target_type: null,
+  target_id: null,
+  news_enabled: true,
+  news_keywords: null,
+  news_batch_interval_minutes: 60,
+  alert_enabled: true,
+  analysis_enabled: true,
+  is_active: true,
+  updated_at: null,
+};
+
+export const mockFeishuTestResult: FeishuTestResult = {
+  success: true,
+  message: '测试消息发送成功（mock）',
+};

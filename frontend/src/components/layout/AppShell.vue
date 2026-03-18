@@ -22,6 +22,7 @@ const navItems = [
   { label: 'Watchlist', to: '/watchlist', index: '03' },
   { label: 'X Monitor', to: '/x-monitor', index: '04' },
   { label: 'LLM Settings', to: '/settings/llm', index: '05' },
+  { label: 'Notify', to: '/settings/notify', index: '06' },
 ];
 
 const connectionSummary = computed(() => {

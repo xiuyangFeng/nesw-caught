@@ -43,6 +43,11 @@ const router = createRouter({
       component: () => import('../views/LlmSettingsView.vue'),
     },
     {
+      path: '/settings/notify',
+      name: 'notify-settings',
+      component: () => import('../views/NotifySettingsView.vue'),
+    },
+    {
       path: '/topics/:id',
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),

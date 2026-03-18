@@ -265,3 +265,99 @@ def test_refresh_news_endpoint_returns_summary(monkeypatch) -> None:
     assert payload["fetched_count"] == 10
     assert payload["inserted_count"] == 4
     assert payload["results"][0]["source_name"] == "The Verge"
+
+
+def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> None:
+    inserted_item = NewsItem(
+        id=999,
+        source_name="Inserted Source",
+        source_url="https://example.com/feed",
+        title="Inserted news",
+        summary="Inserted summary",
+        canonical_url="https://example.com/inserted",
+        url_hash="inserted-hash",
+        market="us",
+        language="en",
+        sentiment_label=None,
+        sentiment_score=None,
+        published_at=datetime(2025, 3, 17, 9, 0, tzinfo=timezone.utc),
+        fetched_at=datetime(2025, 3, 17, 9, 1, tzinfo=timezone.utc),
+        ingest_status="ingested",
+    )
+
+    class FakeIngestionService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def refresh_all(self) -> RefreshSummary:
+            now = datetime(2025, 3, 17, 10, 0, tzinfo=timezone.utc)
+            from app.services.news_ingestion import SourceFetchResult
+
+            return RefreshSummary(
+                started_at=now,
+                finished_at=now,
+                fetched_count=5,
+                inserted_count=1,
+                inserted_items=[inserted_item],
+                results=[
+                    SourceFetchResult(
+                        source_name="Inserted Source",
+                        source_type="rss",
+                        status="ok",
+                        fetched_count=5,
+                        inserted_count=1,
+                        error=None,
+                        latency_ms=12.3,
+                    )
+                ],
+            )
+
+    class FakeNotificationService:
+        def __init__(self) -> None:
+            self.news_payloads: list[dict] = []
+
+        def on_news_created(self, payload: dict) -> None:
+            self.news_payloads.append(payload)
+
+    class FakeNewsRepository:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def list_recent(self, limit: int):  # pragma: no cover - route-level guard
+            return [
+                NewsItem(
+                    id=1000,
+                    source_name="Wrong Source",
+                    source_url="https://example.com/feed",
+                    title="Wrong recent news",
+                    summary="Wrong summary",
+                    canonical_url="https://example.com/wrong",
+                    url_hash="wrong-hash",
+                    market="hk",
+                    language="zh",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=datetime(2025, 3, 17, 9, 30, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 17, 9, 31, tzinfo=timezone.utc),
+                    ingest_status="ingested",
+                )
+            ]
+
+    notification_service = FakeNotificationService()
+    monkeypatch.setattr("app.api.routes.news.NewsIngestionService", FakeIngestionService)
+    monkeypatch.setattr("app.api.routes.news.NewsRepository", FakeNewsRepository)
+    monkeypatch.setattr("app.api.routes.news.get_notification_service", lambda: notification_service)
+
+    client = TestClient(app)
+    response = client.post("/api/news/refresh")
+
+    assert response.status_code == 200
+    assert notification_service.news_payloads == [
+        {
+            "title": "Inserted news",
+            "summary": "Inserted summary",
+            "source_name": "Inserted Source",
+            "market": "us",
+            "published_at": "2025-03-17T09:00:00+00:00",
+        }
+    ]

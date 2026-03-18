@@ -2,6 +2,59 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 16:12
+
+- 修改人：Codex
+- 修改范围：飞书通知回归修复、后端回归测试、前端 mock 回归测试、设计与计划文档
+- 变更内容：修复飞书通知两个合并阻塞回归：新闻刷新接口不再通过“最近 N 条”反推新增新闻，而是由 `NewsIngestionService` 显式返回本次真实插入的 `inserted_items` 供通知使用；自选股异动通知改为进程内边沿触发状态机，只有首次越过阈值时发送，跌回阈值内后才允许下一次再次提醒，避免页面启动和 watchlist 读取重复刷屏；同时修正前端 mock 降级下飞书配置保存逻辑，编辑已配置项且留空 `app_secret` 时继续保留 `app_secret_set=true`。补充后端新闻刷新/自选股通知回归测试和前端 API client 回归测试，并新增本轮设计、计划文档。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/notification_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-feishu-notification-bugfix-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-feishu-notification-bugfix-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无对外 API 结构变化；内部 `RefreshSummary` / `SourceFetchResult` 新增 `inserted_items` 字段用于通知链路
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py backend/tests/test_market.py backend/tests/test_feishu_notify.py -q` 通过（20 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts` 通过（1 个文件 / 1 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：自选股提醒状态仍是进程内内存，服务重启后若股票仍处于阈值外，首次读取 watchlist 仍会补发一次；本轮未把提醒迁到独立调度任务，后续若要彻底去除读接口副作用，建议再拆为后台轮询
+
+## 2026-03-18 14:30
+
+- 修改人：Cursor
+- 修改范围：飞书应用 Bot 推送通知全链路、前后端配置管理、业务集成、测试与设计文档
+- 变更内容：新增飞书应用 Bot API 推送通知功能，支持三类信号推送（新闻聚合、自选股异动、LLM 分析结果）；后端新增 `FeishuNotifyConfig` 模型、仓储、Schema、`FeishuClient` 飞书 API 客户端（tenant_access_token 鉴权 + 消息卡片发送）、`NotificationService` 通知服务（进程内事件缓冲 + 定时聚合推送 + 实时推送）、`/api/notify/feishu/*` 配置与测试接口；将通知集成到新闻刷新（news.refresh）、LLM 分析（news.analyze）和自选股行情（market.watchlist）三个业务入口；前端新增通知设置页 `/settings/notify`（飞书凭证、目标类型、通知开关、聚合间隔、测试按钮）、`notifyStore`、API client 扩展和 mock 降级；侧栏导航新增 `06 Notify` 入口。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/feishu_notify_config.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/__init__.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/feishu_notify_config_repository.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/feishu_notify.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/feishu_client.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/notification_service.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/notify.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/router.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_feishu_notify.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/notifyStore.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NotifySettingsView.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-feishu-notification-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过（38 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：飞书凭证（App ID/App Secret）存储在数据库明文，与 LLM key 同级安全策略，适合个人使用；新闻聚合使用进程内定时器，服务重启后缓冲区清空；自选股异动检测挂在行情查询入口，仅在行情被请求时触发，后续可加独立定时轮询；关键词过滤为子串匹配，后续可升级为分词匹配
+
 ## 2026-03-18 13:06
 
 - 修改人：Codex

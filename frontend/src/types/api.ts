@@ -256,3 +256,36 @@ export interface XPostQuery {
   symbol?: string;
   limit?: number;
 }
+
+export interface FeishuNotifyConfig {
+  configured: boolean;
+  app_id: string | null;
+  app_secret_set: boolean;
+  target_type: string | null;
+  target_id: string | null;
+  news_enabled: boolean;
+  news_keywords: string | null;
+  news_batch_interval_minutes: number;
+  alert_enabled: boolean;
+  analysis_enabled: boolean;
+  is_active: boolean;
+  updated_at: string | null;
+}
+
+export interface FeishuNotifyConfigUpdate {
+  app_id: string;
+  app_secret?: string;
+  target_type: string;
+  target_id: string;
+  news_enabled: boolean;
+  news_keywords?: string | null;
+  news_batch_interval_minutes: number;
+  alert_enabled: boolean;
+  analysis_enabled: boolean;
+  is_active: boolean;
+}
+
+export interface FeishuTestResult {
+  success: boolean;
+  message: string;
+}
