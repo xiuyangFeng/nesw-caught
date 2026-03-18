@@ -85,12 +85,17 @@ describe('NewsFeedView', () => {
     newsStore.loadDetail.mockClear();
   });
 
-  it('renders terminal header labels and system-style stream sections', () => {
+  it('renders a unified list in original order without Primary Signal', () => {
     const wrapper = mount(NewsFeedView);
 
     expect(wrapper.text()).toContain('Signal Desk');
-    expect(wrapper.text()).toContain('Primary Signal');
-    expect(wrapper.text()).toContain('Signal Queue');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('Primary Signal');
+
+    const titles = wrapper.findAll('[data-role="news-card-title"]').map((node) => node.text());
+    expect(titles).toEqual([
+      'NVIDIA rallies as AI capex estimates move higher',
+      'TSMC supply chain remains in focus',
+    ]);
   });
 });

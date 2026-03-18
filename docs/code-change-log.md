@@ -2,6 +2,43 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 11:45
+
+- 修改人：Codex
+- 修改范围：News Feed 首页信息编排、统一横向新闻卡、前端测试、设计与计划文档
+- 变更内容：取消首页 `Primary Signal` 与 `Signal Queue` 的 editorial 分层，不再按重要度放大或重排新闻，改为直接按当前数据顺序渲染统一的 `News Stream` 横向卡片列表；同时将首页新闻卡统一为横向信息结构，左侧显示标题与摘要，右侧显示时间与主题，避免中间三张卡继续呈现竖向高卡；删除已不再使用的 `LeadStoryCard` 组件及其测试，避免把被废弃的首页主卡方案继续留在可执行代码里；补充对应设计文档、实现计划与前端测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/LeadStoryCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/LeadStoryCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-news-feed-unified-horizontal-list-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-news-feed-unified-horizontal-list-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/NewsFeedView.test.ts src/components/news/NewsCard.test.ts src/components/news/StoryStrip.test.ts` 通过（3 个文件 / 3 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮按需求明确取消了首页的“主信号推荐”层次，如果后续仍需要突出某类新闻，建议通过可切换排序或单独筛选实现，而不是重新引入放大型主卡
+
+## 2026-03-18 11:28
+
+- 修改人：Codex
+- 修改范围：News Feed 首页冷蓝灰终端配色、Primary Signal 主卡布局、前端测试、设计与计划文档
+- 变更内容：将首页全局终端色板从偏亮橙蓝辉光收敛为冷蓝灰交易终端风，压暗背景和表面层级并将高亮统一为少量青色信号；把 `Primary Signal` 主卡从纵向海报式超大标题改为更紧凑的终端主卡，采用顶部信号标签、中部压缩标题与 2 到 3 行摘要、底部横向 meta 信息带的结构；同时新增 `LeadStoryCard` 测试覆盖新结构钩子，并补充本轮设计文档和实现计划。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/assets/main.css`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/LeadStoryCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/LeadStoryCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-news-feed-terminal-refinement-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-news-feed-terminal-refinement-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/news/LeadStoryCard.test.ts src/views/NewsFeedView.test.ts` 通过（2 个文件 / 2 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮主要压缩了首页主卡和终端色板，其他页面仍沿用同一 token 体系但未逐页做更细的视觉平衡检查；若后续需要继续增强“交易终端”气质，可再细调卡片密度和导航区信息层级
+
 ## 2026-03-18 01:43
 
 - 修改人：Codex

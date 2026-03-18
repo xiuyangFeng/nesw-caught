@@ -34,28 +34,16 @@ const emit = defineEmits<{
       <span class="market-tag">{{ entry.item.market.toUpperCase() }}</span>
       <span class="source">{{ entry.item.source_name }}</span>
     </div>
-
-    <template v-if="variant === 'supporting'">
-      <div class="news-card__supporting-body">
-        <div class="news-card__supporting-copy">
-          <h3>{{ entry.item.title }}</h3>
-          <p class="summary">{{ summary }}</p>
-        </div>
-        <div class="news-card__supporting-meta">
-          <span>{{ publishedLabel }}</span>
-          <span>{{ topicLabel }}</span>
-        </div>
+    <div class="news-card__body" :class="{ 'news-card__supporting-body': variant === 'supporting' }">
+      <div class="news-card__copy" :class="{ 'news-card__supporting-copy': variant === 'supporting' }">
+        <h3 data-role="news-card-title">{{ entry.item.title }}</h3>
+        <p class="summary">{{ summary }}</p>
       </div>
-    </template>
-
-    <template v-else>
-      <h3>{{ entry.item.title }}</h3>
-      <p class="summary">{{ summary }}</p>
-      <div class="card-meta">
+      <div class="news-card__meta" :class="{ 'news-card__supporting-meta': variant === 'supporting' }">
         <span>{{ publishedLabel }}</span>
         <span>{{ topicLabel }}</span>
       </div>
-    </template>
+    </div>
   </article>
 </template>
 
@@ -77,13 +65,7 @@ const emit = defineEmits<{
   box-shadow: 0 16px 36px rgba(2, 6, 12, 0.28);
 }
 
-.news-card--supporting {
-  gap: 14px;
-  min-height: 0;
-}
-
-.card-head,
-.card-meta {
+.card-head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -94,29 +76,25 @@ const emit = defineEmits<{
 
 h3 {
   margin: 0;
-  font-size: 22px;
-  line-height: 1.28;
+  font-size: 17px;
+  line-height: 1.36;
   letter-spacing: -0.02em;
 }
 
-.news-card--stream h3 {
-  font-size: 21px;
-}
-
-.news-card__supporting-body {
+.news-card__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(138px, 0.55fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(168px, 0.5fr);
+  gap: 18px;
   align-items: start;
 }
 
-.news-card__supporting-copy {
+.news-card__copy {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
-.news-card__supporting-meta {
+.news-card__meta {
   display: grid;
   gap: 8px;
   align-content: start;
@@ -128,7 +106,7 @@ h3 {
   line-height: 1.55;
 }
 
-.news-card__supporting-meta span {
+.news-card__meta span {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -143,22 +121,15 @@ h3 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.news-card--supporting .summary {
   -webkit-line-clamp: 2;
 }
 
-.news-card--stream .summary {
-  -webkit-line-clamp: 4;
-}
-
 @media (max-width: 860px) {
-  .news-card__supporting-body {
+  .news-card__body {
     grid-template-columns: 1fr;
   }
 
-  .news-card__supporting-meta {
+  .news-card__meta {
     padding-left: 0;
     border-left: none;
     padding-top: 10px;

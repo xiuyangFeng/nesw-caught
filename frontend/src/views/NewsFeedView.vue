@@ -6,12 +6,10 @@ import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
-import LeadStoryCard from '../components/news/LeadStoryCard.vue';
 import NewsCard from '../components/news/NewsCard.vue';
-import StoryStrip from '../components/news/StoryStrip.vue';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
-import { groupEditorialStories } from '../utils/newsEditorial';
+import type { EditorialStoryEntry } from '../utils/newsEditorial';
 
 const newsStore = useNewsStore();
 const router = useRouter();
@@ -28,7 +26,13 @@ const filters = reactive<{
 const sourceOptions = computed(() => [...new Set(newsStore.items.map((item) => item.source_name))]);
 const selectedSource = ref('');
 const hydratingIds = new Set<number>();
-const editorialGroup = computed(() => groupEditorialStories(newsStore.items, newsStore.detailMap, { supportingCount: 3 }));
+const orderedEntries = computed<EditorialStoryEntry[]>(() =>
+  newsStore.items.map((item) => ({
+    item,
+    detail: newsStore.detailMap[item.id] ?? null,
+    score: 0,
+  })),
+);
 
 async function hydrateEditorialDetails() {
   const idsToLoad = newsStore.items
@@ -81,7 +85,7 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1 class="page-title">News Feed</h1>
-        <p class="page-subtitle">Signal Desk：先看最该读的主信号，再顺着次级线索和新闻流快速扫描。</p>
+        <p class="page-subtitle">Signal Desk：按当前新闻顺序直接平铺，统一用紧凑横向卡片快速扫读。</p>
       </div>
       <StaleBadge :stale="newsStore.stale" label="新闻列表" />
     </header>
@@ -97,8 +101,8 @@ onMounted(async () => {
       <div class="edition-head">
         <div>
           <p class="edition-label">Signal Desk</p>
-          <h2>Primary Signal</h2>
-          <p class="edition-copy">混合考虑主题热度、上下文完整度和发布时间，让首页优先暴露最值得跟踪的主信号。</p>
+          <h2>News Stream</h2>
+          <p class="edition-copy">不再放大单条新闻，所有条目按当前顺序进入同一种横向信息卡列表。</p>
         </div>
         <div class="filters" data-role="filter-bar">
           <select v-model="filters.market">
@@ -122,37 +126,22 @@ onMounted(async () => {
       </div>
 
       <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
-        <div class="editorial-flow">
-          <LeadStoryCard
-            v-if="editorialGroup.lead"
-            :entry="editorialGroup.lead"
-            @open="openStory"
-          />
-
-          <StoryStrip
-            v-if="editorialGroup.supporting.length"
-            title="Signal Queue"
-            :stories="editorialGroup.supporting"
-            @open="openStory"
-          />
-
-          <SectionCard
-            eyebrow="Live Flow"
-            title="News Stream"
-            subtitle="保留更多新闻，但改成更适合快速扫读和连续跟踪的终端式流卡片。"
-            compact
-          >
-            <div class="story-stream">
-              <NewsCard
-                v-for="entry in editorialGroup.stream"
-                :key="entry.item.id"
-                :entry="entry"
-                variant="stream"
-                @open="openStory"
-              />
-            </div>
-          </SectionCard>
-        </div>
+        <SectionCard
+          eyebrow="Live Flow"
+          title="News Stream"
+          subtitle="统一横向卡片，保持当前顺序，方便连续扫读和快速点进详情。"
+          compact
+        >
+          <div class="story-stream" data-role="news-stream-list">
+            <NewsCard
+              v-for="entry in orderedEntries"
+              :key="entry.item.id"
+              :entry="entry"
+              variant="stream"
+              @open="openStory"
+            />
+          </div>
+        </SectionCard>
       </LoadingBlock>
     </section>
   </div>
@@ -161,7 +150,7 @@ onMounted(async () => {
 <style scoped>
 .page {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .page-header {
@@ -173,19 +162,19 @@ onMounted(async () => {
 
 .edition-surface {
   display: grid;
-  gap: 20px;
-  padding: 22px;
-  border-radius: 24px;
+  gap: 18px;
+  padding: 20px;
+  border-radius: 22px;
 }
 
 .filters {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 12px;
+  padding: 10px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .filters select,
@@ -193,7 +182,7 @@ onMounted(async () => {
   min-width: 138px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(7, 11, 17, 0.86);
+  background: rgba(6, 11, 19, 0.92);
   padding: 10px 12px;
   color: var(--text);
 }
@@ -205,7 +194,7 @@ onMounted(async () => {
 .edition-head {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   align-items: flex-start;
 }
 
@@ -214,37 +203,26 @@ onMounted(async () => {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: var(--system);
+  color: var(--accent);
 }
 
 .edition-head h2 {
   margin: 0;
-  font-size: 32px;
-  letter-spacing: -0.04em;
+  font-size: 28px;
+  letter-spacing: -0.035em;
 }
 
 .edition-copy {
   max-width: 60ch;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
-  line-height: 1.7;
-}
-
-.editorial-flow {
-  display: grid;
-  gap: 18px;
+  line-height: 1.65;
 }
 
 .story-stream {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
-}
-
-@media (max-width: 1320px) {
-  .story-stream {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 1120px) {
