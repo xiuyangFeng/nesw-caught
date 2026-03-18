@@ -29,3 +29,12 @@ class WatchlistRepository:
         self.session.commit()
         self.session.refresh(item)
         return item
+
+    def delete_by_symbol(self, symbol: str) -> bool:
+        item = self.get_by_symbol(symbol)
+        if item is None:
+            return False
+
+        self.session.delete(item)
+        self.session.commit()
+        return True

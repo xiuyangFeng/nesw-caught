@@ -15,6 +15,7 @@ import type {
   StreamStatus,
   TopicDetail,
   TopicItem,
+  WatchlistCandidate,
   WatchlistItem,
   WatchlistItemCreate,
   WatchlistQuoteSummary,
@@ -24,7 +25,7 @@ import type {
   XPostQuery,
   XRefreshResult,
 } from '../types/api';
-import { getJson, postJson } from './http';
+import { deleteJson, getJson, postJson } from './http';
 import {
   mockFeishuConfig,
   mockFeishuTestResult,
@@ -40,6 +41,7 @@ import {
   mockStreamStatus,
   mockTopicDetails,
   mockTopics,
+  mockWatchlistCandidates,
   mockWatchlist,
   mockWatchlistQuotes,
   mockXAccounts,
@@ -152,8 +154,26 @@ export const apiClient = {
   getWatchlist() {
     return withMockFallback<WatchlistItem[]>(() => getJson('/api/watchlist'), () => mockWatchlist);
   },
+  getWatchlistCandidates() {
+    return withMockFallback<WatchlistCandidate[]>(() => getJson('/api/watchlist/candidates'), () => mockWatchlistCandidates);
+  },
   createWatchlist(payload: WatchlistItemCreate) {
     return postJson<WatchlistItem>('/api/watchlist', payload);
+  },
+  deleteWatchlist(symbol: string) {
+    return withMockFallback<void>(
+      () => deleteJson(`/api/watchlist/${encodeURIComponent(symbol)}`),
+      () => {
+        const watchlistIndex = mockWatchlist.findIndex((item) => item.symbol === symbol);
+        if (watchlistIndex >= 0) {
+          mockWatchlist.splice(watchlistIndex, 1);
+        }
+        const quoteIndex = mockWatchlistQuotes.findIndex((item) => item.symbol === symbol);
+        if (quoteIndex >= 0) {
+          mockWatchlistQuotes.splice(quoteIndex, 1);
+        }
+      },
+    );
   },
   getRelatedNews(symbol: string) {
     return withMockFallback<NewsItem[]>(

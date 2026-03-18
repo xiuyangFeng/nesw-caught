@@ -31,4 +31,35 @@ describe('WatchlistTable', () => {
 
     expect(wrapper.find('[data-surface="terminal-table"]').exists()).toBe(true);
   });
+
+  it('emits delete without triggering row selection', async () => {
+    const wrapper = mount(WatchlistTable, {
+      props: {
+        selectedSymbol: null,
+        rows: [
+          {
+            symbol: '0700.HK',
+            market: 'hk',
+            display_name: 'Tencent',
+            price: 546.5,
+            change_percent: -0.64,
+            open_price: 546.5,
+            previous_close: 550,
+            day_high: 550.5,
+            day_low: 542.5,
+            volume: 9088272,
+            is_abnormal: false,
+            abnormal_reason: null,
+            status: 'ok',
+            fetched_at: '2026-03-18T04:00:00Z',
+          },
+        ],
+      },
+    });
+
+    await wrapper.get('button[data-role="delete-watchlist"]').trigger('click');
+
+    expect(wrapper.emitted('delete')).toEqual([['0700.HK']]);
+    expect(wrapper.emitted('select')).toBeUndefined();
+  });
 });

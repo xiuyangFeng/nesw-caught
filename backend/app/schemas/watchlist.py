@@ -17,3 +17,10 @@ class WatchlistItemView(BaseModel):
     is_active: bool
     alert_threshold: float | None = None
     alert_mode: str
+
+
+class WatchlistCandidateView(BaseModel):
+    symbol: str
+    market: str
+    display_name: str
+    aliases: list[str] = []

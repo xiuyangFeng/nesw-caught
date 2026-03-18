@@ -6,10 +6,12 @@ import { formatMarketTime, getMarketTimezoneLabel } from '../../utils/time';
 defineProps<{
   rows: WatchlistQuoteSummary[];
   selectedSymbol: string | null;
+  deletingSymbol?: string | null;
 }>();
 
 const emit = defineEmits<{
   select: [symbol: string];
+  delete: [symbol: string];
 }>();
 </script>
 
@@ -29,6 +31,7 @@ const emit = defineEmits<{
           <th>成交量</th>
           <th>异动</th>
           <th>更新时间</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -62,6 +65,17 @@ const emit = defineEmits<{
                 ? `${formatMarketTime(row.fetched_at, row.market)} ${getMarketTimezoneLabel(row.market)}`
                 : '--'
             }}
+          </td>
+          <td>
+            <button
+              data-role="delete-watchlist"
+              class="delete-button"
+              type="button"
+              :disabled="row.symbol === deletingSymbol"
+              @click.stop="emit('delete', row.symbol)"
+            >
+              {{ row.symbol === deletingSymbol ? '删除中...' : '删除' }}
+            </button>
           </td>
         </tr>
       </tbody>
@@ -131,5 +145,26 @@ td span {
 
 .negative {
   color: var(--negative);
+}
+
+.delete-button {
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.22);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.delete-button:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.48);
+  background: rgba(153, 27, 27, 0.34);
+}
+
+.delete-button:disabled {
+  opacity: 0.65;
+  cursor: progress;
 }
 </style>

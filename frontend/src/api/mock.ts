@@ -13,6 +13,7 @@ import type {
   StreamStatus,
   TopicItem,
   TopicDetail,
+  WatchlistCandidate,
   WatchlistItem,
   WatchlistQuoteSummary,
   XAccount,
@@ -355,6 +356,39 @@ export const mockWatchlist: WatchlistItem[] = [
     is_active: true,
     alert_threshold: 4,
     alert_mode: 'fixed',
+  },
+];
+
+export const mockWatchlistCandidates: WatchlistCandidate[] = [
+  {
+    symbol: '0700.HK',
+    market: 'hk',
+    display_name: 'Tencent',
+    aliases: ['腾讯', '腾讯控股', '700', '0700', 'tencent holdings'],
+  },
+  {
+    symbol: '9988.HK',
+    market: 'hk',
+    display_name: 'Alibaba',
+    aliases: ['阿里', '阿里巴巴', '9988', 'baba', 'alibaba group'],
+  },
+  {
+    symbol: 'AAPL',
+    market: 'us',
+    display_name: 'Apple',
+    aliases: ['苹果', 'apple inc'],
+  },
+  {
+    symbol: 'NVDA',
+    market: 'us',
+    display_name: 'NVIDIA',
+    aliases: ['英伟达', 'nvidia corp'],
+  },
+  {
+    symbol: 'TME',
+    market: 'us',
+    display_name: 'Tencent Music',
+    aliases: ['腾讯音乐', 'tencent music entertainment'],
   },
 ];
 

@@ -38,3 +38,14 @@ export async function postJson<T>(path: string, payload: unknown): Promise<T> {
 
   return response.json() as Promise<T>;
 }
+
+export async function deleteJson(path: string): Promise<void> {
+  const response = await fetch(path, {
+    method: 'DELETE',
+    headers: JSON_HEADERS,
+  });
+
+  if (!response.ok) {
+    throw new HttpError(`Request failed for ${path}`, response.status);
+  }
+}

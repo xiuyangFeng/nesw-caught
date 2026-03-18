@@ -2,6 +2,35 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 20:38
+
+- 修改人：Codex
+- 修改范围：自选股页搜索候选添加、删除能力、后端候选/删除接口、前端测试与设计计划文档
+- 变更内容：将自选股页原先左侧手填 `symbol + display_name` 的添加表单改为“表格上方搜索添加栏 + 候选下拉”的一体化管理面板；新增内置股票候选库和 `GET /api/watchlist/candidates` 接口，前端支持按代码、中文名、英文名和别名做本地模糊匹配，选中候选后直接添加，不再要求手工录入代码与名称；新增 `DELETE /api/watchlist/{symbol}` 接口和表格行内删除按钮，删除前使用确认框并避免按钮点击误触发行跳转；同步扩展前端 mock、store 状态和回归测试，并补充本轮设计文档和实现计划。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/watchlist.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/watchlist_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/watchlist.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/watchlist_candidates.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_stock_news_search.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/http.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/vitest.config.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-watchlist-search-delete-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-watchlist-search-delete-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（新增 `GET /api/watchlist/candidates`、`DELETE /api/watchlist/{symbol}`；前端新增 `WatchlistCandidate` 数据结构）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_stock_news_search.py -q` 通过（10 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts src/components/watchlist/WatchlistTable.test.ts` 通过（3 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前候选库是内置静态清单，覆盖范围取决于维护的数据；如果后续要支持更多港股/美股，需要继续补充候选源或改成服务端查询；删除 watchlist 仅移除 watchlist 项，不会清理历史行情快照或关联新闻数据，这是本轮刻意保留的数据独立性策略
+
 ## 2026-03-18 16:45
 
 - 修改人：Cursor

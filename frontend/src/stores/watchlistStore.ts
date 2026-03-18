@@ -3,24 +3,52 @@ import { defineStore } from 'pinia';
 
 import { apiClient } from '../api/client';
 import { HttpError } from '../api/http';
-import type { NewsItem, StockQuoteDetail, WatchlistItem, WatchlistItemCreate, WatchlistQuoteSummary } from '../types/api';
+import type {
+  NewsItem,
+  StockQuoteDetail,
+  WatchlistCandidate,
+  WatchlistItem,
+  WatchlistItemCreate,
+  WatchlistQuoteSummary,
+} from '../types/api';
 import { isStale } from '../utils/time';
 
 export const useWatchlistStore = defineStore('watchlistStore', () => {
+  const candidates = ref<WatchlistCandidate[]>([]);
   const items = ref<WatchlistItem[]>([]);
   const quotes = ref<WatchlistQuoteSummary[]>([]);
   const quoteDetail = ref<StockQuoteDetail | null>(null);
   const relatedNews = ref<Record<string, NewsItem[]>>({});
   const selectedSymbol = ref<string | null>(null);
+  const selectedCandidate = ref<WatchlistCandidate | null>(null);
   const loading = ref(false);
   const relatedLoading = ref(false);
   const detailLoading = ref(false);
+  const candidatesLoading = ref(false);
   const usingMock = ref(false);
   const lastLoadedAt = ref<string | null>(null);
   const createLoading = ref(false);
   const createError = ref<string | null>(null);
+  const deleteLoadingSymbol = ref<string | null>(null);
+  const deleteError = ref<string | null>(null);
+  const candidateError = ref<string | null>(null);
 
   const stale = computed(() => isStale(lastLoadedAt.value, 5));
+
+  async function loadCandidates() {
+    candidatesLoading.value = true;
+    candidateError.value = null;
+    try {
+      const response = await apiClient.getWatchlistCandidates();
+      candidates.value = response.data;
+      usingMock.value = usingMock.value || response.degraded;
+    } catch {
+      candidateError.value = '股票候选加载失败，请检查后端服务';
+      throw new Error(candidateError.value);
+    } finally {
+      candidatesLoading.value = false;
+    }
+  }
 
   async function loadWatchlist() {
     loading.value = true;
@@ -75,23 +103,49 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     }
   }
 
+  async function deleteWatchlist(symbol: string) {
+    deleteLoadingSymbol.value = symbol;
+    deleteError.value = null;
+    try {
+      await apiClient.deleteWatchlist(symbol);
+      delete relatedNews.value[symbol];
+      await loadWatchlist();
+      if (selectedSymbol.value === symbol) {
+        selectedSymbol.value = items.value[0]?.symbol ?? null;
+      }
+    } catch {
+      deleteError.value = '删除自选股失败，请检查后端服务';
+      throw new Error(deleteError.value);
+    } finally {
+      deleteLoadingSymbol.value = null;
+    }
+  }
+
   return {
+    candidates,
     items,
     quotes,
     quoteDetail,
     relatedNews,
     selectedSymbol,
+    selectedCandidate,
     loading,
     relatedLoading,
     detailLoading,
+    candidatesLoading,
     usingMock,
     lastLoadedAt,
     stale,
     createLoading,
     createError,
+    deleteLoadingSymbol,
+    deleteError,
+    candidateError,
+    loadCandidates,
     loadWatchlist,
     loadQuoteDetail,
     loadRelatedNews,
     createWatchlist,
+    deleteWatchlist,
   };
 });
