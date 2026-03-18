@@ -36,6 +36,24 @@ const marketStore = reactive({
       display_name: 'NVIDIA',
       abnormal_reason: 'price_spike',
     },
+    {
+      symbol: '0700.HK',
+      market: 'hk',
+      display_name: 'Tencent',
+      abnormal_reason: 'price_move',
+    },
+    {
+      symbol: '9988.HK',
+      market: 'hk',
+      display_name: 'Alibaba',
+      abnormal_reason: 'price_move',
+    },
+    {
+      symbol: 'AAPL',
+      market: 'us',
+      display_name: 'Apple',
+      abnormal_reason: 'volume_spike',
+    },
   ],
   loading: false,
   stale: false,
@@ -59,6 +77,14 @@ vi.mock('../stores/marketStore', () => ({
   useMarketStore: () => marketStore,
 }));
 
+vi.mock('vue-router', () => ({
+  RouterLink: {
+    name: 'RouterLink',
+    props: ['to'],
+    template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
+  },
+}));
+
 vi.mock('../stores/topicStore', () => ({
   useTopicStore: () => topicStore,
 }));
@@ -77,5 +103,8 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('Signal Overview');
     expect(wrapper.text()).toContain('Live Movers');
     expect(wrapper.find('[data-role="dashboard-hero"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('4 只异动');
+    expect(wrapper.text()).toContain('查看全部异动');
+    expect(wrapper.findAll('[data-role="movement-preview-item"]')).toHaveLength(3);
   });
 });

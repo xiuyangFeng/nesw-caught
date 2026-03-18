@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 21:35
+
+- 修改人：Codex
+- 修改范围：Dashboard 自选股异动面板摘要化、前端视图测试、设计与计划文档
+- 变更内容：将 Dashboard 页原先按 `abnormalMovers` 全量纵向铺开的 `Live Movers` 列表改为“顶部摘要 + 3 条代表项 + 查看全部入口”的压缩结构；新增本地市场分布和主异动原因聚合文案，避免异动股票过多时把总览页拉成长列表，同时保留跳转到 Watchlist 查看完整异动的入口；同步补充该轮设计文档、实现计划和页面测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-dashboard-movers-summary-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-dashboard-movers-summary-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 1 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前“主因”文案来自前端对 `abnormal_reason` 的有限映射，后端若新增原因类型会先回退显示原始值；代表项顺序继续沿用 `abnormalMovers` 当前顺序，如果后端排序策略改变，Dashboard 预览顺位也会随之变化
+
 ## 2026-03-18 20:38
 
 - 修改人：Codex
