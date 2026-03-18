@@ -8,8 +8,9 @@ from app.db.session import get_db_session
 from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import NewsItemSummary
-from app.schemas.watchlist import WatchlistItemCreate, WatchlistItemView
+from app.schemas.watchlist import WatchlistCandidateView, WatchlistItemCreate, WatchlistItemView
 from app.services.stock_news_search import StockNewsSearchService
+from app.services.watchlist_candidates import list_watchlist_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,11 @@ router = APIRouter()
 def list_watchlist(session: Session = Depends(get_db_session)) -> list[WatchlistItemView]:
     repository = WatchlistRepository(session)
     return [WatchlistItemView.model_validate(item, from_attributes=True) for item in repository.list_all()]
+
+
+@router.get("/candidates", response_model=list[WatchlistCandidateView])
+def get_watchlist_candidates() -> list[WatchlistCandidateView]:
+    return [WatchlistCandidateView.model_validate(item) for item in list_watchlist_candidates()]
 
 
 @router.post("", response_model=WatchlistItemView, status_code=status.HTTP_201_CREATED)
@@ -50,6 +56,17 @@ def create_watchlist_item(
         logger.info("watchlist %s: triggered async external news search (matched %d < threshold %d)", symbol, matched, settings.stock_news_min_count)
 
     return WatchlistItemView.model_validate(item, from_attributes=True)
+
+
+@router.delete("/{symbol}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_watchlist_item(
+    symbol: str,
+    session: Session = Depends(get_db_session),
+) -> None:
+    repository = WatchlistRepository(session)
+    deleted = repository.delete_by_symbol(symbol.upper())
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="watchlist symbol not found")
 
 
 @router.get("/{symbol}/related-news", response_model=list[NewsItemSummary])

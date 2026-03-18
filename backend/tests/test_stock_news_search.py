@@ -288,3 +288,52 @@ def test_watchlist_create_triggers_sync_match():
         if news_item:
             session.delete(news_item)
         session.commit()
+
+
+def test_watchlist_candidates_returns_builtin_symbols():
+    client = TestClient(app)
+
+    response = client.get("/api/watchlist/candidates")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(item["symbol"] == "0700.HK" and item["display_name"] == "Tencent" and item["market"] == "hk" for item in payload)
+    assert any(item["symbol"] == "AAPL" and item["display_name"] == "Apple" and item["market"] == "us" for item in payload)
+
+
+def test_watchlist_delete_removes_existing_symbol():
+    client = TestClient(app)
+
+    with patch(
+        "app.api.routes.watchlist.StockNewsSearchService.trigger_async_external_search"
+    ):
+        create_response = client.post(
+            "/api/watchlist",
+            json={
+                "symbol": "TME",
+                "market": "us",
+                "display_name": "Tencent Music",
+                "alert_threshold": None,
+                "alert_mode": "fixed",
+            },
+        )
+
+    assert create_response.status_code in (201, 409)
+
+    delete_response = client.delete("/api/watchlist/TME")
+
+    assert delete_response.status_code == 204
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "TME"))
+        assert item is None
+
+
+def test_watchlist_delete_returns_404_for_missing_symbol():
+    client = TestClient(app)
+
+    response = client.delete("/api/watchlist/NOT-REAL")
+
+    assert response.status_code == 404

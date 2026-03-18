@@ -138,6 +138,13 @@ export interface WatchlistItemCreate {
   alert_mode: string;
 }
 
+export interface WatchlistCandidate {
+  symbol: string;
+  market: Market;
+  display_name: string;
+  aliases: string[];
+}
+
 export interface TopicItem {
   id: number;
   topic_title: string;

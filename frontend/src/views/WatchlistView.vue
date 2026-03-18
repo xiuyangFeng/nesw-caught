@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
@@ -8,19 +8,36 @@ import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import WatchlistTable from '../components/watchlist/WatchlistTable.vue';
 import { useWatchlistStore } from '../stores/watchlistStore';
+import type { WatchlistCandidate } from '../types/api';
 import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const router = useRouter();
 const watchlistStore = useWatchlistStore();
+const selectedCandidate = ref<WatchlistCandidate | null>(null);
 const form = reactive({
-  symbol: '',
-  market: 'hk' as 'hk' | 'us',
-  display_name: '',
+  query: '',
   alert_threshold: '',
 });
 
 const watchlistRows = computed(() => watchlistStore.quotes);
 const abnormalMovers = computed(() => watchlistStore.quotes.filter((item) => item.is_abnormal));
+const normalizedQuery = computed(() => form.query.trim().toLowerCase());
+const addedSymbols = computed(() => new Set(watchlistStore.items.map((item) => item.symbol)));
+
+const filteredCandidates = computed(() => {
+  if (!normalizedQuery.value) {
+    return [];
+  }
+
+  return watchlistStore.candidates
+    .filter((candidate) => {
+      const haystack = [candidate.symbol, candidate.display_name, ...(candidate.aliases ?? [])]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(normalizedQuery.value);
+    })
+    .slice(0, 8);
+});
 
 const relatedNews = computed(() => {
   const symbol = watchlistStore.selectedSymbol;
@@ -32,31 +49,58 @@ async function selectSymbol(symbol: string) {
   await router.push(`/watchlist/${encodeURIComponent(symbol)}`);
 }
 
+function selectCandidate(candidate: WatchlistCandidate) {
+  selectedCandidate.value = candidate;
+  form.query = `${candidate.display_name} · ${candidate.symbol}`;
+}
+
+function isCandidateAdded(symbol: string) {
+  return addedSymbols.value.has(symbol);
+}
+
 async function submitWatchlist() {
-  const symbol = form.symbol.trim().toUpperCase();
-  const displayName = form.display_name.trim();
-  if (!symbol || !displayName) {
-    watchlistStore.createError = '请填写股票代码和显示名称';
+  if (!selectedCandidate.value) {
+    watchlistStore.createError = '请先从候选列表中选择一只股票';
     return;
   }
 
   try {
     await watchlistStore.createWatchlist({
-      symbol,
-      market: form.market,
-      display_name: displayName,
+      symbol: selectedCandidate.value.symbol,
+      market: selectedCandidate.value.market,
+      display_name: selectedCandidate.value.display_name,
       alert_threshold: form.alert_threshold ? Number(form.alert_threshold) : null,
       alert_mode: 'fixed',
     });
-    form.symbol = '';
-    form.display_name = '';
+    form.query = '';
     form.alert_threshold = '';
+    selectedCandidate.value = null;
+  } catch {
+    // Error state is handled by the store for inline display.
+  }
+}
+
+async function handleDelete(symbol: string) {
+  if (!window.confirm(`确认删除 ${symbol} 吗？`)) {
+    return;
+  }
+
+  try {
+    await watchlistStore.deleteWatchlist(symbol);
+    if (watchlistStore.selectedSymbol) {
+      await watchlistStore.loadRelatedNews(watchlistStore.selectedSymbol);
+    }
   } catch {
     // Error state is handled by the store for inline display.
   }
 }
 
 onMounted(async () => {
+  try {
+    await watchlistStore.loadCandidates();
+  } catch {
+    // Candidate load errors are surfaced inline; keep the page usable.
+  }
   if (!watchlistStore.items.length) {
     await watchlistStore.loadWatchlist();
   }
@@ -83,40 +127,53 @@ onMounted(async () => {
     />
 
     <section class="watchlist-layout">
-      <SectionCard title="添加自选股" subtitle="写入后端 SQLite，并立即回到自选股列表联动展示">
-        <form class="watchlist-form" @submit.prevent="submitWatchlist">
-          <label>
-            <span>股票代码</span>
-            <input v-model.trim="form.symbol" placeholder="例如 AAPL 或 0700.HK" />
+      <SectionCard title="管理自选股" subtitle="输入名称或代码片段即可联想候选，添加与删除都在同一块面板完成">
+        <form class="watchlist-toolbar" @submit.prevent="submitWatchlist">
+          <label class="search-field">
+            <span>搜索股票</span>
+            <input v-model.trim="form.query" placeholder="输入股票代码、中文名或英文名" />
+            <div v-if="filteredCandidates.length" class="candidate-list">
+              <button
+                v-for="candidate in filteredCandidates"
+                :key="candidate.symbol"
+                class="candidate-option"
+                type="button"
+                :disabled="isCandidateAdded(candidate.symbol)"
+                @click="selectCandidate(candidate)"
+              >
+                <span class="candidate-main">
+                  <strong>{{ candidate.display_name }}</strong>
+                  <small>{{ candidate.symbol }} · {{ candidate.market.toUpperCase() }}</small>
+                </span>
+                <span class="candidate-state">{{ isCandidateAdded(candidate.symbol) ? '已添加' : '选择' }}</span>
+              </button>
+            </div>
           </label>
-          <label>
-            <span>显示名称</span>
-            <input v-model.trim="form.display_name" placeholder="例如 Apple / Tencent" />
-          </label>
-          <label>
-            <span>市场</span>
-            <select v-model="form.market">
-              <option value="hk">港股</option>
-              <option value="us">美股</option>
-            </select>
-          </label>
+
           <label>
             <span>阈值（可选）</span>
             <input v-model.trim="form.alert_threshold" type="number" min="0" step="0.1" placeholder="例如 3" />
           </label>
-          <button class="submit-button" type="submit" :disabled="watchlistStore.createLoading">
+
+          <button class="submit-button" type="submit" :disabled="watchlistStore.createLoading || !selectedCandidate">
             {{ watchlistStore.createLoading ? '提交中...' : '添加到自选股' }}
           </button>
-          <p v-if="watchlistStore.createError" class="error-text">{{ watchlistStore.createError }}</p>
-        </form>
-      </SectionCard>
 
-      <SectionCard title="自选股总览" subtitle="行情来自 /api/market/watchlist，点击任一股票进入详情页">
+          <p v-if="selectedCandidate" class="selection-hint">
+            已选择 {{ selectedCandidate.display_name }} · {{ selectedCandidate.symbol }}
+          </p>
+          <p v-if="watchlistStore.createError" class="error-text">{{ watchlistStore.createError }}</p>
+          <p v-if="watchlistStore.deleteError" class="error-text">{{ watchlistStore.deleteError }}</p>
+          <p v-if="watchlistStore.candidateError" class="error-text">{{ watchlistStore.candidateError }}</p>
+        </form>
+
         <LoadingBlock :loading="watchlistStore.loading" :empty="watchlistRows.length === 0">
           <WatchlistTable
             :rows="watchlistRows"
             :selected-symbol="watchlistStore.selectedSymbol"
+            :deleting-symbol="watchlistStore.deleteLoadingSymbol"
             @select="selectSymbol"
+            @delete="handleDelete"
           />
         </LoadingBlock>
       </SectionCard>
@@ -160,24 +217,24 @@ onMounted(async () => {
 
 .watchlist-layout {
   display: grid;
-  grid-template-columns: 0.8fr 1.1fr 0.9fr;
+  grid-template-columns: 1.5fr 0.9fr;
   gap: 16px;
 }
 
-.watchlist-form {
+.watchlist-toolbar {
   display: grid;
   gap: 12px;
+  margin-bottom: 14px;
 }
 
-.watchlist-form label {
+.watchlist-toolbar label {
   display: grid;
   gap: 6px;
   color: var(--text-faint);
   font-size: 14px;
 }
 
-.watchlist-form input,
-.watchlist-form select {
+.watchlist-toolbar input {
   border-radius: 12px;
   border: 1px solid var(--border);
   padding: 10px 12px;
@@ -212,6 +269,55 @@ onMounted(async () => {
 .error-text {
   margin: 0;
   color: var(--negative);
+}
+
+.selection-hint {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.search-field {
+  position: relative;
+}
+
+.candidate-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(8, 15, 28, 0.94);
+}
+
+.candidate-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidate-option:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.candidate-main {
+  display: grid;
+  gap: 4px;
+}
+
+.candidate-main small,
+.candidate-state {
+  color: var(--text-faint);
 }
 
 .related-list {
