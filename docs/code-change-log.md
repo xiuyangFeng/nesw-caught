@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 13:06
+
+- 修改人：Codex
+- 修改范围：自选股详情页指标卡与关联新闻卡终端化、测试、设计与计划文档
+- 变更内容：把自选股详情页 `指标详情` 区块中仍然发灰发亮的小卡片，以及 `关联新闻` 区块中仍然偏亮的新闻卡统一切换为深色终端表面，补齐终端卡钩子、文字对比度和 hover 层级，使该页面与前面已经收紧的终端视觉体系保持一致。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-watchlist-detail-terminal-polish-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-watchlist-detail-terminal-polish-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/WatchlistDetailView.test.ts` 通过（1 个文件 / 1 个用例）；`npm --prefix frontend run test -- --run src/views/WatchlistDetailView.test.ts src/views/LlmSettingsView.test.ts src/components/watchlist/WatchlistTable.test.ts` 通过（3 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮只修正自选股详情页卡片表面和文字层级，不调整布局与数据逻辑；如果后续仍觉得信息块太平，可以再给数值卡加入更精细的数值权重和边界光效
+
 ## 2026-03-18 12:35
 
 - 修改人：Codex

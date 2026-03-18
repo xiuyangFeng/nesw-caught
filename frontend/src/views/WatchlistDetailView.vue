@@ -73,27 +73,27 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
 
         <SectionCard title="指标详情" subtitle="开盘、昨收、最高、最低、成交量">
           <div class="metrics-grid">
-            <article>
+            <article class="terminal-surface" data-surface="terminal-metric-card">
               <span>开盘价</span>
               <strong>{{ formatNumber(detailQuote?.open_price) }}</strong>
             </article>
-            <article>
+            <article class="terminal-surface" data-surface="terminal-metric-card">
               <span>昨收价</span>
               <strong>{{ formatNumber(detailQuote?.previous_close) }}</strong>
             </article>
-            <article>
+            <article class="terminal-surface" data-surface="terminal-metric-card">
               <span>日内最高</span>
               <strong>{{ formatNumber(detailQuote?.day_high) }}</strong>
             </article>
-            <article>
+            <article class="terminal-surface" data-surface="terminal-metric-card">
               <span>日内最低</span>
               <strong>{{ formatNumber(detailQuote?.day_low) }}</strong>
             </article>
-            <article>
+            <article class="terminal-surface" data-surface="terminal-metric-card">
               <span>成交量</span>
               <strong>{{ formatNumber(detailQuote?.volume, 0) }}</strong>
             </article>
-            <article>
+            <article class="terminal-surface" data-surface="terminal-metric-card">
               <span>更新时间</span>
               <strong>
                 {{
@@ -109,7 +109,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
         <SectionCard title="关联新闻" subtitle="继续沿用股票相关新闻命中结果">
           <LoadingBlock :loading="watchlistStore.relatedLoading" :empty="relatedNews.length === 0" empty-text="当前股票暂无关联新闻">
             <div class="related-list">
-              <article v-for="item in relatedNews" :key="item.id" class="related-card">
+              <article v-for="item in relatedNews" :key="item.id" class="related-card terminal-surface" data-surface="terminal-related-card">
                 <div class="related-head">
                   <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
                   <span>{{ item.source_name }}</span>
@@ -181,15 +181,31 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
 .related-card {
   border-radius: 18px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.6);
   border: 1px solid var(--border);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.metrics-grid article:hover,
+.related-card:hover {
+  border-color: rgba(125, 211, 252, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(2, 6, 12, 0.2);
 }
 
 .metrics-grid span,
 .muted-text,
 .related-head,
 .related-card p {
-  color: var(--muted);
+  color: var(--text-faint);
+}
+
+.metrics-grid strong,
+.related-card strong {
+  color: var(--text);
+}
+
+.related-card p {
+  color: var(--text-soft);
 }
 
 .positive {
