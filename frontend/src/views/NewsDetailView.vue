@@ -244,7 +244,7 @@ watch(
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: #fffdf8;
+  background: var(--panel-stronger);
 }
 
 .analysis-label {
@@ -276,7 +276,7 @@ watch(
 
 .body-text,
 .subtle {
-  color: var(--muted);
+  color: var(--text-faint);
 }
 
 .sibling-nav {
@@ -305,8 +305,15 @@ watch(
   font: inherit;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #1453a3, #1e7acb);
+  background: linear-gradient(135deg, #1768c2, #3aa9f5);
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.nav-button:hover:not(:disabled),
+.topic-link:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(58, 169, 245, 0.22);
 }
 
 .nav-button:disabled {

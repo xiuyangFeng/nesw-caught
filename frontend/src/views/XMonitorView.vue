@@ -175,8 +175,14 @@ onMounted(async () => {
   font: inherit;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #1453a3, #1e7acb);
+  background: linear-gradient(135deg, #1768c2, #3aa9f5);
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.refresh-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(58, 169, 245, 0.24);
 }
 
 .refresh-button:disabled {
@@ -193,15 +199,21 @@ onMounted(async () => {
 .metric {
   border-radius: 16px;
   padding: 14px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--panel-stronger);
   border: 1px solid var(--border);
   display: grid;
   gap: 4px;
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.metric:hover {
+  border-color: rgba(125, 211, 252, 0.2);
+  transform: translateY(-1px);
 }
 
 .metric-label,
 .subtle {
-  color: var(--muted);
+  color: var(--text-faint);
 }
 
 .filters {
@@ -214,8 +226,9 @@ onMounted(async () => {
 .filters input {
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: #fffdf8;
+  background: var(--field-bg);
   padding: 10px 12px;
+  color: var(--text);
 }
 
 .account-list,
@@ -236,9 +249,16 @@ onMounted(async () => {
   border-radius: 18px;
   padding: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.65);
+  background: var(--panel-stronger);
   display: grid;
   gap: 12px;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.post-card:hover {
+  border-color: rgba(125, 211, 252, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(2, 6, 12, 0.22);
 }
 
 .post-head {
@@ -251,5 +271,6 @@ onMounted(async () => {
 .post-body {
   margin: 0;
   line-height: 1.55;
+  color: var(--text-soft);
 }
 </style>

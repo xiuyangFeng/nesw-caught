@@ -7,6 +7,12 @@
   --bg-elevated: #09111b;
   --panel: rgba(10, 16, 26, 0.96);
   --panel-strong: #0f1724;
+  --panel-stronger: #0c1521;
+  --panel-soft: rgba(14, 22, 34, 0.9);
+  --field-bg: rgba(8, 14, 24, 0.96);
+  --interactive-hover: rgba(83, 194, 255, 0.08);
+  --interactive-selected: rgba(83, 194, 255, 0.12);
+  --focus-ring: rgba(125, 211, 252, 0.18);
   --bg-accent:
     radial-gradient(circle at top left, rgba(71, 139, 201, 0.12), transparent 26%),
     radial-gradient(circle at 82% 12%, rgba(83, 194, 255, 0.08), transparent 24%),
@@ -15,7 +21,8 @@
   --border-strong: rgba(133, 161, 191, 0.26);
   --text: #f3f7fb;
   --text-soft: rgba(226, 235, 245, 0.76);
-  --muted: #7a8ba2;
+  --text-faint: #93a7bf;
+  --muted: #98abc2;
   --positive: #39c884;
   --negative: #ff6f86;
   --neutral: #53c2ff;
@@ -84,6 +91,14 @@ button {
   backdrop-filter: blur(12px);
 }
 
+.terminal-surface {
+  background:
+    linear-gradient(180deg, rgba(15, 24, 36, 0.96), rgba(10, 17, 27, 0.96)),
+    radial-gradient(circle at top right, rgba(83, 194, 255, 0.08), transparent 26%);
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  box-shadow: 0 18px 42px rgba(2, 6, 12, 0.34);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -130,6 +145,7 @@ textarea {
 :focus-visible {
   outline: 2px solid var(--system);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 @media (max-width: 1100px) {

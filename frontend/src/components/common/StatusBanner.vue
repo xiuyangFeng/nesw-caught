@@ -27,7 +27,7 @@ defineProps<{
   padding: 14px 18px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel-soft);
 }
 
 .status-kicker {
@@ -45,17 +45,17 @@ defineProps<{
 }
 
 .status-banner[data-tone='warning'] {
-  border-color: rgba(255, 159, 47, 0.24);
-  background: rgba(255, 159, 47, 0.08);
+  border-color: rgba(83, 194, 255, 0.2);
+  background: linear-gradient(180deg, rgba(15, 27, 40, 0.96), rgba(11, 20, 31, 0.96));
 }
 
 .status-banner[data-tone='danger'] {
-  border-color: rgba(255, 127, 127, 0.24);
-  background: rgba(255, 127, 127, 0.08);
+  border-color: rgba(255, 111, 134, 0.28);
+  background: linear-gradient(180deg, rgba(31, 17, 24, 0.92), rgba(18, 11, 17, 0.94));
 }
 
 .status-banner[data-tone='success'] {
-  border-color: rgba(45, 201, 129, 0.24);
-  background: rgba(45, 201, 129, 0.08);
+  border-color: rgba(57, 200, 132, 0.24);
+  background: linear-gradient(180deg, rgba(11, 28, 22, 0.92), rgba(10, 18, 15, 0.94));
 }
 </style>

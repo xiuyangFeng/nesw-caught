@@ -14,7 +14,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="table-shell">
+  <div class="table-shell terminal-surface" data-surface="terminal-table">
     <table>
       <thead>
         <tr>
@@ -74,12 +74,16 @@ const emit = defineEmits<{
   overflow: hidden;
   border-radius: 20px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.56);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
+  color: var(--text);
+}
+
+thead {
+  background: rgba(125, 211, 252, 0.06);
 }
 
 th,
@@ -89,17 +93,36 @@ td {
   border-bottom: 1px solid var(--border);
 }
 
+th {
+  color: var(--text);
+  font-weight: 700;
+}
+
+td {
+  color: var(--text-soft);
+}
+
 tbody tr {
   cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+tbody tr:hover {
+  background: var(--interactive-hover);
 }
 
 tbody tr[data-selected='true'] {
-  background: rgba(31, 94, 168, 0.08);
+  background: var(--interactive-selected);
+  box-shadow: inset 3px 0 0 rgba(125, 211, 252, 0.7);
 }
 
 td strong,
 td span {
   display: block;
+}
+
+td span {
+  color: var(--text-faint);
 }
 
 .positive {

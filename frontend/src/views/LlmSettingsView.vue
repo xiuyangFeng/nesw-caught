@@ -101,6 +101,7 @@ onMounted(() => {
               name="provider_name"
               type="text"
               v-model="formState.provider_name"
+              data-surface="terminal-field"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="例如 openai_compatible"
               required
@@ -112,6 +113,7 @@ onMounted(() => {
               name="display_name"
               type="text"
               v-model="formState.display_name"
+              data-surface="terminal-field"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="仅用于界面展示，可自定义"
             />
@@ -122,6 +124,7 @@ onMounted(() => {
               name="base_url"
               type="text"
               v-model="formState.base_url"
+              data-surface="terminal-field"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="可留空但建议填写 API 地址"
             />
@@ -132,6 +135,7 @@ onMounted(() => {
               name="model_name"
               type="text"
               v-model="formState.model_name"
+              data-surface="terminal-field"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="例如 deepseek-chat"
               required
@@ -143,6 +147,7 @@ onMounted(() => {
               name="api_key"
               type="password"
               v-model="formState.api_key"
+              data-surface="terminal-field"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="留空表示保留当前 key"
             />
@@ -188,7 +193,7 @@ onMounted(() => {
   display: grid;
   gap: 6px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--text-faint);
 }
 
 .field input {
@@ -196,7 +201,26 @@ onMounted(() => {
   border: 1px solid var(--border);
   padding: 10px 14px;
   font: inherit;
-  background: #fff;
+  background: var(--field-bg);
+  color: var(--text);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.field input::placeholder {
+  color: var(--text-faint);
+}
+
+.field input:hover {
+  border-color: rgba(125, 211, 252, 0.18);
+}
+
+.field input:focus {
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.12);
+}
+
+.field small.subtle {
+  color: var(--text-faint);
 }
 
 .form-footer {
@@ -212,8 +236,14 @@ onMounted(() => {
   padding: 10px 20px;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #1453a3, #1e7acb);
+  background: linear-gradient(135deg, #1768c2, #3aa9f5);
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.save-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(58, 169, 245, 0.24);
 }
 
 .save-button:disabled {
@@ -226,10 +256,10 @@ onMounted(() => {
 }
 
 .status-text.positive {
-  color: #1c7c28;
+  color: var(--positive);
 }
 
 .status-text.negative {
-  color: #c2232a;
+  color: var(--negative);
 }
 </style>

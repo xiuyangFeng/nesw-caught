@@ -172,7 +172,7 @@ onMounted(async () => {
 .watchlist-form label {
   display: grid;
   gap: 6px;
-  color: var(--muted);
+  color: var(--text-faint);
   font-size: 14px;
 }
 
@@ -182,7 +182,8 @@ onMounted(async () => {
   border: 1px solid var(--border);
   padding: 10px 12px;
   font: inherit;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--field-bg);
+  color: var(--text);
 }
 
 .submit-button {
@@ -192,13 +193,20 @@ onMounted(async () => {
   font: inherit;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #1453a3, #1e7acb);
+  background: linear-gradient(135deg, #1768c2, #3aa9f5);
   cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.submit-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(58, 169, 245, 0.24);
 }
 
 .submit-button:disabled {
   opacity: 0.6;
   cursor: progress;
+  box-shadow: none;
 }
 
 .error-text {
@@ -214,20 +222,31 @@ onMounted(async () => {
 .related-card {
   border-radius: 18px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--panel-stronger);
   border: 1px solid var(--border);
+  box-shadow: 0 14px 30px rgba(2, 6, 12, 0.24);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.related-card:hover {
+  border-color: rgba(125, 211, 252, 0.22);
+  transform: translateY(-1px);
 }
 
 .related-head {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
-  color: var(--muted);
+  color: var(--text-faint);
   font-size: 12px;
+}
+
+.related-card strong {
+  color: var(--text);
 }
 
 .related-card p,
 .related-time {
-  color: var(--muted);
+  color: var(--text-soft);
 }
 </style>

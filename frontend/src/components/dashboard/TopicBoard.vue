@@ -18,7 +18,7 @@ function openTopic(topicId: number) {
 
 <template>
   <div class="topic-board">
-    <article v-for="topic in topics" :key="topic.id" class="topic-card" role="button" tabindex="0" @click="openTopic(topic.id)" @keydown.enter="openTopic(topic.id)">
+    <article v-for="topic in topics" :key="topic.id" class="topic-card terminal-surface" data-surface="terminal-card" role="button" tabindex="0" @click="openTopic(topic.id)" @keydown.enter="openTopic(topic.id)">
       <div class="topic-header">
         <span class="pill" :class="topic.sentiment_label">{{ sentimentText(topic.sentiment_label) }}</span>
         <strong>{{ topic.topic_title }}</strong>
@@ -42,9 +42,15 @@ function openTopic(topicId: number) {
 .topic-card {
   border-radius: 18px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.58);
   border: 1px solid var(--border);
   cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.topic-card:hover {
+  border-color: rgba(125, 211, 252, 0.24);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(4, 10, 18, 0.28);
 }
 
 .topic-header {
@@ -59,13 +65,14 @@ function openTopic(topicId: number) {
 
 p {
   margin: 12px 0;
-  color: var(--muted);
+  color: var(--text-soft);
 }
 
 .topic-meta {
   display: flex;
   gap: 12px;
-  color: var(--muted);
+  color: var(--text-faint);
   font-size: 12px;
+  flex-wrap: wrap;
 }
 </style>

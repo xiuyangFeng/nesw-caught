@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="surface section-card" :class="{ compact }">
+  <section class="surface terminal-surface section-card" :class="{ compact }">
     <header>
       <div>
         <p v-if="eyebrow" class="section-eyebrow" data-role="section-eyebrow">{{ eyebrow }}</p>

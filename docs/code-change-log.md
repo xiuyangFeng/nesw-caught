@@ -2,6 +2,66 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 12:35
+
+- 修改人：Codex
+- 修改范围：终端交互态细化、共享状态组件与导航交互、验证
+- 变更内容：在高对比终端视觉基础上继续统一 `hover / focus / selected / disabled` 交互反馈，为全局 token 增加交互态色值与 focus ring；细化 AppShell 导航 hover、StatusBanner tone 层级、自选股表格选中态、Topic/Watchlist/X Monitor/Topic Detail/News Detail/LLM Settings 等页面中的卡片 hover、按钮 hover 与 disabled 态，使页面更接近交易终端的反馈节奏，而不再停留在“深色静态页面”。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/assets/main.css`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/StatusBanner.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/TopicDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/LlmSettingsView.test.ts src/components/watchlist/WatchlistTable.test.ts src/components/dashboard/TopicBoard.test.ts src/views/NewsFeedView.test.ts src/components/news/NewsCard.test.ts` 通过（5 个文件 / 6 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮主要增强交互态一致性，没有改变布局或数据逻辑；如果后续还要进一步提升终端沉浸感，建议补全更多页面的 disabled / empty / loading 态视觉标准，而不是继续单点修补
+
+## 2026-03-18 12:28
+
+- 修改人：Codex
+- 修改范围：LLM Settings 页面表单终端化、测试、设计与计划文档
+- 变更内容：将 `LLM Settings` 页中仍然使用白色底板的输入框全部切换为深色终端输入面板，补齐字段终端钩子、placeholder 对比度、focus 态描边、按钮渐变和成功/失败提示色，避免该页面继续出现刺眼白底破坏整体科技终端风格；同时新增本轮设计与计划文档并扩展页面测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-llm-settings-terminal-input-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-llm-settings-terminal-input-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/LlmSettingsView.test.ts` 通过（1 个文件 / 2 个用例）；`npm --prefix frontend run test -- --run src/views/LlmSettingsView.test.ts src/components/watchlist/WatchlistTable.test.ts src/components/dashboard/TopicBoard.test.ts` 通过（3 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮只修正了 `LLM Settings` 表单视觉，不改变保存逻辑；如果后续还要继续增强科技感，可再统一所有表单页面的 hover / disabled / invalid 态
+
+## 2026-03-18 12:22
+
+- 修改人：Codex
+- 修改范围：前端高对比终端视觉修复、仓库级 visual companion 启动脚本、测试与设计/计划文档
+- 变更内容：将多个仍使用浅灰白半透明表面的区域统一收敛回深色终端表面，重点修复自选股表格、Dashboard 主题卡、Watchlist 关联新闻卡、X Monitor 指标卡与筛选框、Topic Detail 过滤区和来源卡、News Detail 分析卡的低对比度问题，并同步提亮次级文字和链接/按钮高亮，强化科技终端感；同时新增仓库级 `scripts/start-server.sh` 包装脚本，转发到 `brainstorming` skill 中真实存在的启动脚本，避免后续在仓库根目录直接执行时报“文件不存在”。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/assets/main.css`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/SectionCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/TopicDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/scripts/start-server.sh`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-terminal-contrast-polish-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-18-terminal-contrast-polish-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/WatchlistTable.test.ts src/components/dashboard/TopicBoard.test.ts` 通过（2 个文件 / 2 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/WatchlistTable.test.ts src/components/dashboard/TopicBoard.test.ts src/views/NewsFeedView.test.ts src/components/news/NewsCard.test.ts` 通过（4 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮主要通过统一深色表面和提高文字对比度来修复可读性，属于视觉收敛而非结构重做；如果后续要继续细化“科技感”，下一步适合补更系统的 hover / focus / row-selected 态，而不是再引入浅色大面积底板
+
 ## 2026-03-18 11:45
 
 - 修改人：Codex

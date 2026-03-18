@@ -218,6 +218,13 @@ onBeforeUnmount(() => {
   color: var(--muted);
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid transparent;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(125, 211, 252, 0.12);
+  transform: translateX(2px);
 }
 
 .nav-signal {
@@ -253,7 +260,7 @@ onBeforeUnmount(() => {
 }
 
 .nav-link.active {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   border-color: var(--border);
 }
