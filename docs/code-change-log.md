@@ -2,6 +2,24 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-18 16:45
+
+- 修改人：Cursor
+- 修改范围：自选股添加时自动关联新闻（DB 匹配 + Tavily + Google News RSS + LLM 可选增强）
+- 变更内容：添加自选股时自动搜索并关联最新相关新闻。同步阶段用 symbol 和 display_name 在现有 `news_item` 表中做关键词匹配并写入 `news_stock_mention`；阈值判断基于实际命中的新闻条数，低于阈值（默认 3）时启动后台线程依次尝试 Tavily Search API（需配置 `tavily_api_key`）和 Google News RSS（免费兜底）搜索外部新闻入库；如果 LLM 已配置，会在外部搜索前用 LLM 扩展搜索关键词（公司别名、中文名等），LLM 未配置时优雅降级为规则关键词。新增 `TavilyClient`、`GoogleNewsSearchClient`、`StockNewsSearchService` 三个服务，修改 `POST /api/watchlist` 集成自动关联逻辑，新增 `tavily_api_key` 和 `stock_news_min_count` 配置项。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/tavily_client.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/google_news_search.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/stock_news_search.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/watchlist.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_stock_news_search.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-18-watchlist-auto-news-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（`POST /api/watchlist` 行为变更：添加后自动关联新闻；Settings 新增 `tavily_api_key`、`stock_news_min_count`）
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过（47 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：Tavily API 有免费额度限制（1000 次/月），超限后自动降级到 Google News RSS；Google News RSS 被 Google 限流时搜索会静默失败；LLM 关键词扩展依赖已配置的 LLM provider，未配置时跳过；后台线程异常不影响主请求，但搜索结果会延迟出现；前端无需修改，`news_stock_mention` 数据补齐后关联新闻自动展示
+
 ## 2026-03-18 16:12
 
 - 修改人：Codex

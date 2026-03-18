@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     x_monitor_accounts_file: str | None = None
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
+    tavily_api_key: str | None = None
+    stock_news_min_count: int = 3
 
     model_config = SettingsConfigDict(
         env_file=".env",
