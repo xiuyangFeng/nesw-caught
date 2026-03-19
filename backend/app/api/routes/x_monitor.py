@@ -63,6 +63,17 @@ def list_posts(
     ]
 
 
+@router.get("/search", response_model=list[XPostSummaryView])
+def search_posts(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    session: Session = Depends(get_db_session),
+) -> list[XPostSummaryView]:
+    service = _service(session)
+    _enabled(service)
+    return service.search_posts(query=q, limit=limit)
+
+
 @router.post("/refresh", response_model=XRefreshResponse)
 def refresh_posts(session: Session = Depends(get_db_session)) -> XRefreshResponse:
     service = _service(session)
@@ -75,4 +86,7 @@ def refresh_posts(session: Session = Depends(get_db_session)) -> XRefreshRespons
         inserted_count=summary.inserted_count,
         error=summary.error,
         latency_ms=summary.latency_ms,
+        skipped=summary.skipped,
+        skip_reason=summary.skip_reason,
+        next_refresh_at=summary.next_refresh_at,
     )

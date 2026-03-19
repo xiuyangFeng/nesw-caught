@@ -3,6 +3,7 @@ import type {
   FeishuTestResult,
   HealthStatus,
   LLMConfigSummary,
+  LLMTranslateResponse,
   MarketSnapshot,
   NewsAnalysis,
   NewsDetail,
@@ -25,6 +26,7 @@ import type {
 const now = new Date();
 
 const isoMinutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString();
+const isoMinutesFromNow = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
 
 export const mockHealth: HealthStatus = {
   status: 'ok',
@@ -169,6 +171,12 @@ export const mockLlmConfig: LLMConfigSummary = {
   api_key_set: true,
   updated_at: isoMinutesAgo(5),
 };
+
+export const buildMockTranslation = (text: string): LLMTranslateResponse => ({
+  provider_name: mockLlmConfig.provider_name ?? 'openai_compatible',
+  model_name: mockLlmConfig.model_name ?? 'deepseek-chat',
+  translated_text: `模拟翻译：${text}`,
+});
 
 export const mockNewsAnalyses: Record<number, NewsAnalysis> = {
   101: {
@@ -461,10 +469,12 @@ export const mockStreamStatus: StreamStatus = {
 
 export const mockXHealth: XHealth = {
   enabled: true,
-  bridge_configured: true,
-  bridge_healthy: true,
-  bridge_status: 'ok:grok.com',
-  provider_name: 'grok-bridge',
+  configured: true,
+  healthy: true,
+  status: 'configured',
+  provider_name: 'twitterapi.io',
+  min_interval_seconds: 6,
+  refresh_cooldown_hours: 3,
   last_success_at: isoMinutesAgo(6),
   last_failure_at: null,
   consecutive_failures: 0,
@@ -477,21 +487,12 @@ export const mockXHealth: XHealth = {
 export const mockXAccounts: XAccount[] = [
   {
     id: 1,
-    handle: 'DeItaone',
-    display_name: 'Delta One',
+    handle: 'MiniMax_AI',
+    display_name: 'MiniMax AI',
     market_focus: 'us',
     is_active: true,
     priority: 100,
-    notes: 'Macro and market headlines',
-  },
-  {
-    id: 2,
-    handle: 'SawyerMerritt',
-    display_name: 'Sawyer Merritt',
-    market_focus: 'us',
-    is_active: true,
-    priority: 80,
-    notes: 'Tech and EV chatter',
+    notes: 'Official MiniMax AI account updates',
   },
 ];
 
@@ -522,6 +523,19 @@ export const mockXPosts: XPost[] = [
     captured_at: isoMinutesAgo(6),
     symbols: ['TSLA'],
   },
+  {
+    id: 3,
+    account_handle: 'SawyerMerritt',
+    account_display_name: 'Sawyer Merritt',
+    content_text: 'NVDA demand remains strong as AI servers and networking orders stay elevated.',
+    canonical_url: 'https://x.com/SawyerMerritt/status/190003',
+    market: 'us',
+    sentiment_label: 'unknown',
+    relevance_score: null,
+    posted_at: isoMinutesAgo(9),
+    captured_at: isoMinutesAgo(3),
+    symbols: ['NVDA'],
+  },
 ];
 
 export const mockXRefreshResult: XRefreshResult = {
@@ -531,6 +545,9 @@ export const mockXRefreshResult: XRefreshResult = {
   inserted_count: 1,
   error: null,
   latency_ms: 2634,
+  skipped: false,
+  skip_reason: null,
+  next_refresh_at: isoMinutesFromNow(179),
 };
 
 export const mockNewsRefreshResult: NewsRefreshResult = {

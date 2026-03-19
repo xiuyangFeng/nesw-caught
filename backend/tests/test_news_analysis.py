@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import httpx
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, inspect, text
 
@@ -39,6 +40,132 @@ def test_post_news_analysis_requires_active_provider_config() -> None:
 
     assert response.status_code == 400
     assert response.json()["detail"] == "llm provider is not configured"
+
+
+def test_post_llm_translate_requires_active_provider_config() -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+
+    response = client.post("/api/llm/translate", json={"text": "Early testers are saying M2.7 is better."})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "llm provider is not configured"
+
+
+def test_post_llm_translate_rejects_empty_or_oversized_text() -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    empty_response = client.post("/api/llm/translate", json={"text": "   "})
+    oversized_response = client.post("/api/llm/translate", json={"text": "x" * 4001})
+
+    assert empty_response.status_code == 400
+    assert empty_response.json()["detail"] == "text is required"
+    assert oversized_response.status_code == 400
+    assert oversized_response.json()["detail"] == "text exceeds max length 4000"
+
+
+def test_post_llm_translate_returns_translated_text(monkeypatch) -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    def fake_generate_text(self, *, system_prompt: str, user_prompt: str) -> str:  # type: ignore[no-untyped-def]
+        assert "translate social media posts into natural Chinese" in system_prompt
+        assert "Early testers are saying" in user_prompt
+        return "早期测试者表示，M2.7 在情感智能和角色一致性方面有明显提升。"
+
+    monkeypatch.setattr(
+        "app.services.llm_providers.OpenAICompatibleProvider.generate_text",
+        fake_generate_text,
+    )
+
+    response = client.post(
+        "/api/llm/translate",
+        json={"text": "Early testers are saying that M2.7 has big improvements in emotional intelligence."},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider_name"] == "openai_compatible"
+    assert payload["model_name"] == "deepseek-chat"
+    assert payload["translated_text"].startswith("早期测试者表示")
+
+
+def test_post_llm_translate_rejects_empty_provider_translation(monkeypatch) -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    def fake_generate_text(self, *, system_prompt: str, user_prompt: str) -> str:  # type: ignore[no-untyped-def]
+        return "   "
+
+    monkeypatch.setattr(
+        "app.services.llm_providers.OpenAICompatibleProvider.generate_text",
+        fake_generate_text,
+    )
+
+    response = client.post("/api/llm/translate", json={"text": "MiniMax released an update."})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "llm provider returned empty translation"
+
+
+def test_post_llm_translate_surfaces_provider_connection_errors(monkeypatch) -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    original_post = httpx.Client.post
+
+    def fake_post(self, url: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if url == "https://example-llm.test/v1/chat/completions":
+            raise httpx.ConnectError("dns lookup failed", request=httpx.Request("POST", url))
+        return original_post(self, url, *args, **kwargs)
+
+    monkeypatch.setattr("app.services.llm_providers.httpx.Client.post", fake_post)
+
+    response = client.post("/api/llm/translate", json={"text": "MiniMax released an update."})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "llm provider request failed: dns lookup failed"
 
 
 def test_post_news_analysis_returns_structured_result_and_persists_latest_analysis(

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from hashlib import sha256
 import json
 import re
-from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
@@ -13,11 +13,12 @@ from app.core.config import get_settings
 from app.repositories.x_account_repository import XAccountRepository
 from app.repositories.x_post_repository import XPostRepository
 from app.repositories.x_source_health_repository import XSourceHealthRepository
-from app.services.grok_bridge_client import GrokBridgeClient, GrokBridgeError
+from app.schemas.x_monitor import XPostSummaryView
+from app.services.twitterapi_io_client import TwitterApiIoClient, TwitterApiIoError
 
 VALID_MARKETS = {"hk", "us", "cn"}
 VALID_SENTIMENTS = {"positive", "negative", "neutral", "mixed", "unknown"}
-PROVIDER_NAME = "grok-bridge"
+PROVIDER_NAME = "twitterapi.io"
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,9 @@ class XRefreshSummary:
     inserted_count: int
     error: str | None
     latency_ms: float
+    skipped: bool = False
+    skip_reason: str | None = None
+    next_refresh_at: datetime | None = None
 
 
 def _utc_now() -> datetime:
@@ -49,7 +53,10 @@ def _parse_datetime(value: str | None) -> datetime | None:
     try:
         return _normalize_datetime(datetime.fromisoformat(normalized))
     except ValueError:
-        return None
+        try:
+            return _normalize_datetime(parsedate_to_datetime(value.strip()))
+        except (TypeError, ValueError, IndexError):
+            return None
 
 
 def _extract_post_id(url: str | None) -> str | None:
@@ -75,21 +82,46 @@ def _dedupe_hash(handle: str, content_text: str, posted_at: datetime | None) -> 
     return sha256(material.encode("utf-8")).hexdigest()
 
 
-def _extract_json_array(raw_text: str) -> list[dict[str, object]]:
-    cleaned = raw_text.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
+def _extract_symbols(raw_tweet: dict[str, object]) -> list[str]:
+    raw_symbols = raw_tweet.get("symbols")
+    if isinstance(raw_symbols, list):
+        return [str(item).upper().strip() for item in raw_symbols if str(item).strip()]
 
-    start = cleaned.find("[")
-    end = cleaned.rfind("]")
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("no json array found in grok response")
+    content_text = str(raw_tweet.get("text") or "")
+    cashtags = re.findall(r"\$([A-Za-z][A-Za-z0-9._-]{0,9})", content_text)
+    seen: list[str] = []
+    for symbol in cashtags:
+        normalized = symbol.upper().strip()
+        if normalized and normalized not in seen:
+            seen.append(normalized)
+    return seen
 
-    payload = json.loads(cleaned[start : end + 1])
-    if not isinstance(payload, list):
-        raise ValueError("grok response is not a json array")
-    return [item for item in payload if isinstance(item, dict)]
+
+def _infer_market(symbols: list[str], default_market: str | None = None) -> str:
+    if default_market in VALID_MARKETS:
+        return str(default_market)
+    for symbol in symbols:
+        if symbol.endswith(".HK") or symbol.startswith("HK"):
+            return "hk"
+    return "us"
+
+
+def _extract_author_handle(raw_tweet: dict[str, object]) -> str:
+    author = raw_tweet.get("author")
+    if isinstance(author, dict):
+        handle = str(author.get("userName") or author.get("screen_name") or "").lstrip("@").strip()
+        if handle:
+            return handle
+    return str(raw_tweet.get("userName") or "").lstrip("@").strip()
+
+
+def _extract_author_name(raw_tweet: dict[str, object], fallback_handle: str) -> str:
+    author = raw_tweet.get("author")
+    if isinstance(author, dict):
+        name = str(author.get("name") or "").strip()
+        if name:
+            return name
+    return fallback_handle
 
 
 class XMonitorService:
@@ -99,7 +131,7 @@ class XMonitorService:
         self.accounts = XAccountRepository(session)
         self.posts = XPostRepository(session)
         self.health_repo = XSourceHealthRepository(session)
-        self.bridge = GrokBridgeClient()
+        self.provider = TwitterApiIoClient()
 
     def ensure_enabled(self) -> None:
         if not self.settings.x_monitor_enabled:
@@ -139,19 +171,44 @@ class XMonitorService:
         self.session.commit()
         return accounts
 
-    def build_prompt(self, account_handles: list[str]) -> str:
-        handles = ", ".join(f"@{handle}" for handle in account_handles)
-        return (
-            "You are extracting recent X posts for a local market intelligence dashboard. "
-            "Only include posts from these whitelisted accounts: "
-            f"{handles}. "
-            "Only include recent posts relevant to HK equities, US equities, ADRs, China tech, earnings, macro, semiconductors, AI, cloud, or policy. "
-            "Return only a JSON array with objects using exactly these keys: "
-            "account_handle, account_display_name, post_text, posted_at, url, symbols, market, sentiment_label, relevance_score, reason. "
-            "Rules: symbols must be an array of ticker strings or empty array; market must be hk/us/cn; sentiment_label must be positive/negative/neutral/mixed/unknown; "
-            "posted_at should be ISO 8601 when known; url should be the original X post URL when known; relevance_score should be 0 to 1. "
-            "Do not include markdown, prose, comments, or any wrapper object."
+    def _to_summary_view(
+        self,
+        raw_tweet: dict[str, object],
+        *,
+        fallback_handle: str | None = None,
+        fallback_name: str | None = None,
+        fallback_market: str | None = None,
+    ) -> XPostSummaryView | None:
+        account_handle = _extract_author_handle(raw_tweet) or str(fallback_handle or "").strip()
+        content_text = str(raw_tweet.get("text") or raw_tweet.get("fullText") or "").strip()
+        if not account_handle or not content_text:
+            return None
+
+        symbols = _extract_symbols(raw_tweet)
+        posted_at = _parse_datetime(str(raw_tweet.get("createdAt") or raw_tweet.get("created_at") or ""))
+        canonical_url = str(raw_tweet.get("url") or "").strip() or None
+        market = _infer_market(symbols, fallback_market)
+        captured_at = _utc_now()
+
+        return XPostSummaryView(
+            id=0,
+            account_handle=account_handle,
+            account_display_name=_extract_author_name(raw_tweet, fallback_name or account_handle),
+            content_text=content_text,
+            canonical_url=canonical_url,
+            market=market,
+            sentiment_label="unknown",
+            relevance_score=None,
+            posted_at=posted_at,
+            captured_at=captured_at,
+            symbols=symbols,
         )
+
+    def _cooldown_next_refresh_at(self, last_success_at: datetime | None) -> datetime | None:
+        if last_success_at is None:
+            return None
+        cooldown_hours = max(0, int(getattr(self.settings, "x_monitor_refresh_cooldown_hours", 3)))
+        return _normalize_datetime(last_success_at) + timedelta(hours=cooldown_hours)
 
     def refresh(self) -> XRefreshSummary:
         self.ensure_enabled()
@@ -163,9 +220,6 @@ class XMonitorService:
 
         if not active_accounts:
             finished_at = _utc_now()
-            health.total_fetches += 1
-            health.last_success_at = finished_at
-            health.consecutive_failures = 0
             self.session.commit()
             return XRefreshSummary(
                 started_at=started_at,
@@ -174,12 +228,29 @@ class XMonitorService:
                 inserted_count=0,
                 error=None,
                 latency_ms=(finished_at - started_at).total_seconds() * 1000,
+                next_refresh_at=None,
+            )
+
+        next_refresh_at = self._cooldown_next_refresh_at(health.last_success_at)
+
+        if next_refresh_at is not None and started_at < next_refresh_at:
+            return XRefreshSummary(
+                started_at=started_at,
+                finished_at=started_at,
+                fetched_count=0,
+                inserted_count=0,
+                error=None,
+                latency_ms=0.0,
+                skipped=True,
+                skip_reason="cooldown_active",
+                next_refresh_at=next_refresh_at,
             )
 
         try:
-            raw_text = self.bridge.chat(self.build_prompt([account.handle for account in active_accounts]))
-            rows = _extract_json_array(raw_text)
-        except (GrokBridgeError, ValueError, OSError, json.JSONDecodeError) as exc:
+            by_handle: dict[str, list[dict[str, object]]] = {}
+            for account in active_accounts:
+                by_handle[account.handle.lower()] = self.provider.get_user_last_tweets(account.handle)
+        except (TwitterApiIoError, OSError, json.JSONDecodeError, ValueError) as exc:
             finished_at = _utc_now()
             latency_ms = (finished_at - started_at).total_seconds() * 1000
             health.total_fetches += 1
@@ -199,72 +270,50 @@ class XMonitorService:
                 inserted_count=0,
                 error=str(exc),
                 latency_ms=latency_ms,
+                next_refresh_at=next_refresh_at,
             )
 
         fetched_count = 0
         inserted_count = 0
-        by_handle = {account.handle.lower(): account for account in active_accounts}
-        captured_at = _utc_now()
 
-        for row in rows:
-            account_handle = str(row.get("account_handle") or "").lstrip("@").strip().lower()
-            content_text = str(row.get("post_text") or "").strip()
-            if not account_handle or not content_text:
-                continue
-
-            account = by_handle.get(account_handle)
-            if account is None:
-                continue
-
-            fetched_count += 1
-            posted_at = _parse_datetime(str(row.get("posted_at") or "")) if row.get("posted_at") else None
-            canonical_url = str(row.get("url") or "").strip() or None
-            external_post_id = _extract_post_id(canonical_url)
-            market = str(row.get("market") or "us").lower()
-            if market not in VALID_MARKETS:
-                market = "us"
-            sentiment_label = str(row.get("sentiment_label") or "unknown").lower()
-            if sentiment_label not in VALID_SENTIMENTS:
-                sentiment_label = "unknown"
-
-            relevance_score = None
-            if row.get("relevance_score") is not None:
-                try:
-                    relevance_score = max(0.0, min(1.0, float(row["relevance_score"])))
-                except (TypeError, ValueError):
-                    relevance_score = None
-
-            dedupe_hash = _dedupe_hash(account.handle, content_text, posted_at)
-            if self.posts.exists(
-                canonical_url=canonical_url,
-                external_post_id=external_post_id,
-                dedupe_hash=dedupe_hash,
-            ):
-                continue
-
-            post = self.posts.create_post(
-                account_id=account.id,
-                external_post_id=external_post_id,
-                canonical_url=canonical_url,
-                content_text=content_text,
-                market=market,
-                sentiment_label=sentiment_label,
-                relevance_score=relevance_score,
-                posted_at=posted_at,
-                captured_at=captured_at,
-                raw_payload_json=json.dumps(row, ensure_ascii=False),
-                dedupe_hash=dedupe_hash,
-            )
-
-            symbols = row.get("symbols") if isinstance(row.get("symbols"), list) else []
-            mentions: list[dict[str, object]] = []
-            for symbol in symbols:
-                normalized_symbol = str(symbol).upper().strip()
-                if not normalized_symbol:
+        for account in active_accounts:
+            tweets = by_handle.get(account.handle.lower(), [])
+            for raw_tweet in tweets:
+                summary = self._to_summary_view(
+                    raw_tweet,
+                    fallback_handle=account.handle,
+                    fallback_name=account.display_name,
+                    fallback_market=account.market_focus,
+                )
+                if summary is None:
                     continue
-                mentions.append({"symbol": normalized_symbol, "market": market, "confidence": 0.8})
-            self.posts.add_mentions(post.id, mentions)
-            inserted_count += 1
+
+                fetched_count += 1
+                external_post_id = str(raw_tweet.get("id") or _extract_post_id(summary.canonical_url) or "").strip() or None
+                dedupe_hash = _dedupe_hash(account.handle, summary.content_text, summary.posted_at)
+                if self.posts.exists(
+                    canonical_url=summary.canonical_url,
+                    external_post_id=external_post_id,
+                    dedupe_hash=dedupe_hash,
+                ):
+                    continue
+
+                post = self.posts.create_post(
+                    account_id=account.id,
+                    external_post_id=external_post_id,
+                    canonical_url=summary.canonical_url,
+                    content_text=summary.content_text,
+                    market=summary.market,
+                    sentiment_label=summary.sentiment_label if summary.sentiment_label in VALID_SENTIMENTS else "unknown",
+                    relevance_score=summary.relevance_score,
+                    posted_at=summary.posted_at,
+                    captured_at=summary.captured_at,
+                    raw_payload_json=json.dumps(raw_tweet, ensure_ascii=False),
+                    dedupe_hash=dedupe_hash,
+                )
+                mentions = [{"symbol": symbol, "market": summary.market, "confidence": 0.8} for symbol in summary.symbols]
+                self.posts.add_mentions(post.id, mentions)
+                inserted_count += 1
 
         finished_at = _utc_now()
         latency_ms = (finished_at - started_at).total_seconds() * 1000
@@ -284,20 +333,30 @@ class XMonitorService:
             inserted_count=inserted_count,
             error=None,
             latency_ms=latency_ms,
+            next_refresh_at=self._cooldown_next_refresh_at(finished_at),
         )
 
-    def bridge_health(self) -> tuple[bool, str]:
+    def search_posts(self, query: str, limit: int) -> list[XPostSummaryView]:
+        tweets = self.provider.advanced_search(query=query, limit=limit)
+        results: list[XPostSummaryView] = []
+        for raw_tweet in tweets:
+            summary = self._to_summary_view(raw_tweet)
+            if summary is None:
+                continue
+            results.append(summary)
+        return results
+
+    def provider_health(self) -> tuple[bool, str]:
         if not self.settings.x_monitor_enabled:
             return False, "disabled"
-        if not self.bridge.configured:
+        if not self.provider.configured:
             return False, "not_configured"
+        self.sync_accounts_from_file()
+        active_accounts = self.accounts.list_active()
+        if not active_accounts:
+            return True, "configured"
         try:
-            health = self.bridge.health()
-        except GrokBridgeError as exc:
+            self.provider.probe_account(active_accounts[0].handle)
+        except TwitterApiIoError as exc:
             return False, str(exc)
-        status = health.status
-        if health.url:
-            parsed = urlparse(health.url)
-            if parsed.netloc:
-                status = f"{status}:{parsed.netloc}"
-        return True, status
+        return True, "configured"

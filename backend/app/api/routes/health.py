@@ -15,9 +15,13 @@ router = APIRouter()
 
 
 @router.get("/health", response_model=HealthResponse)
-def health_check() -> HealthResponse:
+def health_check(session: Session = Depends(get_db_session)) -> HealthResponse:
     settings = get_settings()
     now = datetime.now(timezone.utc)
+    x_monitor_healthy = False
+    if settings.x_monitor_enabled:
+        service = XMonitorService(session)
+        x_monitor_healthy, _ = service.provider_health()
     return HealthResponse(
         status="ok",
         app_name=settings.app_name,
@@ -26,8 +30,8 @@ def health_check() -> HealthResponse:
         database="configured",
         stream_mode=settings.stream_mode,
         ai_enabled=settings.ai_enabled,
-        x_bridge_enabled=settings.x_monitor_enabled,
-        x_bridge_healthy=bool(settings.x_monitor_enabled and settings.grok_bridge_base_url),
+        x_monitor_enabled=settings.x_monitor_enabled,
+        x_monitor_healthy=x_monitor_healthy,
     )
 
 
@@ -41,15 +45,17 @@ def list_source_health(session: Session = Depends(get_db_session)) -> list[Sourc
 def x_health_check(session: Session = Depends(get_db_session)) -> XHealthResponse:
     settings = get_settings()
     service = XMonitorService(session)
-    bridge_healthy, bridge_status = service.bridge_health()
+    healthy, status = service.provider_health()
     health = service.health_repo.get_or_create(PROVIDER_NAME)
     session.commit()
     return XHealthResponse(
         enabled=settings.x_monitor_enabled,
-        bridge_configured=bool(settings.grok_bridge_base_url),
-        bridge_healthy=bridge_healthy,
-        bridge_status=bridge_status,
+        configured=bool(settings.twitterapi_io_api_key),
+        healthy=healthy,
+        status=status,
         provider_name=health.provider_name,
+        min_interval_seconds=float(settings.twitterapi_io_min_interval_seconds),
+        refresh_cooldown_hours=int(settings.x_monitor_refresh_cooldown_hours),
         last_success_at=health.last_success_at,
         last_failure_at=health.last_failure_at,
         consecutive_failures=health.consecutive_failures,

@@ -32,8 +32,8 @@
   "database": "configured",
   "stream_mode": "sse",
   "ai_enabled": false,
-  "x_bridge_enabled": true,
-  "x_bridge_healthy": true
+  "x_monitor_enabled": true,
+  "x_monitor_healthy": true
 }
 ```
 
@@ -64,10 +64,10 @@
 ```json
 {
   "enabled": true,
-  "bridge_configured": true,
-  "bridge_healthy": true,
-  "bridge_status": "ok:grok.com",
-  "provider_name": "grok-bridge",
+  "configured": true,
+  "healthy": true,
+  "status": "configured",
+  "provider_name": "twitterapi.io",
   "last_success_at": "2026-03-16T07:10:36Z",
   "last_failure_at": null,
   "consecutive_failures": 0,
@@ -376,10 +376,37 @@
     "content_text": "NVIDIA suppliers remain in focus as AI infrastructure demand signals stay firm into the next quarter.",
     "canonical_url": "https://x.com/DeItaone/status/190001",
     "market": "us",
-    "sentiment_label": "positive",
-    "relevance_score": 0.92,
+    "sentiment_label": "unknown",
+    "relevance_score": null,
     "posted_at": "2026-03-16T07:00:00Z",
     "captured_at": "2026-03-16T07:05:00Z",
+    "symbols": ["NVDA"]
+  }
+]
+```
+
+### `GET /api/x/search`
+
+查询参数约定：
+
+- `q`: 搜索关键词，必填
+- `limit`: 返回条数
+
+响应示例：
+
+```json
+[
+  {
+    "id": 0,
+    "account_handle": "SawyerMerritt",
+    "account_display_name": "Sawyer Merritt",
+    "content_text": "NVDA demand remains strong as AI servers and networking orders stay elevated.",
+    "canonical_url": "https://x.com/SawyerMerritt/status/190003",
+    "market": "us",
+    "sentiment_label": "unknown",
+    "relevance_score": null,
+    "posted_at": "2026-03-16T07:09:00Z",
+    "captured_at": "2026-03-16T07:09:00Z",
     "symbols": ["NVDA"]
   }
 ]

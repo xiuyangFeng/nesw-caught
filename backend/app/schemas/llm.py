@@ -21,6 +21,16 @@ class LLMConfigView(BaseModel):
     updated_at: UTCDateTime | None = None
 
 
+class LLMTranslateRequest(BaseModel):
+    text: str
+
+
+class LLMTranslateView(BaseModel):
+    provider_name: str
+    model_name: str
+    translated_text: str
+
+
 class LLMAnalysisCandidate(BaseModel):
     symbol: str
     market: str

@@ -1,20 +1,12 @@
 {
   "accounts": [
     {
-      "handle": "DeItaone",
-      "display_name": "Delta One",
+      "handle": "MiniMax_AI",
+      "display_name": "MiniMax AI",
       "market_focus": "us",
       "is_active": true,
       "priority": 100,
-      "notes": "Macro and breaking market headlines"
-    },
-    {
-      "handle": "SawyerMerritt",
-      "display_name": "Sawyer Merritt",
-      "market_focus": "us",
-      "is_active": true,
-      "priority": 80,
-      "notes": "Tech and EV market chatter"
+      "notes": "Official MiniMax AI account updates and product announcements"
     }
   ]
 }

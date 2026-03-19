@@ -18,9 +18,11 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 10.0
     news_sources_file: str | None = None
     x_monitor_enabled: bool = False
-    grok_bridge_base_url: str | None = None
-    grok_bridge_timeout_seconds: float = 60.0
     x_monitor_accounts_file: str | None = None
+    twitterapi_io_api_key: str | None = None
+    twitterapi_io_timeout_seconds: float = 60.0
+    twitterapi_io_min_interval_seconds: float = 0.0
+    x_monitor_refresh_cooldown_hours: int = 3
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
     tavily_api_key: str | None = None

@@ -11,5 +11,5 @@ class HealthResponse(BaseModel):
     database: str
     stream_mode: str
     ai_enabled: bool
-    x_bridge_enabled: bool = False
-    x_bridge_healthy: bool = False
+    x_monitor_enabled: bool = False
+    x_monitor_healthy: bool = False

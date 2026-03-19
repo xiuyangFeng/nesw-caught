@@ -10,8 +10,8 @@ export interface HealthStatus {
   database: string;
   stream_mode: string;
   ai_enabled: boolean;
-  x_bridge_enabled?: boolean;
-  x_bridge_healthy?: boolean;
+  x_monitor_enabled?: boolean;
+  x_monitor_healthy?: boolean;
 }
 
 export interface NewsItem {
@@ -70,6 +70,16 @@ export interface LLMConfigUpdateRequest {
   display_name?: string | null;
   base_url?: string | null;
   api_key?: string;
+}
+
+export interface LLMTranslateRequest {
+  text: string;
+}
+
+export interface LLMTranslateResponse {
+  provider_name: string;
+  model_name: string;
+  translated_text: string;
 }
 
 export interface NewsAnalysisCandidate {
@@ -223,6 +233,9 @@ export interface XRefreshResult {
   inserted_count: number;
   error: string | null;
   latency_ms: number;
+  skipped: boolean;
+  skip_reason: string | null;
+  next_refresh_at: string | null;
 }
 
 export interface NewsRefreshResult {
@@ -243,10 +256,12 @@ export interface NewsRefreshResult {
 
 export interface XHealth {
   enabled: boolean;
-  bridge_configured: boolean;
-  bridge_healthy: boolean;
-  bridge_status: string;
+  configured: boolean;
+  healthy: boolean;
+  status: string;
   provider_name: string;
+  min_interval_seconds: number;
+  refresh_cooldown_hours: number;
   last_success_at: string | null;
   last_failure_at: string | null;
   consecutive_failures: number;

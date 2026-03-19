@@ -34,14 +34,19 @@ class XRefreshResponse(BaseModel):
     inserted_count: int
     error: str | None = None
     latency_ms: float
+    skipped: bool = False
+    skip_reason: str | None = None
+    next_refresh_at: UTCDateTime | None = None
 
 
 class XHealthResponse(BaseModel):
     enabled: bool
-    bridge_configured: bool
-    bridge_healthy: bool
-    bridge_status: str
+    configured: bool
+    healthy: bool
+    status: str
     provider_name: str
+    min_interval_seconds: float = 0.0
+    refresh_cooldown_hours: int = 3
     last_success_at: UTCDateTime | None = None
     last_failure_at: UTCDateTime | None = None
     consecutive_failures: int

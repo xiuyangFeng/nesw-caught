@@ -117,29 +117,24 @@ MARKET_QUOTE_CACHE_TTL_SECONDS=180
 
 ## X Monitor 增强模块
 
-项目已新增一个可选的 `X Monitor` 模块，用于通过 `grok-bridge` 拉取关注博主的近期市场相关 X 内容。它是独立增强层，不参与现有 `news` 主采集链路。
+项目已新增一个可选的 `X Monitor` 模块，用于通过 `twitterapi.io` 拉取关注账号的近期市场相关推文，并提供关键词搜索能力。它是独立增强层，不参与现有 `news` 主采集链路。
 
-1. 先单独启动 `grok-bridge`：
-
-```bash
-python3 /path/to/grok-bridge/scripts/grok_bridge.py --port 19998
-```
-
-2. 在项目根目录 `.env` 中开启模块：
+1. 在项目根目录 `.env` 中开启模块并配置 API key：
 
 ```bash
 X_MONITOR_ENABLED=true
-GROK_BRIDGE_BASE_URL=http://127.0.0.1:19998
-GROK_BRIDGE_TIMEOUT_SECONDS=60
+TWITTERAPI_IO_API_KEY=your_api_key_here
+TWITTERAPI_IO_TIMEOUT_SECONDS=60
 X_MONITOR_ACCOUNTS_FILE=/Users/xiuyang/Desktop/news-caught/backend/data/x_monitor_accounts.example.json
 ```
 
-3. 启动后端和前端后，可使用以下接口或页面：
+2. 启动后端和前端后，可使用以下接口或页面：
 
 ```bash
 curl http://127.0.0.1:8000/api/health/x
 curl http://127.0.0.1:8000/api/x/accounts
 curl http://127.0.0.1:8000/api/x/posts
+curl "http://127.0.0.1:8000/api/x/search?q=NVDA"
 curl -X POST http://127.0.0.1:8000/api/x/refresh
 ```
 

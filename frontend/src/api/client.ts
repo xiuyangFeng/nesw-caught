@@ -5,6 +5,8 @@ import type {
   HealthStatus,
   LLMConfigSummary,
   LLMConfigUpdateRequest,
+  LLMTranslateRequest,
+  LLMTranslateResponse,
   MarketSnapshot,
   NewsAnalysis,
   NewsDetail,
@@ -25,7 +27,7 @@ import type {
   XPostQuery,
   XRefreshResult,
 } from '../types/api';
-import { deleteJson, getJson, postJson } from './http';
+import { HttpError, deleteJson, getJson, postJson } from './http';
 import {
   mockFeishuConfig,
   mockFeishuTestResult,
@@ -44,6 +46,7 @@ import {
   mockWatchlistCandidates,
   mockWatchlist,
   mockWatchlistQuotes,
+  buildMockTranslation,
   mockXAccounts,
   mockXHealth,
   mockXPosts,
@@ -123,6 +126,16 @@ export const apiClient = {
         return { ...mockLlmConfig };
       },
     );
+  },
+  translateText(payload: LLMTranslateRequest) {
+    return postJson<LLMTranslateResponse>('/api/llm/translate', payload)
+      .then((data) => ({ data, degraded: false }))
+      .catch((error) => {
+        if (error instanceof HttpError) {
+          throw error;
+        }
+        return { data: buildMockTranslation(payload.text), degraded: true };
+      });
   },
   getNewsAnalysis(id: number) {
     return withMockFallback<NewsAnalysis | null>(
@@ -207,6 +220,21 @@ export const apiClient = {
           const searchOk = !searchText || item.content_text.toLowerCase().includes(searchText);
           const symbolOk = !query.symbol || item.symbols.includes(query.symbol);
           return accountOk && marketOk && searchOk && symbolOk;
+        });
+        return filtered.slice(0, query.limit ?? filtered.length);
+      },
+    );
+  },
+  getXSearchResults(query: { q: string; limit?: number }) {
+    return withMockFallback<XPost[]>(
+      () => getJson(withQuery('/api/x/search', query)),
+      () => {
+        const searchText = query.q.toLowerCase();
+        const filtered = mockXPosts.filter((item) => {
+          return (
+            item.content_text.toLowerCase().includes(searchText) ||
+            item.symbols.some((symbol) => symbol.toLowerCase().includes(searchText))
+          );
         });
         return filtered.slice(0, query.limit ?? filtered.length);
       },

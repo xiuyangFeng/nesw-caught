@@ -15,7 +15,12 @@ class OpenAICompatibleProvider:
     def __init__(self, config: LLMProviderConfig) -> None:
         self.config = config
 
-    def analyze_json(self, *, prompt: str) -> dict[str, object] | object:
+    def _request_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        response_format: dict[str, str] | None = None,
+    ) -> str:
         base_url = (self.config.base_url or "").rstrip("/")
         if not base_url:
             raise LLMProviderError("llm provider base url is not configured")
@@ -30,23 +35,17 @@ class OpenAICompatibleProvider:
                 "User-Agent": "news-caught/0.1",
             },
         ) as client:
-            response = client.post(
-                f"{base_url}/chat/completions",
-                json={
-                    "model": self.config.model_name,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You analyze a single news item for stock read-throughs. "
-                                "Return JSON only with keys: top_pick, candidates, summary, risk_notes, sentiment, context_limitations."
-                            ),
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    "response_format": {"type": "json_object"},
-                },
-            )
+            try:
+                response = client.post(
+                    f"{base_url}/chat/completions",
+                    json={
+                        "model": self.config.model_name,
+                        "messages": messages,
+                        **({"response_format": response_format} if response_format else {}),
+                    },
+                )
+            except httpx.HTTPError as exc:
+                raise LLMProviderError(f"llm provider request failed: {exc}") from exc
 
         if response.status_code >= 400:
             raise LLMProviderError(f"llm provider request failed with status {response.status_code}")
@@ -65,10 +64,35 @@ class OpenAICompatibleProvider:
         if not isinstance(content, str) or not content.strip():
             raise LLMProviderError("llm provider returned empty content")
 
+        return content
+
+    def analyze_json(self, *, prompt: str) -> dict[str, object] | object:
+        content = self._request_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You analyze a single news item for stock read-throughs. "
+                        "Return JSON only with keys: top_pick, candidates, summary, risk_notes, sentiment, context_limitations."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+
         try:
             return json.loads(content)
         except json.JSONDecodeError as exc:
             raise LLMProviderError("llm provider returned invalid analysis payload") from exc
+
+    def generate_text(self, *, system_prompt: str, user_prompt: str) -> str:
+        return self._request_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
 
 
 def build_provider(config: LLMProviderConfig) -> OpenAICompatibleProvider:

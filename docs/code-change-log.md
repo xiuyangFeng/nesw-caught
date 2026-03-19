@@ -2,6 +2,238 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-19 19:40
+
+- 修改人：Codex
+- 修改范围：`X Monitor` provider 健康语义、空账号冷却行为、twitterapi.io 搜索 limit 和测试隔离修正
+- 变更内容：根据推送前 code review 修正 `X Monitor` 的剩余语义缺口：`/api/health` 与 `/api/health/x` 现在都基于首个激活账号的 `last_tweets` 轻量探测判定 provider 状态，不再仅凭 API key 是否存在就标记健康；健康探测增加进程内缓存，避免健康轮询持续消耗 provider 配额；空账号/空配置文件时的 refresh 不再推进 3 小时冷却；`twitterapi.io` 的 `advanced_search` 现在会真正透传 `limit` 参数；同时为 `TwitterApiIoClient` 的进程级状态补上测试级自动重置，消除顺序依赖。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/twitterapi_io_client.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_analysis.py backend/tests/test_x_monitor.py -q` 通过（26 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/views/XMonitorView.test.ts` 通过（2 个文件 / 9 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 provider 健康仍依赖首个激活账号的 `last_tweets` 可用性，如果后续账号名单里首个账号长期异常而其他账号正常，健康状态可能偏保守；如要进一步降低探测成本，可后续引入更明确的 provider 级健康缓存字段或专用轻量探测端点
+
+## 2026-03-19 19:07
+
+- 修改人：Codex
+- 修改范围：LLM 翻译上游连接失败时的错误收敛
+- 变更内容：定位到 `POST /api/llm/translate` 在上游模型地址不可达时会把 `httpx` 连接异常直接抛成 500，前端只能看到笼统失败；后端 `OpenAICompatibleProvider` 现已捕获 `httpx.HTTPError` 并统一转成 `LLMProviderError`，接口会返回明确的 `502 + detail`，便于直接判断是 `base_url`、SSL 还是网络连通性问题。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/llm_providers.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_analysis.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅改进错误返回）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_analysis.py -q -k 'translate or connection_errors'` 通过（5 个用例）；本地请求 `POST http://127.0.0.1:8000/api/llm/translate` 已返回明确错误详情 `llm provider request failed: [SSL: UNEXPECTED_EOF_WHILE_READING] ...`
+- 风险/后续事项：当前真实失败仍然存在，根因是本地保存的 `base_url`/上游服务不正确或不可连；需要把 `LLM Settings` 里的 `base_url` 改成实际模型服务地址后再验证
+
+## 2026-03-19 18:37
+
+- 修改人：Codex
+- 修改范围：`X Monitor` 帖子按需中文翻译、LLM 文本翻译接口与前端会话缓存
+- 变更内容：后端新增 `POST /api/llm/translate`，复用当前激活的 LLM provider/model 对单条帖文正文做中文翻译，并增加空文本、超长文本和空翻译返回的校验；前端 `X Monitor` 监控列表和关键词搜索结果都新增 `翻译` 按钮、翻译中/失败/成功展示，以及基于稳定 `translationKey` 的页面内会话缓存，避免搜索结果 `id=0` 时出现串译；同时补充前端 API client 测试、视图测试，以及本轮设计/计划文档。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/llm.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/llm.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/llm_providers.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_analysis.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/http.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/xMonitorStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-x-monitor-translation-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-x-monitor-translation-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（新增 `POST /api/llm/translate`；前端新增翻译请求/响应类型）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_analysis.py -q` 通过（9 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/views/XMonitorView.test.ts` 通过（2 个文件 / 9 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前翻译缓存只保存在页面会话内，刷新后会失效；翻译接口对正文长度限制为 4000 字符，若后续要支持更长内容，需要按 provider 上下文窗口改成截断或分段策略
+
+## 2026-03-19 17:40
+
+- 修改人：Codex
+- 修改范围：`X Monitor` 页面右侧帖子流密度与高度控制优化
+- 变更内容：将 `X Monitor` 页面“账号监控帖子流”从大卡片纵向堆叠改为“状态式摘要 + 紧凑列表流”，摘要主句新增当前跟踪帖子数与同步状态提示，副句汇总请求节流、刷新冷却和最近刷新时间；帖子列表在桌面端改为固定最大高度并在面板内部滚动，单条帖子收敛为更小的列表项，减少页面纵向拉伸并提升同屏信息密度；同步补充本轮设计文档、实现计划和前端视图测试断言。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-x-monitor-feed-density-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-x-monitor-feed-density-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 通过（1 个文件 / 2 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：摘要中的帖子数为当前前端筛选结果数量，不代表后端库中的全量帖子数；桌面端内部滚动高度使用响应式 `clamp`，若后续页面再加入更多头部内容，可能需要再微调高度上限
+
+## 2026-03-19 18:27
+
+- 修改人：Codex
+- 修改范围：`X Monitor` 页面改为显示后端真实下发的节流/冷却配置，小号文案收敛
+- 变更内容：扩展 `GET /api/health/x` 响应，新增 `min_interval_seconds` 和 `refresh_cooldown_hours`，前端 `X Monitor` 页面改为直接使用后端下发的真实配置值展示“请求节流”和“账号刷新冷却”，不再写死 `6 秒` 与 `3 小时`；同时将原先占位较大的策略说明块收敛为页面顶部的小号次级文案，减少视觉占用。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（`GET /api/health/x` 新增 `min_interval_seconds`、`refresh_cooldown_hours`）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q -k provider_state` 通过；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 通过（1 个文件 / 2 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前页面已与后端配置值同步，但配置仍来自进程启动时读取的 `.env`；如果运行中手改 `.env` 而不重启后端，页面不会立即反映新值
+
+## 2026-03-19 18:21
+
+- 修改人：Codex
+- 修改范围：`X Monitor` 页面展示 provider 节流与账号冷却策略
+- 变更内容：在 `X Monitor` 页面“状态与筛选”卡片中新增两条明确的运行策略说明，展示当前 `twitterapi.io` provider 请求节流为 `6 秒/次`，账号刷新冷却为 `3 小时`，帮助页面直接解释为什么刷新会等待或跳过；同时补充视图测试覆盖这些说明文案。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 通过（1 个文件 / 2 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前页面中的 `6 秒/次` 与 `3 小时` 为按当前后端配置写死的展示文案，若后续你调整 `.env` 中的节流参数而不改页面，展示值不会自动变化；如需完全与后端配置同步，下一步应把节流配置值加入健康接口
+
+## 2026-03-19 18:08
+
+- 修改人：Codex
+- 修改范围：`twitterapi.io` 最小请求间隔节流、真实 `MiniMax_AI` provider 验证
+- 变更内容：后端新增 `twitterapi_io_min_interval_seconds` 配置项，并在 `TwitterApiIoClient` 中加入进程内最小请求间隔节流；本地 `.env` 默认配置为 6 秒，确保真实 provider 请求严格按免费额度节奏发起。基于该节流对 `MiniMax_AI` 连续发起两次真实 `last_tweets` 请求，已拿到相同的真实帖子数据，且返回中的账号、链接、发布时间、正文均直接来自 provider 原始响应。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/twitterapi_io_client.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/.env`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-twitterapi-rate-limit-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-twitterapi-rate-limit-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅新增后端节流配置）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q -k min_interval` 通过；`conda run -n news-caught pytest backend/tests -q` 通过（60 个用例）；使用真实 key 对 `MiniMax_AI` 连续请求两次，得到同一条真实帖子：`https://x.com/MiniMax_AI/status/2034528945962696948`，发布时间 `Thu Mar 19 07:14:35 +0000 2026`，正文 `Early testers are saying that M2.7 has big improvements in emotional intelligence and character consistency 👀`
+- 风险/后续事项：当前节流为单进程内最小间隔，若未来有多进程部署仍可能并发打到 provider；单个请求本身的网络耗时会占用部分 6 秒窗口，因此两次调用的总间隔是“请求耗时 + 必要补等待”
+
+## 2026-03-19 18:03
+
+- 修改人：Codex
+- 修改范围：`twitterapi.io` 请求节流设计与实现计划文档
+- 变更内容：新增 `twitterapi.io` 最小请求间隔的设计与计划文档，确定在后端增加可调节的 provider 请求节流配置，并按用户要求默认以 6 秒为最小真实请求间隔，对 `last_tweets` 和 `advanced_search` 统一生效。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-twitterapi-rate-limit-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-twitterapi-rate-limit-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（本次仅新增设计与计划文档）
+- 验证情况：已人工核对当前 `TwitterApiIoClient` 请求路径和本地 `.env` 配置
+- 风险/后续事项：本轮节流为进程内最小间隔，不处理多进程共享配额；真实联调仍取决于 provider 对当前 key 的即时限流状态
+
+## 2026-03-19 17:10
+
+- 修改人：Codex
+- 修改范围：`X Monitor` 三小时刷新冷却、`MiniMax_AI` 单账号名单、前后端提示与验证
+- 变更内容：为 `X Monitor` 账号刷新增加 3 小时硬冷却，后端新增 `x_monitor_refresh_cooldown_hours` 默认配置，并在 `POST /api/x/refresh` 响应中返回 `skipped`、`skip_reason` 和 `next_refresh_at`；当冷却窗口未过时，本地直接跳过刷新而不访问远端 provider。前端 `X Monitor` 页面新增“冷却中，下次可刷新”提示；样例账号名单改为仅保留 `MiniMax_AI`；链接仍只使用 `twitterapi.io` 返回的真实原帖 URL，不做拼接或伪造。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/x_monitor_accounts.example.json`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-x-monitor-refresh-cooldown-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-x-monitor-refresh-cooldown-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（`POST /api/x/refresh` 响应新增 `skipped`、`skip_reason`、`next_refresh_at`）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q` 通过（10 个用例）；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 通过（1 个文件 / 2 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（59 个用例）；`npm --prefix frontend run build` 通过；使用真实 `TWITTERAPI_IO_API_KEY` 对 `MiniMax_AI` 做 smoke test 时，首次真实刷新仍命中 provider `429`，但在预置最近成功时间后再次调用已确认会直接返回 `skipped=true` 和 `cooldown_active`
+- 风险/后续事项：当前 3 小时冷却能避免高频重复拉取，但不能解决 provider 在首次请求前就已对当前 key 限流的情况；如果后续 `MiniMax_AI` 仍需要更稳定的真实抓取，可能还要加失败后的退避窗口或改用更低频的自动调度
+
+## 2026-03-19 17:06
+
+- 修改人：Codex
+- 修改范围：`X Monitor` 三小时冷却设计与实现计划文档
+- 变更内容：新增 `X Monitor` 三小时刷新冷却的设计与计划文档，确定账号名单切为仅保留 `MiniMax_AI`，账号刷新改为每 3 小时最多执行一次，冷却期内直接跳过远端请求并返回下次可刷新时间，关键词搜索保持不变。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-x-monitor-refresh-cooldown-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-x-monitor-refresh-cooldown-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（本次仅新增设计与计划文档，代码实现尚未开始）
+- 验证情况：已人工核对现有 `x_monitor` 刷新逻辑、健康记录模型和前端页面边界；真实联调中已确认需要对 `429` 做降频处理
+- 风险/后续事项：后续实现需要确保冷却策略不会误伤关键词搜索；真实 smoke test 仍需以 `MiniMax_AI` 返回结果和当前 key 的限流表现为准
+
+## 2026-03-19 16:33
+
+- 修改人：Codex
+- 修改范围：`X Monitor` provider 替换、桥接移除、前后端接口与页面、测试与文档
+- 变更内容：将 `X Monitor` 从本地 `grok-bridge` 桥接方案改为直接使用 `twitterapi.io` API key；后端新增 `twitterapi_io_client`，重写 `x_monitor` 刷新逻辑以按账号拉取最新推文并按 tweet id 优先去重，新增 `GET /api/x/search` 关键词搜索接口，健康检查字段从 `bridge_* / x_bridge_*` 改为 `configured / healthy / status` 与 `x_monitor_*`；前端同步更新 `X Monitor` 页面、类型、mock 与 store，增加关键词搜索区并替换全部 `grok-bridge` 文案；README 与 API 契约文档改为 `twitterapi.io` 配置方式，并删除旧桥接客户端实现；联调阶段根据真实 `last_tweets` 响应修正为读取 `data.tweets`，并补充 X 风格 `createdAt` 时间解析。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/twitterapi_io_client.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/grok_bridge_client.py`（删除）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/.env`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/x_monitor_accounts.example.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/xMonitorStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/api-contract.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（新增 `GET /api/x/search`；`GET /api/health` 的 `x_bridge_*` 改为 `x_monitor_*`；`GET /api/health/x` 的 `bridge_*` 改为 `configured / healthy / status`）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q` 通过（9 个用例）；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 通过（1 个文件 / 1 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（58 个用例）；`npm --prefix frontend run build` 通过；使用用户提供的真实 `TWITTERAPI_IO_API_KEY` 直连 `https://api.twitterapi.io/twitter/user/last_tweets?userName=DeItaone&includeReplies=false` 已拿到真实响应，并确认 `tweets` 位于 `data.tweets`；单账号 refresh smoke test 已跑通配置与 provider 健康检查，但连续请求命中 `429` 限流
+- 风险/后续事项：当前 key 在短时间连续拉取多账号时会命中 `429`，因此实际使用中需要降低刷新频率、控制账号数量或后续改造成更适合多账号的监控模式；本轮默认账号列表已切成偏美股快讯方向，但是否保留这些账号仍取决于你的偏好
+
+## 2026-03-19 16:26
+
+- 修改人：Codex
+- 修改范围：`twitterapi.io` 替换 `X Monitor` 桥接方案设计文档
+- 变更内容：新增 `twitterapi.io` 替换现有 `grok-bridge` 型 `X Monitor` 的设计文档，明确第一版采用“账号监控轮询 + 关键词手动搜索”的双通道方案，保留现有 `X Monitor` 页面和大部分数据模型，完整移除桥接依赖，并规划新的配置项、健康检查语义、接口边界、测试策略和后续演进方向。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-twitterapi-io-x-monitor-replacement-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（本次仅新增设计文档，尚未进入实现）
+- 验证情况：已人工核对设计文档与仓库现有 `X Monitor`、配置、健康检查和 README 中的桥接边界；参考了 `twitterapi.io` 官方文档中的账号最新推文、搜索推文和监控接口能力
+- 风险/后续事项：设计已明确方向，但真实实现仍需以 `twitterapi.io` 实际响应结构为准；进入实现与联调阶段前，需由用户提供有效 API key 和目标账号列表
+
+## 2026-03-19 16:39
+
+- 修改人：Codex
+- 修改范围：`twitterapi.io` 替换 `X Monitor` 的实现计划文档
+- 变更内容：新增实现计划文档，按 TDD 顺序拆分了桥接测试替换、后端 provider 接入、健康检查字段调整、关键词搜索接口、前端 store 与页面改造、README 清理以及最终验证步骤，并明确真实联调需要用户提供 `TWITTERAPI_IO_API_KEY` 和账号列表。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-twitterapi-io-x-monitor-replacement-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（本次仅新增实现计划文档，尚未进入代码实现）
+- 验证情况：已人工核对计划文档中的文件边界与当前 `X Monitor` 后端测试、前端 store、API client 和类型定义
+- 风险/后续事项：计划已覆盖实现顺序，但真实 provider 字段映射仍需在编码阶段以 `twitterapi.io` 响应为准；最终 smoke test 仍依赖用户提供真实 API key 与账号列表
+
+## 2026-03-19 15:34
+
+- 修改人：Codex
+- 修改范围：X Monitor 本地启用配置、外部 `grok-bridge` 仓库落地
+- 变更内容：将 `ythx-101/grok-bridge` 仓库克隆到本机 `/Users/xiuyang/projects/grok-bridge`，并在项目根目录新增本地 `.env`，启用 `X_MONITOR_ENABLED`、配置 `GROK_BRIDGE_BASE_URL`、超时时间和账号白名单文件路径，使当前仓库可按真实本地路径接入 `grok-bridge`。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.env`（新增，本地配置）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`conda run -n news-caught python -c "from backend.app.core.config import get_settings; s=get_settings(); print(s.x_monitor_enabled); print(s.grok_bridge_base_url); print(s.x_monitor_accounts_file)"` 输出已确认读取到新增配置；`python3 /Users/xiuyang/projects/grok-bridge/scripts/grok_bridge.py --help` 可运行
+- 风险/后续事项：`X Monitor` 仍依赖 Safari 已登录 `grok.com` 且开启 “Allow JavaScript from Apple Events”；如果未满足该前置条件，`/api/health/x` 会显示桥接异常，但不影响当前 `.env` 配置已生效
+
 ## 2026-03-19 11:20
 
 - 修改人：Codex

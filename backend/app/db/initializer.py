@@ -345,7 +345,7 @@ def initialize_database() -> None:
         if not has_x_health:
             session.add(
                 XSourceHealth(
-                    provider_name="grok-bridge",
+                    provider_name="twitterapi.io",
                     total_fetches=0,
                     total_failures=0,
                     consecutive_failures=0,
