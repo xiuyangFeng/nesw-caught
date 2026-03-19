@@ -112,8 +112,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page">
-    <header class="page-header">
+  <div class="grid gap-4">
+    <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
         <h1 class="page-title">Topic Detail</h1>
         <p class="page-subtitle">主题聚合下的全部来源、关联股票和时间线都在这里展开。</p>
@@ -122,20 +122,24 @@ onMounted(async () => {
     </header>
 
     <LoadingBlock :loading="topicStore.detailLoading" :empty="!detail" empty-text="主题不存在或尚未完成聚合">
-      <div v-if="detail" class="detail-layout">
+      <div v-if="detail" class="grid gap-4" data-role="topic-detail-layout">
         <SectionCard :title="detail.topic_title" :subtitle="detail.topic_summary ?? '主题摘要待补充'">
-          <div class="topic-meta">
+          <div class="flex flex-wrap gap-2 text-muted">
             <span class="pill" :class="detail.sentiment_label">{{ sentimentText(detail.sentiment_label) }}</span>
             <span>{{ detail.news_count }} 条来源</span>
             <span>{{ sourceGroups.length }} 个信息源</span>
             <span>{{ detail.related_symbols.join(' · ') || '无关联股票' }}</span>
             <span>{{ formatMarketTime(detail.last_seen_at, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
           </div>
-          <div class="keyword-list">
+          <div class="mt-4 flex flex-wrap gap-2">
             <span v-for="keyword in detail.keywords" :key="keyword" class="pill neutral">{{ keyword }}</span>
           </div>
-          <div class="source-stats">
-            <span v-for="stat in sourceStats" :key="stat.sourceName" class="stat-chip">
+          <div class="mt-4 flex flex-wrap gap-2">
+            <span
+              v-for="stat in sourceStats"
+              :key="stat.sourceName"
+              class="rounded-full bg-system/10 px-3 py-2 text-xs font-semibold text-system"
+            >
               {{ stat.sourceName }} · {{ stat.count }} 条
             </span>
           </div>
@@ -143,35 +147,40 @@ onMounted(async () => {
 
         <SectionCard title="全部信息来源" subtitle="按来源分组，组内按时间倒序，支持原文直达和详情下钻">
           <template #actions>
-            <div class="toolbar">
-              <div class="filters">
-                <select v-model="sentimentFilter">
+            <div class="flex flex-wrap items-center gap-2" data-role="topic-toolbar">
+              <div class="flex flex-wrap gap-2">
+                <select v-model="sentimentFilter" class="rounded-full border border-border bg-field px-3 py-2 text-text">
                   <option value="all">全部情绪</option>
                   <option value="positive">偏利好</option>
                   <option value="negative">偏利空</option>
                   <option value="neutral">中性</option>
                 </select>
-                <select v-model="symbolFilter">
+                <select v-model="symbolFilter" class="rounded-full border border-border bg-field px-3 py-2 text-text">
                   <option value="all">全部股票</option>
                   <option v-for="symbol in availableSymbols" :key="symbol" :value="symbol">{{ symbol }}</option>
                 </select>
-                <input v-model.trim="keywordQuery" type="search" placeholder="按关键词、来源或摘要过滤" />
-                <label class="toggle-filter">
+                <input
+                  v-model.trim="keywordQuery"
+                  class="min-w-[220px] rounded-full border border-border bg-field px-3 py-2 text-text"
+                  type="search"
+                  placeholder="按关键词、来源或摘要过滤"
+                />
+                <label class="inline-flex items-center gap-1.5 rounded-full border border-border bg-field px-3 py-2 text-[13px] text-text-faint">
                   <input v-model="originalOnly" type="checkbox" />
                   <span>只看带原文链接</span>
                 </label>
               </div>
               <button
-                class="switch-button"
-                :data-active="viewMode === 'grouped'"
+                class="rounded-full px-3 py-2 text-xs font-semibold"
+                :class="viewMode === 'grouped' ? 'bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] text-white' : 'bg-system/10 text-system'"
                 type="button"
                 @click="viewMode = 'grouped'"
               >
                 来源分组
               </button>
               <button
-                class="switch-button"
-                :data-active="viewMode === 'timeline'"
+                class="rounded-full px-3 py-2 text-xs font-semibold"
+                :class="viewMode === 'timeline' ? 'bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] text-white' : 'bg-system/10 text-system'"
                 type="button"
                 @click="viewMode = 'timeline'"
               >
@@ -180,50 +189,48 @@ onMounted(async () => {
             </div>
           </template>
 
-          <div v-if="viewMode === 'grouped'" class="source-group-list">
-            <section v-for="group in sourceGroups" :key="group.sourceName" class="source-group">
-              <header class="group-header">
+          <div v-if="viewMode === 'grouped'" class="grid gap-3" data-role="topic-group-list">
+            <section
+              v-for="group in sourceGroups"
+              :key="group.sourceName"
+              class="grid gap-3 rounded-[20px] border border-border bg-panel-soft p-4"
+            >
+              <header class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
                 <div>
                   <strong>{{ group.sourceName }}</strong>
-                  <span class="group-count">{{ group.count }} 条来源</span>
+                  <span class="block text-xs text-muted">{{ group.count }} 条来源</span>
                 </div>
-                <div class="group-time">
-                  <span>
-                    首条：{{ formatMarketTime(group.firstPublishedAt, detail.market) }}
-                    {{ getMarketTimezoneLabel(detail.market) }}
-                  </span>
-                  <span>
-                    最新：{{ formatMarketTime(group.latestPublishedAt, detail.market) }}
-                    {{ getMarketTimezoneLabel(detail.market) }}
-                  </span>
+                <div class="grid gap-1 text-right text-xs text-muted">
+                  <span>首条：{{ formatMarketTime(group.firstPublishedAt, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
+                  <span>最新：{{ formatMarketTime(group.latestPublishedAt, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
                 </div>
               </header>
-              <div class="group-summary">
-                <span>{{ sentimentSummary(group.sentimentCounts) }}</span>
-              </div>
-
-              <div class="source-list">
+              <div class="text-[13px] text-muted">{{ sentimentSummary(group.sentimentCounts) }}</div>
+              <div class="grid gap-3">
                 <article
                   v-for="item in group.items"
                   :key="item.id"
-                  class="source-card"
-                  :data-highlighted="isHighlighted(item)"
+                  class="grid gap-3 rounded-[18px] border bg-panel-stronger p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/25"
+                  :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_rgba(83,194,255,0.12)]' : 'border-border'"
+                  data-role="topic-source-card"
                   role="button"
                   tabindex="0"
                   @click="openNews(item.id)"
                   @keydown.enter="openNews(item.id)"
                 >
-                  <div class="source-head">
+                  <div class="mb-1 flex flex-wrap gap-2 text-xs text-muted">
                     <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
                     <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                   </div>
                   <strong>{{ item.title }}</strong>
-                  <p>{{ item.summary ?? '摘要待补充' }}</p>
-                  <div class="source-actions">
-                    <button class="detail-button" type="button" @click.stop="openNews(item.id)">查看详情</button>
+                  <p class="text-text-soft">{{ item.summary ?? '摘要待补充' }}</p>
+                  <div class="flex flex-wrap items-center gap-2.5">
+                    <button class="rounded-full border border-border px-3 py-2 text-xs font-semibold text-text" type="button" @click.stop="openNews(item.id)">
+                      查看详情
+                    </button>
                     <a
                       v-if="item.canonical_url"
-                      class="origin-link"
+                      class="rounded-full border border-border px-3 py-2 text-xs font-semibold text-text no-underline"
                       :href="item.canonical_url"
                       target="_blank"
                       rel="noreferrer"
@@ -237,31 +244,33 @@ onMounted(async () => {
             </section>
           </div>
 
-          <div v-else class="timeline-list">
+          <div v-else class="grid gap-3">
             <article
               v-for="item in sortedSources"
               :key="item.id"
-              class="timeline-card"
-              :data-highlighted="isHighlighted(item)"
+              class="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5 rounded-[18px] border bg-panel-stronger p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/25"
+              :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_rgba(83,194,255,0.12)]' : 'border-border'"
               role="button"
               tabindex="0"
               @click="openNews(item.id)"
               @keydown.enter="openNews(item.id)"
             >
-              <div class="timeline-line" />
-              <div class="timeline-content">
-                <div class="source-head">
+              <div class="rounded-full bg-[linear-gradient(180deg,#3aa9f5,rgba(83,194,255,0.12))]" />
+              <div class="grid gap-2.5">
+                <div class="flex flex-wrap gap-2 text-xs text-muted">
                   <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
                   <span>{{ item.source_name }}</span>
                   <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                 </div>
                 <strong>{{ item.title }}</strong>
-                <p>{{ item.summary ?? '摘要待补充' }}</p>
-                <div class="source-actions">
-                  <button class="detail-button" type="button" @click.stop="openNews(item.id)">查看详情</button>
+                <p class="text-text-soft">{{ item.summary ?? '摘要待补充' }}</p>
+                <div class="flex flex-wrap items-center gap-2.5">
+                  <button class="rounded-full border border-border px-3 py-2 text-xs font-semibold text-text" type="button" @click.stop="openNews(item.id)">
+                    查看详情
+                  </button>
                   <a
                     v-if="item.canonical_url"
-                    class="origin-link"
+                    class="rounded-full border border-border px-3 py-2 text-xs font-semibold text-text no-underline"
                     :href="item.canonical_url"
                     target="_blank"
                     rel="noreferrer"
@@ -278,261 +287,3 @@ onMounted(async () => {
     </LoadingBlock>
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.detail-layout {
-  display: grid;
-  gap: 16px;
-}
-
-.topic-meta,
-.keyword-list,
-.source-head {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: var(--muted);
-}
-
-.keyword-list {
-  margin-top: 16px;
-}
-
-.source-stats {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-}
-
-.stat-chip {
-  border-radius: 999px;
-  padding: 8px 12px;
-  background: rgba(83, 194, 255, 0.1);
-  color: var(--system);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.source-group-list,
-.source-list {
-  display: grid;
-  gap: 12px;
-}
-
-.toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.filters {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.filters select {
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--field-bg);
-  padding: 8px 12px;
-  font: inherit;
-  color: var(--text);
-}
-
-.filters input[type='search'] {
-  min-width: 220px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--field-bg);
-  padding: 8px 12px;
-  font: inherit;
-  color: var(--text);
-}
-
-.toggle-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--field-bg);
-  color: var(--text-faint);
-  font-size: 13px;
-}
-
-.switch-button {
-  border: none;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--system);
-  background: transparent;
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
-}
-
-.toolbar .switch-button {
-  background: rgba(83, 194, 255, 0.08);
-}
-
-.switch-button:hover {
-  transform: translateY(-1px);
-}
-
-.switch-button[data-active='true'] {
-  color: white;
-  background: linear-gradient(135deg, #1768c2, #3aa9f5);
-  box-shadow: 0 10px 22px rgba(58, 169, 245, 0.2);
-}
-
-.source-group {
-  display: grid;
-  gap: 12px;
-  border-radius: 20px;
-  padding: 16px;
-  background: var(--panel-soft);
-  border: 1px solid var(--border);
-}
-
-.group-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.group-header strong,
-.group-count,
-.group-time {
-  display: block;
-}
-
-.group-count,
-.group-time {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.group-time {
-  display: grid;
-  gap: 4px;
-  text-align: right;
-}
-
-.group-summary {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.source-card {
-  border-radius: 18px;
-  padding: 16px;
-  background: var(--panel-stronger);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
-}
-
-.source-card:hover,
-.timeline-card:hover {
-  border-color: rgba(125, 211, 252, 0.24);
-  transform: translateY(-1px);
-}
-
-.source-card[data-highlighted='true'],
-.timeline-card[data-highlighted='true'] {
-  border-color: rgba(83, 194, 255, 0.42);
-  box-shadow: 0 10px 24px rgba(83, 194, 255, 0.12);
-}
-
-.source-card p,
-.source-time {
-  color: var(--text-soft);
-}
-
-.source-head {
-  margin-bottom: 10px;
-  font-size: 12px;
-}
-
-.source-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.timeline-list {
-  display: grid;
-  gap: 12px;
-}
-
-.timeline-card {
-  display: grid;
-  grid-template-columns: 14px 1fr;
-  gap: 14px;
-  border-radius: 18px;
-  padding: 16px;
-  background: var(--panel-stronger);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
-}
-
-.timeline-line {
-  width: 14px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #3aa9f5, rgba(83, 194, 255, 0.12));
-}
-
-.timeline-content {
-  display: grid;
-  gap: 10px;
-}
-
-.detail-button,
-.origin-link {
-  border-radius: 999px;
-  padding: 8px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.detail-button {
-  border: none;
-  color: white;
-  background: linear-gradient(135deg, #1768c2, #3aa9f5);
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-
-.detail-button:hover,
-.origin-link:hover {
-  transform: translateY(-1px);
-}
-
-.origin-link {
-  color: var(--system);
-  background: rgba(83, 194, 255, 0.08);
-}
-</style>

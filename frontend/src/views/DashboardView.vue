@@ -100,11 +100,13 @@ const metrics = computed(() => {
 </script>
 
 <template>
-  <div class="page">
-    <header class="page-header">
+  <div class="grid gap-4">
+    <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
         <h1 class="page-title">Dashboard</h1>
-        <p class="page-subtitle">Market Control：把连接状态、情绪概览、主题聚合和自选股异动压缩到同一块总览面板里。</p>
+        <p class="page-subtitle">
+          Market Control：把连接状态、情绪概览、主题聚合和自选股异动压缩到同一块总览面板里。
+        </p>
       </div>
       <StaleBadge :stale="newsStore.stale || marketStore.stale || topicStore.stale" label="全局数据" />
     </header>
@@ -117,11 +119,11 @@ const metrics = computed(() => {
     />
 
     <div data-role="dashboard-hero">
-      <p class="dashboard-label">Signal Overview</p>
+      <p class="mb-2.5 text-[11px] uppercase tracking-[0.18em] text-system">Signal Overview</p>
       <HeroMetrics :metrics="metrics" />
     </div>
 
-    <section class="dashboard-grid">
+    <section class="grid gap-[14px] xl:grid-cols-[1.1fr_0.9fr]" data-role="dashboard-grid">
       <SectionCard eyebrow="Topic Radar" title="主题聚合" subtitle="按重要度排序，保留股票和情绪入口">
         <LoadingBlock :loading="topicStore.loading" :empty="topicStore.topTopics.length === 0">
           <TopicBoard :topics="topicStore.topTopics" />
@@ -130,43 +132,60 @@ const metrics = computed(() => {
 
       <SectionCard eyebrow="Live Movers" title="自选股异动" subtitle="盘中优先观察异常波动和量能变化">
         <LoadingBlock :loading="marketStore.loading" :empty="marketStore.abnormalMovers.length === 0" empty-text="暂无异动">
-          <div class="movement-list">
-            <section class="movement-summary" data-role="movement-summary">
+          <div class="grid gap-2.5">
+            <section
+              class="grid gap-1.5 rounded-2xl border border-border bg-white/[0.02] p-4 [background-image:linear-gradient(135deg,rgba(23,104,194,0.16),rgba(6,17,31,0.88))]"
+              data-role="movement-summary"
+            >
               <div>
-                <p class="movement-summary-label">Signal Count</p>
-                <strong>{{ marketStore.abnormalMovers.length }} 只异动</strong>
+                <p class="mb-1.5 text-[11px] uppercase tracking-[0.16em] text-system">Signal Count</p>
+                <strong class="block text-2xl leading-[1.1]">{{ marketStore.abnormalMovers.length }} 只异动</strong>
               </div>
-              <p>{{ moverMarketSummary }} · 主因 {{ topMoverReason }}</p>
+              <p class="m-0 text-muted">{{ moverMarketSummary }} · 主因 {{ topMoverReason }}</p>
             </section>
 
             <article
               v-for="item in moverPreviewItems"
               :key="item.symbol"
-              class="movement-card"
+              class="flex items-center justify-between gap-3 rounded-2xl border border-border bg-white/[0.03] p-[14px]"
               data-role="movement-preview-item"
             >
-              <div class="movement-card-main">
+              <div class="grid gap-1">
                 <strong>{{ item.display_name ?? item.symbol }}</strong>
-                <span>{{ item.symbol }} · {{ item.market.toUpperCase() }}</span>
+                <span class="text-muted">{{ item.symbol }} · {{ item.market.toUpperCase() }}</span>
               </div>
-              <em>{{ getAbnormalReasonLabel(item.abnormal_reason) }}</em>
+              <em class="whitespace-nowrap not-italic text-system">{{ getAbnormalReasonLabel(item.abnormal_reason) }}</em>
             </article>
 
-            <RouterLink class="movement-link" to="/watchlist">查看全部异动</RouterLink>
+            <RouterLink
+              class="inline-flex min-h-11 items-center justify-center rounded-full border border-[#3aa9f557] bg-[rgba(10,26,42,0.72)] font-semibold text-[#9bd8ff] transition duration-150 ease-out hover:-translate-y-px hover:border-[#3aa9f59e] hover:bg-[rgba(15,39,61,0.92)]"
+              to="/watchlist"
+            >
+              查看全部异动
+            </RouterLink>
           </div>
         </LoadingBlock>
       </SectionCard>
 
-      <SectionCard eyebrow="News Wire" title="最新新闻" subtitle="为 News Feed 提供快速跳转入口">
+      <SectionCard
+        class="xl:col-span-2"
+        eyebrow="News Wire"
+        title="最新新闻"
+        subtitle="为 News Feed 提供快速跳转入口"
+      >
         <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
-          <div class="headline-list">
-            <article v-for="item in newsStore.items.slice(0, 6)" :key="item.id" class="headline-card">
-              <div class="card-top">
+          <div class="grid gap-2.5">
+            <article
+              v-for="item in newsStore.items.slice(0, 6)"
+              :key="item.id"
+              class="rounded-2xl border border-border bg-white/[0.03] p-[14px]"
+            >
+              <div class="mb-2.5 flex gap-2 text-muted">
                 <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
                 <span>{{ item.source_name }}</span>
               </div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.summary }}</p>
+              <strong class="mb-2 block">{{ item.title }}</strong>
+              <p class="text-muted">{{ item.summary }}</p>
             </article>
           </div>
         </LoadingBlock>
@@ -174,138 +193,3 @@ const metrics = computed(() => {
     </section>
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.dashboard-label {
-  margin: 0 0 10px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--system);
-}
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 14px;
-}
-
-.dashboard-grid > :last-child {
-  grid-column: 1 / -1;
-}
-
-.movement-list,
-.headline-list {
-  display: grid;
-  gap: 10px;
-}
-
-.movement-summary,
-.movement-card,
-.headline-card {
-  border-radius: 16px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
-}
-
-.movement-summary {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  background:
-    linear-gradient(135deg, rgba(23, 104, 194, 0.16), rgba(6, 17, 31, 0.88)),
-    rgba(255, 255, 255, 0.02);
-}
-
-.movement-summary-label {
-  margin: 0 0 6px;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--system);
-}
-
-.movement-summary strong {
-  display: block;
-  font-size: 24px;
-  line-height: 1.1;
-}
-
-.movement-summary p {
-  margin: 0;
-  color: var(--muted);
-}
-
-.movement-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.movement-card-main {
-  display: grid;
-  gap: 4px;
-}
-
-.movement-card span,
-.headline-card p,
-.card-top {
-  color: var(--muted);
-}
-
-.movement-card em {
-  color: var(--system);
-  font-style: normal;
-  white-space: nowrap;
-}
-
-.movement-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  border-radius: 999px;
-  border: 1px solid rgba(58, 169, 245, 0.34);
-  color: #9bd8ff;
-  background: rgba(10, 26, 42, 0.72);
-  text-decoration: none;
-  font-weight: 600;
-  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
-}
-
-.movement-link:hover {
-  transform: translateY(-1px);
-  border-color: rgba(58, 169, 245, 0.62);
-  background: rgba(15, 39, 61, 0.92);
-}
-
-.card-top {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.headline-card strong {
-  display: block;
-  margin-bottom: 8px;
-}
-
-@media (max-width: 1320px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

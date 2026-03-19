@@ -22,4 +22,29 @@ describe('HeroMetrics', () => {
     expect(wrapper.find('[data-role="metric-value"]').text()).toBe('24');
     expect(wrapper.find('[data-role="metric-note"]').text()).toBe('Current load');
   });
+
+  it('exposes stable card markers for each metric item', () => {
+    const wrapper = mount(HeroMetrics, {
+      props: {
+        metrics: [
+          {
+            label: 'Positive',
+            value: '12',
+            note: 'Positive names',
+            tone: 'positive',
+          },
+          {
+            label: 'Negative',
+            value: '4',
+            note: 'Risk names',
+            tone: 'negative',
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.find('[data-role="hero-grid"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-role="metric-card"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-role="metric-card"]')[1]?.attributes('data-tone')).toBe('negative');
+  });
 });

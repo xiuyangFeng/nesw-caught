@@ -103,6 +103,7 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('Signal Overview');
     expect(wrapper.text()).toContain('Live Movers');
     expect(wrapper.find('[data-role="dashboard-hero"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="dashboard-grid"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('4 只异动');
     expect(wrapper.text()).toContain('查看全部异动');
     expect(wrapper.findAll('[data-role="movement-preview-item"]')).toHaveLength(3);

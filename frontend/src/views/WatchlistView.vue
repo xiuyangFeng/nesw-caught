@@ -111,8 +111,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page">
-    <header class="page-header">
+  <div class="grid gap-4">
+    <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
         <h1 class="page-title">Watchlist</h1>
         <p class="page-subtitle">批量查看自选股实时行情，点击股票进入详情页查看更多指标和相关新闻。</p>
@@ -126,45 +126,64 @@ onMounted(async () => {
       detail="列表展示价格、涨跌、开盘、昨收、最高、最低和成交量。"
     />
 
-    <section class="watchlist-layout">
+    <section class="grid gap-4 xl:grid-cols-[1.5fr_0.9fr]" data-role="watchlist-layout">
       <SectionCard title="管理自选股" subtitle="输入名称或代码片段即可联想候选，添加与删除都在同一块面板完成">
-        <form class="watchlist-toolbar" @submit.prevent="submitWatchlist">
-          <label class="search-field">
+        <form class="mb-[14px] grid gap-3" @submit.prevent="submitWatchlist">
+          <label class="relative grid gap-1.5 text-sm text-text-faint">
             <span>搜索股票</span>
-            <input v-model.trim="form.query" placeholder="输入股票代码、中文名或英文名" />
-            <div v-if="filteredCandidates.length" class="candidate-list">
+            <input
+              v-model.trim="form.query"
+              class="rounded-xl border border-border bg-field px-3 py-2.5 text-text"
+              placeholder="输入股票代码、中文名或英文名"
+            />
+            <div
+              v-if="filteredCandidates.length"
+              class="mt-1.5 grid gap-2 rounded-2xl border border-border bg-[rgba(8,15,28,0.94)] p-2.5"
+              data-role="candidate-list"
+            >
               <button
                 v-for="candidate in filteredCandidates"
                 :key="candidate.symbol"
-                class="candidate-option"
+                class="flex w-full items-center justify-between gap-3 rounded-[14px] border border-[rgba(148,163,184,0.12)] bg-[rgba(15,23,42,0.72)] p-3 text-left text-text disabled:cursor-not-allowed disabled:opacity-70"
                 type="button"
                 :disabled="isCandidateAdded(candidate.symbol)"
                 @click="selectCandidate(candidate)"
               >
-                <span class="candidate-main">
+                <span class="grid gap-1">
                   <strong>{{ candidate.display_name }}</strong>
-                  <small>{{ candidate.symbol }} · {{ candidate.market.toUpperCase() }}</small>
+                  <small class="text-text-faint">{{ candidate.symbol }} · {{ candidate.market.toUpperCase() }}</small>
                 </span>
-                <span class="candidate-state">{{ isCandidateAdded(candidate.symbol) ? '已添加' : '选择' }}</span>
+                <span class="text-text-faint">{{ isCandidateAdded(candidate.symbol) ? '已添加' : '选择' }}</span>
               </button>
             </div>
           </label>
 
-          <label>
+          <label class="grid gap-1.5 text-sm text-text-faint">
             <span>阈值（可选）</span>
-            <input v-model.trim="form.alert_threshold" type="number" min="0" step="0.1" placeholder="例如 3" />
+            <input
+              v-model.trim="form.alert_threshold"
+              class="rounded-xl border border-border bg-field px-3 py-2.5 text-text"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="例如 3"
+            />
           </label>
 
-          <button class="submit-button" type="submit" :disabled="watchlistStore.createLoading || !selectedCandidate">
+          <button
+            class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-4 py-3 font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:shadow-[0_10px_24px_rgba(58,169,245,0.24)] disabled:cursor-progress disabled:opacity-60 disabled:shadow-none"
+            type="submit"
+            :disabled="watchlistStore.createLoading || !selectedCandidate"
+          >
             {{ watchlistStore.createLoading ? '提交中...' : '添加到自选股' }}
           </button>
 
-          <p v-if="selectedCandidate" class="selection-hint">
+          <p v-if="selectedCandidate" class="m-0 text-text-soft">
             已选择 {{ selectedCandidate.display_name }} · {{ selectedCandidate.symbol }}
           </p>
-          <p v-if="watchlistStore.createError" class="error-text">{{ watchlistStore.createError }}</p>
-          <p v-if="watchlistStore.deleteError" class="error-text">{{ watchlistStore.deleteError }}</p>
-          <p v-if="watchlistStore.candidateError" class="error-text">{{ watchlistStore.candidateError }}</p>
+          <p v-if="watchlistStore.createError" class="m-0 text-negative">{{ watchlistStore.createError }}</p>
+          <p v-if="watchlistStore.deleteError" class="m-0 text-negative">{{ watchlistStore.deleteError }}</p>
+          <p v-if="watchlistStore.candidateError" class="m-0 text-negative">{{ watchlistStore.candidateError }}</p>
         </form>
 
         <LoadingBlock :loading="watchlistStore.loading" :empty="watchlistRows.length === 0">
@@ -184,15 +203,19 @@ onMounted(async () => {
           :empty="!watchlistStore.selectedSymbol || relatedNews.length === 0"
           empty-text="当前股票暂无关联新闻"
         >
-          <div class="related-list">
-            <article v-for="item in relatedNews" :key="item.id" class="related-card">
-              <div class="related-head">
+          <div class="grid gap-3">
+            <article
+              v-for="item in relatedNews"
+              :key="item.id"
+              class="rounded-[18px] border border-border bg-panel-stronger p-4 shadow-[0_14px_30px_rgba(2,6,12,0.24)] transition duration-150 ease-out hover:-translate-y-px hover:border-system/20"
+            >
+              <div class="mb-2 flex gap-2 text-text-faint">
                 <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
                 <span>{{ item.source_name }}</span>
               </div>
               <strong>{{ item.title }}</strong>
-              <p>{{ item.summary }}</p>
-              <span class="related-time">
+              <p class="text-text-soft">{{ item.summary }}</p>
+              <span class="text-text-faint">
                 {{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}
               </span>
             </article>
@@ -202,157 +225,3 @@ onMounted(async () => {
     </section>
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.watchlist-layout {
-  display: grid;
-  grid-template-columns: 1.5fr 0.9fr;
-  gap: 16px;
-}
-
-.watchlist-toolbar {
-  display: grid;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.watchlist-toolbar label {
-  display: grid;
-  gap: 6px;
-  color: var(--text-faint);
-  font-size: 14px;
-}
-
-.watchlist-toolbar input {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  padding: 10px 12px;
-  font: inherit;
-  background: var(--field-bg);
-  color: var(--text);
-}
-
-.submit-button {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 16px;
-  font: inherit;
-  font-weight: 600;
-  color: white;
-  background: linear-gradient(135deg, #1768c2, #3aa9f5);
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
-}
-
-.submit-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(58, 169, 245, 0.24);
-}
-
-.submit-button:disabled {
-  opacity: 0.6;
-  cursor: progress;
-  box-shadow: none;
-}
-
-.error-text {
-  margin: 0;
-  color: var(--negative);
-}
-
-.selection-hint {
-  margin: 0;
-  color: var(--text-soft);
-}
-
-.search-field {
-  position: relative;
-}
-
-.candidate-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 10px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: rgba(8, 15, 28, 0.94);
-}
-
-.candidate-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(15, 23, 42, 0.72);
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.candidate-option:disabled {
-  opacity: 0.72;
-  cursor: not-allowed;
-}
-
-.candidate-main {
-  display: grid;
-  gap: 4px;
-}
-
-.candidate-main small,
-.candidate-state {
-  color: var(--text-faint);
-}
-
-.related-list {
-  display: grid;
-  gap: 12px;
-}
-
-.related-card {
-  border-radius: 18px;
-  padding: 16px;
-  background: var(--panel-stronger);
-  border: 1px solid var(--border);
-  box-shadow: 0 14px 30px rgba(2, 6, 12, 0.24);
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
-}
-
-.related-card:hover {
-  border-color: rgba(125, 211, 252, 0.22);
-  transform: translateY(-1px);
-}
-
-.related-head {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-  color: var(--text-faint);
-  font-size: 12px;
-}
-
-.related-card strong {
-  color: var(--text);
-}
-
-.related-card p,
-.related-time {
-  color: var(--text-soft);
-}
-</style>

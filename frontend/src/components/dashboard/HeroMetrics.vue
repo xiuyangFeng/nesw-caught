@@ -7,66 +7,38 @@ defineProps<{
     tone: 'default' | 'positive' | 'negative';
   }>;
 }>();
+
+function metricToneClasses(tone: 'default' | 'positive' | 'negative') {
+  if (tone === 'positive') {
+    return 'text-positive';
+  }
+  if (tone === 'negative') {
+    return 'text-negative';
+  }
+  return 'text-text';
+}
 </script>
 
 <template>
-  <section class="hero-grid">
-    <article v-for="metric in metrics" :key="metric.label" class="surface hero-card" :data-tone="metric.tone">
-      <p data-role="metric-label">{{ metric.label }}</p>
-      <strong data-role="metric-value">{{ metric.value }}</strong>
-      <span data-role="metric-note">{{ metric.note }}</span>
+  <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-role="hero-grid">
+    <article
+      v-for="metric in metrics"
+      :key="metric.label"
+      class="surface rounded-[18px] p-[18px]"
+      :data-role="'metric-card'"
+      :data-tone="metric.tone"
+    >
+      <p class="m-0 text-[11px] uppercase tracking-[0.16em] text-muted" data-role="metric-label">
+        {{ metric.label }}
+      </p>
+      <strong
+        class="my-2 block text-[32px] tracking-[-0.04em]"
+        :class="metricToneClasses(metric.tone)"
+        data-role="metric-value"
+      >
+        {{ metric.value }}
+      </strong>
+      <span class="m-0 text-muted" data-role="metric-note">{{ metric.note }}</span>
     </article>
   </section>
 </template>
-
-<style scoped>
-.hero-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.hero-card {
-  border-radius: 18px;
-  padding: 18px;
-}
-
-.hero-card p,
-.hero-card span {
-  margin: 0;
-  color: var(--muted);
-}
-
-.hero-card p {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-}
-
-.hero-card strong {
-  display: block;
-  margin: 8px 0 6px;
-  font-size: 32px;
-  letter-spacing: -0.04em;
-}
-
-.hero-card[data-tone='positive'] strong {
-  color: var(--positive);
-}
-
-.hero-card[data-tone='negative'] strong {
-  color: var(--negative);
-}
-
-@media (max-width: 1320px) {
-  .hero-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .hero-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

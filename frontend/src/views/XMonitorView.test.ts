@@ -138,12 +138,12 @@ describe('XMonitorView', () => {
     expect(wrapper.text()).toContain('3 小时');
     expect(wrapper.text()).toContain('当前跟踪 1 条帖子');
     expect(wrapper.text()).toContain('帖子流已同步到最新窗口');
-    expect(wrapper.find('.policy-caption').exists()).toBe(true);
-    expect(wrapper.find('.feed-summary').exists()).toBe(true);
-    expect(wrapper.find('.feed-summary-title').exists()).toBe(true);
-    expect(wrapper.find('.feed-summary-detail').exists()).toBe(true);
-    expect(wrapper.find('.post-feed').exists()).toBe(true);
-    expect(wrapper.find('.post-list-item').exists()).toBe(true);
+    expect(wrapper.find('[data-role="x-monitor-layout"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="feed-summary"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="feed-summary-title"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="feed-summary-detail"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="post-feed"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="post-list-item"]').exists()).toBe(true);
     expect(wrapper.find('input[type="search"][placeholder*="关键词"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('NVDA demand remains strong');
     expect(wrapper.text()).toContain('账号监控帖子流');
@@ -171,7 +171,7 @@ describe('XMonitorView', () => {
   it('translates monitored posts on demand and renders the translated text', async () => {
     const wrapper = mount(XMonitorView);
 
-    const translateButtons = wrapper.findAll('button.translate-button');
+    const translateButtons = wrapper.findAll('button[data-role="translate-button"]');
     await translateButtons[0].trigger('click');
 
     expect(xMonitorStore.translatePost).toHaveBeenCalledWith(xMonitorStore.posts[0]);
@@ -221,7 +221,7 @@ describe('XMonitorView', () => {
     ];
 
     const wrapper = mount(XMonitorView);
-    const translateButtons = wrapper.findAll('button.translate-button');
+    const translateButtons = wrapper.findAll('button[data-role="translate-button"]');
 
     await translateButtons.at(-2)?.trigger('click');
     await translateButtons.at(-1)?.trigger('click');

@@ -86,93 +86,100 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
-    <header class="page-header">
-      <div>
-        <h1 class="page-title">LLM Settings</h1>
-        <p class="page-subtitle">配置用于新闻详情页的 LLM provider、模型与 API key。</p>
-      </div>
+  <div class="grid gap-4">
+    <header>
+      <h1 class="page-title">LLM Settings</h1>
+      <p class="page-subtitle">配置用于新闻详情页的 LLM provider、模型与 API key。</p>
     </header>
 
-    <div class="settings-grid">
+    <div class="grid gap-4" data-role="llm-settings-grid">
       <SectionCard title="当前配置" subtitle="当前生效的单套 provider">
-        <p class="status-text negative" v-if="llmStore.loadError">{{ llmStore.loadError }}</p>
-        <p class="subtle" v-if="!hasConfig">尚未配置任何 LLM，完成表单后点击“保存配置”即可生效。</p>
-        <p class="subtle" v-else>
+        <p v-if="llmStore.loadError" class="text-negative">{{ llmStore.loadError }}</p>
+        <p v-if="!hasConfig" class="text-text-faint">尚未配置任何 LLM，完成表单后点击“保存配置”即可生效。</p>
+        <p v-else class="text-text-faint">
           当前模型：{{ llmStore.config?.provider_name ?? '未知' }} /
           {{ llmStore.config?.model_name ?? '未知' }} · {{ llmStore.config?.display_name ?? '未填写显示名' }}
         </p>
-        <p class="subtle" v-if="lastUpdatedLabel">最后更新：{{ lastUpdatedLabel }} HKT</p>
+        <p v-if="lastUpdatedLabel" class="text-text-faint">最后更新：{{ lastUpdatedLabel }} HKT</p>
       </SectionCard>
 
       <SectionCard title="活动配置" subtitle="修改后即刻覆盖当前设置">
-        <form class="config-form" @submit.prevent="submitConfig">
-          <label class="field">
+        <form class="grid gap-[14px]" @submit.prevent="submitConfig">
+          <label class="grid gap-1.5 font-semibold text-text-faint">
             <span>Provider 名称 *</span>
             <input
-              name="provider_name"
-              type="text"
               v-model="formState.provider_name"
               data-surface="terminal-field"
+              class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+              name="provider_name"
+              type="text"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="例如 openai_compatible"
               required
             />
           </label>
-          <label class="field">
+          <label class="grid gap-1.5 font-semibold text-text-faint">
             <span>显示名称</span>
             <input
-              name="display_name"
-              type="text"
               v-model="formState.display_name"
               data-surface="terminal-field"
+              class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+              name="display_name"
+              type="text"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="仅用于界面展示，可自定义"
             />
           </label>
-          <label class="field">
+          <label class="grid gap-1.5 font-semibold text-text-faint">
             <span>Base URL</span>
             <input
-              name="base_url"
-              type="text"
               v-model="formState.base_url"
               data-surface="terminal-field"
+              class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+              name="base_url"
+              type="text"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="可留空但建议填写 API 地址"
             />
           </label>
-          <label class="field">
+          <label class="grid gap-1.5 font-semibold text-text-faint">
             <span>Model 名称 *</span>
             <input
-              name="model_name"
-              type="text"
               v-model="formState.model_name"
               data-surface="terminal-field"
+              class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+              name="model_name"
+              type="text"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="例如 deepseek-chat"
               required
             />
           </label>
-          <label class="field">
+          <label class="grid gap-1.5 font-semibold text-text-faint">
             <span>API Key {{ requiresKey ? '*' : '' }}</span>
             <input
-              name="api_key"
-              type="password"
               v-model="formState.api_key"
               data-surface="terminal-field"
+              class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+              name="api_key"
+              type="password"
               :disabled="llmStore.loading || llmStore.saving"
               placeholder="留空表示保留当前 key"
             />
-            <small class="subtle">{{ requiresKey ? '首次配置必须填写 API key' : '不改 key 时可留空' }}</small>
+            <small class="text-text-faint">{{ requiresKey ? '首次配置必须填写 API key' : '不改 key 时可留空' }}</small>
           </label>
 
-          <div class="form-footer">
-            <button class="save-button" type="submit" :disabled="!canSave || llmStore.saving">
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-5 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              type="submit"
+              :disabled="!canSave || llmStore.saving"
+            >
               {{ llmStore.saving ? '正在保存…' : '保存配置' }}
             </button>
             <button
               v-if="hasConfig"
-              class="test-button"
+              class="rounded-full bg-[linear-gradient(135deg,#0f766e,#14b8a6)] px-5 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               type="button"
               data-testid="test-connection-button"
               :disabled="llmStore.loading || llmStore.saving || llmStore.testingConnection"
@@ -180,128 +187,14 @@ onMounted(() => {
             >
               {{ llmStore.testingConnection ? '测试中…' : '测试连接' }}
             </button>
-            <p v-if="llmStore.saveSuccess" class="status-text positive">{{ llmStore.saveSuccess }}</p>
-            <p v-else-if="llmStore.saveError" class="status-text negative">{{ llmStore.saveError }}</p>
-            <p v-if="llmStore.testSuccess" class="status-text positive">{{ llmStore.testSuccess }}</p>
-            <p v-else-if="llmStore.testError" class="status-text negative">{{ llmStore.testError }}</p>
+            <p v-if="llmStore.saveSuccess" class="text-xs text-positive">{{ llmStore.saveSuccess }}</p>
+            <p v-else-if="llmStore.saveError" class="text-xs text-negative">{{ llmStore.saveError }}</p>
+            <p v-if="llmStore.testSuccess" class="text-xs text-positive">{{ llmStore.testSuccess }}</p>
+            <p v-else-if="llmStore.testError" class="text-xs text-negative">{{ llmStore.testError }}</p>
           </div>
-          <p class="subtle">测试连接只会验证当前已保存并生效的配置，不会读取未保存的表单修改。</p>
+          <p class="text-text-faint">测试连接只会验证当前已保存并生效的配置，不会读取未保存的表单修改。</p>
         </form>
       </SectionCard>
     </div>
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.settings-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.config-form {
-  display: grid;
-  gap: 14px;
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-  font-weight: 600;
-  color: var(--text-faint);
-}
-
-.field input {
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  padding: 10px 14px;
-  font: inherit;
-  background: var(--field-bg);
-  color: var(--text);
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
-}
-
-.field input::placeholder {
-  color: var(--text-faint);
-}
-
-.field input:hover {
-  border-color: rgba(125, 211, 252, 0.18);
-}
-
-.field input:focus {
-  border-color: rgba(125, 211, 252, 0.4);
-  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.12);
-}
-
-.field small.subtle {
-  color: var(--text-faint);
-}
-
-.form-footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.save-button,
-.test-button {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 20px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
-}
-
-.save-button {
-  background: linear-gradient(135deg, #1768c2, #3aa9f5);
-}
-
-.test-button {
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
-}
-
-.save-button:hover:not(:disabled),
-.test-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.save-button:hover:not(:disabled) {
-  box-shadow: 0 10px 24px rgba(58, 169, 245, 0.24);
-}
-
-.test-button:hover:not(:disabled) {
-  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.24);
-}
-
-.save-button:disabled,
-.test-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.status-text {
-  font-size: 12px;
-}
-
-.status-text.positive {
-  color: var(--positive);
-}
-
-.status-text.negative {
-  color: var(--negative);
-}
-</style>
