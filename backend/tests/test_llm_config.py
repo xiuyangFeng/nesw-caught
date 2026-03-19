@@ -100,6 +100,25 @@ def test_post_llm_config_preserves_existing_key_when_update_omits_new_key() -> N
     assert payload["api_key_set"] is True
 
 
+def test_post_llm_config_normalizes_known_deepseek_typo_host() -> None:
+    _cleanup_llm_config_table()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "DeepSeek",
+            "base_url": "https://api.deepssek.com/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["base_url"] == "https://api.deepseek.com/v1"
+
+
 def test_post_llm_config_requires_key_when_creating_first_config() -> None:
     _cleanup_llm_config_table()
     client = TestClient(app)

@@ -48,7 +48,7 @@ class OpenAICompatibleProvider:
                 raise LLMProviderError(f"llm provider request failed: {exc}") from exc
 
         if response.status_code >= 400:
-            raise LLMProviderError(f"llm provider request failed with status {response.status_code}")
+            raise LLMProviderError(self._build_error_message(response))
 
         try:
             payload = response.json()
@@ -93,6 +93,38 @@ class OpenAICompatibleProvider:
                 {"role": "user", "content": user_prompt},
             ]
         )
+
+    def test_connection(self) -> None:
+        self.generate_text(
+            system_prompt=(
+                "This is a connection test. Reply with a very short plain text response. "
+                "Do not use markdown, JSON, or extra explanation."
+            ),
+            user_prompt="ping",
+        )
+
+    @staticmethod
+    def _build_error_message(response: httpx.Response) -> str:
+        detail: str | None = None
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = error.get("message")
+                if isinstance(message, str) and message.strip():
+                    detail = message.strip()
+            if detail is None:
+                message = payload.get("message")
+                if isinstance(message, str) and message.strip():
+                    detail = message.strip()
+
+        if detail:
+            return f"llm provider request failed: {detail}"
+        return f"llm provider request failed with status {response.status_code}"
 
 
 def build_provider(config: LLMProviderConfig) -> OpenAICompatibleProvider:

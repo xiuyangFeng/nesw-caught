@@ -2,6 +2,50 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-19 20:36
+
+- 修改人：Codex
+- 修改范围：LLM 设置页“测试连接”功能与上游鉴权错误透传
+- 变更内容：在 `LLM Settings` 页面新增“测试连接”按钮，严格按已保存且当前激活的 LLM 配置发起连通性校验，不会读取未保存的表单草稿；后端新增 `POST /api/llm/test` 接口，并让 `OpenAICompatibleProvider` 在上游返回 4xx/5xx 时优先解析真实错误正文，避免只显示裸状态码；已通过直接请求 DeepSeek 官方接口确认当前真实失败根因为 API key 无效，上游返回 `Authentication Fails, Your api key: ****20e1 is invalid`，页面现在可直接展示这类错误。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/llm_providers.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/llm.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/llm.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_analysis.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/llmStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-llm-connection-test-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-llm-connection-test-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：有（新增 `POST /api/llm/test`；前端新增连接测试响应类型）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_analysis.py backend/tests/test_llm_config.py -q` 通过（18 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/views/LlmSettingsView.test.ts` 通过（2 个文件 / 11 个用例）；`npm --prefix frontend run build` 通过；使用本地保存的当前 key 直连 `https://api.deepseek.com/v1/chat/completions` 已确认真实返回 `401` 和错误正文 `Authentication Fails, Your api key: ****20e1 is invalid`
+- 风险/后续事项：测试连接会真实消耗一次上游请求额度；当前失败不是代码兼容性问题，而是当前保存的 DeepSeek key 被上游判定无效，需要你换成有效 key 后再次保存并点击“测试连接”
+
+## 2026-03-19 20:18
+
+- 修改人：Codex
+- 修改范围：LLM DeepSeek 默认配置持久化、错误域名修正与设置页真实错误态
+- 变更内容：定位并修复了本地 LLM 设置“刷新后看起来被改回去”的根因：前端 `LLM Settings` 读取/保存配置时不再在后端失败后静默回退 `mockLlmConfig`，而是展示真实加载失败信息，避免 mock 假数据覆盖数据库中的真实 DeepSeek 配置；后端新增对已知错误 DeepSeek 域名 `https://api.deepssek.com/v1` 的规范化保存，自动改写为正确的 `https://api.deepseek.com/v1`；同时已直接修正本地 SQLite 中当前激活的 DeepSeek 配置，消除导致 `llm provider request failed: [SSL: UNEXPECTED_EOF_WHILE_READING] ...` 的错误地址。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/llm_provider_config_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_llm_config.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/llmStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/app.db`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-llm-deepseek-default-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-llm-deepseek-default-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅调整前端错误处理与后端保存时的 DeepSeek 域名规范化）
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_llm_config.py -q` 通过（5 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/views/LlmSettingsView.test.ts` 通过（2 个文件 / 9 个用例）；`npm --prefix frontend run build` 通过；本地 SQLite 已核对当前激活配置为 `openai_compatible / DeepSeek / https://api.deepseek.com/v1 / deepseek-chat`
+- 风险/后续事项：当前后端只会自动纠正已知的 DeepSeek 错拼 host，不会改写其它自定义 OpenAI-compatible 地址；如果后续仍有连接失败，需要继续检查 API key、本机网络或上游服务可用性
+
 ## 2026-03-19 19:40
 
 - 修改人：Codex

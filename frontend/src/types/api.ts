@@ -82,6 +82,12 @@ export interface LLMTranslateResponse {
   translated_text: string;
 }
 
+export interface LLMConnectionTestResponse {
+  provider_name: string;
+  model_name: string;
+  message: string;
+}
+
 export interface NewsAnalysisCandidate {
   symbol: string;
   market: Market;

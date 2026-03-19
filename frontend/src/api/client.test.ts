@@ -109,3 +109,55 @@ describe('apiClient.translateText', () => {
     });
   });
 });
+
+describe('apiClient llm config requests', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('does not fall back to mock llm config when loading config fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.getLlmConfig()).rejects.toThrow('backend offline');
+  });
+
+  it('does not fall back to mock llm config when saving config fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(
+      apiClient.saveLlmConfig({
+        provider_name: 'openai_compatible',
+        display_name: 'DeepSeek',
+        base_url: 'https://api.deepseek.com/v1',
+        model_name: 'deepseek-chat',
+      }),
+    ).rejects.toThrow('backend offline');
+  });
+
+  it('posts llm connection tests to the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          provider_name: 'openai_compatible',
+          model_name: 'deepseek-chat',
+          message: 'LLM connection succeeded',
+        }),
+      }),
+    );
+
+    const response = await apiClient.testLlmConnection();
+
+    expect(fetch).toHaveBeenCalledWith('/api/llm/test', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.message).toBe('LLM connection succeeded');
+  });
+});

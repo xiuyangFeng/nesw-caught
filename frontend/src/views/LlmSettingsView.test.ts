@@ -8,10 +8,15 @@ const llmStore = reactive({
   config: null as any,
   loading: false,
   saving: false,
+  testingConnection: false,
+  loadError: null as string | null,
   saveError: null as string | null,
   saveSuccess: null as string | null,
+  testError: null as string | null,
+  testSuccess: null as string | null,
   loadConfig: vi.fn(),
   saveConfig: vi.fn(),
+  testConnection: vi.fn(),
 });
 
 vi.mock('../stores/llmStore', () => ({
@@ -22,10 +27,15 @@ describe('LlmSettingsView', () => {
   beforeEach(() => {
     llmStore.loading = false;
     llmStore.saving = false;
+    llmStore.testingConnection = false;
+    llmStore.loadError = null;
     llmStore.saveError = null;
     llmStore.saveSuccess = null;
+    llmStore.testError = null;
+    llmStore.testSuccess = null;
     llmStore.loadConfig.mockReset();
     llmStore.saveConfig.mockReset();
+    llmStore.testConnection.mockReset();
     llmStore.config = null;
   });
 
@@ -45,6 +55,14 @@ describe('LlmSettingsView', () => {
     expect(wrapper.text()).toContain('尚未配置任何 LLM');
     expect(wrapper.find('input[type="password"]').attributes('placeholder')).toContain('留空表示保留当前 key');
     expect(wrapper.find('[data-surface="terminal-field"]').exists()).toBe(true);
+  });
+
+  it('shows a load error when llm config cannot be fetched', () => {
+    llmStore.loadError = 'backend offline';
+
+    const wrapper = mount(LlmSettingsView);
+
+    expect(wrapper.text()).toContain('backend offline');
   });
 
   it('fills existing config and saves updated values', async () => {
@@ -87,5 +105,29 @@ describe('LlmSettingsView', () => {
       api_key: undefined,
     });
     expect(wrapper.text()).toContain('LLM 配置已保存');
+  });
+
+  it('renders a saved-config connection test button and calls the store action', async () => {
+    llmStore.config = {
+      configured: true,
+      provider_name: 'openai_compatible',
+      display_name: 'DeepSeek',
+      model_name: 'deepseek-chat',
+      base_url: 'https://api.deepseek.com/v1',
+      api_key_set: true,
+      updated_at: '2026-03-17T09:00:00Z',
+    };
+    llmStore.testConnection.mockImplementation(async () => {
+      llmStore.testSuccess = '连接成功';
+    });
+
+    const wrapper = mount(LlmSettingsView);
+
+    const button = wrapper.find('[data-testid="test-connection-button"]');
+    expect(button.exists()).toBe(true);
+    await button.trigger('click');
+
+    expect(llmStore.testConnection).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('连接成功');
   });
 });

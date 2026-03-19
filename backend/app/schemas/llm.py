@@ -31,6 +31,12 @@ class LLMTranslateView(BaseModel):
     translated_text: str
 
 
+class LLMConnectionTestView(BaseModel):
+    provider_name: str
+    model_name: str
+    message: str
+
+
 class LLMAnalysisCandidate(BaseModel):
     symbol: str
     market: str

@@ -67,6 +67,17 @@ async function submitConfig() {
   }
 }
 
+async function submitConnectionTest() {
+  if (!hasConfig.value) {
+    return;
+  }
+  try {
+    await llmStore.testConnection();
+  } catch {
+    // error message surfaced by store
+  }
+}
+
 onMounted(() => {
   if (!llmStore.config) {
     llmStore.loadConfig();
@@ -85,6 +96,7 @@ onMounted(() => {
 
     <div class="settings-grid">
       <SectionCard title="当前配置" subtitle="当前生效的单套 provider">
+        <p class="status-text negative" v-if="llmStore.loadError">{{ llmStore.loadError }}</p>
         <p class="subtle" v-if="!hasConfig">尚未配置任何 LLM，完成表单后点击“保存配置”即可生效。</p>
         <p class="subtle" v-else>
           当前模型：{{ llmStore.config?.provider_name ?? '未知' }} /
@@ -158,9 +170,22 @@ onMounted(() => {
             <button class="save-button" type="submit" :disabled="!canSave || llmStore.saving">
               {{ llmStore.saving ? '正在保存…' : '保存配置' }}
             </button>
+            <button
+              v-if="hasConfig"
+              class="test-button"
+              type="button"
+              data-testid="test-connection-button"
+              :disabled="llmStore.loading || llmStore.saving || llmStore.testingConnection"
+              @click="submitConnectionTest"
+            >
+              {{ llmStore.testingConnection ? '测试中…' : '测试连接' }}
+            </button>
             <p v-if="llmStore.saveSuccess" class="status-text positive">{{ llmStore.saveSuccess }}</p>
             <p v-else-if="llmStore.saveError" class="status-text negative">{{ llmStore.saveError }}</p>
+            <p v-if="llmStore.testSuccess" class="status-text positive">{{ llmStore.testSuccess }}</p>
+            <p v-else-if="llmStore.testError" class="status-text negative">{{ llmStore.testError }}</p>
           </div>
+          <p class="subtle">测试连接只会验证当前已保存并生效的配置，不会读取未保存的表单修改。</p>
         </form>
       </SectionCard>
     </div>
@@ -230,23 +255,40 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.save-button {
+.save-button,
+.test-button {
   border: none;
   border-radius: 999px;
   padding: 10px 20px;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #1768c2, #3aa9f5);
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
 
-.save-button:hover:not(:disabled) {
+.save-button {
+  background: linear-gradient(135deg, #1768c2, #3aa9f5);
+}
+
+.test-button {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+}
+
+.save-button:hover:not(:disabled),
+.test-button:hover:not(:disabled) {
   transform: translateY(-1px);
+}
+
+.save-button:hover:not(:disabled) {
   box-shadow: 0 10px 24px rgba(58, 169, 245, 0.24);
 }
 
-.save-button:disabled {
+.test-button:hover:not(:disabled) {
+  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.24);
+}
+
+.save-button:disabled,
+.test-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

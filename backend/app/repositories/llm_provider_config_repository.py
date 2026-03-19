@@ -4,6 +4,20 @@ from sqlalchemy.orm import Session
 from app.models.llm_provider_config import LLMProviderConfig
 
 
+def _normalize_base_url(provider_name: str, model_name: str, base_url: str | None) -> str | None:
+    if base_url is None:
+        return None
+
+    normalized = base_url.strip()
+    if (
+        provider_name == "openai_compatible"
+        and model_name.startswith("deepseek-")
+        and normalized == "https://api.deepssek.com/v1"
+    ):
+        return "https://api.deepseek.com/v1"
+    return normalized
+
+
 class LLMProviderConfigRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -25,6 +39,7 @@ class LLMProviderConfigRepository:
         model_name: str,
         api_key: str | None,
     ) -> LLMProviderConfig:
+        normalized_base_url = _normalize_base_url(provider_name, model_name, base_url)
         existing = self.get_active()
         self.session.execute(update(LLMProviderConfig).values(is_active=False))
         effective_api_key = api_key if api_key else (existing.api_key if existing is not None else None)
@@ -35,7 +50,7 @@ class LLMProviderConfigRepository:
             existing = LLMProviderConfig(
                 provider_name=provider_name,
                 display_name=display_name,
-                base_url=base_url,
+                base_url=normalized_base_url,
                 model_name=model_name,
                 api_key=effective_api_key,
                 is_active=True,
@@ -44,7 +59,7 @@ class LLMProviderConfigRepository:
         else:
             existing.provider_name = provider_name
             existing.display_name = display_name
-            existing.base_url = base_url
+            existing.base_url = normalized_base_url
             existing.model_name = model_name
             existing.api_key = effective_api_key
             existing.is_active = True

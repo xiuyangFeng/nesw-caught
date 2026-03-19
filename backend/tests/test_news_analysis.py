@@ -168,6 +168,86 @@ def test_post_llm_translate_surfaces_provider_connection_errors(monkeypatch) -> 
     assert response.json()["detail"] == "llm provider request failed: dns lookup failed"
 
 
+def test_post_llm_translate_surfaces_provider_authentication_errors(monkeypatch) -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "DeepSeek",
+            "base_url": "https://api.deepseek.com/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    original_post = httpx.Client.post
+
+    def fake_post(self, url: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if url == "https://api.deepseek.com/v1/chat/completions":
+            return httpx.Response(
+                401,
+                json={
+                    "error": {
+                        "message": "Authentication Fails, Your api key: ****20e1 is invalid",
+                    }
+                },
+                request=httpx.Request("POST", url),
+            )
+        return original_post(self, url, *args, **kwargs)
+
+    monkeypatch.setattr("app.services.llm_providers.httpx.Client.post", fake_post)
+
+    response = client.post("/api/llm/translate", json={"text": "MiniMax released an update."})
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "llm provider request failed: Authentication Fails, Your api key: ****20e1 is invalid"
+
+
+def test_post_llm_test_requires_active_provider_config() -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+
+    response = client.post("/api/llm/test")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "llm provider is not configured"
+
+
+def test_post_llm_test_returns_success_when_provider_is_reachable(monkeypatch) -> None:
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "DeepSeek",
+            "base_url": "https://api.deepseek.com/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    def fake_generate_text(self, *, system_prompt: str, user_prompt: str) -> str:  # type: ignore[no-untyped-def]
+        assert "connection test" in system_prompt.lower()
+        assert user_prompt == "ping"
+        return "pong"
+
+    monkeypatch.setattr(
+        "app.services.llm_providers.OpenAICompatibleProvider.generate_text",
+        fake_generate_text,
+    )
+
+    response = client.post("/api/llm/test")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider_name"] == "openai_compatible"
+    assert payload["model_name"] == "deepseek-chat"
+    assert payload["message"] == "LLM connection succeeded"
+
+
 def test_post_news_analysis_returns_structured_result_and_persists_latest_analysis(
     monkeypatch,
 ) -> None:

@@ -3,7 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
-from app.schemas.llm import LLMConfigUpsertRequest, LLMConfigView, LLMTranslateRequest, LLMTranslateView
+from app.schemas.llm import (
+    LLMConfigUpsertRequest,
+    LLMConfigView,
+    LLMConnectionTestView,
+    LLMTranslateRequest,
+    LLMTranslateView,
+)
 from app.services.llm_providers import LLMProviderError, build_provider
 
 router = APIRouter()
@@ -91,4 +97,24 @@ def translate_text(
         provider_name=config.provider_name,
         model_name=config.model_name,
         translated_text=translated_text,
+    )
+
+
+@router.post("/test", response_model=LLMConnectionTestView)
+def test_llm_connection(session: Session = Depends(get_db_session)) -> LLMConnectionTestView:
+    repository = LLMProviderConfigRepository(session)
+    config = repository.get_active()
+    if config is None:
+        raise HTTPException(status_code=400, detail="llm provider is not configured")
+
+    provider = build_provider(config)
+    try:
+        provider.test_connection()
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return LLMConnectionTestView(
+        provider_name=config.provider_name,
+        model_name=config.model_name,
+        message="LLM connection succeeded",
     )
