@@ -101,4 +101,18 @@ describe('AppShell', () => {
     expect(activeLink.text()).toContain('News Feed');
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
+
+  it('loads shell stores on mount and disconnects on unmount', async () => {
+    const wrapper = mount(AppShell);
+
+    expect(connectionStore.loadStreamStatus).toHaveBeenCalledTimes(1);
+    expect(newsStore.loadNews).toHaveBeenCalledWith({ limit: 200 });
+    expect(marketStore.loadSnapshots).toHaveBeenCalledTimes(1);
+    expect(topicStore.loadTopics).toHaveBeenCalledTimes(1);
+    expect(watchlistStore.loadWatchlist).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+
+    expect(connectionStore.disconnect).toHaveBeenCalledTimes(1);
+  });
 });

@@ -91,6 +91,7 @@ describe('NewsDetailView', () => {
   it('keeps source link but hides the redundant article body section', () => {
     const wrapper = mount(NewsDetailView);
 
+    expect(wrapper.find('[data-role="news-detail-layout"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('打开原文');
     expect(wrapper.text()).not.toContain('正文内容');
     expect(wrapper.text()).not.toContain('success');

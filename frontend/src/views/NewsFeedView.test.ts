@@ -90,6 +90,7 @@ describe('NewsFeedView', () => {
 
     expect(wrapper.text()).toContain('Signal Desk');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="news-feed-shell"]').exists()).toBe(true);
     expect(wrapper.text()).not.toContain('Primary Signal');
 
     const titles = wrapper.findAll('[data-role="news-card-title"]').map((node) => node.text());

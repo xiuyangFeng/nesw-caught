@@ -39,10 +39,12 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
 </script>
 
 <template>
-  <div class="page">
-    <header class="page-header">
+  <div class="grid gap-4">
+    <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <button class="back-link" type="button" @click="router.push('/watchlist')">返回自选股总览</button>
+        <button class="border-none bg-transparent p-0 text-accent" type="button" @click="router.push('/watchlist')">
+          返回自选股总览
+        </button>
         <h1 class="page-title">{{ detailQuote?.display_name ?? symbol }}</h1>
         <p class="page-subtitle">
           {{ detailQuote?.symbol ?? symbol }}
@@ -54,69 +56,74 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
     </header>
 
     <LoadingBlock :loading="watchlistStore.detailLoading" :empty="!detailQuote" empty-text="当前股票暂无可用行情">
-      <section class="detail-grid">
+      <section class="grid gap-4" data-role="watchlist-detail-grid">
         <SectionCard title="核心行情" subtitle="最新价格、涨跌和数据状态">
-          <div class="metric-stack">
-            <div class="hero-price">
-              <strong>{{ formatNumber(detailQuote?.price) }}</strong>
-              <span :class="{ positive: (detailQuote?.change_percent ?? 0) > 0, negative: (detailQuote?.change_percent ?? 0) < 0 }">
+          <div class="grid gap-3">
+            <div>
+              <strong class="block text-[40px] leading-none">{{ formatNumber(detailQuote?.price) }}</strong>
+              <span
+                :class="
+                  (detailQuote?.change_percent ?? 0) > 0
+                    ? 'text-positive'
+                    : (detailQuote?.change_percent ?? 0) < 0
+                      ? 'text-negative'
+                      : 'text-text'
+                "
+                data-role="price-change"
+              >
                 {{ formatNumber(detailQuote?.change_amount) }} / {{ formatPercent(detailQuote?.change_percent) }}
               </span>
             </div>
-            <div class="status-line">
+            <div class="flex items-center gap-2">
               <span class="pill" :class="detailQuote?.status === 'ok' ? 'positive' : 'negative'">{{ detailQuote?.status ?? '--' }}</span>
               <span>{{ detailQuote?.source ?? '--' }}</span>
             </div>
-            <p v-if="detailQuote?.message" class="muted-text">{{ detailQuote.message }}</p>
+            <p v-if="detailQuote?.message" class="text-text-faint">{{ detailQuote.message }}</p>
           </div>
         </SectionCard>
 
         <SectionCard title="指标详情" subtitle="开盘、昨收、最高、最低、成交量">
-          <div class="metrics-grid">
-            <article class="terminal-surface" data-surface="terminal-metric-card">
-              <span>开盘价</span>
-              <strong>{{ formatNumber(detailQuote?.open_price) }}</strong>
-            </article>
-            <article class="terminal-surface" data-surface="terminal-metric-card">
-              <span>昨收价</span>
-              <strong>{{ formatNumber(detailQuote?.previous_close) }}</strong>
-            </article>
-            <article class="terminal-surface" data-surface="terminal-metric-card">
-              <span>日内最高</span>
-              <strong>{{ formatNumber(detailQuote?.day_high) }}</strong>
-            </article>
-            <article class="terminal-surface" data-surface="terminal-metric-card">
-              <span>日内最低</span>
-              <strong>{{ formatNumber(detailQuote?.day_low) }}</strong>
-            </article>
-            <article class="terminal-surface" data-surface="terminal-metric-card">
-              <span>成交量</span>
-              <strong>{{ formatNumber(detailQuote?.volume, 0) }}</strong>
-            </article>
-            <article class="terminal-surface" data-surface="terminal-metric-card">
-              <span>更新时间</span>
-              <strong>
-                {{
+          <div class="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+            <article
+              v-for="metric in [
+                ['开盘价', formatNumber(detailQuote?.open_price)],
+                ['昨收价', formatNumber(detailQuote?.previous_close)],
+                ['日内最高', formatNumber(detailQuote?.day_high)],
+                ['日内最低', formatNumber(detailQuote?.day_low)],
+                ['成交量', formatNumber(detailQuote?.volume, 0)],
+                [
+                  '更新时间',
                   detailQuote?.fetched_at
                     ? `${formatMarketTime(detailQuote.fetched_at, detailQuote.market)} ${getMarketTimezoneLabel(detailQuote.market)}`
-                    : '--'
-                }}
-              </strong>
+                    : '--',
+                ],
+              ]"
+              :key="metric[0]"
+              class="terminal-surface rounded-[18px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/20 hover:shadow-[0_14px_28px_rgba(2,6,12,0.2)]"
+              data-surface="terminal-metric-card"
+            >
+              <span class="text-text-faint">{{ metric[0] }}</span>
+              <strong class="text-text">{{ metric[1] }}</strong>
             </article>
           </div>
         </SectionCard>
 
         <SectionCard title="关联新闻" subtitle="继续沿用股票相关新闻命中结果">
           <LoadingBlock :loading="watchlistStore.relatedLoading" :empty="relatedNews.length === 0" empty-text="当前股票暂无关联新闻">
-            <div class="related-list">
-              <article v-for="item in relatedNews" :key="item.id" class="related-card terminal-surface" data-surface="terminal-related-card">
-                <div class="related-head">
+            <div class="grid gap-3">
+              <article
+                v-for="item in relatedNews"
+                :key="item.id"
+                class="terminal-surface rounded-[18px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/20 hover:shadow-[0_14px_28px_rgba(2,6,12,0.2)]"
+                data-surface="terminal-related-card"
+              >
+                <div class="mb-2 flex gap-2 text-xs text-text-faint">
                   <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
                   <span>{{ item.source_name }}</span>
                 </div>
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.summary }}</p>
-                <span class="muted-text">
+                <strong class="text-text">{{ item.title }}</strong>
+                <p class="text-text-soft">{{ item.summary }}</p>
+                <span class="text-text-faint">
                   {{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}
                 </span>
               </article>
@@ -127,99 +134,3 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
     </LoadingBlock>
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 16px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.back-link {
-  border: none;
-  padding: 0;
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  cursor: pointer;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.metric-stack,
-.metrics-grid,
-.related-list {
-  display: grid;
-  gap: 12px;
-}
-
-.hero-price strong {
-  display: block;
-  font-size: 40px;
-  line-height: 1;
-}
-
-.status-line {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.metrics-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.metrics-grid article,
-.related-card {
-  border-radius: 18px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
-}
-
-.metrics-grid article:hover,
-.related-card:hover {
-  border-color: rgba(125, 211, 252, 0.22);
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(2, 6, 12, 0.2);
-}
-
-.metrics-grid span,
-.muted-text,
-.related-head,
-.related-card p {
-  color: var(--text-faint);
-}
-
-.metrics-grid strong,
-.related-card strong {
-  color: var(--text);
-}
-
-.related-card p {
-  color: var(--text-soft);
-}
-
-.positive {
-  color: var(--positive);
-}
-
-.negative {
-  color: var(--negative);
-}
-
-.related-head {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-</style>

@@ -19,4 +19,17 @@ describe('StatusBanner', () => {
     expect(wrapper.find('[data-role="status-kicker"]').text()).toBe('System');
     expect(wrapper.find('[data-role="status-detail"]').text()).toContain('REST fallback remains available.');
   });
+
+  it('keeps trailing actions visible next to the banner content', () => {
+    const wrapper = mount(StatusBanner, {
+      props: {
+        title: 'Retry available',
+      },
+      slots: {
+        default: '<button data-role="banner-action">Retry</button>',
+      },
+    });
+
+    expect(wrapper.find('[data-role="banner-action"]').exists()).toBe(true);
+  });
 });

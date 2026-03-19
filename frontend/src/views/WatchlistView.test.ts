@@ -59,11 +59,13 @@ describe('WatchlistView', () => {
     await flushPromises();
 
     expect(watchlistStore.loadCandidates).toHaveBeenCalled();
+    expect(wrapper.find('[data-role="watchlist-layout"]').exists()).toBe(true);
     const searchInput = wrapper.get('input[placeholder="输入股票代码、中文名或英文名"]');
     await searchInput.setValue('腾');
 
     expect(wrapper.text()).toContain('Tencent');
     expect(wrapper.text()).toContain('Tencent Music');
     expect(wrapper.text()).toContain('已添加');
+    expect(wrapper.find('[data-role="candidate-list"]').exists()).toBe(true);
   });
 });

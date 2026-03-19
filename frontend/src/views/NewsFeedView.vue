@@ -81,8 +81,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page">
-    <header class="page-header">
+  <div class="grid gap-[14px]">
+    <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
         <h1 class="page-title">News Feed</h1>
         <p class="page-subtitle">Signal Desk：按当前新闻顺序直接平铺，统一用紧凑横向卡片快速扫读。</p>
@@ -97,31 +97,50 @@ onMounted(async () => {
       detail="当详情接口或主题接口缺失时，页面保留空状态和降级文案，不臆造字段。"
     />
 
-    <section class="edition-surface surface">
-      <div class="edition-head">
+    <section class="surface grid gap-[18px] rounded-[22px] p-5" data-role="news-feed-shell">
+      <div class="flex flex-col items-start justify-between gap-4 xl:flex-row">
         <div>
-          <p class="edition-label">Signal Desk</p>
-          <h2>News Stream</h2>
-          <p class="edition-copy">不再放大单条新闻，所有条目按当前顺序进入同一种横向信息卡列表。</p>
+          <p class="mb-2 text-[11px] uppercase tracking-[0.18em] text-accent">Signal Desk</p>
+          <h2 class="m-0 text-[28px] tracking-[-0.035em] text-text">News Stream</h2>
+          <p class="mt-2 max-w-[60ch] leading-[1.65] text-muted">
+            不再放大单条新闻，所有条目按当前顺序进入同一种横向信息卡列表。
+          </p>
         </div>
-        <div class="filters" data-role="filter-bar">
-          <select v-model="filters.market">
+        <div
+          class="flex flex-wrap gap-2 rounded-2xl border border-border bg-white/[0.015] p-2.5"
+          data-role="filter-bar"
+        >
+          <select
+            v-model="filters.market"
+            class="min-w-[138px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text"
+          >
             <option value="">全部市场</option>
             <option value="cn">A股/国内</option>
             <option value="hk">港股</option>
             <option value="us">美股</option>
           </select>
-          <select v-model="filters.sentiment_label">
+          <select
+            v-model="filters.sentiment_label"
+            class="min-w-[138px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text"
+          >
             <option value="">全部情绪</option>
             <option value="positive">偏利好</option>
             <option value="negative">偏利空</option>
             <option value="neutral">中性</option>
           </select>
-          <select v-model="selectedSource">
+          <select
+            v-model="selectedSource"
+            class="min-w-[138px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text"
+          >
             <option value="">全部来源</option>
             <option v-for="source in sourceOptions" :key="source" :value="source">{{ source }}</option>
           </select>
-          <input v-model="filters.q" type="search" placeholder="搜索标题或摘要" />
+          <input
+            v-model="filters.q"
+            class="min-w-[240px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text max-xl:min-w-0"
+            type="search"
+            placeholder="搜索标题或摘要"
+          />
         </div>
       </div>
 
@@ -132,7 +151,7 @@ onMounted(async () => {
           subtitle="统一横向卡片，保持当前顺序，方便连续扫读和快速点进详情。"
           compact
         >
-          <div class="story-stream" data-role="news-stream-list">
+          <div class="grid grid-cols-1 gap-[14px]" data-role="news-stream-list">
             <NewsCard
               v-for="entry in orderedEntries"
               :key="entry.item.id"
@@ -146,93 +165,3 @@ onMounted(async () => {
     </section>
   </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 14px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.edition-surface {
-  display: grid;
-  gap: 18px;
-  padding: 20px;
-  border-radius: 22px;
-}
-
-.filters {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 10px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.015);
-}
-
-.filters select,
-.filters input {
-  min-width: 138px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(6, 11, 19, 0.92);
-  padding: 10px 12px;
-  color: var(--text);
-}
-
-.filters input {
-  min-width: 240px;
-}
-
-.edition-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.edition-label {
-  margin: 0 0 8px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--accent);
-}
-
-.edition-head h2 {
-  margin: 0;
-  font-size: 28px;
-  letter-spacing: -0.035em;
-}
-
-.edition-copy {
-  max-width: 60ch;
-  margin: 8px 0 0;
-  color: var(--muted);
-  line-height: 1.65;
-}
-
-.story-stream {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-@media (max-width: 1120px) {
-  .edition-head {
-    flex-direction: column;
-  }
-
-  .filters input,
-  .filters select {
-    min-width: 0;
-  }
-}
-</style>

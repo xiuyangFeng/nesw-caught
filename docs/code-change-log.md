@@ -2,6 +2,112 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-19 23:14
+
+- 修改人：Codex
+- 修改范围：Tailwind 迁移 code review 修正
+- 变更内容：根据子代理代码审查修复了 3 个样式迁移回归：`WatchlistDetailView` 的涨跌额/涨跌幅现在直接使用 Tailwind 的 `text-positive` / `text-negative`，恢复单股行情正负反馈颜色；`XMonitorView` 的监控帖子流恢复为仅在桌面宽度下启用固定高度内部滚动，窄屏时回退为自然页面滚动，避免双滚动；`DashboardView` 的异动摘要卡片从无效的多层 `bg-[...]` 写法改为 `background-image` 渐变表达，恢复原先的摘要面板质感；并补充 `WatchlistDetailView` 对跌涨颜色语义的测试断言。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅 code review 修正）
+- 验证情况：`npm --prefix frontend run test -- --run src/views/WatchlistDetailView.test.ts src/views/XMonitorView.test.ts src/views/DashboardView.test.ts` 通过（3 个文件 / 7 个用例）；`npm --prefix frontend run test -- --run` 通过（21 个文件 / 48 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮 code review 中发现的问题已修复，但这类纯样式迁移仍主要依赖结构测试和人工页面巡检；如果下一轮继续压缩兼容层，建议补充至少一套截图级校验或手工核对清单
+
+## 2026-03-19 22:56
+
+- 修改人：Codex
+- 修改范围：Tailwind 迁移剩余页面收尾与前端全量验证
+- 变更内容：完成 `TopicDetailView`、`NewsDetailView`、`XMonitorView`、`LlmSettingsView`、`NotifySettingsView` 的 Tailwind 迁移，移除这些页面原有的 scoped CSS；为 `TopicDetail` 与 `Notify Settings` 新增页面级测试，为 `NewsDetail`、`XMonitor`、`LlmSettings` 补充稳定的结构锚点测试，确保主题来源导航、X 帖子翻译、LLM 设置页连接测试按钮和通知设置页测试消息按钮在重构后仍正常工作；至此本轮计划范围内的前端主页面都已迁到 Tailwind，且未改动任何前后端 API 契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/TopicDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/TopicDetailView.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/LlmSettingsView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NotifySettingsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NotifySettingsView.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅前端页面样式与测试补强）
+- 验证情况：`npm --prefix frontend run test -- --run src/views/TopicDetailView.test.ts src/views/NewsDetailView.test.ts src/views/XMonitorView.test.ts src/views/LlmSettingsView.test.ts src/views/NotifySettingsView.test.ts` 通过（5 个文件 / 14 个用例）；`npm --prefix frontend run test -- --run` 通过（21 个文件 / 48 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前主页面已完成 Tailwind 迁移，但仓库里仍有部分子组件和兼容语义类（如 `surface`、`pill`）保留在全局样式中作为过渡层；如果下一轮要进一步收紧样式体系，应先确认这些兼容类在所有消费者中都已被完全替换后再清理
+
+## 2026-03-19 22:43
+
+- 修改人：Codex
+- 修改范围：`NewsFeed`、`Watchlist`、`WatchlistDetail` 页面 Tailwind 迁移
+- 变更内容：将 `NewsFeedView`、`WatchlistView` 和 `WatchlistDetailView` 迁移为 Tailwind class 驱动实现，移除对应页面的 scoped CSS；为新闻页壳层、自选股主布局、单股详情主网格补充稳定的 `data-role` 结构锚点，保持现有筛选、候选联想、关联新闻、详情卡片与单股行情展示行为不变；本轮仍只调整前端页面表现，没有改动 store 契约、API client 或任何后端接口。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅页面展示层重构）
+- 验证情况：`npm --prefix frontend run test -- --run src/views/NewsFeedView.test.ts src/views/WatchlistView.test.ts src/views/WatchlistDetailView.test.ts` 通过（3 个文件 / 3 个用例）；`npm --prefix frontend run test -- --run` 通过（19 个文件 / 46 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 `TopicDetail`、`NewsDetail`、`XMonitor`、`LlmSettings`、`Notify` 等页面仍保留旧样式结构；继续迁移时要特别注意表单页和高密度数据页的交互状态，不要因 class 收敛误伤可读性或可点击区域
+
+## 2026-03-19 22:29
+
+- 修改人：Codex
+- 修改范围：`Dashboard` 视图与仪表组件 Tailwind 迁移
+- 变更内容：将 `HeroMetrics`、`TopicBoard` 和 `DashboardView` 迁移为 Tailwind class 驱动实现，去掉原有 scoped CSS；为指标区、主题卡片和 Dashboard 主网格补充稳定的 `data-role` 结构锚点，并给 `TopicBoard` 增加点击跳转的保护测试，确保后续继续重构页面时不会误伤导航与信息结构；本轮仍然只动前端展示层，没有改动任何前后端接口、store 读写或 API client 调用。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/HeroMetrics.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/HeroMetrics.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅 Dashboard 展示层与测试锚点调整）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/dashboard/HeroMetrics.test.ts src/components/dashboard/TopicBoard.test.ts src/views/DashboardView.test.ts` 通过（3 个文件 / 5 个用例）；`npm --prefix frontend run test -- --run` 通过（19 个文件 / 46 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前仅 `Dashboard` 完成页面级迁移，其余业务页面仍保留大量 scoped CSS；后续继续迁移时要优先复用已沉淀的 `SectionCard`、`StatusBanner` 和指标/卡片表达，避免不同页面重新各写一套 Tailwind 组合
+
+## 2026-03-19 21:16
+
+- 修改人：Codex
+- 修改范围：前端共享组件 Tailwind 迁移第一批
+- 变更内容：将 `SectionCard`、`StatusBanner`、`LoadingBlock`、`StaleBadge` 四个共享显示组件迁移为 Tailwind class 驱动实现，移除对应 scoped CSS；为 `SectionCard` 补充紧凑模式稳定标记 `data-compact`，并为 `SectionCard`/`StatusBanner` 增补 slot 与语义断言测试，确保后续页面迁移时仍有稳定的公共视觉锚点；本轮仅调整组件展示层，没有改动任何 store、API client 或后端接口。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/SectionCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/SectionCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/StatusBanner.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/StatusBanner.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/LoadingBlock.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/common/StaleBadge.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅共享展示组件样式层重构）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/common/SectionCard.test.ts src/components/common/StatusBanner.test.ts` 通过（2 个文件 / 4 个用例）；`npm --prefix frontend run test -- --run` 通过（19 个文件 / 44 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前只迁移了公共壳层和 4 个通用组件，页面级 scoped CSS 仍大量存在；后续迁移页面时需要尽量复用本轮沉淀的公共样式表达，避免模板 class 再次发散
+
+## 2026-03-19 21:13
+
+- 修改人：Codex
+- 修改范围：前端 Tailwind 基础设施接入与 `AppShell` 首批迁移
+- 变更内容：在前端引入 `tailwindcss@3`、`postcss` 与 `autoprefixer`，新增 Tailwind/PostCSS 配置并把现有全局 design tokens 映射进 Tailwind theme；`frontend/src/assets/main.css` 现改为 Tailwind 入口，同时保留当前暗色终端配色、`surface`、`pill` 等兼容语义类；`AppShell` 迁移为以 Tailwind class 驱动的布局和导航样式，不改动任何数据加载、SSE 连接或路由逻辑；同时补充 `AppShell` 的挂载/卸载测试，确认样式重构没有影响壳层数据初始化与断连清理。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/package.json`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/package-lock.json`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/tailwind.config.js`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/postcss.config.js`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/index.html`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/assets/main.css`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅前端样式基础设施与布局实现调整，未改动前后端 API 契约）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run test -- --run` 通过（19 个文件 / 42 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前仅完成基础设施和 `AppShell`，其余页面仍混用现有 scoped CSS；Tailwind 迁移期内存在双样式系统，后续需要继续按计划逐页迁移并在完成后再清理兼容类
+
 ## 2026-03-19 20:36
 
 - 修改人：Codex

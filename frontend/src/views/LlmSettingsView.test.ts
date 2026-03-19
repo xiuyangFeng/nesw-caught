@@ -52,6 +52,7 @@ describe('LlmSettingsView', () => {
 
     const wrapper = mount(LlmSettingsView);
 
+    expect(wrapper.find('[data-role="llm-settings-grid"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('尚未配置任何 LLM');
     expect(wrapper.find('input[type="password"]').attributes('placeholder')).toContain('留空表示保留当前 key');
     expect(wrapper.find('[data-surface="terminal-field"]').exists()).toBe(true);
