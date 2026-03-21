@@ -16,8 +16,8 @@ const connectionStore = {
 };
 
 const newsStore = {
-  loadNews: vi.fn(async () => undefined),
-  refreshNews: vi.fn(async () => false),
+  loadDashboardNews: vi.fn(async () => undefined),
+  refreshDashboardNews: vi.fn(async () => false),
   upsertNews: vi.fn(),
 };
 
@@ -74,8 +74,8 @@ describe('AppShell', () => {
     connectionStore.loadStreamStatus.mockClear();
     connectionStore.connect.mockClear();
     connectionStore.disconnect.mockClear();
-    newsStore.loadNews.mockClear();
-    newsStore.refreshNews.mockClear();
+    newsStore.loadDashboardNews.mockClear();
+    newsStore.refreshDashboardNews.mockClear();
     newsStore.upsertNews.mockClear();
     marketStore.loadSnapshots.mockClear();
     marketStore.upsertSnapshot.mockClear();
@@ -106,7 +106,7 @@ describe('AppShell', () => {
     const wrapper = mount(AppShell);
 
     expect(connectionStore.loadStreamStatus).toHaveBeenCalledTimes(1);
-    expect(newsStore.loadNews).toHaveBeenCalledWith({ limit: 200 });
+    expect(newsStore.loadDashboardNews).toHaveBeenCalledWith({ limit: 200 });
     expect(marketStore.loadSnapshots).toHaveBeenCalledTimes(1);
     expect(topicStore.loadTopics).toHaveBeenCalledTimes(1);
     expect(watchlistStore.loadWatchlist).toHaveBeenCalledTimes(1);

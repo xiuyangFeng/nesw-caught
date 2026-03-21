@@ -23,11 +23,11 @@ const filters = reactive<{
   q: '',
 });
 
-const sourceOptions = computed(() => [...new Set(newsStore.items.map((item) => item.source_name))]);
+const sourceOptions = computed(() => [...new Set(newsStore.feedItems.map((item) => item.source_name))]);
 const selectedSource = ref('');
 const hydratingIds = new Set<number>();
 const orderedEntries = computed<EditorialStoryEntry[]>(() =>
-  newsStore.items.map((item) => ({
+  newsStore.feedItems.map((item) => ({
     item,
     detail: newsStore.detailMap[item.id] ?? null,
     score: 0,
@@ -35,7 +35,7 @@ const orderedEntries = computed<EditorialStoryEntry[]>(() =>
 );
 
 async function hydrateEditorialDetails() {
-  const idsToLoad = newsStore.items
+  const idsToLoad = newsStore.feedItems
     .slice(0, 8)
     .map((item) => item.id)
     .filter((id) => !newsStore.detailMap[id] && !hydratingIds.has(id));
@@ -59,7 +59,7 @@ async function hydrateEditorialDetails() {
 watch(
   () => ({ ...filters, source_name: selectedSource.value }),
   async () => {
-    await newsStore.loadNews({
+    await newsStore.loadFeedNews({
       ...filters,
       source_name: selectedSource.value,
       limit: 300,
@@ -73,8 +73,8 @@ function openStory(id: number) {
 }
 
 onMounted(async () => {
-  if (!newsStore.items.length) {
-    await newsStore.loadNews({ limit: 300 });
+  if (!newsStore.feedItems.length) {
+    await newsStore.loadFeedNews({ limit: 300 });
   }
   await hydrateEditorialDetails();
 });
@@ -87,7 +87,7 @@ onMounted(async () => {
         <h1 class="page-title">News Feed</h1>
         <p class="page-subtitle">Signal Desk：按当前新闻顺序直接平铺，统一用紧凑横向卡片快速扫读。</p>
       </div>
-      <StaleBadge :stale="newsStore.stale" label="新闻列表" />
+      <StaleBadge :stale="newsStore.feedStale" label="新闻列表" />
     </header>
 
     <StatusBanner
@@ -144,7 +144,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
+      <LoadingBlock :loading="newsStore.feedLoading" :empty="newsStore.feedItems.length === 0">
         <SectionCard
           eyebrow="Live Flow"
           title="News Stream"

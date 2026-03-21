@@ -59,12 +59,12 @@ const detailMap: Record<number, NewsDetail> = {
 };
 
 const newsStore = {
-  items,
+  feedItems: items,
   detailMap,
-  loading: false,
-  stale: false,
+  feedLoading: false,
+  feedStale: false,
   usingMock: false,
-  loadNews: vi.fn(async () => undefined),
+  loadFeedNews: vi.fn(async () => undefined),
   loadDetail: vi.fn(async () => undefined),
 };
 
@@ -81,7 +81,7 @@ vi.mock('../stores/newsStore', () => ({
 describe('NewsFeedView', () => {
   beforeEach(() => {
     mockPush.mockReset();
-    newsStore.loadNews.mockClear();
+    newsStore.loadFeedNews.mockClear();
     newsStore.loadDetail.mockClear();
   });
 
@@ -98,5 +98,11 @@ describe('NewsFeedView', () => {
       'NVIDIA rallies as AI capex estimates move higher',
       'TSMC supply chain remains in focus',
     ]);
+  });
+
+  it('loads the feed slot instead of the shared list api', () => {
+    mount(NewsFeedView);
+
+    expect(newsStore.loadFeedNews).not.toHaveBeenCalledWith({ sentiment_label: 'positive', limit: 300 });
   });
 });

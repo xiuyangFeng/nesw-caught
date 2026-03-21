@@ -55,7 +55,7 @@ function navLinkClasses(isActive: boolean) {
 async function bootstrap() {
   await Promise.all([
     connectionStore.loadStreamStatus(),
-    newsStore.loadNews({ limit: 200 }),
+    newsStore.loadDashboardNews({ limit: 200 }),
     marketStore.loadSnapshots(),
     topicStore.loadTopics(),
     watchlistStore.loadWatchlist(),
@@ -81,7 +81,7 @@ async function bootstrap() {
     }
   });
 
-  void newsStore.refreshNews().then(async (refreshed) => {
+  void newsStore.refreshDashboardNews().then(async (refreshed) => {
     if (refreshed) {
       await topicStore.loadTopics();
     }

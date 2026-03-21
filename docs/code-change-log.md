@@ -2,6 +2,62 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-21 16:33
+
+- 修改人：Codex
+- 修改范围：`newsStore` 新闻列表状态分槽重构
+- 变更内容：将原本共享一份 `items/activeQuery` 的 `newsStore` 改为“共享详情缓存 + 分离列表槽位”的结构，新增 Dashboard、News Feed、Sentiment News 三套独立的列表、查询、加载状态和时间戳，并分别提供 `loadDashboardNews`、`loadFeedNews`、`loadSentimentNews`、`refreshDashboardNews`；`AppShell` 启动改为只引导 Dashboard 槽位，`DashboardView`、`NewsFeedView`、`SentimentNewsView` 各自切换到自己的列表状态读取，彻底消除情绪页或筛选页覆盖首页统计和通用新闻流的问题；同时新增 `newsStore` store 级测试，并调整相关页面/壳层测试覆盖新的 store API。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/SentimentNewsView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/SentimentNewsView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-21-news-store-list-scope-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-21-news-store-list-scope-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅前端 store 内部状态模型和消费方式调整）
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/newsStore.test.ts src/components/layout/AppShell.test.ts src/views/DashboardView.test.ts src/views/NewsFeedView.test.ts src/views/SentimentNewsView.test.ts` 通过（5 个文件 / 10 个用例）；`npm --prefix frontend run test -- --run` 通过（23 个文件 / 54 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前列表状态已按页面分槽，但详情和分析缓存仍是全局共享，这是本轮有意保留的复用层；如果后续新闻入口继续增加，可以沿用同样的槽位模式，或进一步抽象成通用 scoped list helper 以减少 store 字段重复
+
+## 2026-03-21 16:26
+
+- 修改人：Codex
+- 修改范围：Dashboard 从情绪新闻页返回后的统计恢复
+- 变更内容：修复从 `偏利好` / `偏利空` 情绪新闻页返回 Dashboard 后，首页统计仍停留在过滤结果的问题；根因是情绪新闻页会复用全局 `newsStore.items` 和 `activeQuery`，而 Dashboard 之前直接消费当前 store 数据，没有在挂载时恢复全量新闻流。现已在 Dashboard 挂载时检测当前新闻查询是否带筛选条件，若是则重新加载全量新闻，避免首页指标卡和“最新新闻”区域继续显示情绪过滤后的残留数据；同时补充前端回归测试覆盖这一返回场景。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run test -- --run` 通过（22 个文件 / 52 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前修复是让 Dashboard 进入时主动恢复全量新闻，能解决首页残留问题；但情绪页与通用新闻流仍共享同一个 `newsStore.items`，如果后续再增加更多专题化新闻入口，最好把不同新闻列表拆成独立 store 切片或本地列表状态，减少跨页面状态串扰
+
+## 2026-03-21 16:01
+
+- 修改人：Codex
+- 修改范围：Dashboard 情绪指标卡入口与情绪新闻列表页
+- 变更内容：将 Dashboard 上的 `偏利好` / `偏利空` 指标卡从静态计数改为可点击入口，分别跳转到新增的专用情绪新闻列表页；新增 `SentimentNewsView`，按对应情绪加载新闻并按时间倒序展示规整卡片，每条卡片展示标题、来源、时间、摘要和提及标的，点击后继续进入现有新闻详情页；同步补充 Dashboard/HeroMetrics/情绪新闻页的前端测试，以及本轮设计文档与实现计划。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/HeroMetrics.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/HeroMetrics.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/SentimentNewsView.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/SentimentNewsView.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-21-sentiment-news-entry-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-21-sentiment-news-entry-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅前端路由、页面交互和展示结构调整）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/dashboard/HeroMetrics.test.ts src/views/DashboardView.test.ts src/views/SentimentNewsView.test.ts` 通过（3 个文件 / 6 个用例）；`npm --prefix frontend run test -- --run` 通过（22 个文件 / 51 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前情绪新闻页仍复用 `newsStore.items` 作为列表缓存，进入该页会覆盖通用新闻流缓存；若后续要支持更重的情绪专题浏览，可能需要独立 store 切片或分页/批量详情接口来降低额外详情加载成本
+
 ## 2026-03-19 23:14
 
 - 修改人：Codex
@@ -107,6 +163,19 @@
 - 接口/数据结构变化：无（仅前端样式基础设施与布局实现调整，未改动前后端 API 契约）
 - 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run test -- --run` 通过（19 个文件 / 42 个用例）；`npm --prefix frontend run build` 通过
 - 风险/后续事项：当前仅完成基础设施和 `AppShell`，其余页面仍混用现有 scoped CSS；Tailwind 迁移期内存在双样式系统，后续需要继续按计划逐页迁移并在完成后再清理兼容类
+
+## 2026-03-19 21:01
+
+- 修改人：Codex
+- 修改范围：Tailwind 前端迁移方案设计文档与实施计划补强
+- 变更内容：审查并重写了原有的 Tailwind 迁移计划，去掉“一次性完全替代手写 CSS”的大爆炸表述，改为“Tailwind 与现有 CSS 共存的渐进迁移”方案；新增正式设计文档，明确现有 design tokens 映射、迁移顺序、非目标、风险与验收方式；计划文档补充了按 `AppShell`、通用组件、Dashboard、其余页面、最终清理分块推进的任务结构，并加入更具体的测试与人工验收口径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-19-tailwind-migration-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-19-tailwind-migration-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅补充设计与计划文档）
+- 验证情况：已人工核对当前前端技术栈、`frontend/src/assets/main.css` 现有 design token、`frontend/src/components/layout/AppShell.vue` 的布局结构，以及现有前端测试文件分布；未运行构建或测试命令，本次仅修改文档
+- 风险/后续事项：本轮只补齐设计与计划，不包含实际 Tailwind 实现；若后续要正式开工，仍应按新设计/计划进入实施，并在每个迁移闭环完成后继续更新记录
 
 ## 2026-03-19 20:36
 

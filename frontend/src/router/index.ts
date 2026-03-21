@@ -23,6 +23,11 @@ const router = createRouter({
       component: () => import('../views/NewsDetailView.vue'),
     },
     {
+      path: '/news/sentiment/:sentiment',
+      name: 'sentiment-news',
+      component: () => import('../views/SentimentNewsView.vue'),
+    },
+    {
       path: '/watchlist',
       name: 'watchlist',
       component: () => import('../views/WatchlistView.vue'),

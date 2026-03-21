@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { nextTick, reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DashboardView from './DashboardView.vue';
@@ -11,7 +11,7 @@ const connectionStore = reactive({
 });
 
 const newsStore = reactive({
-  items: [
+  dashboardItems: [
     {
       id: 1,
       title: 'AI infrastructure names lead the session',
@@ -24,8 +24,8 @@ const newsStore = reactive({
       fetched_at: '2026-03-18T08:03:00Z',
     },
   ],
-  loading: false,
-  stale: false,
+  dashboardLoading: false,
+  dashboardStale: false,
 });
 
 const marketStore = reactive({
@@ -107,5 +107,22 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('4 只异动');
     expect(wrapper.text()).toContain('查看全部异动');
     expect(wrapper.findAll('[data-role="movement-preview-item"]')).toHaveLength(3);
+  });
+
+  it('wires sentiment metrics to dedicated sentiment news routes', () => {
+    const wrapper = mount(DashboardView);
+
+    const links = wrapper.findAll('a').map((node) => node.attributes('href'));
+
+    expect(links).toContain('/news/sentiment/positive');
+    expect(links).toContain('/news/sentiment/negative');
+  });
+
+  it('renders dashboard metrics from the dashboard news slot without reload side effects', async () => {
+    const wrapper = mount(DashboardView);
+    await nextTick();
+
+    expect(wrapper.text()).toContain('新闻总量');
+    expect(wrapper.text()).toContain('1');
   });
 });

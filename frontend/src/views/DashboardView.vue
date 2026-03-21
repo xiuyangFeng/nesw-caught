@@ -68,12 +68,12 @@ function getAbnormalReasonLabel(reason: string | null) {
 }
 
 const metrics = computed(() => {
-  const positive = newsStore.items.filter((item) => item.sentiment_label === 'positive').length;
-  const negative = newsStore.items.filter((item) => item.sentiment_label === 'negative').length;
+  const positive = newsStore.dashboardItems.filter((item) => item.sentiment_label === 'positive').length;
+  const negative = newsStore.dashboardItems.filter((item) => item.sentiment_label === 'negative').length;
   return [
     {
       label: '新闻总量',
-      value: String(newsStore.items.length),
+      value: String(newsStore.dashboardItems.length),
       note: '当前已加载新闻',
       tone: 'default' as const,
     },
@@ -82,12 +82,14 @@ const metrics = computed(() => {
       value: String(positive),
       note: '情绪标签入口',
       tone: 'positive' as const,
+      to: '/news/sentiment/positive',
     },
     {
       label: '偏利空',
       value: String(negative),
       note: '风险侧新闻入口',
       tone: 'negative' as const,
+      to: '/news/sentiment/negative',
     },
     {
       label: '异动股票',
@@ -108,7 +110,7 @@ const metrics = computed(() => {
           Market Control：把连接状态、情绪概览、主题聚合和自选股异动压缩到同一块总览面板里。
         </p>
       </div>
-      <StaleBadge :stale="newsStore.stale || marketStore.stale || topicStore.stale" label="全局数据" />
+      <StaleBadge :stale="newsStore.dashboardStale || marketStore.stale || topicStore.stale" label="全局数据" />
     </header>
 
     <StatusBanner
@@ -173,10 +175,10 @@ const metrics = computed(() => {
         title="最新新闻"
         subtitle="为 News Feed 提供快速跳转入口"
       >
-        <LoadingBlock :loading="newsStore.loading" :empty="newsStore.items.length === 0">
+        <LoadingBlock :loading="newsStore.dashboardLoading" :empty="newsStore.dashboardItems.length === 0">
           <div class="grid gap-2.5">
             <article
-              v-for="item in newsStore.items.slice(0, 6)"
+              v-for="item in newsStore.dashboardItems.slice(0, 6)"
               :key="item.id"
               class="rounded-2xl border border-border bg-white/[0.03] p-[14px]"
             >

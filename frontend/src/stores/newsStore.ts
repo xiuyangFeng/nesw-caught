@@ -6,27 +6,112 @@ import type { NewsAnalysis, NewsDetail, NewsItem, NewsQuery } from '../types/api
 import { isStale } from '../utils/time';
 
 export const useNewsStore = defineStore('newsStore', () => {
-  const items = ref<NewsItem[]>([]);
   const detailMap = ref<Record<number, NewsDetail | null>>({});
   const analysisMap = ref<Record<number, NewsAnalysis | null>>({});
   const analysisLoadingMap = ref<Record<number, boolean>>({});
   const analysisErrorMap = ref<Record<number, string | null>>({});
-  const loading = ref(false);
   const detailLoading = ref(false);
   const usingMock = ref(false);
-  const lastLoadedAt = ref<string | null>(null);
-  const activeQuery = ref<NewsQuery>({ limit: 200 });
 
-  const stale = computed(() => isStale(lastLoadedAt.value, 5));
+  const dashboardItems = ref<NewsItem[]>([]);
+  const dashboardLoading = ref(false);
+  const dashboardLastLoadedAt = ref<string | null>(null);
+  const dashboardQuery = ref<NewsQuery>({ limit: 200 });
 
-  async function loadNews(query: NewsQuery = activeQuery.value) {
-    loading.value = true;
-    activeQuery.value = { ...query };
-    const response = await apiClient.getNews(activeQuery.value);
-    items.value = response.data;
-    usingMock.value = response.degraded;
-    lastLoadedAt.value = new Date().toISOString();
-    loading.value = false;
+  const feedItems = ref<NewsItem[]>([]);
+  const feedLoading = ref(false);
+  const feedLastLoadedAt = ref<string | null>(null);
+  const feedQuery = ref<NewsQuery>({ limit: 300 });
+
+  const sentimentItems = ref<NewsItem[]>([]);
+  const sentimentLoading = ref(false);
+  const sentimentLastLoadedAt = ref<string | null>(null);
+  const sentimentQuery = ref<NewsQuery>({ limit: 300 });
+
+  const dashboardStale = computed(() => isStale(dashboardLastLoadedAt.value, 5));
+  const feedStale = computed(() => isStale(feedLastLoadedAt.value, 5));
+  const sentimentStale = computed(() => isStale(sentimentLastLoadedAt.value, 5));
+  const stale = computed(() => dashboardStale.value || feedStale.value || sentimentStale.value);
+
+  function matchesQuery(item: NewsItem, query: NewsQuery) {
+    if (query.market && item.market !== query.market) {
+      return false;
+    }
+    if (query.sentiment_label && item.sentiment_label !== query.sentiment_label) {
+      return false;
+    }
+    if (query.source_name && item.source_name !== query.source_name) {
+      return false;
+    }
+    if (query.q) {
+      const haystack = `${item.title} ${item.summary ?? ''}`.toLowerCase();
+      if (!haystack.includes(query.q.toLowerCase())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function loadScopedNews(
+    query: NewsQuery,
+    options: {
+      items: typeof dashboardItems;
+      loading: typeof dashboardLoading;
+      lastLoadedAt: typeof dashboardLastLoadedAt;
+      queryRef: typeof dashboardQuery;
+    },
+  ) {
+    options.loading.value = true;
+    options.queryRef.value = { ...query };
+    const response = await apiClient.getNews(options.queryRef.value);
+    options.items.value = response.data;
+    usingMock.value = usingMock.value || response.degraded;
+    options.lastLoadedAt.value = new Date().toISOString();
+    options.loading.value = false;
+  }
+
+  async function loadDashboardNews(query: NewsQuery = dashboardQuery.value) {
+    await loadScopedNews(query, {
+      items: dashboardItems,
+      loading: dashboardLoading,
+      lastLoadedAt: dashboardLastLoadedAt,
+      queryRef: dashboardQuery,
+    });
+  }
+
+  async function loadFeedNews(query: NewsQuery = feedQuery.value) {
+    await loadScopedNews(query, {
+      items: feedItems,
+      loading: feedLoading,
+      lastLoadedAt: feedLastLoadedAt,
+      queryRef: feedQuery,
+    });
+  }
+
+  async function loadSentimentNews(query: NewsQuery = sentimentQuery.value) {
+    await loadScopedNews(query, {
+      items: sentimentItems,
+      loading: sentimentLoading,
+      lastLoadedAt: sentimentLastLoadedAt,
+      queryRef: sentimentQuery,
+    });
+  }
+
+  function upsertScopedItems(itemsRef: typeof dashboardItems, query: NewsQuery, item: NewsItem) {
+    if (!matchesQuery(item, query)) {
+      return;
+    }
+
+    const existingIndex = itemsRef.value.findIndex((candidate) => candidate.id === item.id);
+    if (existingIndex >= 0) {
+      itemsRef.value.splice(existingIndex, 1, item);
+    } else {
+      itemsRef.value.unshift(item);
+      const limit = query.limit ?? itemsRef.value.length;
+      if (itemsRef.value.length > limit) {
+        itemsRef.value.length = limit;
+      }
+    }
   }
 
   async function loadDetail(id: number) {
@@ -69,43 +154,58 @@ export const useNewsStore = defineStore('newsStore', () => {
   }
 
   async function refreshNews() {
+    return refreshDashboardNews();
+  }
+
+  async function refreshDashboardNews() {
     const response = await apiClient.refreshNews();
     usingMock.value = usingMock.value || response.degraded;
     if (response.degraded) {
       return false;
     }
 
-    await loadNews(activeQuery.value);
+    await loadDashboardNews(dashboardQuery.value);
     return true;
   }
 
   function upsertNews(item: NewsItem) {
-    const existingIndex = items.value.findIndex((candidate) => candidate.id === item.id);
-    if (existingIndex >= 0) {
-      items.value.splice(existingIndex, 1, item);
-    } else {
-      items.value.unshift(item);
-    }
-    lastLoadedAt.value = new Date().toISOString();
+    upsertScopedItems(dashboardItems, dashboardQuery.value, item);
+    upsertScopedItems(feedItems, feedQuery.value, item);
+    upsertScopedItems(sentimentItems, sentimentQuery.value, item);
+    dashboardLastLoadedAt.value = new Date().toISOString();
   }
 
   return {
-    items,
     detailMap,
     analysisMap,
     analysisLoadingMap,
     analysisErrorMap,
-    loading,
     detailLoading,
     usingMock,
-    lastLoadedAt,
+    dashboardItems,
+    dashboardLoading,
+    dashboardLastLoadedAt,
+    dashboardStale,
     stale,
-    activeQuery,
-    loadNews,
+    dashboardQuery,
+    feedItems,
+    feedLoading,
+    feedLastLoadedAt,
+    feedStale,
+    feedQuery,
+    sentimentItems,
+    sentimentLoading,
+    sentimentLastLoadedAt,
+    sentimentStale,
+    sentimentQuery,
+    loadDashboardNews,
+    loadFeedNews,
+    loadSentimentNews,
     loadDetail,
     loadAnalysis,
     analyzeNews,
     refreshNews,
+    refreshDashboardNews,
     upsertNews,
   };
 });
