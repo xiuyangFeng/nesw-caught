@@ -74,6 +74,7 @@ describe('WatchlistDetailView', () => {
     const wrapper = mount(WatchlistDetailView);
 
     expect(wrapper.find('[data-role="watchlist-detail-grid"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-detail-hero"]').exists()).toBe(true);
     expect(wrapper.find('[data-surface="terminal-metric-card"]').exists()).toBe(true);
     expect(wrapper.find('[data-surface="terminal-related-card"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="price-change"]').classes()).toContain('text-negative');

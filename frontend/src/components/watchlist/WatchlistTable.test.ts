@@ -30,6 +30,7 @@ describe('WatchlistTable', () => {
     });
 
     expect(wrapper.find('[data-surface="terminal-table"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-table-shell"]').exists()).toBe(true);
   });
 
   it('emits delete without triggering row selection', async () => {

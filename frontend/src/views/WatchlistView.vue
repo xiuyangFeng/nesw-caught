@@ -127,7 +127,12 @@ onMounted(async () => {
     />
 
     <section class="grid gap-4 xl:grid-cols-[1.5fr_0.9fr]" data-role="watchlist-layout">
-      <SectionCard title="管理自选股" subtitle="输入名称或代码片段即可联想候选，添加与删除都在同一块面板完成">
+      <SectionCard
+        title="管理自选股"
+        subtitle="输入名称或代码片段即可联想候选，添加与删除都在同一块面板完成"
+        data-role="watchlist-shell"
+      >
+        <p class="mb-3 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Control Station</p>
         <form class="mb-[14px] grid gap-3" @submit.prevent="submitWatchlist">
           <label class="relative grid gap-1.5 text-sm text-text-faint">
             <span>搜索股票</span>
@@ -171,9 +176,10 @@ onMounted(async () => {
           </label>
 
           <button
-            class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-4 py-3 font-semibold text-white transition duration-150 ease-out hover:-translate-y-px hover:shadow-[0_10px_24px_rgba(58,169,245,0.24)] disabled:cursor-progress disabled:opacity-60 disabled:shadow-none"
+            class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-4 py-3 font-semibold text-[#2f1500] transition duration-150 ease-out hover:-translate-y-px hover:shadow-[0_10px_24px_rgba(255,159,47,0.22)] disabled:cursor-progress disabled:opacity-60 disabled:shadow-none"
             type="submit"
             :disabled="watchlistStore.createLoading || !selectedCandidate"
+            data-role="watchlist-action"
           >
             {{ watchlistStore.createLoading ? '提交中...' : '添加到自选股' }}
           </button>
@@ -197,7 +203,11 @@ onMounted(async () => {
         </LoadingBlock>
       </SectionCard>
 
-      <SectionCard title="关联新闻" subtitle="这里保留为快速预览，完整行情指标请进入单股详情页查看">
+      <SectionCard
+        title="关联新闻"
+        subtitle="这里保留为快速预览，完整行情指标请进入单股详情页查看"
+        data-role="related-news-shell"
+      >
         <LoadingBlock
           :loading="watchlistStore.relatedLoading"
           :empty="!watchlistStore.selectedSymbol || relatedNews.length === 0"
@@ -207,7 +217,7 @@ onMounted(async () => {
             <article
               v-for="item in relatedNews"
               :key="item.id"
-              class="rounded-[18px] border border-border bg-panel-stronger p-4 shadow-[0_14px_30px_rgba(2,6,12,0.24)] transition duration-150 ease-out hover:-translate-y-px hover:border-system/20"
+              class="rounded-[14px] border border-border/90 bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4 shadow-[0_14px_30px_rgba(2,6,12,0.24)] transition duration-150 ease-out hover:-translate-y-px hover:border-[#ff9f2f4f]"
             >
               <div class="mb-2 flex gap-2 text-text-faint">
                 <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>

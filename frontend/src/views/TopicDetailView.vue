@@ -123,7 +123,11 @@ onMounted(async () => {
 
     <LoadingBlock :loading="topicStore.detailLoading" :empty="!detail" empty-text="主题不存在或尚未完成聚合">
       <div v-if="detail" class="grid gap-4" data-role="topic-detail-layout">
-        <SectionCard :title="detail.topic_title" :subtitle="detail.topic_summary ?? '主题摘要待补充'">
+        <SectionCard
+          :title="detail.topic_title"
+          :subtitle="detail.topic_summary ?? '主题摘要待补充'"
+          data-role="topic-summary-shell"
+        >
           <div class="flex flex-wrap gap-2 text-muted">
             <span class="pill" :class="detail.sentiment_label">{{ sentimentText(detail.sentiment_label) }}</span>
             <span>{{ detail.news_count }} 条来源</span>
@@ -147,7 +151,11 @@ onMounted(async () => {
 
         <SectionCard title="全部信息来源" subtitle="按来源分组，组内按时间倒序，支持原文直达和详情下钻">
           <template #actions>
-            <div class="flex flex-wrap items-center gap-2" data-role="topic-toolbar">
+            <div
+              class="flex flex-wrap items-center gap-2 rounded-[16px] border border-border/80 bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-2.5"
+              data-role="topic-toolbar"
+              data-shell="topic-toolbar-shell"
+            >
               <div class="flex flex-wrap gap-2">
                 <select v-model="sentimentFilter" class="rounded-full border border-border bg-field px-3 py-2 text-text">
                   <option value="all">全部情绪</option>
@@ -193,7 +201,7 @@ onMounted(async () => {
             <section
               v-for="group in sourceGroups"
               :key="group.sourceName"
-              class="grid gap-3 rounded-[20px] border border-border bg-panel-soft p-4"
+              class="grid gap-3 rounded-[16px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-4"
             >
               <header class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -248,14 +256,15 @@ onMounted(async () => {
             <article
               v-for="item in sortedSources"
               :key="item.id"
-              class="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5 rounded-[18px] border bg-panel-stronger p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/25"
+              class="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5 rounded-[16px] border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-[#ff9f2f4f]"
               :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_rgba(83,194,255,0.12)]' : 'border-border'"
+              data-role="topic-timeline-card"
               role="button"
               tabindex="0"
               @click="openNews(item.id)"
               @keydown.enter="openNews(item.id)"
             >
-              <div class="rounded-full bg-[linear-gradient(180deg,#3aa9f5,rgba(83,194,255,0.12))]" />
+              <div class="rounded-full bg-[linear-gradient(180deg,#ff9f2f,rgba(255,159,47,0.12))]" />
               <div class="grid gap-2.5">
                 <div class="flex flex-wrap gap-2 text-xs text-muted">
                   <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>

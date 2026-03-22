@@ -58,7 +58,10 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
     <LoadingBlock :loading="watchlistStore.detailLoading" :empty="!detailQuote" empty-text="当前股票暂无可用行情">
       <section class="grid gap-4" data-role="watchlist-detail-grid">
         <SectionCard title="核心行情" subtitle="最新价格、涨跌和数据状态">
-          <div class="grid gap-3">
+          <div
+            class="grid gap-3 rounded-[16px] border border-[#ff9f2f33] bg-[linear-gradient(160deg,rgba(19,26,37,0.96),rgba(8,16,26,0.98))] px-4 py-4"
+            data-role="watchlist-detail-hero"
+          >
             <div>
               <strong class="block text-[40px] leading-none">{{ formatNumber(detailQuote?.price) }}</strong>
               <span
@@ -102,7 +105,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
               class="terminal-surface rounded-[18px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/20 hover:shadow-[0_14px_28px_rgba(2,6,12,0.2)]"
               data-surface="terminal-metric-card"
             >
-              <span class="text-text-faint">{{ metric[0] }}</span>
+              <span class="text-[11px] uppercase tracking-[0.14em] text-text-faint">{{ metric[0] }}</span>
               <strong class="text-text">{{ metric[1] }}</strong>
             </article>
           </div>
@@ -112,11 +115,11 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
           <LoadingBlock :loading="watchlistStore.relatedLoading" :empty="relatedNews.length === 0" empty-text="当前股票暂无关联新闻">
             <div class="grid gap-3">
               <article
-                v-for="item in relatedNews"
-                :key="item.id"
-                class="terminal-surface rounded-[18px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/20 hover:shadow-[0_14px_28px_rgba(2,6,12,0.2)]"
-                data-surface="terminal-related-card"
-              >
+              v-for="item in relatedNews"
+              :key="item.id"
+              class="terminal-surface rounded-[14px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-[#ff9f2f4f] hover:shadow-[0_14px_28px_rgba(2,6,12,0.2)]"
+              data-surface="terminal-related-card"
+            >
                 <div class="mb-2 flex gap-2 text-xs text-text-faint">
                   <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
                   <span>{{ item.source_name }}</span>

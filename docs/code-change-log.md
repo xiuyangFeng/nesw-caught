@@ -2,6 +2,27 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-22 22:11
+
+- 修改人：Codex
+- 修改范围：`Watchlist` / `WatchlistDetail` / `TopicDetail` 终端中间态收尾
+- 变更内容：将剩余高频页面继续收敛到与 `AppShell`、`Dashboard`、`News Feed` 一致的“冷蓝底 + 橙色焦点”中间态。`Watchlist` 首页引入 `Control Station` 微标签，将左侧管理面板、候选列表、主操作按钮和右侧关联新闻统一为更硬的终端壳层；`WatchlistTable` 调整为更紧凑的终端表格并强化表头层级；`WatchlistDetail` 为核心行情区增加主监控模块，收紧指标卡与相关新闻卡；`TopicDetail` 则把主题摘要卡、过滤工具条和来源分组卡收敛为更像分析工作台的面板。全程不改动数据加载、过滤语义、跳转行为或任何 API / store 契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistTable.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/TopicDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/TopicDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-22-watchlist-suite-terminal-midstate-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-22-watchlist-suite-terminal-midstate-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅展示层和测试锚点调整，未改动 store、路由或后端接口）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts src/components/dashboard/HeroMetrics.test.ts src/components/dashboard/TopicBoard.test.ts src/views/DashboardView.test.ts src/components/news/NewsCard.test.ts src/views/NewsFeedView.test.ts src/components/watchlist/WatchlistTable.test.ts src/views/WatchlistView.test.ts src/views/WatchlistDetailView.test.ts src/views/TopicDetailView.test.ts` 通过（10 个文件 / 21 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前高频业务页面已基本统一到同一视觉代际，但 `XMonitor`、`LlmSettings`、`Notify` 等功能页仍保留相对旧的层级和控件表达；如果后续继续深挖统一性，建议最后一轮再回到公共控件和功能页做 token / density 清理
+
 ## 2026-03-22 21:16
 
 - 修改人：Codex

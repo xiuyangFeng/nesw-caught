@@ -76,10 +76,20 @@ describe('TopicDetailView', () => {
 
     expect(wrapper.find('[data-role="topic-detail-layout"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="topic-toolbar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-shell="topic-toolbar-shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="topic-group-list"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="topic-summary-shell"]').exists()).toBe(true);
 
     await wrapper.find('[data-role="topic-source-card"]').trigger('click');
 
     expect(push).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 12 } });
+  });
+
+  it('renders timeline mode with terminal midstate cards', async () => {
+    const wrapper = mount(TopicDetailView);
+
+    await wrapper.get('button:last-of-type').trigger('click');
+
+    expect(wrapper.find('[data-role="topic-timeline-card"]').exists()).toBe(true);
   });
 });

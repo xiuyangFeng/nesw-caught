@@ -16,7 +16,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="table-shell terminal-surface" data-surface="terminal-table">
+  <div class="table-shell terminal-surface" data-surface="terminal-table" data-role="watchlist-table-shell">
     <table>
       <thead>
         <tr>
@@ -86,8 +86,9 @@ const emit = defineEmits<{
 <style scoped>
 .table-shell {
   overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid var(--border);
+  border-radius: 16px;
+  border: 1px solid rgba(133, 161, 191, 0.18);
+  background: linear-gradient(180deg, rgba(11, 18, 28, 0.98), rgba(8, 14, 23, 0.98));
 }
 
 table {
@@ -97,7 +98,7 @@ table {
 }
 
 thead {
-  background: rgba(125, 211, 252, 0.06);
+  background: rgba(255, 159, 47, 0.08);
 }
 
 th,
@@ -108,8 +109,11 @@ td {
 }
 
 th {
-  color: var(--text);
+  color: #ffd5b0;
   font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 td {
