@@ -52,6 +52,8 @@ describe('NewsCard', () => {
 
     expect(wrapper.find('.news-card__body').exists()).toBe(true);
     expect(wrapper.find('.news-card__meta').exists()).toBe(true);
+    expect(wrapper.find('[data-role="news-card-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="news-card-head"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-card-title"]').text()).toContain('Xinjiang power export exceeds');
   });
 });

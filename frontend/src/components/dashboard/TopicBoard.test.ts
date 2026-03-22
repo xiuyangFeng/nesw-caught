@@ -32,6 +32,7 @@ describe('TopicBoard', () => {
     });
 
     expect(wrapper.find('[data-surface="terminal-card"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="topic-card-head"]').exists()).toBe(true);
   });
 
   it('keeps a stable topic meta anchor and routes on click', async () => {

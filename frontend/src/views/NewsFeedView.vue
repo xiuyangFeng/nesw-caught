@@ -100,6 +100,7 @@ onMounted(async () => {
     <section class="surface grid gap-[18px] rounded-[22px] p-5" data-role="news-feed-shell">
       <div class="flex flex-col items-start justify-between gap-4 xl:flex-row">
         <div>
+          <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Control Station</p>
           <p class="mb-2 text-[11px] uppercase tracking-[0.18em] text-accent">Signal Desk</p>
           <h2 class="m-0 text-[28px] tracking-[-0.035em] text-text">News Stream</h2>
           <p class="mt-2 max-w-[60ch] leading-[1.65] text-muted">
@@ -107,7 +108,7 @@ onMounted(async () => {
           </p>
         </div>
         <div
-          class="flex flex-wrap gap-2 rounded-2xl border border-border bg-white/[0.015] p-2.5"
+          class="flex flex-wrap gap-2 rounded-[16px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-2.5"
           data-role="filter-bar"
         >
           <select
@@ -150,6 +151,7 @@ onMounted(async () => {
           title="News Stream"
           subtitle="统一横向卡片，保持当前顺序，方便连续扫读和快速点进详情。"
           compact
+          data-role="news-stream-shell"
         >
           <div class="grid grid-cols-1 gap-[14px]" data-role="news-stream-list">
             <NewsCard

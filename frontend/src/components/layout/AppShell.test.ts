@@ -88,18 +88,39 @@ describe('AppShell', () => {
     const wrapper = mount(AppShell);
 
     expect(wrapper.find('[data-role="system-header"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="system-desk-chip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="system-desk-note"]').text()).toContain('Desk / News / Topics / Movers');
+    expect(wrapper.text()).not.toContain('跟踪新闻、主题热度、自选股异动与流式连接状态。');
     expect(wrapper.find('[data-role="primary-nav"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="system-status"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="shell-status-rail"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('SSE LIVE');
+    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('Workspace multi-market watch');
+    expect(wrapper.find('[data-role="system-status"]').text()).toContain('Last event');
+    expect(wrapper.find('[data-role="system-status"]').text()).toContain('Workspace multi-market watch');
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });
 
   it('marks the active route with a dedicated terminal signal', () => {
+    routeState.path = '/news/42';
+
     const wrapper = mount(AppShell);
 
     const activeLink = wrapper.find('[data-route-active="true"]');
     expect(activeLink.exists()).toBe(true);
     expect(activeLink.text()).toContain('News Feed');
+    expect(activeLink.text()).toContain('02');
+    expect(activeLink.text()).toContain('MODULE');
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
+  });
+
+  it('updates the shell rail signal tone when connection state is degraded', () => {
+    connectionStore.state = 'degraded';
+
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('SSE DEGRADED');
+    expect(wrapper.find('[data-role="shell-status-rail-signal"]').classes()).toContain('bg-warning');
   });
 
   it('loads shell stores on mount and disconnects on unmount', async () => {

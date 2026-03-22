@@ -60,7 +60,19 @@ const marketStore = reactive({
 });
 
 const topicStore = reactive({
-  topTopics: [],
+  topTopics: [
+    {
+      id: 11,
+      topic_title: 'AI 基建链走强',
+      topic_summary: '算力、服务器与半导体链条同步升温。',
+      keywords: [],
+      sentiment_label: 'positive',
+      related_symbols: ['NVDA', 'SMCI'],
+      news_count: 6,
+      market: 'us',
+      last_seen_at: '2026-03-18T09:00:00Z',
+    },
+  ],
   loading: false,
   stale: false,
 });
@@ -83,6 +95,9 @@ vi.mock('vue-router', () => ({
     props: ['to'],
     template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
   },
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
 }));
 
 vi.mock('../stores/topicStore', () => ({
@@ -98,15 +113,48 @@ describe('DashboardView', () => {
 
   it('renders terminal-style dashboard labels and live modules', () => {
     const wrapper = mount(DashboardView);
+    const columnRoles = wrapper
+      .findAll('[data-role^="dashboard-column-"]')
+      .map((node) => node.attributes('data-role'))
+      .filter((value) => value !== 'dashboard-column-scroller');
 
     expect(wrapper.text()).toContain('Market Control');
+    expect(wrapper.text()).toContain('Control Room');
     expect(wrapper.text()).toContain('Signal Overview');
     expect(wrapper.text()).toContain('Live Movers');
     expect(wrapper.find('[data-role="dashboard-hero"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="dashboard-grid"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="dashboard-columns"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="dashboard-column-movers"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="dashboard-column-topics"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="dashboard-column-feed"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="dashboard-columns"]').classes()).toContain('xl:grid-cols-[1.35fr_1fr_0.72fr]');
+    expect(wrapper.find('[data-role="dashboard-column-movers"]').classes()).toContain('dashboard-column--movers');
+    expect(wrapper.findAll('[data-role="dashboard-column-scroller"]')).toHaveLength(3);
+    expect(columnRoles).toEqual([
+      'dashboard-column-feed',
+      'dashboard-column-topics',
+      'dashboard-column-movers',
+    ]);
     expect(wrapper.text()).toContain('4 只异动');
     expect(wrapper.text()).toContain('查看全部异动');
-    expect(wrapper.findAll('[data-role="movement-preview-item"]')).toHaveLength(3);
+    expect(wrapper.find('[data-role="movement-signal-board"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-kind="movement-signal-row"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-role="movement-preview-item"]')).toHaveLength(2);
+    expect(wrapper.findAll('[data-role="dashboard-feed-item"]')).toHaveLength(1);
+    expect(wrapper.find('[data-role="dashboard-status-badge"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('在线');
+    expect(wrapper.text()).not.toContain('SSE 增量更新正常');
+  });
+
+  it('renders a compact debug status badge for degraded or offline states', () => {
+    connectionStore.state = 'offline';
+    connectionStore.streamError = 'SSE disconnected';
+
+    const wrapper = mount(DashboardView);
+
+    expect(wrapper.find('[data-role="dashboard-status-badge"]').text()).toContain('离线');
+    expect(wrapper.find('[data-role="dashboard-status-badge"]').text()).toContain('SSE off');
+    expect(wrapper.text()).not.toContain('当前处于降级或断线状态');
   });
 
   it('wires sentiment metrics to dedicated sentiment news routes', () => {

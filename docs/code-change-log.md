@@ -2,6 +2,124 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-22 21:16
+
+- 修改人：Codex
+- 修改范围：`Dashboard` 与 `News Feed` 中间态终端视觉收敛
+- 变更内容：继续沿用已确认的“冷蓝底 + 橙色焦点”中间态方向，对首页和新闻流进行第二、三阶段收敛。`Dashboard` 侧重把页面顶部明确为 `Control Room`，收紧指标卡为更硬的模块壳层、给主题卡增加更技术化的头部层级，并把右侧异动列进一步压成窄信号栏；`News Feed` 则把主区块升级为更像控制台的 `Control Station`，收紧过滤条边框与背景层次，并将统一新闻卡改成更紧凑的终端式外壳和微标签层级。整个过程只调整展示层与测试锚点，不改现有数据加载、排序、详情跳转或路由结构。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/HeroMetrics.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/HeroMetrics.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/dashboard/TopicBoard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-22-dashboard-terminal-midstate-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-22-dashboard-terminal-midstate-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-22-news-feed-terminal-midstate-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-22-news-feed-terminal-midstate-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅前端展示层与测试断言调整，未改动 store、API client、路由契约或后端接口）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts src/components/dashboard/HeroMetrics.test.ts src/components/dashboard/TopicBoard.test.ts src/views/DashboardView.test.ts src/components/news/NewsCard.test.ts src/views/NewsFeedView.test.ts` 通过（6 个文件 / 16 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前已完成壳层、首页和新闻流的中间态收敛，但 `Watchlist`、`WatchlistDetail`、`TopicDetail` 等页面仍停留在旧一档的克制冷蓝风格；如果后续要做全站统一，需要继续把同样的微标签层级、边框硬度和橙色焦点约束向这些页面扩展
+
+## 2026-03-22 21:10
+
+- 修改人：Codex
+- 修改范围：`AppShell` 中间态终端壳层收敛
+- 变更内容：按已确认的 Stitch 视觉提炼方向，收紧共享壳层的终端控制列表现：侧栏改为更硬的冷蓝基底与橙色焦点激活态，保留原有路由与序号模块结构；顶部新增全局细状态条，用于统一展示 `SSE` 状态、连接细节、最近事件时间与工作区标识；底部 `System Status` 模块同步收敛为更紧凑的系统信息卡，并将 `Desk` 说明改为更短的英文微标签 `Desk / News / Topics / Movers`；同时更新 `AppShell` 组件测试，锁定新状态条、文案和激活导航信号。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-22-app-shell-terminal-refinement-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅共享壳层展示层和测试断言调整，未改动路由、store 或 SSE 逻辑）
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前只完成共享壳层的中间态收敛，`Dashboard` 仍保留此前较克制的冷蓝风格；后续进入 `Dashboard` 时需要延续“橙色只做焦点，不做全局主色”的约束，避免整站过度交易终端化
+
+## 2026-03-22 20:50
+
+- 修改人：Codex
+- 修改范围：`App Shell` 终端化视觉收敛设计文档
+- 变更内容：结合用户确认的 Stitch 视觉提炼方向，新增 `App Shell` 视觉收敛设计文档，明确本轮只调整壳层视觉语言、不改路由和数据行为；设计确定采用“冷蓝底 + 橙色焦点”的中间态，重点收敛侧栏控制列、全局细状态条、导航激活信号和系统微标签层级，为后续按 `AppShell -> Dashboard -> News Feed` 顺序实施提供依据。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-22-app-shell-terminal-refinement-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅新增设计文档，未改动前后端代码或契约）
+- 验证情况：文档变更，未执行代码测试
+- 风险/后续事项：当前仅完成设计固化，尚未进入实现；下一步需要生成正式 implementation plan，并在实现时控制橙色焦点使用范围，避免壳层过度“交易终端化”
+
+## 2026-03-21 22:50
+
+- 修改人：Codex
+- 修改范围：侧栏 `SYSTEM DESK` 说明区弱化
+- 变更内容：将左侧边栏顶部原本较显眼的 `SYSTEM DESK` 标题和整句说明，收敛成一枚低调的 `Desk` 小标签加一行短说明 `新闻 / 主题 / 异动 / 流状态`，减少系统说明文案对主导航和内容区域的视觉干扰，同时保持终端式环境感；同步补充 `AppShell` 视图测试，锁定新的轻量标签和短说明文案。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前只弱化了侧栏头部说明区，导航标签和底部 `System Status` 卡仍保留较明确的系统语义；如果后续想继续统一“低调调试态”风格，可以再逐步收敛这些区域的术语和层级
+
+## 2026-03-21 21:58
+
+- 修改人：Codex
+- 修改范围：Dashboard 顶部系统状态提示弱化
+- 变更内容：将 Dashboard 顶部原先占用较大的 `StatusBanner` 横幅移除，改为标题区旁边的轻量状态 badge，仅用小圆点和短文案提示当前处于 `在线 / 降级 / 离线 / 连接中` 哪种调试状态，并附上简短辅助标识如 `SSE live`、`mock`、`SSE off`；颜色使用低饱和的绿、黄、红区分状态，避免“当前处于降级或断线状态”这类完整句子过于抢眼，同时不改变任何底层连接状态逻辑。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前只弱化了 Dashboard 顶部状态提示，其它页面如果仍使用 `StatusBanner` 仍会保持原先较显眼的横幅样式；如果你后续希望全站统一成低调状态 badge，需要再单独收敛公共状态组件策略
+
+## 2026-03-21 21:52
+
+- 修改人：Codex
+- 修改范围：Dashboard 主列比例与异动侧栏收紧
+- 变更内容：按用户要求进一步调整 Dashboard 桌面端三列权重，将 `News Feed / 资讯主题聚合 / 自选股异动` 的比例改为更明显的主次结构，使左侧 `News Feed` 成为主列；同时将右侧异动列进一步压缩成较窄侧栏，把默认预览项从 3 条缩到 2 条，并弱化单条异动的辅信息，只保留更紧凑的名称、代码和异动原因展示；同步更新视图测试，锁定新的三列比例类名、异动列标识和预览条目数量。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前右侧异动列已经明显收窄，如果后续再继续压缩，可能需要把顶部摘要面板也简化为更短的单行统计，避免头部信息占比过高
+
+## 2026-03-21 20:32
+
+- 修改人：Codex
+- 修改范围：Dashboard 三列高密度布局重排
+- 变更内容：将 Dashboard 从原先“上方主题/异动 + 下方最新新闻”的两段式结构改为桌面端三列并排看板，按 `自选股异动 / 资讯主题聚合 / News Feed` 三列排列并为每列加入独立滚动区，避免主题列表过长把最新新闻整体挤到首屏之外；同时压缩异动预览行、主题卡密度和 Dashboard 内的新闻条目形态，把 News Feed 改为更紧凑的标题优先列表；补充 Dashboard 视图测试，锁定三列结构标识、三列独立滚动容器和紧凑新闻预览项；同步新增本轮设计文档与实现计划。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-21-dashboard-three-column-density-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-21-dashboard-three-column-density-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（仅 Dashboard 视图结构和前端展示密度调整）
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前三列独立滚动只在桌面端开启，采用基于视口高度的上限策略；如果后续发现某些低高度屏幕首屏仍显压迫，可继续微调列高计算和主题列卡片密度
+
+## 2026-03-21 21:02
+
+- 修改人：Codex
+- 修改范围：Dashboard 三列顺序调整
+- 变更内容：按用户要求只交换桌面端三列中 `News Feed` 与 `自选股异动` 的位置，将桌面顺序从 `自选股异动 / 资讯主题聚合 / News Feed` 调整为 `News Feed / 资讯主题聚合 / 自选股异动`；移动端单列堆叠顺序保持不变；同时更新视图测试，显式锁定三列 DOM 顺序，避免后续回归。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本次只调整桌面端列顺序，没有改变列宽比例；如果你后续觉得左侧 News Feed 视觉权重还不够，可以再继续微调三列宽度分配
+
 ## 2026-03-21 16:33
 
 - 修改人：Codex

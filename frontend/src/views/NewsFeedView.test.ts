@@ -89,8 +89,11 @@ describe('NewsFeedView', () => {
     const wrapper = mount(NewsFeedView);
 
     expect(wrapper.text()).toContain('Signal Desk');
+    expect(wrapper.text()).toContain('Control Station');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="filter-bar"]').classes()).toContain('rounded-[16px]');
     expect(wrapper.find('[data-role="news-feed-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="news-stream-shell"]').exists()).toBe(true);
     expect(wrapper.text()).not.toContain('Primary Signal');
 
     const titles = wrapper.findAll('[data-role="news-card-title"]').map((node) => node.text());

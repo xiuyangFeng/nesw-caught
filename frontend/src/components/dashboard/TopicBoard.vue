@@ -21,16 +21,19 @@ function openTopic(topicId: number) {
     <article
       v-for="topic in topics"
       :key="topic.id"
-      class="terminal-surface cursor-pointer rounded-[18px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-0.5 hover:border-system/25 hover:shadow-[0_16px_30px_rgba(4,10,18,0.28)]"
+      class="terminal-surface cursor-pointer rounded-[16px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-0.5 hover:border-[#ff9f2f4d] hover:shadow-[0_16px_30px_rgba(4,10,18,0.28)]"
       data-surface="terminal-card"
       role="button"
       tabindex="0"
       @click="openTopic(topic.id)"
       @keydown.enter="openTopic(topic.id)"
     >
-      <div class="flex items-center gap-2.5">
-        <span class="pill" :class="topic.sentiment_label">{{ sentimentText(topic.sentiment_label) }}</span>
-        <strong class="text-base text-text">{{ topic.topic_title }}</strong>
+      <div class="flex items-center justify-between gap-3" data-role="topic-card-head">
+        <div class="flex min-w-0 items-center gap-2.5">
+          <span class="pill" :class="topic.sentiment_label">{{ sentimentText(topic.sentiment_label) }}</span>
+          <strong class="truncate text-base text-text">{{ topic.topic_title }}</strong>
+        </div>
+        <span class="shrink-0 text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">Signal</span>
       </div>
       <p class="my-3 text-text-soft">{{ topic.topic_summary ?? '主题摘要待补充' }}</p>
       <div class="flex flex-wrap gap-3 text-xs text-text-faint" data-role="topic-meta">

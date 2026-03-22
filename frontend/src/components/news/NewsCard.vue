@@ -28,8 +28,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <article class="news-card" :class="`news-card--${variant}`" @click="emit('open', entry.item.id)">
-    <div class="card-head">
+  <article class="news-card" :class="`news-card--${variant}`" data-role="news-card-shell" @click="emit('open', entry.item.id)">
+    <div class="card-head" data-role="news-card-head">
       <span class="pill" :class="entry.item.sentiment_label">{{ sentimentText(entry.item.sentiment_label) }}</span>
       <span class="market-tag">{{ entry.item.market.toUpperCase() }}</span>
       <span class="source">{{ entry.item.source_name }}</span>
@@ -50,18 +50,18 @@ const emit = defineEmits<{
 <style scoped>
 .news-card {
   display: grid;
-  gap: 12px;
-  border-radius: 18px;
-  padding: 18px 18px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border);
+  gap: 10px;
+  border-radius: 14px;
+  padding: 16px 16px;
+  background: linear-gradient(180deg, rgba(11, 18, 28, 0.98), rgba(8, 14, 23, 0.98));
+  border: 1px solid rgba(133, 161, 191, 0.18);
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
   cursor: pointer;
 }
 
 .news-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(102, 184, 255, 0.24);
+  border-color: rgba(255, 159, 47, 0.28);
   box-shadow: 0 16px 36px rgba(2, 6, 12, 0.28);
 }
 
@@ -71,7 +71,9 @@ const emit = defineEmits<{
   gap: 8px;
   flex-wrap: wrap;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 h3 {

@@ -29,6 +29,7 @@ describe('HeroMetrics', () => {
     expect(wrapper.find('[data-role="metric-label"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="metric-value"]').text()).toBe('24');
     expect(wrapper.find('[data-role="metric-note"]').text()).toBe('Current load');
+    expect(wrapper.find('[data-role="metric-shell"]').exists()).toBe(true);
   });
 
   it('exposes stable card markers for each metric item', () => {
@@ -60,6 +61,7 @@ describe('HeroMetrics', () => {
     });
 
     expect(wrapper.find('[data-role="hero-grid"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-role="metric-shell"]')).toHaveLength(2);
     expect(wrapper.findAll('[data-role="metric-card"]')).toHaveLength(2);
     expect(wrapper.findAll('[data-role="metric-card"]')[1]?.attributes('data-tone')).toBe('negative');
   });
