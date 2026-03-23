@@ -17,17 +17,57 @@ class QuoteService:
         self.cache_ttl = timedelta(seconds=settings.market_quote_cache_ttl_seconds)
         self.provider = YahooFinanceQuoteProvider()
 
-    def get_watchlist_quotes(self, session: Session) -> list[dict]:
+    def refresh_watchlist_quotes(self, session: Session) -> list[dict]:
         repository = WatchlistRepository(session)
         items = repository.list_all()
         return [self._get_quote_payload(session, item.symbol, item.market, item.display_name) for item in items]
 
-    def get_symbol_quote(self, symbol: str, session: Session) -> dict:
+    def get_cached_watchlist_quotes(self, session: Session) -> list[dict]:
+        repository = WatchlistRepository(session)
+        items = repository.list_all()
+        market_repo = MarketRepository(session)
+        cached = market_repo.list_latest_by_symbols([item.symbol for item in items])
+        payloads: list[dict] = []
+        for item in items:
+            snapshot = cached.get(item.symbol)
+            if snapshot is None:
+                payloads.append(
+                    self._build_unavailable_payload(
+                        item.symbol,
+                        item.market,
+                        item.display_name,
+                        "unavailable",
+                        "quote not produced yet",
+                    )
+                )
+                continue
+            payloads.append(self._snapshot_to_read_payload(snapshot, item.display_name))
+        return payloads
+
+    def get_cached_symbol_quote(self, symbol: str, session: Session) -> dict:
         repository = WatchlistRepository(session)
         item = repository.get_by_symbol(symbol.upper())
         market = item.market if item else None
         display_name = item.display_name if item else None
-        return self._get_quote_payload(session, symbol.upper(), market, display_name)
+        try:
+            normalized = normalize_symbol(symbol.upper(), market)
+            lookup_symbol = normalized.symbol
+            lookup_market = normalized.market
+        except ValueError as exc:
+            return self._build_unavailable_payload(symbol.upper(), market or "unknown", display_name, "symbol_not_supported", str(exc))
+
+        market_repo = MarketRepository(session)
+        snapshot = market_repo.list_latest_by_symbols([lookup_symbol]).get(lookup_symbol)
+        if snapshot is None:
+            return self._build_unavailable_payload(
+                lookup_symbol,
+                lookup_market,
+                display_name,
+                "unavailable",
+                "quote not produced yet",
+                normalized.provider_symbol,
+            )
+        return self._snapshot_to_read_payload(snapshot, display_name)
 
     def _get_quote_payload(
         self,
@@ -100,6 +140,13 @@ class QuoteService:
             "is_abnormal": is_abnormal,
             "abnormal_reason": "price_move" if is_abnormal else None,
         }
+
+    def _snapshot_to_read_payload(self, snapshot: PriceSnapshot, display_name: str | None) -> dict:
+        payload = self._snapshot_to_payload(snapshot, display_name)
+        if payload["status"] == "ok" and not self._is_fresh(snapshot):
+            payload["status"] = "delayed"
+            payload["message"] = payload["message"] or "stale quote snapshot"
+        return payload
 
     def _build_unavailable_payload(
         self,

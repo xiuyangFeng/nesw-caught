@@ -90,3 +90,5 @@ def test_settings_expose_redis_event_layer_defaults() -> None:
     assert settings.redis_stream_news_processed == "stream:news:processed"
     assert settings.redis_stream_maxlen == 1000
     assert settings.event_bus_publish_timeout_seconds == 1.0
+    assert settings.market_quote_producer_enabled is True
+    assert settings.market_quote_poll_interval_seconds == 15.0

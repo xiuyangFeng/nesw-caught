@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     x_monitor_refresh_cooldown_hours: int = 3
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
+    market_quote_producer_enabled: bool = True
+    market_quote_poll_interval_seconds: float = 15.0
     tavily_api_key: str | None = None
     stock_news_min_count: int = 3
 

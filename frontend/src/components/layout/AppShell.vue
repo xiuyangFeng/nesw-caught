@@ -72,6 +72,40 @@ const shellStatusRail = computed(() => {
   } as const;
 });
 
+const marketWorkerSummary = computed(() => {
+  const status = watchlistStore.marketWorkerStatus;
+  if (!status) {
+    return {
+      label: 'MARKET WORKER UNKNOWN',
+      detail: 'No runtime status',
+      toneClass: 'neutral',
+      error: null,
+    } as const;
+  }
+  if (status.status === 'ok') {
+    return {
+      label: `${status.name} OK`,
+      detail: `Last success ${formatMarketTime(status.last_success_at ?? status.last_heartbeat_at ?? '', 'hk')} HKT`,
+      toneClass: 'positive',
+      error: null,
+    } as const;
+  }
+  if (status.status === 'degraded') {
+    return {
+      label: `${status.name} DEGRADED`,
+      detail: `Last success ${status.last_success_at ? formatMarketTime(status.last_success_at, 'hk') : '--'} HKT`,
+      toneClass: 'warning',
+      error: status.last_error,
+    } as const;
+  }
+  return {
+    label: `${status.name} ${status.status.toUpperCase()}`,
+    detail: 'Runtime status available',
+    toneClass: 'neutral',
+    error: status.last_error,
+  } as const;
+});
+
 function isNavItemActive(targetPath: string) {
   if (route.path === targetPath) {
     return true;
@@ -208,6 +242,16 @@ onBeforeUnmount(() => {
             {{ connectionStore.lastEventAt ? formatMarketTime(connectionStore.lastEventAt, 'hk') : '--' }}
             HKT
           </small>
+          <div class="grid gap-1.5 border-t border-border/70 pt-2" data-role="market-worker-shell-status">
+            <div class="flex items-center justify-between gap-3">
+              <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-text-soft">Market worker</span>
+              <span class="pill" :class="marketWorkerSummary.toneClass">{{ marketWorkerSummary.label }}</span>
+            </div>
+            <small class="uppercase tracking-[0.08em]">{{ marketWorkerSummary.detail }}</small>
+            <small v-if="marketWorkerSummary.error" class="uppercase tracking-[0.08em] text-negative">
+              Error: {{ marketWorkerSummary.error }}
+            </small>
+          </div>
           <small class="uppercase tracking-[0.08em]">Workspace multi-market watch</small>
         </div>
       </div>

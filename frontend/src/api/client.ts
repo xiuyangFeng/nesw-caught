@@ -9,6 +9,7 @@ import type {
   LLMTranslateRequest,
   LLMTranslateResponse,
   MarketSnapshot,
+  MarketRefreshResult,
   NewsAnalysis,
   NewsDetail,
   NewsItem,
@@ -138,6 +139,16 @@ export const apiClient = {
   },
   refreshNews() {
     return withMockFallback<NewsRefreshResult>(() => postJson('/api/news/refresh', {}), () => mockNewsRefreshResult);
+  },
+  refreshMarketQuotes() {
+    return withMockFallback<MarketRefreshResult>(
+      () => postJson('/api/market/refresh', {}),
+      () => ({
+        quotes_count: mockWatchlistQuotes.length,
+        symbols: mockWatchlistQuotes.map((item) => item.symbol),
+        triggered_at: new Date().toISOString(),
+      }),
+    );
   },
   getMarketSnapshots() {
     return withMockFallback<MarketSnapshot[]>(() => getJson('/api/market/snapshots'), () => mockMarketSnapshots);

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiClient = {
   getWatchlist: vi.fn(),
   getWatchlistQuotes: vi.fn(),
+  getStreamStatus: vi.fn(),
+  refreshMarketQuotes: vi.fn(),
   getStockQuoteDetail: vi.fn(),
   getRelatedNews: vi.fn(),
   createWatchlist: vi.fn(),
@@ -108,6 +110,33 @@ describe('watchlistStore', () => {
     apiClient.getWatchlistQuotes
       .mockResolvedValueOnce({ data: initialQuotes, degraded: false })
       .mockResolvedValueOnce({ data: remainingQuotes, degraded: false });
+    apiClient.getStreamStatus
+      .mockResolvedValueOnce({
+        data: {
+          mode: 'sse',
+          status: 'ok',
+          backend: 'hybrid',
+          redis_enabled: true,
+          last_published_at: null,
+          last_event_name: null,
+          last_error: null,
+          market_worker: null,
+        },
+        degraded: false,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          mode: 'sse',
+          status: 'ok',
+          backend: 'hybrid',
+          redis_enabled: true,
+          last_published_at: null,
+          last_event_name: null,
+          last_error: null,
+          market_worker: null,
+        },
+        degraded: false,
+      });
     apiClient.deleteWatchlist.mockResolvedValue(undefined);
 
     await store.loadWatchlist();
@@ -120,5 +149,85 @@ describe('watchlistStore', () => {
     expect(store.items.map((item) => item.symbol)).toEqual(['AAPL']);
     expect(store.selectedSymbol).toBe('AAPL');
     expect((store as any).relatedNews['0700.HK']).toBeUndefined();
+  });
+
+  it('loads market worker status alongside watchlist data', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getWatchlist.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistQuotes.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getStreamStatus.mockResolvedValue({
+      data: {
+        mode: 'sse',
+        status: 'ok',
+        backend: 'hybrid',
+        redis_enabled: true,
+        last_published_at: null,
+        last_event_name: null,
+        last_error: null,
+        market_worker: {
+          name: 'market_quote_producer',
+          status: 'degraded',
+          last_heartbeat_at: '2026-03-23T05:00:00Z',
+          last_success_at: '2026-03-23T04:58:00Z',
+          last_failure_at: '2026-03-23T04:59:00Z',
+          last_error: 'provider timeout',
+          cycle_count: 12,
+          success_count: 11,
+          failure_count: 1,
+          last_quotes_count: 2,
+        },
+      },
+      degraded: false,
+    });
+
+    await store.loadWatchlist();
+
+    expect(apiClient.getStreamStatus).toHaveBeenCalledTimes(1);
+    expect((store as any).marketWorkerStatus?.status).toBe('degraded');
+    expect((store as any).marketWorkerStatus?.last_error).toBe('provider timeout');
+  });
+
+  it('runs manual market refresh and reloads watchlist state', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.refreshMarketQuotes.mockResolvedValue({
+      data: {
+        quotes_count: 1,
+        symbols: ['0700.HK'],
+        triggered_at: '2026-03-23T06:00:00Z',
+      },
+      degraded: false,
+    });
+    apiClient.getWatchlist.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistQuotes.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getStreamStatus.mockResolvedValue({
+      data: {
+        mode: 'sse',
+        status: 'ok',
+        backend: 'hybrid',
+        redis_enabled: true,
+        last_published_at: null,
+        last_event_name: null,
+        last_error: null,
+        market_worker: null,
+      },
+      degraded: false,
+    });
+
+    await (store as any).refreshMarketQuotes();
+
+    expect(apiClient.refreshMarketQuotes).toHaveBeenCalledTimes(1);
+    expect(apiClient.getWatchlist).toHaveBeenCalledTimes(1);
+    expect(apiClient.getWatchlistQuotes).toHaveBeenCalledTimes(1);
+    expect(apiClient.getStreamStatus).toHaveBeenCalledTimes(1);
+    expect((store as any).lastManualRefreshResult?.quotes_count).toBe(1);
+    expect((store as any).lastManualRefreshResult?.symbols).toEqual(['0700.HK']);
   });
 });

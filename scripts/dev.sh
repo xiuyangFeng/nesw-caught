@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_PID=""
 FRONTEND_PID=""
+MARKET_WORKER_PID=""
 
 cleanup() {
   local exit_code=$?
@@ -15,6 +16,10 @@ cleanup() {
 
   if [[ -n "${FRONTEND_PID}" ]] && kill -0 "${FRONTEND_PID}" 2>/dev/null; then
     kill "${FRONTEND_PID}" 2>/dev/null || true
+  fi
+
+  if [[ -n "${MARKET_WORKER_PID}" ]] && kill -0 "${MARKET_WORKER_PID}" 2>/dev/null; then
+    kill "${MARKET_WORKER_PID}" 2>/dev/null || true
   fi
 
   wait 2>/dev/null || true
@@ -33,6 +38,10 @@ echo "[news-caught] starting frontend on http://127.0.0.1:5174"
 npm --prefix frontend run dev -- --host 0.0.0.0 --port 5174 &
 FRONTEND_PID=$!
 
+echo "[news-caught] starting market worker"
+PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer &
+MARKET_WORKER_PID=$!
+
 while true; do
   if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
     wait "${BACKEND_PID}" 2>/dev/null || true
@@ -41,6 +50,11 @@ while true; do
 
   if ! kill -0 "${FRONTEND_PID}" 2>/dev/null; then
     wait "${FRONTEND_PID}" 2>/dev/null || true
+    break
+  fi
+
+  if ! kill -0 "${MARKET_WORKER_PID}" 2>/dev/null; then
+    wait "${MARKET_WORKER_PID}" 2>/dev/null || true
     break
   fi
 

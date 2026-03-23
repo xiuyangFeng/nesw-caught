@@ -2,6 +2,159 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 14:33
+
+- 修改人：Codex
+- 修改范围：Watchlist 展示最近一次手动刷新结果
+- 变更内容：在 `watchlistStore` 中新增 `lastManualRefreshResult`，手动执行“立即刷新一轮”成功后会保留本次操作返回的 `quotes_count`、`symbols` 与 `triggered_at`；Watchlist 页的 `market-worker` 状态面板现在会直接显示最近一次人工刷新时间、刷新标的数量和 symbol 列表。这样用户除了看到 worker 健康状态，也能知道刚刚那次人工重试到底有没有生效。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-manual-refresh-result-visibility-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-manual-refresh-result-visibility-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；前端仅复用已有 `POST /api/market/refresh` 返回结果做本地状态展示
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（2 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过；`conda run -n news-caught pytest backend/tests -q` 通过（94 个用例）
+- 风险/后续事项：该结果只保存在当前前端会话内，刷新页面后会丢失；如果后续需要跨页面或跨会话保留人工操作历史，应再补后端持久化审计记录
+
+## 2026-03-23 14:21
+
+- 修改人：Codex
+- 修改范围：自选股行情人工“立即刷新一轮”闭环
+- 变更内容：新增后端显式运维接口 `POST /api/market/refresh`，用于在独立 `market-worker` 之外人工触发一次同步行情刷新，并继续发布既有 `market.watchlist_refreshed` 事件；前端 `watchlistStore` 增加 `refreshMarketQuotes()`，Watchlist 页面状态面板新增“立即刷新一轮”按钮、加载态和失败提示。这样当用户看到 worker `degraded` 或行情滞后时，可以直接在 UI 上触发一次人工重试，而不需要切回终端。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-manual-market-refresh-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-manual-market-refresh-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增 `POST /api/market/refresh`，返回 `quotes_count`、`symbols`、`triggered_at`；前端开始消费该接口作为显式人工运维动作
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market.py -q` 通过（8 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（2 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过；`conda run -n news-caught pytest backend/tests -q` 通过（94 个用例）
+- 风险/后续事项：该接口会在 Web 进程里执行一次同步行情拉取，因此应被视为人工重试工具，而不是日常生产路径；如果后续需要更纯粹的架构边界，可以再把“refresh now” 改成发命令给独立 worker 执行
+
+## 2026-03-23 14:07
+
+- 修改人：Codex
+- 修改范围：全局壳层展示 `market-worker` 健康状态
+- 变更内容：在 `AppShell` 的 `System Status` 面板中复用 `watchlistStore.marketWorkerStatus`，新增全局可见的 `market-worker` 状态摘要，展示 worker 名称、健康状态、最近成功时间和最近错误。这样无论用户停留在哪个页面，都能直接看到行情生产链路是否处于 `ok` 或 `degraded`。本次不新增请求，也不引入新的全局状态中心，完全复用现有 watchlist 加载链路。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-app-shell-market-worker-visibility-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-app-shell-market-worker-visibility-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无；前端仅把已有 `watchlistStore.marketWorkerStatus` 上提到全局壳层展示
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前全局壳层仍依赖 `watchlistStore.loadWatchlist()` 完成后才有 `market-worker` 状态；如果后续想把运行状态完全独立于自选股数据加载，需要再抽离专门的 runtime store
+
+## 2026-03-23 14:01
+
+- 修改人：Codex
+- 修改范围：Watchlist 页面展示 `market-worker` 运行状态
+- 变更内容：扩展前端 `StreamStatus` 类型与 `watchlistStore`，在加载自选股列表时顺手拉取 `/api/stream/status` 并缓存其中的 `market_worker` 状态；`WatchlistView` 顶部新增一个轻量状态面板，直接展示独立行情 worker 的名称、当前状态、最近成功时间、最近产出 quotes 数和最近错误。这样当页面出现旧快照或 `unavailable` 时，用户能直接在 watchlist 页面判断是不是 worker 未启动或刚刚失败。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-watchlist-market-worker-visibility-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-watchlist-market-worker-visibility-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；前端开始消费现有 `GET /api/stream/status` 响应中的 `market_worker` 字段
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（2 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前状态面板只显示在 Watchlist 页面，其他页面仍看不到 worker 健康度；如果后续想把可观测性做成全局能力，可以再把这部分上提到壳层或共享状态中心
+
+## 2026-03-23 13:55
+
+- 修改人：Codex
+- 修改范围：本地开发入口自动托管 `market-worker`
+- 变更内容：更新 `scripts/dev.sh`，让 `make dev` 在启动后端和前端的同时自动启动独立自选股行情 worker，并把 `MARKET_WORKER_PID` 纳入统一的清理与存活检测逻辑；这样任一子进程退出都会触发整体退出，`Ctrl+C` 也会一并停止三个进程。同步补充脚本回归测试，并更新 README 中 `make dev` 的说明。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/scripts/dev.sh`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_dev_launcher.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-dev-launcher-market-worker-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-dev-launcher-market-worker-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无；仅本地开发启动行为变化，`make dev` 现在默认同时拉起 backend、frontend 和 `market-worker`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_dev_launcher.py -q` 通过（1 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（93 个用例）
+- 风险/后续事项：当前 `make dev` 会多一个长期运行进程和更多终端输出；如果后续再接入新闻 worker 或更多后台任务，建议统一抽象成更清晰的本地 supervisor，而不是继续在 shell 脚本中线性堆叠
+
+## 2026-03-23 13:42
+
+- 修改人：Codex
+- 修改范围：独立 market worker 可观测性与状态接口扩展
+- 变更内容：新增数据库表 `worker_runtime_status` 和对应仓储，由 `MarketQuoteProducer` 在每轮刷新后持久化 heartbeat、成功/失败计数、最近错误和最近产出 quotes 数；`/api/stream/status` 现在会额外返回 `market_worker` 区块，展示独立 `market_quote_producer` 的运行状态。这样 Web API 即使与 worker 分进程运行，也能直接看到行情 worker 是否正常工作。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/worker_runtime_status.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/__init__.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/worker_runtime_status_repository.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/market_quote_producer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/stream.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/stream.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market_quote_producer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_stream_status.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-market-worker-observability-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-market-worker-observability-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：`GET /api/stream/status` 响应新增可选 `market_worker` 字段，包含独立行情 worker 的 `name`、`status`、最近 heartbeat/成功/失败时间、最近错误、`cycle_count`、`success_count`、`failure_count`、`last_quotes_count`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market_quote_producer.py backend/tests/test_stream_status.py -q` 通过（9 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（92 个用例）
+- 风险/后续事项：当前状态存储依赖应用数据库，适合本地和单库部署；如果后续把 worker 与 Web 拆到多数据库或跨区域部署，需要再定义统一的运行状态源或集中监控出口
+
+## 2026-03-23 13:18
+
+- 修改人：Codex
+- 修改范围：自选股行情 producer 独立 worker 化
+- 变更内容：将上一轮仍挂在 FastAPI `lifespan` 里的 `MarketQuoteProducer` 提取为独立 worker 入口 `python -m app.workers.market_quote_producer`，worker 启动时负责初始化数据库、构建事件总线、注册 `market.watchlist_refreshed` 的本地阈值提醒订阅者，并阻塞运行行情 producer；Web 应用启动流程不再持有或启动行情 producer，只保留 API 和新闻相关事件处理。同步补充 worker 入口测试、Web 不再启动 producer 的生命周期测试，并新增 `make market-worker` 与 README 运行说明。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/workers/market_quote_producer.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/market_quote_producer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market_quote_producer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/Makefile`
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-market-quote-worker-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-market-quote-worker-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：HTTP 接口和事件名不变；运行方式变化为需要显式启动独立 `market-worker` 才会连续生产自选股行情并触发阈值提醒
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market_quote_producer.py backend/tests/test_market.py -q` 通过（13 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（90 个用例）
+- 风险/后续事项：当前 `make dev` 仍不会自动拉起 `market-worker`，开发环境若只启动前后端会看到 watchlist 维持旧快照或 `unavailable`；后续可考虑扩展 `scripts/dev.sh` 一并托管 worker，或给前端/状态接口增加更明确的 worker 存活提示
+
+## 2026-03-23 02:10
+
+- 修改人：Codex
+- 修改范围：自选股行情生产者从请求链路迁移到后台 producer
+- 变更内容：新增 `MarketQuoteProducer` 后台服务，在应用启动后按固定轮询间隔读取 watchlist、拉取真实行情、写入快照并发布 `market.watchlist_refreshed`；`QuoteService` 拆分为“主动刷新”和“缓存读取”两条路径，`/api/market/watchlist` 与 `/api/market/symbols/{symbol}` 不再在请求路径里同步触发上游行情拉取，只返回最近一次已生产的快照结果；同步补充 producer 生命周期测试、缓存读取路由测试、配置默认值测试，以及 README 中的运行说明与环境变量文档。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/market_quote_producer.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/quote_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market_quote_producer.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_event_bus.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-market-quote-producer-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-market-quote-producer-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：HTTP 接口路径和字段不变；`GET /api/market/watchlist` 与 `GET /api/market/symbols/{symbol}` 的职责从“请求时刷新并返回”变为“读取后台 producer 最近一次已生成的行情”；事件名 `market.watchlist_refreshed` 保持不变，但生产者从 route 迁移为后台任务
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market_quote_producer.py backend/tests/test_market.py backend/tests/test_event_bus.py backend/tests/test_stream_status.py -q` 通过（17 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（89 个用例）
+- 风险/后续事项：当前仍是基于 `yfinance` 的轮询 producer，不是外部流式实时连接；应用进程重启后首次 producer 周期前可能短暂返回 `unavailable`/`quote not produced yet`，若后续需要更强实时性或多实例一致性，应继续把 producer 输入侧切到独立 worker 或 streaming provider
+
 ## 2026-03-23 00:54
 
 - 修改人：Codex

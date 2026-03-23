@@ -2,7 +2,7 @@ PYTHON := conda run -n news-caught python
 PIP := conda run -n news-caught python -m pip
 NPM := npm --prefix frontend
 
-.PHONY: setup backend frontend dev test test-backend build-frontend ingest-news
+.PHONY: setup backend frontend dev test test-backend build-frontend ingest-news market-worker
 
 setup:
 	$(PIP) install -r requirements.txt -e backend
@@ -29,3 +29,6 @@ build-frontend:
 
 ingest-news:
 	PYTHONPATH=backend conda run -n news-caught python -m app.workers.news_fetcher
+
+market-worker:
+	PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer

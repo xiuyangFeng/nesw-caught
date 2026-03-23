@@ -181,8 +181,31 @@ export interface TopicDetail extends TopicItem {
 export interface StreamStatus {
   mode: string;
   status: string;
-  last_event_at: string | null;
-  retry_interval_ms: number | null;
+  backend: string;
+  redis_enabled: boolean;
+  last_published_at: string | null;
+  last_event_name: string | null;
+  last_error: string | null;
+  market_worker: MarketWorkerStatus | null;
+}
+
+export interface MarketWorkerStatus {
+  name: string;
+  status: string;
+  last_heartbeat_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  last_error: string | null;
+  cycle_count: number;
+  success_count: number;
+  failure_count: number;
+  last_quotes_count: number;
+}
+
+export interface MarketRefreshResult {
+  quotes_count: number;
+  symbols: string[];
+  triggered_at: string;
 }
 
 export interface StreamEventMap {

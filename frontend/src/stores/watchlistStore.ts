@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import { apiClient } from '../api/client';
 import { HttpError } from '../api/http';
 import type {
+  MarketWorkerStatus,
   NewsItem,
   StockQuoteDetail,
   WatchlistCandidate,
@@ -17,18 +18,22 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   const candidates = ref<WatchlistCandidate[]>([]);
   const items = ref<WatchlistItem[]>([]);
   const quotes = ref<WatchlistQuoteSummary[]>([]);
+  const marketWorkerStatus = ref<MarketWorkerStatus | null>(null);
   const quoteDetail = ref<StockQuoteDetail | null>(null);
   const relatedNews = ref<Record<string, NewsItem[]>>({});
+  const lastManualRefreshResult = ref<import('../types/api').MarketRefreshResult | null>(null);
   const selectedSymbol = ref<string | null>(null);
   const selectedCandidate = ref<WatchlistCandidate | null>(null);
   const loading = ref(false);
   const relatedLoading = ref(false);
   const detailLoading = ref(false);
+  const refreshLoading = ref(false);
   const candidatesLoading = ref(false);
   const usingMock = ref(false);
   const lastLoadedAt = ref<string | null>(null);
   const createLoading = ref(false);
   const createError = ref<string | null>(null);
+  const refreshError = ref<string | null>(null);
   const deleteLoadingSymbol = ref<string | null>(null);
   const deleteError = ref<string | null>(null);
   const candidateError = ref<string | null>(null);
@@ -55,13 +60,31 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     const response = await apiClient.getWatchlist();
     items.value = response.data;
     const quotesResponse = await apiClient.getWatchlistQuotes();
+    const streamStatusResponse = await apiClient.getStreamStatus();
     quotes.value = quotesResponse.data;
-    usingMock.value = response.degraded || quotesResponse.degraded;
+    marketWorkerStatus.value = streamStatusResponse.data.market_worker;
+    usingMock.value = response.degraded || quotesResponse.degraded || streamStatusResponse.degraded;
     lastLoadedAt.value = new Date().toISOString();
     if (!selectedSymbol.value && items.value.length > 0) {
       selectedSymbol.value = items.value[0].symbol;
     }
     loading.value = false;
+  }
+
+  async function refreshMarketQuotes() {
+    refreshLoading.value = true;
+    refreshError.value = null;
+    try {
+      const response = await apiClient.refreshMarketQuotes();
+      usingMock.value = usingMock.value || response.degraded;
+      lastManualRefreshResult.value = response.data;
+      await loadWatchlist();
+    } catch (error) {
+      refreshError.value = '手动刷新行情失败，请稍后重试';
+      throw error;
+    } finally {
+      refreshLoading.value = false;
+    }
   }
 
   async function loadQuoteDetail(symbol: string) {
@@ -125,24 +148,29 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     candidates,
     items,
     quotes,
+    marketWorkerStatus,
     quoteDetail,
     relatedNews,
+    lastManualRefreshResult,
     selectedSymbol,
     selectedCandidate,
     loading,
     relatedLoading,
     detailLoading,
+    refreshLoading,
     candidatesLoading,
     usingMock,
     lastLoadedAt,
     stale,
     createLoading,
     createError,
+    refreshError,
     deleteLoadingSymbol,
     deleteError,
     candidateError,
     loadCandidates,
     loadWatchlist,
+    refreshMarketQuotes,
     loadQuoteDetail,
     loadRelatedNews,
     createWatchlist,

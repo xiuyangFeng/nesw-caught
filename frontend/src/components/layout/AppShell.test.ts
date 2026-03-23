@@ -33,6 +33,18 @@ const topicStore = {
 
 const watchlistStore = {
   loadWatchlist: vi.fn(async () => undefined),
+  marketWorkerStatus: {
+    name: 'market_quote_producer',
+    status: 'degraded',
+    last_heartbeat_at: '2026-03-23T05:00:00Z',
+    last_success_at: '2026-03-23T04:58:00Z',
+    last_failure_at: '2026-03-23T04:59:00Z',
+    last_error: 'provider timeout',
+    cycle_count: 12,
+    success_count: 11,
+    failure_count: 1,
+    last_quotes_count: 2,
+  },
 };
 
 vi.mock('vue-router', () => ({
@@ -97,6 +109,8 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('SSE LIVE');
     expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('Workspace multi-market watch');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('Last event');
+    expect(wrapper.find('[data-role="system-status"]').text()).toContain('market_quote_producer');
+    expect(wrapper.find('[data-role="system-status"]').text()).toContain('provider timeout');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('Workspace multi-market watch');
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });

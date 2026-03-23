@@ -36,6 +36,12 @@ npm --prefix frontend install
 conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000
 ```
 
+启动自选股行情 worker：
+
+```bash
+PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer
+```
+
 启动前端：
 
 ```bash
@@ -66,8 +72,9 @@ make dev
 
 - 后端 `http://127.0.0.1:8000`
 - 前端 `http://127.0.0.1:5174`
+- 自选股行情 `market-worker`
 
-按 `Ctrl+C` 会一起停止两个进程。
+按 `Ctrl+C` 会一起停止三个进程。
 
 ## 验证
 
@@ -93,7 +100,7 @@ make ingest-news
 
 ## 自选股真实行情
 
-自选股页面已切换为真实行情接口，默认通过 `yfinance` 拉取港股和美股报价，并保留本地快照缓存作为短时兜底。首次更新环境时请确保已安装新增依赖：
+自选股页面已切换为真实行情接口，默认通过 `yfinance` 拉取港股和美股报价。当前行情 producer 已从 Web 应用进程中拆出，需通过独立 worker 常驻轮询自选股、写入本地快照，并发布 `market.watchlist_refreshed`；前端接口只读取最近一次已生产的行情结果，不再在 HTTP 请求路径里同步触发刷新。首次更新环境时请确保已安装新增依赖：
 
 ```bash
 conda env update -f environment.yml --prune
@@ -105,15 +112,17 @@ conda activate news-caught
 ```bash
 MARKET_QUOTE_PROVIDER=yahoo_finance
 MARKET_QUOTE_CACHE_TTL_SECONDS=180
+MARKET_QUOTE_PRODUCER_ENABLED=true
+MARKET_QUOTE_POLL_INTERVAL_SECONDS=15
 ```
 
 新增接口与页面：
 
-- `GET /api/market/watchlist`：批量返回自选股价格、涨跌、开盘、昨收、最高、最低、成交量、状态
-- `GET /api/market/symbols/{symbol}`：返回单只股票详情行情
+- `GET /api/market/watchlist`：批量返回自选股最近一次已生产的价格、涨跌、开盘、昨收、最高、最低、成交量、状态
+- `GET /api/market/symbols/{symbol}`：返回单只股票最近一次已生产的详情行情
 - `http://127.0.0.1:5174/watchlist/:symbol`：单股详情页
 
-港股符号目前兼容 `0700.HK` 和 `HK253` 这类输入，后续如需补 A 股或切换付费行情源，可继续在 provider 层扩展。
+港股符号目前兼容 `0700.HK` 和 `HK253` 这类输入。当前 producer 仍属于后端轮询型实时链路，后续如需补 A 股或切换真正流式/付费行情源，可继续在独立 worker 的 producer/provider 层扩展，而无需改动现有 watchlist API 或通知事件名。
 
 ## Redis 事件层
 
@@ -123,7 +132,7 @@ MARKET_QUOTE_CACHE_TTL_SECONDS=180
 - 会尝试把增量新闻事件写入 Redis Streams
 - Redis 不可用时自动降级回进程内事件总线
 - 当前前端仍继续使用 `SSE`，不需要同步改造
-- 第二阶段已将 `news.analysis_completed`、`news.signals_processed` 和 `market.watchlist_refreshed` 统一接入同一事件层
+- 第二阶段已将 `news.analysis_completed`、`news.signals_processed` 和 `market.watchlist_refreshed` 统一接入同一事件层；其中 `market.watchlist_refreshed` 现由后台行情 producer 主动发布
 - 新闻通知批处理、自选股阈值提醒和分析卡片通知现在由本地事件订阅者驱动，而不是在 route 里直接调用
 
 建议先确保本机 Redis 已启动：
@@ -150,6 +159,8 @@ EVENT_BUS_PUBLISH_TIMEOUT_SECONDS=1.0
 ```bash
 curl http://127.0.0.1:8000/api/stream/status
 ```
+
+该接口现在除了事件层状态外，也会返回独立 `market-worker` 的运行状态，包括最近 heartbeat、最近成功/失败时间、最近错误和轮询计数，便于确认自选股行情 worker 是否仍在持续生产数据。
 
 当前已经使用的事件名包括：
 

@@ -7,7 +7,7 @@ from app.main import app
 
 def test_market_watchlist_quotes_return_expanded_fields(monkeypatch) -> None:
     class FakeQuoteService:
-        def get_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+        def get_cached_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
             return [
                 {
                     "symbol": "0700.HK",
@@ -50,7 +50,7 @@ def test_market_symbol_detail_normalizes_hk_alias(monkeypatch) -> None:
         def __init__(self) -> None:
             self.received_symbol: str | None = None
 
-        def get_symbol_quote(self, symbol, session):  # pragma: no cover - exercised through route
+        def get_cached_symbol_quote(self, symbol, session):  # pragma: no cover - exercised through route
             self.received_symbol = symbol
             return {
                 "symbol": symbol,
@@ -88,7 +88,7 @@ def test_market_symbol_detail_normalizes_hk_alias(monkeypatch) -> None:
 
 def test_market_watchlist_quotes_keep_partial_failures_visible(monkeypatch) -> None:
     class FakeQuoteService:
-        def get_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+        def get_cached_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
             return [
                 {
                     "symbol": "0700.HK",
@@ -227,7 +227,7 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
                 ],
             ]
 
-        def get_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+        def refresh_watchlist_quotes(self, session):  # pragma: no cover - exercised through producer
             return self.responses.pop(0)
 
     class FakeWatchlistRepository:
@@ -259,33 +259,29 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
             for handler in self.handlers.get(event_name, []):
                 handler(payload)
 
-    monkeypatch.setattr(market_routes, "get_quote_service", lambda: fake_service, raising=False)
     from app import main as main_module
 
     fake_bus = FakeBus()
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
     monkeypatch.setattr(main_module, "WatchlistRepository", FakeWatchlistRepository)
     monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
-    monkeypatch.setattr(market_routes, "get_event_bus", lambda: fake_bus, raising=False)
+    monkeypatch.setattr(main_module, "get_quote_service", lambda: fake_service)
     main_module._register_event_handlers()
-    client = TestClient(app)
+    main_module.register_market_watchlist_handlers(fake_bus)
 
     with patch.object(notification_service, "_load_config", return_value=config):
-        response1 = client.get("/api/market/watchlist")
-        response2 = client.get("/api/market/watchlist")
-        response3 = client.get("/api/market/watchlist")
-        response4 = client.get("/api/market/watchlist")
+        producer = main_module.build_market_quote_producer()
+        producer.run_cycle()
+        producer.run_cycle()
+        producer.run_cycle()
+        producer.run_cycle()
 
-    assert response1.status_code == 200
-    assert response2.status_code == 200
-    assert response3.status_code == 200
-    assert response4.status_code == 200
     assert notification_service._send.call_count == 2
 
 
-def test_market_watchlist_quotes_publish_refresh_event_instead_of_direct_notification(monkeypatch) -> None:
+def test_market_watchlist_quotes_read_cached_payload_without_publishing_refresh_event(monkeypatch) -> None:
     class FakeQuoteService:
-        def get_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+        def get_cached_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
             return [
                 {
                     "symbol": "0700.HK",
@@ -329,6 +325,129 @@ def test_market_watchlist_quotes_publish_refresh_event_instead_of_direct_notific
     response = client.get("/api/market/watchlist")
 
     assert response.status_code == 200
+    assert fake_bus.published == []
+
+
+def test_market_symbol_detail_reads_cached_quote_payload(monkeypatch) -> None:
+    class FakeQuoteService:
+        def __init__(self) -> None:
+            self.received_symbol: str | None = None
+
+        def get_cached_symbol_quote(self, symbol, session):  # pragma: no cover - exercised through route
+            self.received_symbol = symbol
+            return {
+                "symbol": symbol,
+                "market": "us",
+                "display_name": "Apple",
+                "provider_symbol": "AAPL",
+                "price": 211.2,
+                "change_amount": 1.5,
+                "change_percent": 0.72,
+                "open_price": 210.0,
+                "previous_close": 209.7,
+                "day_high": 212.0,
+                "day_low": 208.8,
+                "volume": 1500000,
+                "status": "ok",
+                "source": "yahoo_finance",
+                "message": None,
+                "is_abnormal": False,
+                "abnormal_reason": None,
+                "fetched_at": "2026-03-16T12:05:00Z",
+            }
+
+    fake_service = FakeQuoteService()
+    monkeypatch.setattr(market_routes, "get_quote_service", lambda: fake_service, raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/symbols/AAPL")
+
+    assert response.status_code == 200
+    assert fake_service.received_symbol == "AAPL"
+
+
+def test_market_watchlist_quotes_return_unavailable_payload_from_cache_reader(monkeypatch) -> None:
+    class FakeQuoteService:
+        def get_cached_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+            return [
+                {
+                    "symbol": "0700.HK",
+                    "market": "hk",
+                    "display_name": "Tencent",
+                    "provider_symbol": "0700.HK",
+                    "price": None,
+                    "change_amount": None,
+                    "change_percent": None,
+                    "open_price": None,
+                    "previous_close": None,
+                    "day_high": None,
+                    "day_low": None,
+                    "volume": None,
+                    "status": "unavailable",
+                    "source": "yahoo_finance",
+                    "message": "quote not produced yet",
+                    "fetched_at": "2026-03-16T12:00:00Z",
+                    "is_abnormal": False,
+                    "abnormal_reason": None,
+                }
+            ]
+
+    monkeypatch.setattr(market_routes, "get_quote_service", lambda: FakeQuoteService(), raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/watchlist")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["status"] == "unavailable"
+    assert payload[0]["message"] == "quote not produced yet"
+
+
+def test_market_refresh_route_runs_one_shot_refresh_and_publishes_event(monkeypatch) -> None:
+    class FakeQuoteService:
+        def refresh_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+            return [
+                {
+                    "symbol": "0700.HK",
+                    "market": "hk",
+                    "display_name": "Tencent",
+                    "provider_symbol": "0700.HK",
+                    "price": 332.4,
+                    "change_amount": 10.7,
+                    "change_percent": 3.33,
+                    "open_price": 325.0,
+                    "previous_close": 321.7,
+                    "day_high": 334.8,
+                    "day_low": 323.2,
+                    "volume": 18233000,
+                    "status": "ok",
+                    "source": "yahoo_finance",
+                    "message": None,
+                    "fetched_at": "2026-03-16T12:00:00Z",
+                    "is_abnormal": True,
+                    "abnormal_reason": "price_move",
+                }
+            ]
+
+    class FakeBus:
+        def __init__(self) -> None:
+            self.published: list[tuple[str, dict[str, object]]] = []
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(market_routes, "get_quote_service", lambda: FakeQuoteService(), raising=False)
+    monkeypatch.setattr(market_routes, "get_event_bus", lambda: fake_bus, raising=False)
+    client = TestClient(app)
+
+    response = client.post("/api/market/refresh")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["quotes_count"] == 1
+    assert payload["symbols"] == ["0700.HK"]
+    assert payload["triggered_at"] is not None
     assert fake_bus.published == [
         (
             "market.watchlist_refreshed",

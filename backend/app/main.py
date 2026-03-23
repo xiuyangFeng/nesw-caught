@@ -1,4 +1,6 @@
+import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -9,9 +11,17 @@ from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.repositories.news_repository import NewsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
-from app.services.event_bus import build_event_bus, set_event_bus
+from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
+from app.services.market_quote_producer import MarketQuoteProducer
 from app.services.news_signal_pipeline import NewsSignalPipelineService
 from app.services.notification_service import get_notification_service
+from app.services.quote_service import QuoteService
+
+logger = logging.getLogger(__name__)
+
+
+def get_quote_service() -> QuoteService:
+    return QuoteService()
 
 
 def _register_event_handlers() -> None:
@@ -60,6 +70,13 @@ def _register_event_handlers() -> None:
     def handle_news_analysis_completed(payload: dict[str, object]) -> None:
         get_notification_service().on_analysis_completed(payload)
 
+    event_bus.subscribe("news.created_batch", handle_news_created_batch)
+    event_bus.subscribe("news.created_batch", handle_news_created_notifications)
+    event_bus.subscribe("news.analysis_completed", handle_news_analysis_completed)
+    set_event_bus(event_bus)
+
+
+def register_market_watchlist_handlers(event_bus: Any) -> None:
     def handle_market_watchlist_refreshed(payload: dict[str, object]) -> None:
         raw_quotes = payload.get("quotes") if isinstance(payload, dict) else None
         if not isinstance(raw_quotes, list):
@@ -86,11 +103,18 @@ def _register_event_handlers() -> None:
                 }
             )
 
-    event_bus.subscribe("news.created_batch", handle_news_created_batch)
-    event_bus.subscribe("news.created_batch", handle_news_created_notifications)
-    event_bus.subscribe("news.analysis_completed", handle_news_analysis_completed)
     event_bus.subscribe("market.watchlist_refreshed", handle_market_watchlist_refreshed)
-    set_event_bus(event_bus)
+
+
+def build_market_quote_producer(event_bus: Any | None = None) -> MarketQuoteProducer:
+    settings = get_settings()
+    return MarketQuoteProducer(
+        session_factory=SessionLocal,
+        quote_service_factory=get_quote_service,
+        event_bus=event_bus or get_event_bus(),
+        poll_interval_seconds=settings.market_quote_poll_interval_seconds,
+        logger=logger,
+    )
 
 
 @asynccontextmanager

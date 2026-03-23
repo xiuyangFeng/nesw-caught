@@ -21,6 +21,7 @@ const form = reactive({
 
 const watchlistRows = computed(() => watchlistStore.quotes);
 const abnormalMovers = computed(() => watchlistStore.quotes.filter((item) => item.is_abnormal));
+const marketWorkerStatus = computed(() => watchlistStore.marketWorkerStatus);
 const normalizedQuery = computed(() => form.query.trim().toLowerCase());
 const addedSymbols = computed(() => new Set(watchlistStore.items.map((item) => item.symbol)));
 
@@ -43,6 +44,7 @@ const relatedNews = computed(() => {
   const symbol = watchlistStore.selectedSymbol;
   return symbol ? watchlistStore.relatedNews[symbol] ?? [] : [];
 });
+const lastManualRefreshResult = computed(() => watchlistStore.lastManualRefreshResult);
 
 async function selectSymbol(symbol: string) {
   await watchlistStore.loadRelatedNews(symbol);
@@ -95,6 +97,17 @@ async function handleDelete(symbol: string) {
   }
 }
 
+async function handleManualRefresh() {
+  try {
+    await watchlistStore.refreshMarketQuotes();
+    if (watchlistStore.selectedSymbol) {
+      await watchlistStore.loadRelatedNews(watchlistStore.selectedSymbol);
+    }
+  } catch {
+    // Error state is handled by the store for inline display.
+  }
+}
+
 onMounted(async () => {
   try {
     await watchlistStore.loadCandidates();
@@ -125,6 +138,56 @@ onMounted(async () => {
       :tone="abnormalMovers.length ? 'warning' : 'default'"
       detail="列表展示价格、涨跌、开盘、昨收、最高、最低和成交量。"
     />
+
+    <section
+      class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm shadow-[0_16px_36px_rgba(2,6,12,0.22)]"
+      data-role="market-worker-status"
+    >
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Market Worker</span>
+        <strong class="text-text">{{ marketWorkerStatus?.name ?? 'market_quote_producer' }}</strong>
+        <span
+          class="rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em]"
+          :class="
+            marketWorkerStatus?.status === 'ok'
+              ? 'border-[rgba(74,222,128,0.28)] text-[rgba(134,239,172,0.94)]'
+              : marketWorkerStatus?.status === 'degraded'
+                ? 'border-[rgba(248,113,113,0.28)] text-[rgba(252,165,165,0.94)]'
+                : 'border-border text-text-faint'
+          "
+        >
+          {{ marketWorkerStatus?.status ?? 'unknown' }}
+        </span>
+        <span class="text-text-faint">
+          最近产出 {{ marketWorkerStatus?.last_quotes_count ?? 0 }} 条行情
+        </span>
+        <button
+          class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60"
+          :disabled="watchlistStore.refreshLoading"
+          data-role="market-refresh-action"
+          @click="handleManualRefresh"
+        >
+          {{ watchlistStore.refreshLoading ? '刷新中...' : '立即刷新一轮' }}
+        </button>
+      </div>
+      <p class="m-0 text-text-soft">
+        最近成功：
+        {{ marketWorkerStatus?.last_success_at ? formatMarketTime(marketWorkerStatus.last_success_at, 'us') : '暂无记录' }}
+      </p>
+      <p v-if="marketWorkerStatus?.last_error" class="m-0 text-negative">
+        最近错误：{{ marketWorkerStatus.last_error }}
+      </p>
+      <p v-if="lastManualRefreshResult" class="m-0 text-text-soft">
+        最近手动刷新：{{ formatMarketTime(lastManualRefreshResult.triggered_at, 'us') }}，刷新了
+        {{ lastManualRefreshResult.quotes_count }} 个标的
+        <span v-if="lastManualRefreshResult.symbols.length">
+          （{{ lastManualRefreshResult.symbols.join(', ') }}）
+        </span>
+      </p>
+      <p v-if="watchlistStore.refreshError" class="m-0 text-negative">
+        {{ watchlistStore.refreshError }}
+      </p>
+    </section>
 
     <section class="grid gap-4 xl:grid-cols-[1.5fr_0.9fr]" data-role="watchlist-layout">
       <SectionCard

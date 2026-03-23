@@ -1,4 +1,5 @@
 from typing import Literal
+from datetime import datetime
 
 from pydantic import BaseModel
 
@@ -34,3 +35,9 @@ class QuoteDetailView(QuoteSummaryView):
 
 class PriceSnapshotView(QuoteDetailView):
     pass
+
+
+class MarketRefreshResultView(BaseModel):
+    quotes_count: int
+    symbols: list[str]
+    triggered_at: UTCDateTime
