@@ -163,10 +163,11 @@ describe('DashboardView', () => {
   it('wires sentiment metrics to dedicated sentiment news routes', () => {
     const wrapper = mount(DashboardView);
 
-    const links = wrapper.findAll('a').map((node) => node.attributes('href'));
+    const heroLinks = wrapper.find('[data-role="hero-grid"]').findAll('a').map((node) => node.attributes('href'));
 
-    expect(links).toContain('/news/sentiment/positive');
-    expect(links).toContain('/news/sentiment/negative');
+    expect(heroLinks).toContain('/news/sentiment/positive');
+    expect(heroLinks).toContain('/news/sentiment/negative');
+    expect(heroLinks).toContain('/watchlist');
   });
 
   it('renders dashboard metrics from the dashboard news slot without reload side effects', async () => {

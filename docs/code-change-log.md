@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 21:38
+
+- 修改人：Codex
+- 修改范围：Dashboard 顶部异动股票指标卡跳转入口
+- 变更内容：将首页 `Dashboard` 顶部 `HeroMetrics` 区域中的“异动股票”指标卡改成整卡可点击入口，直接跳转到 `/watchlist`。这样顶部四张指标卡的交互模型保持一致，用户不需要再下滑到下方 `Live Movers` 区块才能进入自选股异动页。同步补充视图测试，明确约束顶部指标区内必须存在指向 `/watchlist` 的链接。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-dashboard-movers-metric-link-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-dashboard-movers-metric-link-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无；仅前端路由映射增强，继续复用现有 `/watchlist` 页面
+- 验证情况：`npm --prefix frontend run test -- --run src/views/DashboardView.test.ts` 通过（1 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前顶部指标卡和下方 `Live Movers` 区块都会进入 `/watchlist`，这是有意的入口重复；若后续希望区分“总览入口”和“细分入口”，需要再单独设计指标卡更细粒度的跳转目标
+
 ## 2026-03-23 20:22
 
 - 修改人：Codex

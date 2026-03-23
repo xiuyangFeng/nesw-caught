@@ -135,6 +135,7 @@ const metrics = computed(() => {
       value: String(marketStore.abnormalMovers.length),
       note: '自选股异动入口',
       tone: marketStore.abnormalMovers.length ? 'negative' : 'default',
+      to: '/watchlist',
     },
   ];
 });
