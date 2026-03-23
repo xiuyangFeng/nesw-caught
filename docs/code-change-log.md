@@ -2,6 +2,22 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-24 00:31
+
+- 修改人：Codex
+- 修改范围：本地 dev launcher 启动稳态修复
+- 变更内容：为 `scripts/dev.sh` 增加端口冲突清理、backend 启动早退检测、`/api/stream/status` 就绪等待、依赖命令预检和进程树清理，避免 `make dev` 在旧监听残留或 backend 未真正启动时留下“前端活着、后端拒绝连接”的半启动状态，并在启动阶段保留子进程原始退出码；同步把 `test_dev_launcher.py` 改为基于仓库根目录动态定位脚本，并补充对端口清理、ready wait、失败传播和依赖声明的约束；README 增加 launcher 新行为说明；新增本轮 design/plan 文档。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-fix-dev-startup/scripts/dev.sh`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-fix-dev-startup/backend/tests/test_dev_launcher.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-fix-dev-startup/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-fix-dev-startup/docs/superpowers/specs/2026-03-24-dev-launcher-port-guard-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-fix-dev-startup/docs/superpowers/plans/2026-03-24-dev-launcher-port-guard-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-fix-dev-startup/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_dev_launcher.py -q` 通过（2 个用例）；手动运行 `./scripts/dev.sh` 时已验证 frontend 缺依赖会被启动阶段早退检测及时报错，不再静默留下坏状态，并验证占用 `8000`/`5174` 的假服务会在启动前被清理后由真实 backend/frontend 接管；后续将继续补完整后端测试和完整启动验证
+- 风险/后续事项：launcher 会主动终止占用 `8000`/`5174` 的本地监听进程，仅适用于本地开发；如果后续需要更保守的策略，可再改成只清理带本项目特征的进程
+
 ## 2026-03-24 00:21
 
 - 修改人：Codex

@@ -74,6 +74,8 @@ make dev
 - 前端 `http://127.0.0.1:5174`
 - 自选股行情 `market-worker`
 
+启动前，launcher 会主动终止本机 `8000` 和 `5174` 上现有的监听进程，然后在 backend 的 `GET /api/stream/status` 真正可达后再继续启动其余进程。这样可以避免前端先起来、但后端端口仍不可用时出现整页 `ECONNREFUSED` 和 K 线加载失败。该 launcher 依赖本机提供 `lsof`、`pgrep` 和 `curl`。
+
 按 `Ctrl+C` 会一起停止三个进程。
 
 ## 验证
