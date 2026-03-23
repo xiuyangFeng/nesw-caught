@@ -208,6 +208,80 @@ export interface MarketRefreshResult {
   triggered_at: string;
 }
 
+export type WatchlistDashboardPeriod = '1D' | '1W' | '1M' | '3M' | '1Y';
+
+export interface KlineCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+}
+
+export interface KlineValuePoint {
+  time: string;
+  value: number;
+}
+
+export interface KlineMacdPoint {
+  time: string;
+  dif: number;
+  dea: number;
+  histogram: number;
+}
+
+export interface KlineKdjPoint {
+  time: string;
+  k: number;
+  d: number;
+  j: number;
+}
+
+export interface KlineBollingerPoint {
+  time: string;
+  upper: number;
+  middle: number;
+  lower: number;
+}
+
+export interface NewsEventMarkerItem {
+  id: number;
+  title: string;
+  sentiment: SentimentLabel | string;
+}
+
+export interface NewsEventMarker {
+  time: string;
+  items: NewsEventMarkerItem[];
+}
+
+export interface KlineIndicators {
+  ma5: KlineValuePoint[];
+  ma10: KlineValuePoint[];
+  ma20: KlineValuePoint[];
+  ma60: KlineValuePoint[];
+  macd: KlineMacdPoint[];
+  kdj: KlineKdjPoint[];
+  bollinger: KlineBollingerPoint[];
+}
+
+export interface StockKlineResponse {
+  symbol: string;
+  interval: string;
+  range: string;
+  stale: boolean;
+  candles: KlineCandle[];
+  indicators: KlineIndicators;
+  news_events: NewsEventMarker[];
+}
+
+export interface SparklineSeries {
+  prices: number[];
+}
+
+export type WatchlistSparklineMap = Record<string, SparklineSeries>;
+
 export interface StreamEventMap {
   'news.created': NewsItem;
   'topic.updated': Pick<TopicItem, 'id' | 'topic_title' | 'market' | 'importance_score' | 'news_count' | 'last_seen_at'>;

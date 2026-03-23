@@ -2,6 +2,92 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 23:51
+
+- 修改人：Codex
+- 修改范围：Watchlist 添加自选股 modal 体验补齐
+- 变更内容：按新 spec 将 sidebar 中“搜索候选即点即加”的流程重构为显式 `搜索 / 添加自选股` modal。新增 `WatchlistAddModal`，支持候选搜索、选中确认、默认 `直接添加`、可选展开高级设置并填写 `alert_threshold`；`WatchlistSidebar` 退回为左栏筛选与入口面板，不再在候选列表上直接落库；`WatchlistView` 接管 modal 的本地状态，在添加成功后自动关闭并选中新股票，失败时保留当前选择与阈值方便重试。同步补充视图测试，覆盖打开 modal、候选选择不立即提交、直接添加、带阈值提交和失败保留状态这几条核心路径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/WatchlistAddModal.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/WatchlistSidebar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/superpowers/specs/2026-03-23-watchlist-add-modal-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/superpowers/plans/2026-03-23-watchlist-add-modal-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/code-change-log.md`
+- 接口/数据结构变化：无，继续复用现有 `createWatchlist` 接口与 `alert_threshold` 字段
+- 验证情况：`npm --prefix frontend run test -- --run src/views/WatchlistView.test.ts src/stores/watchlistStore.test.ts` 通过（2 个文件 / 16 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：这轮 modal 还没有补键盘上下选择、ESC 关闭、焦点陷阱等更完整的 dialog 可访问性；如果你下一步继续打磨体验，优先建议补这些细节，再做新闻 marker 与侧栏的深联动
+
+## 2026-03-23 23:18
+
+- 修改人：Codex
+- 修改范围：Watchlist 仪表盘 final review 尾项修正
+- 变更内容：根据第二轮子代理复核，继续修正两个残留问题：`IndicatorChart` 在 `indicators` 为空时现在会显式清空已有 series，避免切换股票或请求失败时副图残留上一只股票的数据；`StockCard` 外层交互容器改为带键盘可访问性的 `article[role=button]`，删除按钮不再嵌套在外层 `<button>` 中，消除无效交互 HTML 和潜在点击/键盘冲突。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/IndicatorChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/WatchlistView.test.ts src/components/watchlist/KlineChart.test.ts src/components/watchlist/StockSparkline.test.ts src/stores/watchlistStore.test.ts` 通过（4 个文件 / 15 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：副图和主图目前已是真实 Lightweight Charts，但新闻 marker 与侧栏的高亮联动仍偏轻量；如果后续要做到 spec 中更完整的 hover/scroll 同步，建议继续补专门的交互测试
+
+## 2026-03-23 23:16
+
+- 修改人：Codex
+- 修改范围：Watchlist 仪表盘 review 回合修正
+- 变更内容：根据子代理 code review 补回了新仪表盘中被误删的管理与运维能力：`WatchlistView` 重新展示 runtime/手动刷新状态卡，`WatchlistSidebar` 恢复候选添加入口与持仓删除入口；同时修复 `loadCandidates()` 失败会阻断整页加载的问题，并为 `watchlistStore` 增加 detail 请求竞态保护，避免快速切换股票时旧请求覆盖新详情。图表层继续补齐：`KlineChart` 在 `klineData` 为空时会主动清空旧 series，`IndicatorChart` 也接入 Lightweight Charts，前端视图测试则显式 mock 图表库，避免 jsdom canvas 能力不足导致误报。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/WatchlistSidebar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockSparkline.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockSparkline.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/IndicatorChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/code-change-log.md`
+- 接口/数据结构变化：`POST /api/market/sparklines` 超限时返回 400，与 spec 对齐；其余为前端状态管理与交互修正
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过（101 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts src/components/watchlist/StockSparkline.test.ts src/components/watchlist/KlineChart.test.ts` 通过（4 个文件 / 15 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 sidebar 的添加流程是“候选即点即加”，还没有做成 spec 里更完整的 modal；另外 Redis 缓存目前是“Redis 优先 + 内存回退”，还没增加独立的 Redis 集成测试环境
+
+## 2026-03-23 23:01
+
+- 修改人：Codex
+- 修改范围：Watchlist 仪表盘与 K 线/迷你走势数据链路
+- 变更内容：新增后端 `GET /api/market/symbols/{symbol}/kline` 和 `POST /api/market/sparklines`，由新建 `market_chart_service` 负责拉取 yfinance 历史 K 线、计算 MA/MACD/KDJ/布林带、对齐相关新闻日期并提供内存级缓存兜底；前端扩展 `watchlistStore`、API 类型与 mock 数据，新增一组 watchlist 仪表盘组件，把 `/watchlist` 从旧表格页重构为左侧股票雷达 + 右侧详情面板的 master-detail 布局，支持周期切换、迷你走势、K 线摘要、副图指标按钮和关联新闻侧栏。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/app/schemas/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/app/services/market_chart_service.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/WatchlistSidebar.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockCard.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockSparkline.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockDetailPanel.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/KlineChart.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/IndicatorChart.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/StockMetricsGrid.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/RelatedNewsSidebar.vue`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/package-lock.json`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/superpowers/specs/2026-03-23-watchlist-dashboard-kline-design.md`（新增同步）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/superpowers/plans/2026-03-23-watchlist-dashboard-kline-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/market/symbols/{symbol}/kline` 与 `POST /api/market/sparklines`；前端新增 K 线、技术指标、新闻标记与 sparkline 数据结构
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market.py -q` 通过（13 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（99 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（2 个文件 / 11 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：后端缓存当前是进程内内存缓存，还没有落到 spec 预期的 Redis；前端图表当前使用轻量 DOM/SVG 摘要组件而未真正接入 Lightweight Charts，因此“真实 K 线交互、十字光标和多副图同步”仍可在下一轮继续补齐
+
 ## 2026-03-23 21:38
 
 - 修改人：Codex

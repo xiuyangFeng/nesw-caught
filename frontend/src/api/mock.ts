@@ -7,8 +7,11 @@ import type {
   MarketSnapshot,
   NewsAnalysis,
   NewsDetail,
+  NewsEventMarker,
   NewsItem,
   NewsRefreshResult,
+  SparklineSeries,
+  StockKlineResponse,
   StockQuoteDetail,
   StreamEnvelope,
   StreamStatus,
@@ -459,6 +462,51 @@ export const mockRelatedNews: Record<string, NewsItem[]> = {
   AAPL: [mockNews[1]],
   NVDA: [mockNews[3]],
 };
+
+const buildMockNewsEvents = (symbol: string): NewsEventMarker[] =>
+  (mockRelatedNews[symbol] ?? []).slice(0, 2).map((item) => ({
+    time: (item.published_at ?? item.fetched_at).slice(0, 10),
+    items: [{ id: item.id, title: item.title, sentiment: item.sentiment_label }],
+  }));
+
+export const mockStockKlines: Record<string, StockKlineResponse> = Object.fromEntries(
+  Object.keys(mockStockQuoteDetails).map((symbol) => [
+    symbol,
+    {
+      symbol,
+      interval: '1d',
+      range: '6mo',
+      stale: false,
+      candles: Array.from({ length: 12 }, (_, index) => ({
+        time: new Date(now.getTime() - (11 - index) * 86_400_000).toISOString().slice(0, 10),
+        open: 500 + index,
+        high: 504 + index,
+        low: 497 + index,
+        close: 501 + index,
+        volume: 1000 + index * 100,
+      })),
+      indicators: {
+        ma5: [],
+        ma10: [],
+        ma20: [],
+        ma60: [],
+        macd: [],
+        kdj: [],
+        bollinger: [],
+      },
+      news_events: buildMockNewsEvents(symbol),
+    },
+  ]),
+);
+
+export const mockWatchlistSparklines: Record<string, SparklineSeries> = Object.fromEntries(
+  Object.keys(mockStockQuoteDetails).map((symbol) => [
+    symbol,
+    {
+      prices: Array.from({ length: 12 }, (_, index) => 100 + index * 2),
+    },
+  ]),
+);
 
 export const mockStreamStatus: StreamStatus = {
   mode: 'sse',

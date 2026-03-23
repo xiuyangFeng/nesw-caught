@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from app.api.routes import market as market_routes
 from app.main import app
+from app.services.market_chart_service import MarketChartService
 
 
 def test_market_watchlist_quotes_return_expanded_fields(monkeypatch) -> None:
@@ -478,3 +479,188 @@ def test_market_refresh_route_runs_one_shot_refresh_and_publishes_event(monkeypa
             },
         )
     ]
+
+
+def test_market_kline_route_returns_chart_payload(monkeypatch) -> None:
+    class FakeChartService:
+        def get_kline(self, symbol, interval, range_name, session):  # pragma: no cover - exercised through route
+            assert symbol == "HK0100"
+            assert interval == "1d"
+            assert range_name == "6mo"
+            return {
+                "symbol": "HK0100",
+                "interval": "1d",
+                "range": "6mo",
+                "stale": False,
+                "candles": [
+                    {
+                        "time": "2026-03-20",
+                        "open": 995.0,
+                        "high": 1048.0,
+                        "low": 900.0,
+                        "close": 916.5,
+                        "volume": 2078996,
+                    }
+                ],
+                "indicators": {
+                    "ma5": [{"time": "2026-03-20", "value": 950.2}],
+                    "ma10": [],
+                    "ma20": [],
+                    "ma60": [],
+                    "macd": [{"time": "2026-03-20", "dif": 12.3, "dea": 8.7, "histogram": 3.6}],
+                    "kdj": [{"time": "2026-03-20", "k": 45.2, "d": 38.1, "j": 59.4}],
+                    "bollinger": [{"time": "2026-03-20", "upper": 1050.0, "middle": 980.0, "lower": 910.0}],
+                },
+                "news_events": [
+                    {
+                        "time": "2026-03-20",
+                        "items": [{"id": 7, "title": "MINIMAX发布新模型", "sentiment": "positive"}],
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/symbols/HK0100/kline?interval=1d&range=6mo")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["symbol"] == "HK0100"
+    assert payload["candles"][0]["close"] == 916.5
+    assert payload["indicators"]["macd"][0]["histogram"] == 3.6
+    assert payload["news_events"][0]["items"][0]["id"] == 7
+    assert payload["stale"] is False
+
+
+def test_market_kline_route_returns_404_for_non_watchlist_symbol(monkeypatch) -> None:
+    from fastapi import HTTPException
+
+    class FakeChartService:
+        def get_kline(self, symbol, interval, range_name, session):  # pragma: no cover - exercised through route
+            raise HTTPException(status_code=404, detail="watchlist symbol not found")
+
+    monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/symbols/AAPL/kline")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "watchlist symbol not found"
+
+
+def test_market_sparklines_route_returns_price_map(monkeypatch) -> None:
+    class FakeChartService:
+        def get_sparklines(self, symbols, session):  # pragma: no cover - exercised through route
+            assert symbols == ["HK0100", "HK0700"]
+            return {
+                "HK0100": {"prices": [920.0, 935.0, 910.0]},
+                "HK0700": {"prices": [500.0, 498.0, 502.0]},
+            }
+
+    monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
+    client = TestClient(app)
+
+    response = client.post("/api/market/sparklines", json={"symbols": ["HK0100", "HK0700"]})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["HK0100"]["prices"] == [920.0, 935.0, 910.0]
+    assert payload["HK0700"]["prices"][-1] == 502.0
+
+
+def test_market_sparklines_route_rejects_more_than_30_symbols(monkeypatch) -> None:
+    class FakeChartService:
+        def get_sparklines(self, symbols, session):  # pragma: no cover - route validation should fire first
+            raise AssertionError("route should reject the payload before service execution")
+
+    monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
+    client = TestClient(app)
+
+    response = client.post("/api/market/sparklines", json={"symbols": [f"HK{i:04d}" for i in range(31)]})
+
+    assert response.status_code == 400
+
+
+def test_market_chart_service_aligns_news_to_previous_trading_day() -> None:
+    service = MarketChartService()
+    aligned = service._align_news_events(
+        candles=[
+            {"time": "2026-03-20"},
+            {"time": "2026-03-23"},
+        ],
+        news_items=[
+            {
+                "id": 1,
+                "title": "Weekend note",
+                "sentiment_label": "neutral",
+                "published_at": "2026-03-22T09:30:00Z",
+            },
+            {
+                "id": 2,
+                "title": "Monday open",
+                "sentiment_label": "positive",
+                "published_at": "2026-03-23T14:00:00Z",
+            },
+        ],
+    )
+
+    assert aligned == [
+        {
+            "time": "2026-03-20",
+            "items": [{"id": 1, "title": "Weekend note", "sentiment": "neutral"}],
+        },
+        {
+            "time": "2026-03-23",
+            "items": [{"id": 2, "title": "Monday open", "sentiment": "positive"}],
+        },
+    ]
+
+
+def test_market_chart_service_reads_fresh_payload_from_redis_cache() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.storage = {
+                "market:kline:HK0100:1d:6mo": '{"symbol":"HK0100","interval":"1d","range":"6mo","stale":false,"candles":[],"indicators":{"ma5":[],"ma10":[],"ma20":[],"ma60":[],"macd":[],"kdj":[],"bollinger":[]},"news_events":[]}'
+            }
+
+        def get(self, key: str):
+            return self.storage.get(key)
+
+        def set(self, key: str, value: str, ex: int) -> bool:
+            self.storage[key] = value
+            return True
+
+    service = MarketChartService(redis_client=FakeRedis())
+
+    cached = service._get_cache("market:kline:HK0100:1d:6mo")
+
+    assert cached is not None
+    assert cached["symbol"] == "HK0100"
+
+
+def test_market_chart_service_falls_back_to_memory_cache_when_redis_unavailable() -> None:
+    class FailingRedis:
+        def get(self, key: str):
+            raise RuntimeError("redis unavailable")
+
+        def set(self, key: str, value: str, ex: int) -> bool:
+            raise RuntimeError("redis unavailable")
+
+    service = MarketChartService(redis_client=FailingRedis())
+    payload = {
+        "symbol": "HK0100",
+        "interval": "1d",
+        "range": "6mo",
+        "stale": False,
+        "candles": [],
+        "indicators": {"ma5": [], "ma10": [], "ma20": [], "ma60": [], "macd": [], "kdj": [], "bollinger": []},
+        "news_events": [],
+    }
+
+    service._set_cache("market:kline:HK0100:1d:6mo", payload, ttl_seconds=300)
+
+    cached = service._get_cache("market:kline:HK0100:1d:6mo")
+
+    assert cached is not None
+    assert cached["symbol"] == "HK0100"

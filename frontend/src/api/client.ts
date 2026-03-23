@@ -9,12 +9,14 @@ import type {
   LLMTranslateRequest,
   LLMTranslateResponse,
   MarketSnapshot,
+  StockKlineResponse,
   MarketRefreshResult,
   NewsAnalysis,
   NewsDetail,
   NewsItem,
   NewsQuery,
   NewsRefreshResult,
+  WatchlistSparklineMap,
   StockQuoteDetail,
   StreamStatus,
   TopicDetail,
@@ -41,6 +43,7 @@ import {
   mockNewsDetails,
   mockNewsRefreshResult,
   mockRelatedNews,
+  mockStockKlines,
   mockStockQuoteDetails,
   mockStreamStatus,
   mockTopicDetails,
@@ -48,6 +51,7 @@ import {
   mockWatchlistCandidates,
   mockWatchlist,
   mockWatchlistQuotes,
+  mockWatchlistSparklines,
   buildMockTranslation,
   mockXAccounts,
   mockXHealth,
@@ -160,6 +164,26 @@ export const apiClient = {
     return withMockFallback<StockQuoteDetail | null>(
       () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}`),
       () => mockStockQuoteDetails[symbol] ?? null,
+    );
+  },
+  getStockKline(symbol: string, interval: string, range: string) {
+    return withMockFallback<StockKlineResponse>(
+      () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}/kline?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`),
+      () => ({
+        ...(mockStockKlines[symbol] ?? Object.values(mockStockKlines)[0]),
+        symbol,
+        interval,
+        range,
+      }),
+    );
+  },
+  getWatchlistSparklines(symbols: string[]) {
+    return withMockFallback<WatchlistSparklineMap>(
+      () => postJson('/api/market/sparklines', { symbols }),
+      () =>
+        Object.fromEntries(
+          symbols.map((symbol) => [symbol, mockWatchlistSparklines[symbol] ?? { prices: [] }]),
+        ),
     );
   },
   getWatchlist() {

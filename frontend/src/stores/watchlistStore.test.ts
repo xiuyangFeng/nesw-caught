@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiClient = {
   getWatchlist: vi.fn(),
   getWatchlistQuotes: vi.fn(),
+  getWatchlistSparklines: vi.fn(),
   refreshMarketQuotes: vi.fn(),
   getStockQuoteDetail: vi.fn(),
+  getStockKline: vi.fn(),
   getRelatedNews: vi.fn(),
   createWatchlist: vi.fn(),
   getWatchlistCandidates: vi.fn(),
@@ -170,5 +172,183 @@ describe('watchlistStore', () => {
     expect(runtimeStatusStore.loadRuntimeStatus).toHaveBeenCalledTimes(1);
     expect((store as any).lastManualRefreshResult?.quotes_count).toBe(1);
     expect((store as any).lastManualRefreshResult?.symbols).toEqual(['0700.HK']);
+  });
+
+  it('loads sparklines together with watchlist quotes', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getWatchlist.mockResolvedValue({
+      data: [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }],
+      degraded: false,
+    });
+    apiClient.getWatchlistQuotes.mockResolvedValue({
+      data: [
+        {
+          symbol: '0700.HK',
+          market: 'hk',
+          display_name: 'Tencent',
+          provider_symbol: '0700.HK',
+          price: 550.5,
+          change_amount: 0.5,
+          change_percent: 0.09,
+          open_price: 546.5,
+          previous_close: 550,
+          day_high: 552,
+          day_low: 542.5,
+          volume: 21366376,
+          status: 'ok',
+          source: 'yahoo_finance',
+          message: null,
+          is_abnormal: false,
+          abnormal_reason: null,
+          fetched_at: '2026-03-18T11:25:00Z',
+        },
+      ],
+      degraded: false,
+    });
+    apiClient.getWatchlistSparklines.mockResolvedValue({
+      data: {
+        '0700.HK': { prices: [540, 545, 550.5] },
+      },
+      degraded: false,
+    });
+
+    await store.loadWatchlist();
+
+    expect(apiClient.getWatchlistSparklines).toHaveBeenCalledWith(['0700.HK']);
+    expect((store as any).sparklines['0700.HK']).toEqual([540, 545, 550.5]);
+  });
+
+  it('selects a symbol and loads kline plus related news concurrently', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getStockKline.mockResolvedValue({
+      data: {
+        symbol: '0700.HK',
+        interval: '1d',
+        range: '6mo',
+        stale: false,
+        candles: [{ time: '2026-03-20', open: 500, high: 505, low: 498, close: 503, volume: 10 }],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+    apiClient.getRelatedNews.mockResolvedValue({
+      data: [{ id: 1, title: 'Tencent update', summary: '...', source_name: 'Reuters', canonical_url: null, market: 'hk', sentiment_label: 'positive', published_at: null, fetched_at: '2026-03-20T00:00:00Z' }],
+      degraded: false,
+    });
+
+    await (store as any).selectSymbol('0700.HK');
+
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1d', '6mo');
+    expect(apiClient.getRelatedNews).toHaveBeenCalledWith('0700.HK');
+    expect(store.selectedSymbol).toBe('0700.HK');
+    expect((store as any).klineData?.symbol).toBe('0700.HK');
+    expect((store as any).detailNews).toHaveLength(1);
+  });
+
+  it('switches dashboard period using the fixed spec mapping', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+    store.selectedSymbol = '0700.HK';
+    apiClient.getStockKline.mockResolvedValue({
+      data: {
+        symbol: '0700.HK',
+        interval: '1wk',
+        range: '1y',
+        stale: false,
+        candles: [],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+
+    await (store as any).switchPeriod('1W');
+
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1wk', '1y');
+    expect((store as any).currentPeriod).toBe('1W');
+  });
+
+  it('keeps the list usable when kline loading fails', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+    store.items = [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }];
+    apiClient.getStockKline.mockRejectedValue(new Error('timeout'));
+    apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+
+    await (store as any).selectSymbol('0700.HK');
+
+    expect((store as any).klineError).toContain('K 线');
+    expect(store.items).toHaveLength(1);
+    expect((store as any).detailNews).toEqual([]);
+  });
+
+  it('ignores stale detail responses after the user switches symbols quickly', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    let resolveFirstKline!: (value: any) => void;
+    let resolveSecondKline!: (value: any) => void;
+    apiClient.getStockKline
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstKline = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondKline = resolve;
+          }),
+      );
+    apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+
+    const firstSelection = (store as any).selectSymbol('0700.HK');
+    const secondSelection = (store as any).selectSymbol('AAPL');
+
+    resolveSecondKline({
+      data: {
+        symbol: 'AAPL',
+        interval: '1d',
+        range: '6mo',
+        stale: false,
+        candles: [],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+    resolveFirstKline({
+      data: {
+        symbol: '0700.HK',
+        interval: '1d',
+        range: '6mo',
+        stale: false,
+        candles: [],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+
+    await Promise.all([firstSelection, secondSelection]);
+
+    expect(store.selectedSymbol).toBe('AAPL');
+    expect((store as any).klineData?.symbol).toBe('AAPL');
   });
 });
