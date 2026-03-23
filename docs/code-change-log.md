@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 20:07
+
+- 修改人：Codex
+- 修改范围：新闻详情页原文入口强化
+- 变更内容：保留 `News Feed` 点击后进入站内 `News Detail` 的既有路径，不改动列表页跳转；将详情页顶部原有的普通“打开原文”文本链接提升为更明显的主操作按钮，并在移动端改成整行宽按钮，方便用户先进入详情页做分析，再决定是否打开原始新闻。同步补充测试，覆盖“有 `canonical_url` 时展示显式原文入口”和“无 `canonical_url` 时隐藏入口”的条件渲染。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-news-detail-source-link-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-news-detail-source-link-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无；继续复用现有 `canonical_url` 字段，不新增前后端契约
+- 验证情况：`npm --prefix frontend run test -- --run src/views/NewsDetailView.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本次只增强详情页原文入口，不在 `News Feed` 列表页新增直接外跳能力；如果后续用户希望列表页就能快速打开原文，需要再单独设计卡片级双入口交互，避免和当前整卡进详情的点击区域冲突
+
 ## 2026-03-23 18:51
 
 - 修改人：Codex

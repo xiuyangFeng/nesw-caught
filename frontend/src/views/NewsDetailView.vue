@@ -100,11 +100,22 @@ watch(
     <LoadingBlock :loading="newsStore.detailLoading" :empty="!detail" empty-text="新闻不存在或详情尚不可用">
       <div v-if="detail" class="grid gap-4" data-role="news-detail-layout">
         <SectionCard :title="detail.title" :subtitle="detailSummary ?? '摘要待补充'">
-          <div class="flex flex-wrap gap-2 text-muted">
-            <span class="pill" :class="detail.sentiment_label">{{ sentimentText(detail.sentiment_label) }}</span>
-            <span>{{ detail.source_name }}</span>
-            <span>{{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
-            <a v-if="detail.canonical_url" :href="detail.canonical_url" target="_blank" rel="noreferrer">打开原文</a>
+          <div class="detail-header-actions">
+            <div class="flex flex-wrap gap-2 text-muted">
+              <span class="pill" :class="detail.sentiment_label">{{ sentimentText(detail.sentiment_label) }}</span>
+              <span>{{ detail.source_name }}</span>
+              <span>{{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
+            </div>
+            <a
+              v-if="detail.canonical_url"
+              :href="detail.canonical_url"
+              target="_blank"
+              rel="noreferrer"
+              class="detail-primary-action"
+              data-role="open-source-link"
+            >
+              打开原文
+            </a>
           </div>
         </SectionCard>
 
@@ -232,3 +243,42 @@ watch(
     </LoadingBlock>
   </div>
 </template>
+
+<style scoped>
+.detail-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1768c2, #3aa9f5);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.detail-primary-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(17, 94, 177, 0.24);
+}
+
+@media (max-width: 720px) {
+  .detail-header-actions {
+    align-items: stretch;
+  }
+
+  .detail-primary-action {
+    width: 100%;
+  }
+}
+</style>

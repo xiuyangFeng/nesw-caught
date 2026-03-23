@@ -90,11 +90,29 @@ describe('NewsDetailView', () => {
 
   it('keeps source link but hides the redundant article body section', () => {
     const wrapper = mount(NewsDetailView);
+    const sourceAction = wrapper.get('[data-role="open-source-link"]');
 
     expect(wrapper.find('[data-role="news-detail-layout"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('打开原文');
+    expect(sourceAction.text()).toBe('打开原文');
+    expect(sourceAction.attributes('href')).toBe('https://example.com/full-story');
+    expect(sourceAction.attributes('target')).toBe('_blank');
+    expect(sourceAction.attributes('rel')).toContain('noreferrer');
+    expect(sourceAction.classes()).toContain('detail-primary-action');
     expect(wrapper.text()).not.toContain('正文内容');
     expect(wrapper.text()).not.toContain('success');
+  });
+
+  it('hides the source action when canonical_url is missing', () => {
+    newsStore.detailMap = {
+      1: {
+        ...detail,
+        canonical_url: null,
+      },
+    };
+
+    const wrapper = mount(NewsDetailView);
+
+    expect(wrapper.find('[data-role="open-source-link"]').exists()).toBe(false);
   });
 
   it('shows an explicit empty state when llm is not configured', () => {
