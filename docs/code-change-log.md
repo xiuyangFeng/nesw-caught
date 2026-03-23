@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 20:22
+
+- 修改人：Codex
+- 修改范围：首页 Dashboard 新闻预览点击跳转修复
+- 变更内容：排查后确认“主页面新闻点不进去”的根因不在 `News Feed` 路由，而在 `Dashboard` 首页新闻预览列表本身只是静态 `<article>`，没有绑定任何跳转逻辑。现已把首页新闻预览改成可点击按钮，点击后直接路由到站内 `News Detail`；同时补充首页点击回归测试，并为 `News Feed` 视图补上点击卡片进入详情页的回归测试，避免后续再把两条入口链路改坏。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无；仅前端交互和路由触发修复
+- 验证情况：`npm --prefix frontend run test -- --run src/views/NewsFeedView.test.ts src/views/DashboardView.test.ts` 通过（2 个文件 / 8 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：首页新闻预览现在统一进入站内详情页，而不是直接外跳原文；如果后续希望首页也支持“直接打开原文”，需要在紧凑卡片里单独设计第二入口，避免与当前整卡点击区域冲突
+
 ## 2026-03-23 20:07
 
 - 修改人：Codex

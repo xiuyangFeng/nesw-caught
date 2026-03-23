@@ -108,4 +108,12 @@ describe('NewsFeedView', () => {
 
     expect(newsStore.loadFeedNews).not.toHaveBeenCalledWith({ sentiment_label: 'positive', limit: 300 });
   });
+
+  it('routes feed cards to the news detail page on click', async () => {
+    const wrapper = mount(NewsFeedView);
+
+    await wrapper.get('[data-role="news-card-shell"]').trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 1 } });
+  });
 });

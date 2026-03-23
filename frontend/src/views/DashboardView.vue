@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
@@ -18,6 +18,7 @@ const connectionStore = useConnectionStore();
 const newsStore = useNewsStore();
 const marketStore = useMarketStore();
 const topicStore = useTopicStore();
+const router = useRouter();
 
 const moverPreviewItems = computed(() => marketStore.abnormalMovers.slice(0, 2));
 const dashboardFeedItems = computed(() => newsStore.dashboardItems.slice(0, 8));
@@ -70,6 +71,10 @@ function getAbnormalReasonLabel(reason: string | null) {
 
 function getDashboardNewsTimestampLabel(timestamp: string, market: Market) {
   return `${formatMarketTime(timestamp, market)} ${getMarketTimezoneLabel(market)}`;
+}
+
+function openDashboardStory(id: number) {
+  router.push({ name: 'news-detail', params: { id } });
 }
 
 const dashboardStatus = computed(() => {
@@ -175,11 +180,13 @@ const metrics = computed(() => {
         <LoadingBlock :loading="newsStore.dashboardLoading" :empty="newsStore.dashboardItems.length === 0">
           <div class="grid gap-3">
             <div class="dashboard-column-scroller" data-role="dashboard-column-scroller">
-              <article
+              <button
                 v-for="item in dashboardFeedItems"
                 :key="item.id"
                 class="dashboard-feed-item"
                 data-role="dashboard-feed-item"
+                type="button"
+                @click="openDashboardStory(item.id)"
               >
                 <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted">
                   <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
@@ -188,7 +195,7 @@ const metrics = computed(() => {
                 </div>
                 <strong class="block text-[14px] leading-5 text-text">{{ item.title }}</strong>
                 <p class="m-0 line-clamp-1 text-[12px] leading-5 text-muted">{{ item.summary }}</p>
-              </article>
+              </button>
             </div>
 
             <RouterLink
@@ -314,10 +321,25 @@ const metrics = computed(() => {
 .dashboard-feed-item {
   display: grid;
   gap: 6px;
+  width: 100%;
   border-radius: 16px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.025);
   padding: 12px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.dashboard-feed-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(58, 169, 245, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-feed-item:focus-visible {
+  outline: 2px solid rgba(58, 169, 245, 0.72);
+  outline-offset: 2px;
 }
 
 .dashboard-status-badge {

@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DashboardView from './DashboardView.vue';
 
+const mockPush = vi.fn();
+
 const connectionStore = reactive({
   state: 'live',
   usingMock: false,
@@ -96,7 +98,7 @@ vi.mock('vue-router', () => ({
     template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
   },
   useRouter: () => ({
-    push: vi.fn(),
+    push: mockPush,
   }),
 }));
 
@@ -106,6 +108,7 @@ vi.mock('../stores/topicStore', () => ({
 
 describe('DashboardView', () => {
   beforeEach(() => {
+    mockPush.mockReset();
     connectionStore.state = 'live';
     connectionStore.usingMock = false;
     connectionStore.streamError = null;
@@ -172,5 +175,13 @@ describe('DashboardView', () => {
 
     expect(wrapper.text()).toContain('新闻总量');
     expect(wrapper.text()).toContain('1');
+  });
+
+  it('routes dashboard news preview rows to the news detail page on click', async () => {
+    const wrapper = mount(DashboardView);
+
+    await wrapper.get('[data-role="dashboard-feed-item"]').trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 1 } });
   });
 });
