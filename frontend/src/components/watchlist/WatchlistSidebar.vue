@@ -9,6 +9,7 @@ const props = defineProps<{
   quotes: WatchlistQuoteSummary[];
   selectedSymbol: string | null;
   sparklines: Record<string, number[]>;
+  deleteError: string | null;
   deleteLoadingSymbol: string | null;
 }>();
 
@@ -58,6 +59,7 @@ const filteredRows = computed(() => {
       >
         立即刷新一轮
       </button>
+      <p v-if="deleteError" class="mt-2 text-sm text-negative">{{ deleteError }}</p>
     </div>
 
     <div class="grid gap-3">

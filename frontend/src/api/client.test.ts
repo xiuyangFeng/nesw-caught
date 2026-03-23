@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from './client';
+import { HttpError } from './http';
 import { mockFeishuConfig, mockLlmConfig } from './mock';
 
 describe('apiClient.saveFeishuConfig', () => {
@@ -159,5 +160,30 @@ describe('apiClient llm config requests', () => {
     });
     expect(response.degraded).toBe(false);
     expect(response.data.message).toBe('LLM connection succeeded');
+  });
+});
+
+describe('apiClient.getStockKline', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('preserves backend http errors instead of fabricating mock candles', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ detail: 'watchlist symbol not found' }),
+      }),
+    );
+
+    const request = apiClient.getStockKline('MISSING', '1d', '6mo');
+
+    await expect(request).rejects.toBeInstanceOf(HttpError);
+    await expect(request).rejects.toMatchObject({
+      status: 404,
+      message: 'watchlist symbol not found',
+    });
   });
 });

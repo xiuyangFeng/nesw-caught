@@ -188,6 +188,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     if (!selectedSymbol.value) {
       return;
     }
+    detailRequestId += 1;
     await loadKline(selectedSymbol.value, period);
   }
 
@@ -220,6 +221,12 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
       await loadWatchlist();
       if (selectedSymbol.value === symbol) {
         selectedSymbol.value = items.value[0]?.symbol ?? null;
+      }
+      if (!selectedSymbol.value) {
+        quoteDetail.value = null;
+        klineData.value = null;
+        klineError.value = null;
+        detailNews.value = [];
       }
     } catch {
       deleteError.value = '删除自选股失败，请检查后端服务';

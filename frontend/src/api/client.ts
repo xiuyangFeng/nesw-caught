@@ -43,7 +43,6 @@ import {
   mockNewsDetails,
   mockNewsRefreshResult,
   mockRelatedNews,
-  mockStockKlines,
   mockStockQuoteDetails,
   mockStreamStatus,
   mockTopicDetails,
@@ -167,15 +166,9 @@ export const apiClient = {
     );
   },
   getStockKline(symbol: string, interval: string, range: string) {
-    return withMockFallback<StockKlineResponse>(
-      () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}/kline?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`),
-      () => ({
-        ...(mockStockKlines[symbol] ?? Object.values(mockStockKlines)[0]),
-        symbol,
-        interval,
-        range,
-      }),
-    );
+    return getJson<StockKlineResponse>(
+      `/api/market/symbols/${encodeURIComponent(symbol)}/kline?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`,
+    ).then((data) => ({ data, degraded: false }));
   },
   getWatchlistSparklines(symbols: string[]) {
     return withMockFallback<WatchlistSparklineMap>(

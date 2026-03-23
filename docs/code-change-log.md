@@ -2,6 +2,27 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-24 00:05
+
+- 修改人：Codex
+- 修改范围：Watchlist dashboard review 问题修正
+- 变更内容：按子代理 code review 修正了 6 个合并前问题：前端 `getStockKline` 不再在后端报错时伪造 mock K 线；`watchlistStore` 在删除最后一个标的时会清空残留的图表和新闻状态，并为 period 切换补上请求序号保护，避免快速切换周期时旧响应覆盖新周期；`WatchlistView` 恢复了选股后的 URL 同步，把 `/watchlist/:symbol` 路由切回同一套 dashboard 组件，并在手动刷新/删除失败时只保留页面内错误状态、不再抛出未处理 rejection；后端 `MarketChartService.get_sparklines()` 改为按 symbol 部分容错，单个异常标的不再拖垮整个 sparkline 批量请求。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/app/services/market_chart_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/components/watchlist/WatchlistSidebar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-watchlist-dashboard-kline/docs/code-change-log.md`
+- 接口/数据结构变化：无，主要是错误处理、路由行为和局部容错策略修正
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 通过（102 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts src/components/watchlist/StockSparkline.test.ts src/components/watchlist/KlineChart.test.ts` 通过（5 个文件 / 30 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：`/watchlist/:symbol` 现在与 `/watchlist` 共用 dashboard 组件，旧的 `WatchlistDetailView` 仍保留但已不在路由树中；如果后续确认不会再回退到旧单页详情，可以继续清理死代码和对应测试
+
 ## 2026-03-23 23:51
 
 - 修改人：Codex

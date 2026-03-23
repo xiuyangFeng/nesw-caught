@@ -664,3 +664,34 @@ def test_market_chart_service_falls_back_to_memory_cache_when_redis_unavailable(
 
     assert cached is not None
     assert cached["symbol"] == "HK0100"
+
+
+def test_market_chart_service_skips_failed_symbols_when_building_sparklines() -> None:
+    service = MarketChartService()
+
+    def fake_require(symbol: str, session):
+        if symbol == "BAD":
+            raise RuntimeError("unsupported symbol")
+        item = MagicMock()
+        item.symbol = symbol
+        item.market = "hk"
+        return item
+
+    def fake_download(provider_symbol: str, period: str, interval: str):
+        if provider_symbol == "HK0700":
+            return MagicMock(__getitem__=lambda self, key: None)
+        frame = MagicMock()
+        close_series = MagicMock()
+        close_series.tail.return_value.dropna.return_value.tolist.return_value = [920.0, 935.0, 910.0]
+        frame.__getitem__.return_value = close_series
+        return frame
+
+    with patch.object(service, "_require_watchlist_symbol", side_effect=fake_require), patch(
+        "app.services.market_chart_service.normalize_symbol",
+        side_effect=lambda symbol, market: MagicMock(provider_symbol=symbol),
+    ), patch.object(service, "_download_history", side_effect=fake_download):
+        payload = service.get_sparklines(["HK0100", "BAD"], session=MagicMock())
+
+    assert payload == {
+        "HK0100": {"prices": [920.0, 935.0, 910.0]},
+    }

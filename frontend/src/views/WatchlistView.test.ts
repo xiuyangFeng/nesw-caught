@@ -13,6 +13,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 });
 
 import WatchlistView from './WatchlistView.vue';
+const push = vi.fn();
 
 const watchlistStore = reactive({
   candidates: [
@@ -122,7 +123,11 @@ const watchlistStore = reactive({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push,
+  }),
+  useRoute: () => ({
+    name: 'watchlist',
+    params: {},
   }),
 }));
 
@@ -152,6 +157,7 @@ vi.mock('../stores/runtimeStatusStore', () => ({
 
 describe('WatchlistView', () => {
   beforeEach(() => {
+    push.mockClear();
     watchlistStore.candidates = [
       { symbol: '0700.HK', market: 'hk', display_name: 'Tencent', aliases: ['腾讯'] },
       { symbol: 'BABA', market: 'us', display_name: 'Alibaba', aliases: ['阿里'] },
@@ -162,6 +168,8 @@ describe('WatchlistView', () => {
     ];
     watchlistStore.selectedSymbol = '0700.HK';
     watchlistStore.createError = null;
+    watchlistStore.refreshError = null;
+    watchlistStore.deleteError = null;
     watchlistStore.loadCandidates.mockClear();
     watchlistStore.loadWatchlist.mockClear();
     watchlistStore.createWatchlist.mockClear();
@@ -196,6 +204,7 @@ describe('WatchlistView', () => {
     await wrapper.get('[data-role="stock-card-AAPL"]').trigger('click');
 
     expect(watchlistStore.selectSymbol).toHaveBeenCalledWith('AAPL');
+    expect(push).toHaveBeenCalledWith({ name: 'watchlist-detail', params: { symbol: 'AAPL' } });
   });
 
   it('switches periods and disables empty indicators', async () => {
@@ -233,6 +242,7 @@ describe('WatchlistView', () => {
     expect(wrapper.text()).toContain('Alibaba');
 
     await wrapper.get('[data-role="watchlist-add-submit"]').trigger('click');
+    await flushPromises();
 
     expect(watchlistStore.createWatchlist).toHaveBeenCalledWith({
       symbol: 'BABA',
@@ -278,5 +288,35 @@ describe('WatchlistView', () => {
 
     expect(wrapper.get('[data-role="watchlist-add-modal"]').attributes('aria-hidden')).toBe('false');
     expect(wrapper.get('[data-role="watchlist-add-selected-symbol"]').text()).toContain('BABA');
+  });
+
+  it('keeps refresh errors inside the view state instead of leaking promise rejections', async () => {
+    watchlistStore.refreshMarketQuotes.mockImplementationOnce(async () => {
+      watchlistStore.refreshError = '手动刷新行情失败，请稍后重试';
+      throw new Error('refresh failed');
+    });
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    await wrapper.get('[data-role="market-refresh-action"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('手动刷新行情失败，请稍后重试');
+  });
+
+  it('keeps delete errors inside the view state instead of leaking promise rejections', async () => {
+    vi.stubGlobal('confirm', vi.fn(() => true));
+    watchlistStore.deleteWatchlist.mockImplementationOnce(async () => {
+      watchlistStore.deleteError = '删除自选股失败，请检查后端服务';
+      throw new Error('delete failed');
+    });
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    await wrapper.get('[data-role="stock-card-AAPL"] button').trigger('click');
+    await flushPromises();
+
+    expect(watchlistStore.deleteWatchlist).toHaveBeenCalledWith('AAPL');
+    expect(wrapper.text()).toContain('删除自选股失败，请检查后端服务');
   });
 });

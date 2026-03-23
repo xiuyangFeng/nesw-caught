@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import StaleBadge from '../components/common/StaleBadge.vue';
 import WatchlistAddModal from '../components/watchlist/WatchlistAddModal.vue';
@@ -11,6 +12,8 @@ import type { WatchlistCandidate, WatchlistDashboardPeriod } from '../types/api'
 import { getRuntimeDiagnostic } from '../utils/runtimeDiagnostics';
 import { formatMarketTime } from '../utils/time';
 
+const route = useRoute();
+const router = useRouter();
 const runtimeStatusStore = useRuntimeStatusStore();
 const watchlistStore = useWatchlistStore();
 const isAddModalOpen = ref(false);
@@ -55,6 +58,7 @@ function handleSelectAddCandidate(candidate: WatchlistCandidate) {
 
 async function handleSelectSymbol(symbol: string) {
   await watchlistStore.selectSymbol(symbol);
+  await router.push({ name: 'watchlist-detail', params: { symbol } });
 }
 
 async function handleSwitchPeriod(period: WatchlistDashboardPeriod) {
@@ -76,6 +80,7 @@ async function handleAddCandidate() {
       alert_mode: 'fixed',
     });
     await watchlistStore.selectSymbol(addModalSelectedCandidate.value.symbol);
+    await router.push({ name: 'watchlist-detail', params: { symbol: addModalSelectedCandidate.value.symbol } });
     closeAddModal();
   } catch {
     // Keep modal state intact so the user can retry or adjust settings.
@@ -86,16 +91,27 @@ async function handleDeleteSymbol(symbol: string) {
   if (!window.confirm(`确认删除 ${symbol} 吗？`)) {
     return;
   }
-  await watchlistStore.deleteWatchlist(symbol);
-  if (watchlistStore.selectedSymbol) {
-    await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
+  try {
+    await watchlistStore.deleteWatchlist(symbol);
+    if (watchlistStore.selectedSymbol) {
+      await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
+      await router.push({ name: 'watchlist-detail', params: { symbol: watchlistStore.selectedSymbol } });
+      return;
+    }
+    if (route.name === 'watchlist-detail') {
+      await router.push({ name: 'watchlist' });
+    }
+  } catch {
   }
 }
 
 async function handleManualRefresh() {
-  await watchlistStore.refreshMarketQuotes();
-  if (watchlistStore.selectedSymbol) {
-    await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
+  try {
+    await watchlistStore.refreshMarketQuotes();
+    if (watchlistStore.selectedSymbol) {
+      await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
+    }
+  } catch {
   }
 }
 
@@ -115,10 +131,22 @@ onMounted(async () => {
     // Candidate lookup is optional; keep the dashboard loading.
   }
   await watchlistStore.loadWatchlist();
-  if (watchlistStore.selectedSymbol && !watchlistStore.klineData) {
-    await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
+  const routeSymbol = String(route.params.symbol ?? '').toUpperCase();
+  const initialSymbol = routeSymbol || watchlistStore.selectedSymbol;
+  if (initialSymbol && !watchlistStore.klineData) {
+    await watchlistStore.selectSymbol(initialSymbol);
   }
 });
+
+watch(
+  () => String(route.params.symbol ?? '').toUpperCase(),
+  async (nextSymbol, previousSymbol) => {
+    if (!nextSymbol || nextSymbol === previousSymbol || nextSymbol === watchlistStore.selectedSymbol) {
+      return;
+    }
+    await watchlistStore.selectSymbol(nextSymbol);
+  },
+);
 </script>
 
 <template>
@@ -165,6 +193,7 @@ onMounted(async () => {
         :quotes="watchlistStore.quotes"
         :selected-symbol="watchlistStore.selectedSymbol"
         :sparklines="watchlistStore.sparklines"
+        :delete-error="watchlistStore.deleteError"
         :delete-loading-symbol="watchlistStore.deleteLoadingSymbol"
         @select="handleSelectSymbol"
         @open-add-modal="openAddModal"

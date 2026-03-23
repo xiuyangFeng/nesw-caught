@@ -52,9 +52,12 @@ class MarketChartService:
 
         result: dict[str, dict[str, list[float]]] = {}
         for symbol in symbols:
-            watchlist_item = self._require_watchlist_symbol(symbol, session)
-            normalized = normalize_symbol(watchlist_item.symbol, watchlist_item.market)
-            history = self._download_history(normalized.provider_symbol, period="3mo", interval="1d")
+            try:
+                watchlist_item = self._require_watchlist_symbol(symbol, session)
+                normalized = normalize_symbol(watchlist_item.symbol, watchlist_item.market)
+                history = self._download_history(normalized.provider_symbol, period="3mo", interval="1d")
+            except Exception:
+                continue
             closes = [float(value) for value in history["Close"].tail(30).dropna().tolist()]
             result[watchlist_item.symbol] = {"prices": closes}
         return result

@@ -133,6 +133,65 @@ describe('watchlistStore', () => {
     expect((store as any).relatedNews['0700.HK']).toBeUndefined();
   });
 
+  it('clears detail state after deleting the last remaining symbol', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getWatchlist
+      .mockResolvedValueOnce({
+        data: [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }],
+        degraded: false,
+      })
+      .mockResolvedValueOnce({ data: [], degraded: false });
+    apiClient.getWatchlistQuotes
+      .mockResolvedValueOnce({
+        data: [{
+          symbol: '0700.HK',
+          market: 'hk',
+          display_name: 'Tencent',
+          provider_symbol: '0700.HK',
+          price: 550.5,
+          change_amount: 0.5,
+          change_percent: 0.09,
+          open_price: 546.5,
+          previous_close: 550,
+          day_high: 552,
+          day_low: 542.5,
+          volume: 21366376,
+          status: 'ok',
+          source: 'yahoo_finance',
+          message: null,
+          is_abnormal: false,
+          abnormal_reason: null,
+          fetched_at: '2026-03-18T11:25:00Z',
+        }],
+        degraded: false,
+      })
+      .mockResolvedValueOnce({ data: [], degraded: false });
+    apiClient.deleteWatchlist.mockResolvedValue(undefined);
+
+    await store.loadWatchlist();
+    store.selectedSymbol = '0700.HK';
+    (store as any).klineData = {
+      symbol: '0700.HK',
+      interval: '1d',
+      range: '6mo',
+      stale: false,
+      candles: [],
+      indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+      news_events: [],
+    };
+    (store as any).detailNews = [{ id: 1, title: 'old news' }];
+
+    await (store as any).deleteWatchlist('0700.HK');
+
+    expect(store.selectedSymbol).toBeNull();
+    expect((store as any).klineData).toBeNull();
+    expect((store as any).detailNews).toEqual([]);
+  });
+
   it('loads watchlist data without requesting runtime status', async () => {
     const { createPinia, setActivePinia } = await import('pinia');
     const { useWatchlistStore } = await import('./watchlistStore');
@@ -277,6 +336,53 @@ describe('watchlistStore', () => {
 
     expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1wk', '1y');
     expect((store as any).currentPeriod).toBe('1W');
+  });
+
+  it('ignores stale kline responses when periods are switched quickly', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+    store.selectedSymbol = '0700.HK';
+
+    let resolveFirst!: (value: any) => void;
+    let resolveSecond!: (value: any) => void;
+    apiClient.getStockKline
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+
+    const first = (store as any).switchPeriod('1W');
+    const second = (store as any).switchPeriod('1M');
+
+    resolveSecond({
+      data: {
+        symbol: '0700.HK',
+        interval: '1mo',
+        range: '2y',
+        stale: false,
+        candles: [{ time: '2026-03-20', open: 1, high: 2, low: 1, close: 2, volume: 10 }],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+    resolveFirst({
+      data: {
+        symbol: '0700.HK',
+        interval: '1wk',
+        range: '1y',
+        stale: false,
+        candles: [{ time: '2026-03-19', open: 1, high: 3, low: 1, close: 3, volume: 10 }],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+
+    await Promise.all([first, second]);
+
+    expect((store as any).currentPeriod).toBe('1M');
+    expect((store as any).klineData?.interval).toBe('1mo');
   });
 
   it('keeps the list usable when kline loading fails', async () => {
