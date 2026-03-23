@@ -7,11 +7,13 @@ import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import WatchlistTable from '../components/watchlist/WatchlistTable.vue';
+import { useRuntimeStatusStore } from '../stores/runtimeStatusStore';
 import { useWatchlistStore } from '../stores/watchlistStore';
 import type { WatchlistCandidate } from '../types/api';
 import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const router = useRouter();
+const runtimeStatusStore = useRuntimeStatusStore();
 const watchlistStore = useWatchlistStore();
 const selectedCandidate = ref<WatchlistCandidate | null>(null);
 const form = reactive({
@@ -21,7 +23,7 @@ const form = reactive({
 
 const watchlistRows = computed(() => watchlistStore.quotes);
 const abnormalMovers = computed(() => watchlistStore.quotes.filter((item) => item.is_abnormal));
-const marketWorkerStatus = computed(() => watchlistStore.marketWorkerStatus);
+const marketWorkerStatus = computed(() => runtimeStatusStore.marketWorkerStatus);
 const normalizedQuery = computed(() => form.query.trim().toLowerCase());
 const addedSymbols = computed(() => new Set(watchlistStore.items.map((item) => item.symbol)));
 

@@ -5,6 +5,7 @@ import { RouterLink, RouterView, useRoute } from 'vue-router';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useMarketStore } from '../../stores/marketStore';
 import { useNewsStore } from '../../stores/newsStore';
+import { useRuntimeStatusStore } from '../../stores/runtimeStatusStore';
 import { useTopicStore } from '../../stores/topicStore';
 import { useWatchlistStore } from '../../stores/watchlistStore';
 import { formatMarketTime } from '../../utils/time';
@@ -13,6 +14,7 @@ const route = useRoute();
 const connectionStore = useConnectionStore();
 const newsStore = useNewsStore();
 const marketStore = useMarketStore();
+const runtimeStatusStore = useRuntimeStatusStore();
 const topicStore = useTopicStore();
 const watchlistStore = useWatchlistStore();
 
@@ -73,7 +75,7 @@ const shellStatusRail = computed(() => {
 });
 
 const marketWorkerSummary = computed(() => {
-  const status = watchlistStore.marketWorkerStatus;
+  const status = runtimeStatusStore.marketWorkerStatus;
   if (!status) {
     return {
       label: 'MARKET WORKER UNKNOWN',
@@ -132,8 +134,10 @@ function navLinkClasses(isActive: boolean) {
 }
 
 async function bootstrap() {
+  await runtimeStatusStore.loadRuntimeStatus();
+  connectionStore.applyStreamStatus(runtimeStatusStore.streamStatus, runtimeStatusStore.usingMock);
+
   await Promise.all([
-    connectionStore.loadStreamStatus(),
     newsStore.loadDashboardNews({ limit: 200 }),
     marketStore.loadSnapshots(),
     topicStore.loadTopics(),
@@ -157,6 +161,11 @@ async function bootstrap() {
     }
     if (event.type === 'watchlist.movement') {
       marketStore.upsertSnapshot(event.payload);
+      void runtimeStatusStore.loadRuntimeStatusIfStale();
+      return;
+    }
+    if (event.type === 'stream.keepalive') {
+      void runtimeStatusStore.loadRuntimeStatusIfStale();
     }
   });
 

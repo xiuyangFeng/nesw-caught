@@ -3,8 +3,8 @@ import { defineStore } from 'pinia';
 
 import { apiClient } from '../api/client';
 import { HttpError } from '../api/http';
+import { useRuntimeStatusStore } from './runtimeStatusStore';
 import type {
-  MarketWorkerStatus,
   NewsItem,
   StockQuoteDetail,
   WatchlistCandidate,
@@ -15,10 +15,10 @@ import type {
 import { isStale } from '../utils/time';
 
 export const useWatchlistStore = defineStore('watchlistStore', () => {
+  const runtimeStatusStore = useRuntimeStatusStore();
   const candidates = ref<WatchlistCandidate[]>([]);
   const items = ref<WatchlistItem[]>([]);
   const quotes = ref<WatchlistQuoteSummary[]>([]);
-  const marketWorkerStatus = ref<MarketWorkerStatus | null>(null);
   const quoteDetail = ref<StockQuoteDetail | null>(null);
   const relatedNews = ref<Record<string, NewsItem[]>>({});
   const lastManualRefreshResult = ref<import('../types/api').MarketRefreshResult | null>(null);
@@ -60,10 +60,8 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     const response = await apiClient.getWatchlist();
     items.value = response.data;
     const quotesResponse = await apiClient.getWatchlistQuotes();
-    const streamStatusResponse = await apiClient.getStreamStatus();
     quotes.value = quotesResponse.data;
-    marketWorkerStatus.value = streamStatusResponse.data.market_worker;
-    usingMock.value = response.degraded || quotesResponse.degraded || streamStatusResponse.degraded;
+    usingMock.value = response.degraded || quotesResponse.degraded;
     lastLoadedAt.value = new Date().toISOString();
     if (!selectedSymbol.value && items.value.length > 0) {
       selectedSymbol.value = items.value[0].symbol;
@@ -79,6 +77,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
       usingMock.value = usingMock.value || response.degraded;
       lastManualRefreshResult.value = response.data;
       await loadWatchlist();
+      await runtimeStatusStore.loadRuntimeStatus();
     } catch (error) {
       refreshError.value = '手动刷新行情失败，请稍后重试';
       throw error;
@@ -148,7 +147,6 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     candidates,
     items,
     quotes,
-    marketWorkerStatus,
     quoteDetail,
     relatedNews,
     lastManualRefreshResult,

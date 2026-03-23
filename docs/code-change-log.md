@@ -2,6 +2,63 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 16:10
+
+- 修改人：Codex
+- 修改范围：runtime 状态在关键 `SSE` 事件后做节流刷新
+- 变更内容：在 `runtimeStatusStore` 中新增 `loadRuntimeStatusIfStale()`，把 runtime 快照刷新节流逻辑收口到 store 内，默认按 15 秒窗口控制；`AppShell` 现在会在 `watchlist.movement` 和 `stream.keepalive` 事件后触发该入口，使壳层中的 `market-worker` 与事件层 runtime 指标会在系统活跃时自动变新，而不需要引入固定轮询。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/runtimeStatusStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/runtimeStatusStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-runtime-status-event-refresh-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-runtime-status-event-refresh-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；前端仅增加 runtime store 的节流刷新入口，事件驱动地再次读取既有 `/api/stream/status`
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/runtimeStatusStore.test.ts src/components/layout/AppShell.test.ts src/stores/connectionStore.test.ts src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（5 个文件 / 15 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 runtime 刷新仍依赖启动、人工动作和关键 `SSE` 事件；如果系统长时间无事件但后台状态发生变化，壳层仍不会立即感知。下一阶段若要进一步提升实时性，可以再评估低频轮询或后端直接把 runtime 摘要塞进 `SSE` 事件
+
+## 2026-03-23 16:05
+
+- 修改人：Codex
+- 修改范围：前端 `/api/stream/status` 请求去重与连接状态收口
+- 变更内容：把 `/api/stream/status` 的唯一读取入口正式收口到 `runtimeStatusStore`，新增 `usingMock` 持久化；`connectionStore` 去掉直接请求接口的职责，改为通过 `applyStreamStatus()` 接收 runtime 快照，只负责 `SSE` 连接状态机与事件生命周期；`AppShell` 启动时先加载 runtime 状态，再把快照同步给 `connectionStore`，从而消除此前启动阶段对同一状态接口的双请求。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/runtimeStatusStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/runtimeStatusStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/connectionStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/connectionStore.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-stream-status-request-dedup-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-stream-status-request-dedup-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增后端接口；前端 store 职责调整为 `runtimeStatusStore` 唯一读取 `/api/stream/status`，`connectionStore` 不再直接发起该请求
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/runtimeStatusStore.test.ts src/stores/connectionStore.test.ts src/components/layout/AppShell.test.ts src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（5 个文件 / 12 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 runtime 快照仍是启动时和显式动作后刷新，不会随着 `SSE` 事件自动回填；如果后续希望壳层 runtime 指标更实时，需要再决定是增加轮询，还是在特定 `SSE` 事件后触发轻量刷新
+
+## 2026-03-23 15:43
+
+- 修改人：Codex
+- 修改范围：前端运行时状态抽离为独立 `runtimeStatusStore`
+- 变更内容：新增独立 `runtimeStatusStore` 统一承接 `/api/stream/status` 和 `market_worker` 运行状态，`AppShell` 与 Watchlist 页面改为直接消费该 store；`watchlistStore` 不再在 `loadWatchlist()` 中顺手请求 runtime 状态，只保留自选股业务数据与手动刷新结果，并在人工“立即刷新一轮”成功后联动刷新 runtime store。这样全局壳层不再依赖 watchlist 数据加载副作用才能看到 worker 健康状态，前端运行时基础设施状态和业务状态边界也更清晰。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/runtimeStatusStore.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/runtimeStatusStore.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-runtime-status-store-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-runtime-status-store-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增后端接口；前端状态结构调整为新增独立 `runtimeStatusStore`，`watchlistStore` 不再持有 `marketWorkerStatus`
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/runtimeStatusStore.test.ts src/stores/watchlistStore.test.ts src/components/layout/AppShell.test.ts src/views/WatchlistView.test.ts` 通过（4 个文件 / 11 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 `connectionStore` 与 `runtimeStatusStore` 仍会分别请求一次 `/api/stream/status`，虽然职责已经分清，但请求层尚未去重；如果后续继续增强 runtime 面板或轮询逻辑，建议把 SSE 连接摘要与 runtime 接口读取再进一步收口
+
 ## 2026-03-23 14:50
 
 - 修改人：Codex

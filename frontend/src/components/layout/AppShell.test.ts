@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppShell from './AppShell.vue';
@@ -11,6 +11,7 @@ const connectionStore = {
   state: 'live',
   lastEventAt: '2026-03-18T01:00:00Z',
   loadStreamStatus: vi.fn(async () => undefined),
+  applyStreamStatus: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn(),
 };
@@ -33,6 +34,22 @@ const topicStore = {
 
 const watchlistStore = {
   loadWatchlist: vi.fn(async () => undefined),
+};
+
+const runtimeStatusStore = {
+  loadRuntimeStatus: vi.fn(async () => undefined),
+  loadRuntimeStatusIfStale: vi.fn(async () => undefined),
+  usingMock: false,
+  streamStatus: {
+    mode: 'sse',
+    status: 'ok',
+    backend: 'hybrid',
+    redis_enabled: true,
+    last_published_at: null,
+    last_event_name: null,
+    last_error: null,
+    market_worker: null,
+  },
   marketWorkerStatus: {
     name: 'market_quote_producer',
     status: 'degraded',
@@ -78,12 +95,17 @@ vi.mock('../../stores/watchlistStore', () => ({
   useWatchlistStore: () => watchlistStore,
 }));
 
+vi.mock('../../stores/runtimeStatusStore', () => ({
+  useRuntimeStatusStore: () => runtimeStatusStore,
+}));
+
 describe('AppShell', () => {
   beforeEach(() => {
     routeState.path = '/news';
     connectionStore.state = 'live';
     connectionStore.lastEventAt = '2026-03-18T01:00:00Z';
     connectionStore.loadStreamStatus.mockClear();
+    connectionStore.applyStreamStatus.mockClear();
     connectionStore.connect.mockClear();
     connectionStore.disconnect.mockClear();
     newsStore.loadDashboardNews.mockClear();
@@ -94,6 +116,8 @@ describe('AppShell', () => {
     topicStore.loadTopics.mockClear();
     topicStore.upsertTopic.mockClear();
     watchlistStore.loadWatchlist.mockClear();
+    runtimeStatusStore.loadRuntimeStatus.mockClear();
+    runtimeStatusStore.loadRuntimeStatusIfStale.mockClear();
   });
 
   it('renders terminal shell landmarks for brand, nav, and system status', () => {
@@ -151,14 +175,57 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-role="shell-status-rail-signal"]').classes()).toContain('bg-warning');
   });
 
+  it('refreshes runtime status after watchlist movement and keepalive events', async () => {
+    mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
+    expect(handleEvent).toBeTypeOf('function');
+
+    handleEvent({
+      type: 'watchlist.movement',
+      occurred_at: '2026-03-23T08:00:00Z',
+      payload: {
+        symbol: '0700.HK',
+        market: 'hk',
+        display_name: 'Tencent',
+        provider_symbol: '0700.HK',
+        price: 550,
+        change_amount: 1,
+        change_percent: 0.2,
+        open_price: 548,
+        previous_close: 549,
+        day_high: 551,
+        day_low: 545,
+        volume: 123456,
+        status: 'ok',
+        source: 'yahoo_finance',
+        message: null,
+        is_abnormal: false,
+        abnormal_reason: null,
+        fetched_at: '2026-03-23T08:00:00Z',
+      },
+    });
+    handleEvent({
+      type: 'stream.keepalive',
+      occurred_at: '2026-03-23T08:00:05Z',
+      payload: { status: 'ok' },
+    });
+
+    expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledTimes(2);
+  });
+
   it('loads shell stores on mount and disconnects on unmount', async () => {
     const wrapper = mount(AppShell);
+    await flushPromises();
 
-    expect(connectionStore.loadStreamStatus).toHaveBeenCalledTimes(1);
+    expect(connectionStore.loadStreamStatus).not.toHaveBeenCalled();
+    expect(connectionStore.applyStreamStatus).toHaveBeenCalledWith(runtimeStatusStore.streamStatus, false);
     expect(newsStore.loadDashboardNews).toHaveBeenCalledWith({ limit: 200 });
     expect(marketStore.loadSnapshots).toHaveBeenCalledTimes(1);
     expect(topicStore.loadTopics).toHaveBeenCalledTimes(1);
     expect(watchlistStore.loadWatchlist).toHaveBeenCalledTimes(1);
+    expect(runtimeStatusStore.loadRuntimeStatus).toHaveBeenCalledTimes(1);
 
     wrapper.unmount();
 

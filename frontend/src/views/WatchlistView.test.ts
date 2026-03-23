@@ -16,18 +16,6 @@ const watchlistStore = reactive({
     { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' },
   ],
   quotes: [],
-  marketWorkerStatus: {
-    name: 'market_quote_producer',
-    status: 'degraded',
-    last_heartbeat_at: '2026-03-23T05:00:00Z',
-    last_success_at: '2026-03-23T04:58:00Z',
-    last_failure_at: '2026-03-23T04:59:00Z',
-    last_error: 'provider timeout',
-    cycle_count: 12,
-    success_count: 11,
-    failure_count: 1,
-    last_quotes_count: 2,
-  },
   lastManualRefreshResult: {
     quotes_count: 1,
     symbols: ['0700.HK'],
@@ -54,6 +42,21 @@ const watchlistStore = reactive({
   deleteWatchlist: vi.fn(async () => undefined),
 });
 
+const runtimeStatusStore = reactive({
+  marketWorkerStatus: {
+    name: 'market_quote_producer',
+    status: 'degraded',
+    last_heartbeat_at: '2026-03-23T05:00:00Z',
+    last_success_at: '2026-03-23T04:58:00Z',
+    last_failure_at: '2026-03-23T04:59:00Z',
+    last_error: 'provider timeout',
+    cycle_count: 12,
+    success_count: 11,
+    failure_count: 1,
+    last_quotes_count: 2,
+  },
+});
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push,
@@ -62,6 +65,10 @@ vi.mock('vue-router', () => ({
 
 vi.mock('../stores/watchlistStore', () => ({
   useWatchlistStore: () => watchlistStore,
+}));
+
+vi.mock('../stores/runtimeStatusStore', () => ({
+  useRuntimeStatusStore: () => runtimeStatusStore,
 }));
 
 describe('WatchlistView', () => {

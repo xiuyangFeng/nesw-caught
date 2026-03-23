@@ -1,7 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 
-import { apiClient } from '../api/client';
 import { createStreamConnection } from '../api/sse';
 import type { StreamEnvelope, StreamStatus } from '../types/api';
 import { isStale } from '../utils/time';
@@ -18,12 +17,11 @@ export const useConnectionStore = defineStore('connectionStore', () => {
 
   const isConnectionStale = computed(() => isStale(lastEventAt.value ?? streamStatus.value?.last_event_at ?? null, 3));
 
-  async function loadStreamStatus() {
-    const response = await apiClient.getStreamStatus();
-    streamStatus.value = response.data;
-    usingMock.value = response.degraded;
+  function applyStreamStatus(status: StreamStatus | null, degraded: boolean) {
+    streamStatus.value = status;
+    usingMock.value = degraded;
     if (state.value === 'idle') {
-      state.value = response.degraded ? 'degraded' : 'connecting';
+      state.value = degraded ? 'degraded' : 'connecting';
     }
   }
 
@@ -59,7 +57,7 @@ export const useConnectionStore = defineStore('connectionStore', () => {
     usingMock,
     streamError,
     isConnectionStale,
-    loadStreamStatus,
+    applyStreamStatus,
     connect,
     disconnect,
   };
