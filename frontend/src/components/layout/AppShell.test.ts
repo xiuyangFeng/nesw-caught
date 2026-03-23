@@ -136,6 +136,8 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('Last event');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('market_quote_producer');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('provider timeout');
+    expect(wrapper.find('[data-role="runtime-diagnostic-headline"]').text()).toContain('market worker');
+    expect(wrapper.find('[data-role="runtime-diagnostic-action"]').text()).toContain('打开 Watchlist');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('Workspace multi-market watch');
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });

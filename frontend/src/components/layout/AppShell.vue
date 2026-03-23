@@ -8,6 +8,7 @@ import { useNewsStore } from '../../stores/newsStore';
 import { useRuntimeStatusStore } from '../../stores/runtimeStatusStore';
 import { useTopicStore } from '../../stores/topicStore';
 import { useWatchlistStore } from '../../stores/watchlistStore';
+import { getRuntimeDiagnostic } from '../../utils/runtimeDiagnostics';
 import { formatMarketTime } from '../../utils/time';
 
 const route = useRoute();
@@ -111,6 +112,28 @@ const marketWorkerSummary = computed(() => {
     error: status.last_error,
   } as const;
 });
+
+const runtimeDiagnostic = computed(() =>
+  getRuntimeDiagnostic({
+    connectionState: connectionStore.state,
+    streamStatus: runtimeStatusStore.streamStatus,
+    usingMock: runtimeStatusStore.usingMock,
+    marketWorkerStatus: runtimeStatusStore.marketWorkerStatus,
+  }),
+);
+
+function runtimeDiagnosticToneClass(tone: 'success' | 'warning' | 'danger' | 'default') {
+  if (tone === 'danger') {
+    return 'text-negative';
+  }
+  if (tone === 'warning') {
+    return 'text-warning';
+  }
+  if (tone === 'success') {
+    return 'text-positive';
+  }
+  return 'text-text-soft';
+}
 
 function isNavItemActive(targetPath: string) {
   if (route.path === targetPath) {
@@ -296,6 +319,31 @@ onBeforeUnmount(() => {
             <small v-if="marketWorkerSummary.error" class="uppercase tracking-[0.08em] text-negative">
               Error: {{ marketWorkerSummary.error }}
             </small>
+            <div class="grid gap-1 border-t border-border/60 pt-2">
+              <strong
+                class="text-[11px] uppercase tracking-[0.14em]"
+                :class="runtimeDiagnosticToneClass(runtimeDiagnostic.tone)"
+                data-role="runtime-diagnostic-headline"
+              >
+                {{ runtimeDiagnostic.headline }}
+              </strong>
+              <small class="text-text-soft" data-role="runtime-diagnostic-detail">{{ runtimeDiagnostic.detail }}</small>
+              <RouterLink
+                v-if="runtimeDiagnostic.actionTarget === 'watchlist'"
+                to="/watchlist"
+                class="text-[11px] uppercase tracking-[0.14em] text-[#ffca97]"
+                data-role="runtime-diagnostic-action"
+              >
+                {{ runtimeDiagnostic.actionLabel }}
+              </RouterLink>
+              <small
+                v-else
+                class="text-[11px] uppercase tracking-[0.14em] text-[#8ea0b5]"
+                data-role="runtime-diagnostic-action"
+              >
+                {{ runtimeDiagnostic.actionLabel }}
+              </small>
+            </div>
           </div>
           <small class="uppercase tracking-[0.08em]">Workspace multi-market watch</small>
         </div>

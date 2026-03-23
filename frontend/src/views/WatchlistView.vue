@@ -10,6 +10,7 @@ import WatchlistTable from '../components/watchlist/WatchlistTable.vue';
 import { useRuntimeStatusStore } from '../stores/runtimeStatusStore';
 import { useWatchlistStore } from '../stores/watchlistStore';
 import type { WatchlistCandidate } from '../types/api';
+import { getRuntimeDiagnostic } from '../utils/runtimeDiagnostics';
 import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const router = useRouter();
@@ -47,6 +48,14 @@ const relatedNews = computed(() => {
   return symbol ? watchlistStore.relatedNews[symbol] ?? [] : [];
 });
 const lastManualRefreshResult = computed(() => watchlistStore.lastManualRefreshResult);
+const runtimeDiagnostic = computed(() =>
+  getRuntimeDiagnostic({
+    connectionState: 'live',
+    streamStatus: runtimeStatusStore.streamStatus ?? null,
+    usingMock: runtimeStatusStore.usingMock ?? false,
+    marketWorkerStatus: runtimeStatusStore.marketWorkerStatus,
+  }),
+);
 
 async function selectSymbol(symbol: string) {
   await watchlistStore.loadRelatedNews(symbol);
@@ -176,6 +185,27 @@ onMounted(async () => {
         最近成功：
         {{ marketWorkerStatus?.last_success_at ? formatMarketTime(marketWorkerStatus.last_success_at, 'us') : '暂无记录' }}
       </p>
+      <div class="grid gap-1.5 border-t border-border/70 pt-2">
+        <strong
+          class="text-[12px] uppercase tracking-[0.14em]"
+          :class="
+            runtimeDiagnostic.tone === 'danger'
+              ? 'text-negative'
+              : runtimeDiagnostic.tone === 'warning'
+                ? 'text-warning'
+                : runtimeDiagnostic.tone === 'success'
+                  ? 'text-positive'
+                  : 'text-text-soft'
+          "
+          data-role="runtime-diagnostic-headline"
+        >
+          {{ runtimeDiagnostic.headline }}
+        </strong>
+        <p class="m-0 text-text-soft" data-role="runtime-diagnostic-detail">{{ runtimeDiagnostic.detail }}</p>
+        <p class="m-0 text-[11px] uppercase tracking-[0.14em] text-[#ffca97]" data-role="runtime-diagnostic-action">
+          推荐动作：{{ runtimeDiagnostic.actionTarget === 'watchlist' ? '立即刷新一轮' : runtimeDiagnostic.actionLabel }}
+        </p>
+      </div>
       <p v-if="marketWorkerStatus?.last_error" class="m-0 text-negative">
         最近错误：{{ marketWorkerStatus.last_error }}
       </p>

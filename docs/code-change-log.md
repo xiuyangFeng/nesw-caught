@@ -2,6 +2,25 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 18:51
+
+- 修改人：Codex
+- 修改范围：runtime 诊断提示与建议动作收口
+- 变更内容：新增前端 `runtimeDiagnostics` 归一化工具，把 `SSE` 连接状态、stream 降级状态和 `market_worker` runtime 状态统一映射成少量诊断结果；`AppShell` 现在除了展示原始 badge，还会给出当前 runtime 问题的一句话诊断、解释和建议动作，并在 worker 故障/陈旧场景下直接引导用户打开 Watchlist；`WatchlistView` 的 worker 面板也复用同一套诊断结果，把现有“立即刷新一轮”按钮解释成推荐动作，而不再只是孤立按钮。这样用户看到 `degraded`、未上报或陈旧状态时，不需要自己拼字段理解下一步该做什么。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/runtimeDiagnostics.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/runtimeDiagnostics.test.ts`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-runtime-diagnostics-actions-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-runtime-diagnostics-actions-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增后端接口或前端 API 字段；仅新增前端内部 runtime 诊断归一层
+- 验证情况：`npm --prefix frontend run test -- --run src/utils/runtimeDiagnostics.test.ts src/components/layout/AppShell.test.ts src/views/WatchlistView.test.ts src/stores/runtimeStatusStore.test.ts src/stores/watchlistStore.test.ts` 通过（5 个文件 / 21 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前诊断层仍基于前端时间阈值和已有快照字段做启发式判断，例如把 10 分钟无成功/心跳视为陈旧；这提升了可操作性，但不是严格运维告警。如果后续需要更精确的故障分类，应再考虑后端提供专门的 runtime reason code
+
 ## 2026-03-23 18:05
 
 - 修改人：Codex

@@ -94,6 +94,9 @@ describe('WatchlistView', () => {
     expect(wrapper.find('[data-role="market-worker-status"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('market_quote_producer');
     expect(wrapper.text()).toContain('provider timeout');
+    expect(wrapper.find('[data-role="runtime-diagnostic-headline"]').text()).toContain('market worker');
+    expect(wrapper.find('[data-role="runtime-diagnostic-action"]').text()).toContain('推荐动作');
+    expect(wrapper.find('[data-role="runtime-diagnostic-action"]').text()).toContain('立即刷新一轮');
     expect(wrapper.text()).toContain('最近手动刷新');
     expect(wrapper.text()).toContain('0700.HK');
     expect(wrapper.find('[data-role="market-refresh-action"]').exists()).toBe(true);
