@@ -2,6 +2,23 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 14:50
+
+- 修改人：Codex
+- 修改范围：`AppShell` 系统状态卡片指标对齐修复
+- 变更内容：先将左下角 `System Status` 卡片中的两条状态头从 `flex justify-between` 改为统一的布局约束，随后根据实际 UI 继续收敛为纵向 stack：标签在上、badge 独占下一行整宽区域。这样 `SSE 已断开`、`market_quote_producer ok` 之类长状态文案不再和左侧标签争抢同一行宽度，`Market worker` 也不会被挤成难看的断行；同时补充测试锚点并在 `AppShell` 组件测试中锁定 stack 布局和整宽 badge 约束。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-app-shell-status-indicator-alignment-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-app-shell-status-indicator-alignment-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-app-shell-status-badge-stacking-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-app-shell-status-badge-stacking-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无，仅调整前端模板布局和测试约束
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前修复优先保证侧栏稳定和可读性，因此 badge 改成了整宽堆叠展示；如果后续希望恢复更紧凑的横向信息密度，需要在更宽侧栏或更短文案前提下重新设计
+
 ## 2026-03-23 14:33
 
 - 修改人：Codex

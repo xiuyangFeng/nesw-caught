@@ -115,6 +115,20 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });
 
+  it('uses the shared stacked layout for shell status indicator units', () => {
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.find('[data-role="system-status-unit"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="market-worker-status-unit"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="system-status-unit"]').classes()).toContain('grid');
+    expect(wrapper.find('[data-role="market-worker-status-unit"]').classes()).toContain('grid');
+    expect(wrapper.find('[data-role="system-status-unit"]').classes()).toContain('grid-cols-1');
+    expect(wrapper.find('[data-role="market-worker-status-unit"]').classes()).toContain('grid-cols-1');
+    expect(wrapper.find('[data-role="market-worker-pill"]').classes()).toContain('w-full');
+    expect(wrapper.find('[data-role="market-worker-shell-status"]').text()).toContain('Market worker');
+    expect(wrapper.find('[data-role="market-worker-shell-status"]').text()).toContain('market_quote_producer');
+  });
+
   it('marks the active route with a dedicated terminal signal', () => {
     routeState.path = '/news/42';
 

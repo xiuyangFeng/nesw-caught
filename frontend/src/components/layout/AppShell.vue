@@ -230,9 +230,9 @@ onBeforeUnmount(() => {
       </nav>
       <div class="mt-auto" data-role="system-status">
         <div class="grid gap-2.5 rounded-[16px] border border-border bg-white/[0.03] p-3.5 text-xs text-muted">
-          <div class="flex items-center justify-between gap-3">
+          <div class="grid grid-cols-1 gap-2" data-role="system-status-unit">
             <strong class="text-[11px] uppercase tracking-[0.16em] text-text">System Status</strong>
-            <span class="pill" :class="isLiveConnection ? 'positive' : 'neutral'">
+            <span class="pill w-full justify-start text-left leading-tight" :class="isLiveConnection ? 'positive' : 'neutral'">
               {{ connectionSummary }}
             </span>
           </div>
@@ -243,9 +243,15 @@ onBeforeUnmount(() => {
             HKT
           </small>
           <div class="grid gap-1.5 border-t border-border/70 pt-2" data-role="market-worker-shell-status">
-            <div class="flex items-center justify-between gap-3">
+            <div class="grid grid-cols-1 gap-2" data-role="market-worker-status-unit">
               <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-text-soft">Market worker</span>
-              <span class="pill" :class="marketWorkerSummary.toneClass">{{ marketWorkerSummary.label }}</span>
+              <span
+                class="pill w-full justify-start text-left leading-tight"
+                :class="marketWorkerSummary.toneClass"
+                data-role="market-worker-pill"
+              >
+                {{ marketWorkerSummary.label }}
+              </span>
             </div>
             <small class="uppercase tracking-[0.08em]">{{ marketWorkerSummary.detail }}</small>
             <small v-if="marketWorkerSummary.error" class="uppercase tracking-[0.08em] text-negative">
