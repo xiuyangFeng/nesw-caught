@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 18:05
+
+- 修改人：Codex
+- 修改范围：AppShell 空闲期 runtime 低频轮询
+- 变更内容：在保留现有关键 `SSE` 事件节流补刷的基础上，为 `AppShell` 增加 60 秒一次的低频 runtime 轮询；轮询本身不直接请求接口，而是统一走 `runtimeStatusStore.loadRuntimeStatusIfStale(45)`，继续由 store 负责新鲜度判断与并发保护。这样当系统长时间没有 `watchlist.movement` 或 `stream.keepalive` 时，壳层中的 `market-worker` 与 stream runtime 摘要仍会缓慢更新，而不需要改后端 `SSE` 事件契约。同时补上壳层卸载保护，避免异步 bootstrap 在组件销毁后迟到启动轮询或继续留下悬空 timer。同步补充组件测试，覆盖轮询启动、触发、卸载清理和“先卸载后完成初始化”的边界行为。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-runtime-status-low-frequency-polling-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-runtime-status-low-frequency-polling-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或字段；前端仅增加壳层轮询编排，继续复用既有 `GET /api/stream/status`
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（1 个文件 / 8 个用例）；`npm --prefix frontend run test -- --run src/stores/runtimeStatusStore.test.ts src/components/layout/AppShell.test.ts src/stores/connectionStore.test.ts src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts` 通过（5 个文件 / 17 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 runtime 新鲜度仍然是 best-effort；空闲期最多可能滞后约 60 秒，且数据源仍是快照接口而非真正 push 的 runtime 事件。如果后续需要更细粒度的实时可观测性，再评估新增独立 `runtime.updated` 事件，而不是把摘要硬塞进现有业务 `SSE` 载荷
+
 ## 2026-03-23 16:10
 
 - 修改人：Codex

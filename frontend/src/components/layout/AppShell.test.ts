@@ -101,6 +101,7 @@ vi.mock('../../stores/runtimeStatusStore', () => ({
 
 describe('AppShell', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     routeState.path = '/news';
     connectionStore.state = 'live';
     connectionStore.lastEventAt = '2026-03-18T01:00:00Z';
@@ -213,6 +214,46 @@ describe('AppShell', () => {
     });
 
     expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledTimes(2);
+  });
+
+  it('starts low-frequency runtime polling after bootstrap and clears it on unmount', async () => {
+    vi.useFakeTimers();
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+
+    expect(runtimeStatusStore.loadRuntimeStatusIfStale).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledTimes(1);
+    expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledWith(45);
+
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start runtime polling after unmount if bootstrap resolves late', async () => {
+    vi.useFakeTimers();
+
+    let resolveRuntimeStatusLoad: (() => void) | null = null;
+    runtimeStatusStore.loadRuntimeStatus.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRuntimeStatusLoad = resolve;
+        }),
+    );
+
+    const wrapper = mount(AppShell);
+    wrapper.unmount();
+
+    resolveRuntimeStatusLoad?.();
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(runtimeStatusStore.loadRuntimeStatusIfStale).not.toHaveBeenCalled();
   });
 
   it('loads shell stores on mount and disconnects on unmount', async () => {

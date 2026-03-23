@@ -17,6 +17,10 @@ const marketStore = useMarketStore();
 const runtimeStatusStore = useRuntimeStatusStore();
 const topicStore = useTopicStore();
 const watchlistStore = useWatchlistStore();
+const runtimePollIntervalMs = 60_000;
+const runtimePollFreshnessSeconds = 45;
+let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
+let shellDisposed = false;
 
 const navItems = [
   { label: 'Dashboard', to: '/dashboard', index: '01' },
@@ -133,8 +137,26 @@ function navLinkClasses(isActive: boolean) {
   ];
 }
 
+function stopRuntimeStatusPolling() {
+  if (runtimeStatusPollHandle === null) {
+    return;
+  }
+  clearInterval(runtimeStatusPollHandle);
+  runtimeStatusPollHandle = null;
+}
+
+function startRuntimeStatusPolling() {
+  stopRuntimeStatusPolling();
+  runtimeStatusPollHandle = setInterval(() => {
+    void runtimeStatusStore.loadRuntimeStatusIfStale(runtimePollFreshnessSeconds);
+  }, runtimePollIntervalMs);
+}
+
 async function bootstrap() {
   await runtimeStatusStore.loadRuntimeStatus();
+  if (shellDisposed) {
+    return;
+  }
   connectionStore.applyStreamStatus(runtimeStatusStore.streamStatus, runtimeStatusStore.usingMock);
 
   await Promise.all([
@@ -143,6 +165,11 @@ async function bootstrap() {
     topicStore.loadTopics(),
     watchlistStore.loadWatchlist(),
   ]);
+  if (shellDisposed) {
+    return;
+  }
+
+  startRuntimeStatusPolling();
 
   connectionStore.connect((event) => {
     if (event.type === 'news.created') {
@@ -177,10 +204,13 @@ async function bootstrap() {
 }
 
 onMounted(() => {
+  shellDisposed = false;
   void bootstrap();
 });
 
 onBeforeUnmount(() => {
+  shellDisposed = true;
+  stopRuntimeStatusPolling();
   connectionStore.disconnect();
 });
 </script>
