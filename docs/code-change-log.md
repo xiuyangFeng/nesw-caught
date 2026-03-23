@@ -2,6 +2,18 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-24 00:21
+
+- 修改人：Codex
+- 修改范围：worktree 目录忽略规则补齐
+- 变更内容：将项目本地 `.worktrees/` 目录加入 `.gitignore`，避免后续创建隔离 worktree 时其内容污染主仓库状态，满足仓库对 worktree 使用的基础安全要求。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.gitignore`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`git check-ignore .worktrees` 预计在提交后生效；未涉及运行时代码
+- 风险/后续事项：无
+
 ## 2026-03-24 00:05
 
 - 修改人：Codex

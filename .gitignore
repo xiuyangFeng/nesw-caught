@@ -16,6 +16,7 @@ backend/data/*.db
 backend/data/*.sqlite
 backend/data/*.sqlite3
 .superpowers/
+.worktrees/
 
 # Frontend
 frontend/node_modules/
