@@ -14,6 +14,13 @@ class Settings(BaseSettings):
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )
     stream_mode: str = "sse"
+    event_bus_backend: str = "hybrid"
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    redis_stream_news_ingested: str = "stream:news:ingested"
+    redis_stream_news_processed: str = "stream:news:processed"
+    redis_stream_market_watchlist: str = "stream:market:watchlist"
+    redis_stream_maxlen: int = 1000
+    event_bus_publish_timeout_seconds: float = 1.0
     ai_enabled: bool = False
     http_timeout_seconds: float = 10.0
     news_sources_file: str | None = None

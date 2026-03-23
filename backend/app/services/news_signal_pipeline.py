@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.models.news_item import NewsItem
@@ -11,24 +12,38 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+@dataclass(frozen=True)
+class ProcessNewsSignalsSummary:
+    news_ids: list[int]
+    processed_count: int
+    touched_topic_ids: list[int]
+
+
 class NewsSignalPipelineService:
     def __init__(self, session) -> None:
         self.session = session
         self.repository = NewsSignalRepository(session)
         self.classifier = NewsSignalClassifier(session)
 
-    def process_news_ids(self, news_ids: list[int]) -> None:
+    def process_news_ids(self, news_ids: list[int]) -> ProcessNewsSignalsSummary:
         if not news_ids:
-            return
+            return ProcessNewsSignalsSummary(news_ids=[], processed_count=0, touched_topic_ids=[])
 
         news_items = self.repository.list_news(news_ids)
         article_map = self.repository.get_article_map(news_ids)
         touched_topic_ids: set[int] = set()
+        processed_news_ids: list[int] = []
 
         for item in news_items:
             self._process_item(item, article_map.get(item.id), touched_topic_ids)
+            processed_news_ids.append(item.id)
 
         self.repository.refresh_topic_stats(touched_topic_ids)
+        return ProcessNewsSignalsSummary(
+            news_ids=processed_news_ids,
+            processed_count=len(processed_news_ids),
+            touched_topic_ids=sorted(touched_topic_ids),
+        )
 
     def list_pending_news_ids(self, *, limit: int = 50) -> list[int]:
         return self.repository.list_pending_news_ids(limit=limit)

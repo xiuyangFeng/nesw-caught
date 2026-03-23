@@ -248,9 +248,26 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
     config = MagicMock()
     config.alert_enabled = True
     fake_service = FakeQuoteService()
+    class FakeBus:
+        def __init__(self) -> None:
+            self.handlers: dict[str, list] = {}
+
+        def subscribe(self, event_name: str, handler) -> None:
+            self.handlers.setdefault(event_name, []).append(handler)
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            for handler in self.handlers.get(event_name, []):
+                handler(payload)
+
     monkeypatch.setattr(market_routes, "get_quote_service", lambda: fake_service, raising=False)
-    monkeypatch.setattr(market_routes, "WatchlistRepository", FakeWatchlistRepository)
-    monkeypatch.setattr(market_routes, "get_notification_service", lambda: notification_service)
+    from app import main as main_module
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
+    monkeypatch.setattr(main_module, "WatchlistRepository", FakeWatchlistRepository)
+    monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
+    monkeypatch.setattr(market_routes, "get_event_bus", lambda: fake_bus, raising=False)
+    main_module._register_event_handlers()
     client = TestClient(app)
 
     with patch.object(notification_service, "_load_config", return_value=config):
@@ -264,3 +281,81 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
     assert response3.status_code == 200
     assert response4.status_code == 200
     assert notification_service._send.call_count == 2
+
+
+def test_market_watchlist_quotes_publish_refresh_event_instead_of_direct_notification(monkeypatch) -> None:
+    class FakeQuoteService:
+        def get_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+            return [
+                {
+                    "symbol": "0700.HK",
+                    "market": "hk",
+                    "display_name": "Tencent",
+                    "provider_symbol": "0700.HK",
+                    "price": 332.4,
+                    "change_amount": 10.7,
+                    "change_percent": 3.33,
+                    "open_price": 325.0,
+                    "previous_close": 321.7,
+                    "day_high": 334.8,
+                    "day_low": 323.2,
+                    "volume": 18233000,
+                    "status": "ok",
+                    "source": "yahoo_finance",
+                    "message": None,
+                    "fetched_at": "2026-03-16T12:00:00Z",
+                    "is_abnormal": True,
+                    "abnormal_reason": "price_move",
+                }
+            ]
+
+    class FakeBus:
+        def __init__(self) -> None:
+            self.published: list[tuple[str, dict[str, object]]] = []
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+
+    class ExplodingNotificationService:
+        def on_watchlist_alert(self, payload):  # pragma: no cover - should not be called
+            raise AssertionError("route should not call notification service directly")
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(market_routes, "get_quote_service", lambda: FakeQuoteService(), raising=False)
+    monkeypatch.setattr(market_routes, "get_event_bus", lambda: fake_bus, raising=False)
+    monkeypatch.setattr(market_routes, "get_notification_service", lambda: ExplodingNotificationService(), raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/watchlist")
+
+    assert response.status_code == 200
+    assert fake_bus.published == [
+        (
+            "market.watchlist_refreshed",
+            {
+                "symbols": ["0700.HK"],
+                "quotes": [
+                    {
+                        "symbol": "0700.HK",
+                        "market": "hk",
+                        "display_name": "Tencent",
+                        "provider_symbol": "0700.HK",
+                        "price": 332.4,
+                        "change_amount": 10.7,
+                        "change_percent": 3.33,
+                        "open_price": 325.0,
+                        "previous_close": 321.7,
+                        "day_high": 334.8,
+                        "day_low": 323.2,
+                        "volume": 18233000,
+                        "status": "ok",
+                        "source": "yahoo_finance",
+                        "message": None,
+                        "fetched_at": "2026-03-16T12:00:00Z",
+                        "is_abnormal": True,
+                        "abnormal_reason": "price_move",
+                    }
+                ],
+            },
+        )
+    ]

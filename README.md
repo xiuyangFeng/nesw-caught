@@ -115,6 +115,49 @@ MARKET_QUOTE_CACHE_TTL_SECONDS=180
 
 港股符号目前兼容 `0700.HK` 和 `HK253` 这类输入，后续如需补 A 股或切换付费行情源，可继续在 provider 层扩展。
 
+## Redis 事件层
+
+后端现在支持一个第一阶段的混合事件层：
+
+- 默认 `EVENT_BUS_BACKEND=hybrid`
+- 会尝试把增量新闻事件写入 Redis Streams
+- Redis 不可用时自动降级回进程内事件总线
+- 当前前端仍继续使用 `SSE`，不需要同步改造
+- 第二阶段已将 `news.analysis_completed`、`news.signals_processed` 和 `market.watchlist_refreshed` 统一接入同一事件层
+- 新闻通知批处理、自选股阈值提醒和分析卡片通知现在由本地事件订阅者驱动，而不是在 route 里直接调用
+
+建议先确保本机 Redis 已启动：
+
+```bash
+brew services start redis
+redis-cli ping
+```
+
+可选环境变量：
+
+```bash
+EVENT_BUS_BACKEND=hybrid
+REDIS_URL=redis://127.0.0.1:6379/0
+REDIS_STREAM_NEWS_INGESTED=stream:news:ingested
+REDIS_STREAM_NEWS_PROCESSED=stream:news:processed
+REDIS_STREAM_MARKET_WATCHLIST=stream:market:watchlist
+REDIS_STREAM_MAXLEN=1000
+EVENT_BUS_PUBLISH_TIMEOUT_SECONDS=1.0
+```
+
+可通过以下接口查看当前事件层状态：
+
+```bash
+curl http://127.0.0.1:8000/api/stream/status
+```
+
+当前已经使用的事件名包括：
+
+- `news.created_batch`
+- `news.signals_processed`
+- `news.analysis_completed`
+- `market.watchlist_refreshed`
+
 ## X Monitor 增强模块
 
 项目已新增一个可选的 `X Monitor` 模块，用于通过 `twitterapi.io` 拉取关注账号的近期市场相关推文，并提供关键词搜索能力。它是独立增强层，不参与现有 `news` 主采集链路。

@@ -2,6 +2,66 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-23 00:54
+
+- 修改人：Codex
+- 修改范围：事件层第二阶段接入 `news.signals_processed`、通知批处理和行情刷新事件
+- 变更内容：继续沿用 Redis 混合事件层，把原先散落在 route 内的副作用收束到统一事件契约上。`NewsSignalPipelineService.process_news_ids()` 现在返回处理摘要，应用启动时注册的 `news.created_batch` 订阅者在跑完信号流水线后继续发布 `news.signals_processed`；新闻分析路由不再直接调用通知服务，而是发布 `news.analysis_completed`；自选股行情路由不再在 route 内做阈值提醒，而是发布 `market.watchlist_refreshed`，再由本地订阅者结合 watchlist 阈值调用通知服务。这样后续接入真正实时行情源时，只要继续发布同名事件即可复用现有通知和处理链。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_signal_pipeline.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/event_bus.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_analysis.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-event-layer-stage2-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-event-layer-stage2-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增 HTTP 接口；事件层新增 `news.signals_processed`、`news.analysis_completed`、`market.watchlist_refreshed` 事件名；新增环境变量 `REDIS_STREAM_MARKET_WATCHLIST`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_event_bus.py backend/tests/test_news_ingestion.py backend/tests/test_news_analysis.py backend/tests/test_market.py backend/tests/test_feishu_notify.py -q` 通过（42 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（82 个用例）
+- 风险/后续事项：当前行情仍是请求触发刷新而非真正的 WebSocket 实时流，`market.watchlist_refreshed` 只是先统一了事件契约；下一阶段若接入实时行情 provider，应优先让新 provider 直接向该事件入口发布批量行情，而不是再把逻辑写回 route
+
+## 2026-03-23 00:42
+
+- 修改人：Codex
+- 修改范围：Redis 混合事件层第一阶段接入
+- 变更内容：将原有仅支持进程内同步分发的 `EventBus` 升级为“Redis Streams 发布 + 本地总线兜底”的混合事件层，新增 Redis publisher 与事件层状态模型；`NewsIngestionService.refresh_all()` 现对新增新闻发布 `news.created_batch` 事件，由应用启动时注册的本地订阅者继续驱动 `NewsSignalPipelineService`，从而在保持现有业务语义和前端 `SSE` 展示不变的前提下，为后续多源异步化接入打下基础；同时扩展 `/api/stream/status` 返回真实事件层后端、Redis 可用性、最近事件和错误信息，并补充 README 中的 Redis 运行说明与环境变量。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/event_bus.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/redis_stream_bus.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/stream.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/stream.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_event_bus.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_stream_status.py`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-23-redis-event-layer-design.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-23-redis-event-layer-plan.md`（新增）
+  - `/Users/xiuyang/Desktop/news-caught/README.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：`GET /api/stream/status` 响应增加 `backend`、`redis_enabled`、`last_published_at`、`last_event_name`、`last_error` 字段；原有 `mode` 与 `status` 仍保留
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_event_bus.py -q` 通过（4 个用例）；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_refresh_all_runs_signal_pipeline_for_inserted_items backend/tests/test_stream_status.py -q` 通过（2 个用例）；`conda run -n news-caught pytest backend/tests/test_health.py backend/tests/test_news_ingestion.py backend/tests/test_news_signal_pipeline.py backend/tests/test_market.py backend/tests/test_x_monitor.py backend/tests/test_event_bus.py backend/tests/test_stream_status.py -q` 通过（39 个用例）；`conda run -n news-caught pytest backend/tests -q` 通过（79 个用例）
+- 风险/后续事项：当前 Redis 仅负责发布而非消费，严格来说仍是过渡态；下一阶段如需真正把 pipeline、通知或实时行情拆到独立 worker，可继续沿用当前事件名与 stream 命名扩展，而无需重改生产者接口
+
+## 2026-03-22 23:56
+
+- 修改人：Codex
+- 修改范围：Redis Python 客户端依赖准备
+- 变更内容：为后端后续接入 Redis 事件层预先补充 `redis` Python 客户端依赖，同时同步更新根目录 `requirements.txt` 与 `backend/pyproject.toml`，保证通过 `conda` 环境和可编辑安装两条路径都能获得一致依赖。本次不改动业务代码、数据库结构或运行逻辑，仅做环境准备。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/pyproject.toml`
+  - `/Users/xiuyang/Desktop/news-caught/requirements.txt`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：已完成依赖清单更新；`conda run -n news-caught pip install redis` 成功，`conda run -n news-caught python -c "import redis; print(redis.__version__)"` 返回 `7.3.0`；Redis 系统安装仍在进行中
+- 风险/后续事项：当前仅完成依赖声明，后续仍需在 `news-caught` conda 环境中执行安装，并补充 Redis 连接配置与事件流封装后才能真正投入使用
+
 ## 2026-03-22 22:11
 
 - 修改人：Codex

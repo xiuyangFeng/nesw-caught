@@ -403,3 +403,89 @@ def test_post_news_analysis_rejects_invalid_provider_payload(monkeypatch) -> Non
 
     assert response.status_code == 502
     assert response.json()["detail"] == "llm provider returned invalid analysis payload"
+
+
+def test_post_news_analysis_publishes_event_instead_of_direct_notification(monkeypatch) -> None:
+    client = TestClient(app)
+
+    class FakeAnalysisResult:
+        news_id = 99
+        provider_name = "openai_compatible"
+        model_name = "deepseek-chat"
+        analysis_status = "success"
+        top_pick = type(
+            "TopPick",
+            (),
+            {
+                "symbol": "0700.HK",
+                "market": "hk",
+                "company_name": "Tencent",
+                "confidence": 0.91,
+                "reason": "Direct AI exposure",
+                "model_dump": lambda self: {
+                    "symbol": "0700.HK",
+                    "market": "hk",
+                    "company_name": "Tencent",
+                    "confidence": 0.91,
+                    "reason": "Direct AI exposure",
+                },
+            },
+        )()
+        candidates = []
+        summary = "Tencent is the primary read-through."
+        risk_notes = "Single source risk."
+        sentiment = "positive"
+        context_limitations = None
+        analyzed_at = datetime(2026, 3, 23, 0, 50, tzinfo=timezone.utc)
+        analysis_error = None
+
+    class FakeAnalysisService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def analyze_news(self, news_id: int):
+            assert news_id == 99
+            return FakeAnalysisResult()
+
+    class FakeNewsRepository:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def get_by_id(self, news_id: int):
+            assert news_id == 99
+            return type("NewsItem", (), {"title": "Tencent AI expansion"})()
+
+    class FakeBus:
+        def __init__(self) -> None:
+            self.published: list[tuple[str, dict[str, object]]] = []
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr("app.api.routes.news.NewsAnalysisService", FakeAnalysisService)
+    monkeypatch.setattr("app.api.routes.news.NewsRepository", FakeNewsRepository)
+    monkeypatch.setattr("app.api.routes.news.get_event_bus", lambda: fake_bus)
+
+    response = client.post("/api/news/99/analyze")
+
+    assert response.status_code == 200
+    assert fake_bus.published == [
+        (
+            "news.analysis_completed",
+            {
+                "news_id": 99,
+                "news_title": "Tencent AI expansion",
+                "top_pick": {
+                    "symbol": "0700.HK",
+                    "market": "hk",
+                    "company_name": "Tencent",
+                    "confidence": 0.91,
+                    "reason": "Direct AI exposure",
+                },
+                "candidates": [],
+                "summary": "Tencent is the primary read-through.",
+                "risk_notes": "Single source risk.",
+            },
+        )
+    ]

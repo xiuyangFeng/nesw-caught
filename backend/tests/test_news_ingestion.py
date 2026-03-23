@@ -285,33 +285,6 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         ingest_status="ingested",
     )
 
-    class FakeIngestionService:
-        def __init__(self, session) -> None:
-            self.session = session
-
-        def refresh_all(self) -> RefreshSummary:
-            now = datetime(2025, 3, 17, 10, 0, tzinfo=timezone.utc)
-            from app.services.news_ingestion import SourceFetchResult
-
-            return RefreshSummary(
-                started_at=now,
-                finished_at=now,
-                fetched_count=5,
-                inserted_count=1,
-                inserted_items=[inserted_item],
-                results=[
-                    SourceFetchResult(
-                        source_name="Inserted Source",
-                        source_type="rss",
-                        status="ok",
-                        fetched_count=5,
-                        inserted_count=1,
-                        error=None,
-                        latency_ms=12.3,
-                    )
-                ],
-            )
-
     class FakeNotificationService:
         def __init__(self) -> None:
             self.news_payloads: list[dict] = []
@@ -323,35 +296,32 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         def __init__(self, session) -> None:
             self.session = session
 
-        def list_recent(self, limit: int):  # pragma: no cover - route-level guard
-            return [
-                NewsItem(
-                    id=1000,
-                    source_name="Wrong Source",
-                    source_url="https://example.com/feed",
-                    title="Wrong recent news",
-                    summary="Wrong summary",
-                    canonical_url="https://example.com/wrong",
-                    url_hash="wrong-hash",
-                    market="hk",
-                    language="zh",
-                    sentiment_label=None,
-                    sentiment_score=None,
-                    published_at=datetime(2025, 3, 17, 9, 30, tzinfo=timezone.utc),
-                    fetched_at=datetime(2025, 3, 17, 9, 31, tzinfo=timezone.utc),
-                    ingest_status="ingested",
-                )
-            ]
+        def get_by_id(self, news_id: int):
+            assert news_id == 999
+            return inserted_item
+
+    class FakeBus:
+        def __init__(self) -> None:
+            self.handlers: dict[str, list] = {}
+
+        def subscribe(self, event_name: str, handler) -> None:
+            self.handlers.setdefault(event_name, []).append(handler)
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            for handler in self.handlers.get(event_name, []):
+                handler(payload)
+
+    from app import main as main_module
 
     notification_service = FakeNotificationService()
-    monkeypatch.setattr("app.api.routes.news.NewsIngestionService", FakeIngestionService)
-    monkeypatch.setattr("app.api.routes.news.NewsRepository", FakeNewsRepository)
-    monkeypatch.setattr("app.api.routes.news.get_notification_service", lambda: notification_service)
+    fake_bus = FakeBus()
+    monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
+    monkeypatch.setattr(main_module, "NewsRepository", FakeNewsRepository)
+    monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
 
-    client = TestClient(app)
-    response = client.post("/api/news/refresh")
+    main_module._register_event_handlers()
+    fake_bus.publish("news.created_batch", {"news_ids": [999]})
 
-    assert response.status_code == 200
     assert notification_service.news_payloads == [
         {
             "title": "Inserted news",
@@ -409,16 +379,25 @@ def test_refresh_all_runs_signal_pipeline_for_inserted_items(monkeypatch) -> Non
 
     calls: list[list[int]] = []
 
-    class FakePipelineService:
-        def __init__(self, session) -> None:
-            self.session = session
+    class FakeEventBus:
+        def __init__(self) -> None:
+            self.handlers: dict[str, list] = {}
+            self.published: list[tuple[str, dict[str, object]]] = []
 
-        def process_news_ids(self, news_ids: list[int]) -> None:
-            calls.append(news_ids)
+        def subscribe(self, event_name: str, handler) -> None:
+            self.handlers.setdefault(event_name, []).append(handler)
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+            for handler in self.handlers.get(event_name, []):
+                handler(payload)
+
+    bus = FakeEventBus()
+    bus.subscribe("news.created_batch", lambda payload: calls.append(payload["news_ids"]))
 
     monkeypatch.setattr("app.services.news_ingestion.load_sources", lambda: [source])
     monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", lambda: FakeFactory())
-    monkeypatch.setattr("app.services.news_ingestion.NewsSignalPipelineService", FakePipelineService)
+    monkeypatch.setattr("app.services.news_ingestion.get_event_bus", lambda: bus)
 
     with SessionLocal() as session:
         session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
@@ -429,6 +408,7 @@ def test_refresh_all_runs_signal_pipeline_for_inserted_items(monkeypatch) -> Non
 
         assert summary.inserted_count == 1
         assert len(summary.inserted_items) == 1
+        assert bus.published == [("news.created_batch", {"news_ids": [summary.inserted_items[0].id]})]
         assert calls == [[summary.inserted_items[0].id]]
 
         session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
@@ -530,3 +510,36 @@ def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> No
         session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
         session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
         session.commit()
+
+
+def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypatch) -> None:
+    from app import main as main_module
+
+    class FakeBus:
+        def __init__(self) -> None:
+            self.handlers: dict[str, list] = {}
+            self.published: list[tuple[str, dict[str, object]]] = []
+
+        def subscribe(self, event_name: str, handler) -> None:
+            self.handlers.setdefault(event_name, []).append(handler)
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+            for handler in self.handlers.get(event_name, []):
+                handler(payload)
+
+    class FakePipelineService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def process_news_ids(self, news_ids: list[int]):
+            return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
+    monkeypatch.setattr(main_module, "NewsSignalPipelineService", FakePipelineService)
+
+    main_module._register_event_handlers()
+    fake_bus.publish("news.created_batch", {"news_ids": [11, 12]})
+
+    assert ("news.signals_processed", {"news_ids": [11, 12], "processed_count": 2}) in fake_bus.published

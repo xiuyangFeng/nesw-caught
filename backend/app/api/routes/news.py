@@ -8,9 +8,9 @@ from app.repositories.news_repository import NewsRepository
 from app.schemas.news import NewsArticleView, NewsDetailView, NewsItemSummary, NewsMentionView, NewsTopicRefView
 from app.schemas.llm import NewsAnalysisView
 from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView
+from app.services.event_bus import get_event_bus
 from app.services.news_analysis import NewsAnalysisError, NewsAnalysisService
 from app.services.news_ingestion import NewsIngestionService
-from app.services.notification_service import get_notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +40,6 @@ def list_news(
 @router.post("/refresh", response_model=NewsRefreshResponse)
 def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefreshResponse:
     summary = NewsIngestionService(session).refresh_all()
-
-    if summary.inserted_count > 0:
-        try:
-            ns = get_notification_service()
-            for item in summary.inserted_items:
-                ns.on_news_created({
-                    "title": item.title,
-                    "summary": item.summary,
-                    "source_name": item.source_name,
-                    "market": item.market,
-                    "published_at": item.published_at.isoformat() if item.published_at else None,
-                })
-        except Exception:
-            logger.exception("failed to publish news events to notification service")
 
     return NewsRefreshResponse(
         started_at=summary.started_at,
@@ -97,8 +83,8 @@ def analyze_news(news_id: int, session: Session = Depends(get_db_session)) -> Ne
         try:
             news_repo = NewsRepository(session)
             news_item = news_repo.get_by_id(news_id)
-            ns = get_notification_service()
-            ns.on_analysis_completed({
+            get_event_bus().publish("news.analysis_completed", {
+                "news_id": news_id,
                 "news_title": news_item.title if news_item else "",
                 "top_pick": result.top_pick.model_dump() if result.top_pick else None,
                 "candidates": [c.model_dump() for c in result.candidates],
@@ -106,7 +92,7 @@ def analyze_news(news_id: int, session: Session = Depends(get_db_session)) -> Ne
                 "risk_notes": result.risk_notes,
             })
         except Exception:
-            logger.exception("failed to publish analysis event to notification service")
+            logger.exception("failed to publish analysis event")
 
     return result
 
