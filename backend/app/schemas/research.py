@@ -68,7 +68,7 @@ class EvaluationMetrics(BaseModel):
 
 class ExperimentDecision(BaseModel):
     experiment_id: str
-    decision: Literal["keep", "reject"]
+    decision: Literal["baseline", "keep", "reject"]
     reason: str
     metrics_before: EvaluationMetrics
     metrics_after: EvaluationMetrics

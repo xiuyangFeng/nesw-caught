@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 
 from app.schemas.research import EvaluationMetrics, MarketRelevanceSample
+from app.services.news_signal_classifier import NewsSignalClassifier
 
 MARKET_SIGNAL_TERMS = {
     "guidance",
@@ -97,7 +98,11 @@ def evaluate_market_relevance(
     )
 
 
-def predict_market_relevance(sample: MarketRelevanceSample) -> bool:
+def predict_market_relevance(
+    sample: MarketRelevanceSample,
+    *,
+    classifier: NewsSignalClassifier | object | None = None,
+) -> bool:
     text = " ".join(
         part
         for part in [
@@ -108,11 +113,35 @@ def predict_market_relevance(sample: MarketRelevanceSample) -> bool:
         if part
     ).lower()
     tokens = set(re.findall(r"[a-z0-9]+", text))
-    if tokens.intersection(MARKET_SIGNAL_TERMS):
+    classifier_tokens: set[str] = set()
+    if classifier is not None:
+        result = classifier.classify(
+            title=sample.content.title,
+            summary=sample.content.summary,
+            body=sample.content.body_excerpt,
+            allow_llm=False,
+        )
+        classifier_tokens = set(getattr(result, "keywords", []))
+        classifier_tokens.update(re.findall(r"[a-z0-9]+", getattr(result, "topic_key", "")))
+
+    combined_market_tokens = tokens.union(classifier_tokens)
+    if combined_market_tokens.intersection(MARKET_SIGNAL_TERMS):
         return True
-    if tokens.intersection(GENERIC_TECH_TERMS):
+    if tokens.intersection(GENERIC_TECH_TERMS) or classifier_tokens.intersection(GENERIC_TECH_TERMS):
         return False
     return False
+
+
+def predict_market_relevance_batch(
+    samples: list[MarketRelevanceSample],
+    *,
+    session,
+) -> list[MarketRelevanceSample]:
+    classifier = NewsSignalClassifier(session)
+    return [
+        sample.model_copy(update={"predicted_market_relevant": predict_market_relevance(sample, classifier=classifier)})
+        for sample in samples
+    ]
 
 
 def _safe_divide(numerator: int, denominator: int) -> float:

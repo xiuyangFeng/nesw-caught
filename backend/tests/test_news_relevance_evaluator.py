@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from app.schemas.research import (
     EvaluationMetrics,
     MarketRelevanceAnnotation,
@@ -12,6 +14,7 @@ from app.services.news_relevance_evaluator import (
     EvaluationGuardrailError,
     evaluate_market_relevance,
     predict_market_relevance,
+    predict_market_relevance_batch,
 )
 
 
@@ -74,6 +77,28 @@ def test_evaluator_rejects_results_below_recall_guardrail() -> None:
     raise AssertionError("expected recall guardrail to fail")
 
 
+@dataclass
+class _FakeClassificationResult:
+    keywords: list[str]
+    topic_key: str
+
+
+class _FakeClassifier:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None, str | None, bool]] = []
+
+    def classify(
+        self,
+        *,
+        title: str,
+        summary: str | None,
+        body: str | None,
+        allow_llm: bool = True,
+    ) -> _FakeClassificationResult:
+        self.calls.append((title, summary, body, allow_llm))
+        return _FakeClassificationResult(keywords=["revenue", "guidance"], topic_key="nvidia revenue")
+
+
 def test_predict_market_relevance_filters_generic_tech_chatter() -> None:
     sample = MarketRelevanceSample(
         sample_id="generic-tech",
@@ -132,6 +157,86 @@ def test_predict_market_relevance_keeps_market_moving_company_news() -> None:
     )
 
     assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_uses_classifier_with_body_excerpt() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="body-assisted",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=5,
+            source_name="Reuters",
+            canonical_url="https://example.com/body-assisted",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Company update",
+            summary="Short summary",
+            body_excerpt="Detailed body text mentions revenue guidance for the next quarter.",
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+    classifier = _FakeClassifier()
+
+    assert predict_market_relevance(sample, classifier=classifier) is True
+    assert classifier.calls == [
+        (
+            "Company update",
+            "Short summary",
+            "Detailed body text mentions revenue guidance for the next quarter.",
+            False,
+        )
+    ]
+
+
+def test_predict_market_relevance_batch_stays_rule_only_when_ai_is_enabled(monkeypatch) -> None:
+    sample = MarketRelevanceSample(
+        sample_id="offline-batch",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=6,
+            source_name="Reuters",
+            canonical_url="https://example.com/offline-batch",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Nvidia lifts revenue guidance after AI demand surge",
+            summary="Analysts expect the stronger outlook to support semiconductor stocks.",
+            body_excerpt="Body text adds more demand and forecast detail.",
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    monkeypatch.setattr(
+        "app.services.news_signal_classifier.get_settings",
+        lambda: type("Settings", (), {"ai_enabled": True})(),
+    )
+    monkeypatch.setattr(
+        "app.services.news_signal_classifier.build_provider",
+        lambda _config: (_ for _ in ()).throw(AssertionError("batch prediction must stay offline")),
+    )
+
+    predicted = predict_market_relevance_batch([sample], session=object())
+
+    assert predicted[0].predicted_market_relevant is True
 
 
 def test_evaluator_requires_explicit_predictions() -> None:

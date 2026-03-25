@@ -113,11 +113,36 @@ def annotate_market_relevance_file(
     output_path: str | Path,
     *,
     session,
+    batch_size: int | None = None,
+    resume: bool = False,
 ) -> list[MarketRelevanceSample]:
+    if batch_size is not None and batch_size <= 0:
+        raise ValueError("batch_size must be > 0")
+
     samples = [_load_sample(line) for line in _read_jsonl_lines(input_path)]
     service = MarketRelevanceAnnotationService(session)
-    annotated = [service.annotate_sample(sample) for sample in samples]
-    save_samples(output_path, annotated)
+    annotated: list[MarketRelevanceSample] = []
+    existing_by_id: dict[str, MarketRelevanceSample] = {}
+    if resume:
+        existing_by_id = {
+            sample.sample_id: sample
+            for sample in (_load_sample(line) for line in _read_jsonl_lines(output_path))
+            if _is_completed_annotation(sample)
+        }
+        annotated.extend(existing_by_id.values())
+
+    pending = [sample for sample in samples if sample.sample_id not in existing_by_id]
+    flush_every = batch_size or len(pending) or 1
+
+    for index, sample in enumerate(pending, start=1):
+        annotated.append(service.annotate_sample(sample))
+        if index % flush_every == 0 or index == len(pending):
+            ordered = _order_samples_by_input(samples, annotated)
+            save_samples(output_path, ordered)
+
+    annotated = _order_samples_by_input(samples, annotated)
+    if not pending:
+        save_samples(output_path, annotated)
     return annotated
 
 
@@ -130,6 +155,18 @@ def _read_jsonl_lines(path: str | Path) -> list[str]:
 
 def _load_sample(raw_line: str) -> MarketRelevanceSample:
     return MarketRelevanceSample.model_validate(json.loads(raw_line))
+
+
+def _order_samples_by_input(
+    input_samples: list[MarketRelevanceSample],
+    annotated_samples: list[MarketRelevanceSample],
+) -> list[MarketRelevanceSample]:
+    by_id = {sample.sample_id: sample for sample in annotated_samples}
+    return [by_id[sample.sample_id] for sample in input_samples if sample.sample_id in by_id]
+
+
+def _is_completed_annotation(sample: MarketRelevanceSample) -> bool:
+    return bool(sample.annotation.model_name) and sample.annotation.confidence > 0.0
 
 
 def _extract_json_payload(content: str) -> str:

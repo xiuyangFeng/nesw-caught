@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import random
 from typing import Iterable
 
 from app.schemas.research import MarketRelevanceSample
@@ -12,6 +13,10 @@ class DuplicateSampleIdError(ValueError):
 
 
 class InvalidBenchmarkSampleError(ValueError):
+    pass
+
+
+class MissingReviewedSampleError(ValueError):
     pass
 
 
@@ -59,6 +64,70 @@ def merge_reviewed_samples(candidates_path: str | Path, benchmark_path: str | Pa
     return len(reviewed)
 
 
+def select_review_samples(
+    samples: Iterable[dict[str, object] | MarketRelevanceSample],
+    *,
+    low_confidence_threshold: float = 0.75,
+    spot_check_count_per_bucket: int = 10,
+    rng_seed: int = 0,
+) -> list[MarketRelevanceSample]:
+    normalized = [
+        sample if isinstance(sample, MarketRelevanceSample) else MarketRelevanceSample.model_validate(sample)
+        for sample in samples
+    ]
+    mandatory: list[MarketRelevanceSample] = []
+    high_confidence_positive: list[MarketRelevanceSample] = []
+    high_confidence_negative: list[MarketRelevanceSample] = []
+
+    for sample in normalized:
+        if sample.annotation.label_source != "model_only":
+            continue
+        if _requires_review(sample, low_confidence_threshold=low_confidence_threshold):
+            mandatory.append(sample)
+            continue
+        if sample.labels.market_relevant:
+            high_confidence_positive.append(sample)
+        else:
+            high_confidence_negative.append(sample)
+
+    rng = random.Random(rng_seed)
+    selected: dict[str, MarketRelevanceSample] = {sample.sample_id: sample for sample in mandatory}
+    for bucket in (high_confidence_positive, high_confidence_negative):
+        chosen = list(bucket)
+        rng.shuffle(chosen)
+        for sample in chosen[:spot_check_count_per_bucket]:
+            selected[sample.sample_id] = sample
+    return list(selected.values())
+
+
+def apply_reviewed_samples(
+    candidates_path: str | Path,
+    reviewed_path: str | Path,
+    benchmark_path: str | Path,
+) -> int:
+    candidates = _load_samples(candidates_path)
+    reviewed_samples = _load_samples(reviewed_path)
+    reviewed_by_id = {sample.sample_id: sample for sample in reviewed_samples}
+
+    missing = [sample_id for sample_id in reviewed_by_id if sample_id not in {sample.sample_id for sample in candidates}]
+    if missing:
+        raise MissingReviewedSampleError(f"review samples not found in candidates: {', '.join(sorted(missing))}")
+
+    updated_candidates: list[MarketRelevanceSample] = []
+    applied = 0
+    for sample in candidates:
+        reviewed = reviewed_by_id.get(sample.sample_id)
+        if reviewed is None:
+            updated_candidates.append(sample)
+            continue
+        updated_candidates.append(reviewed)
+        applied += 1
+
+    save_samples(candidates_path, updated_candidates)
+    merge_reviewed_samples(candidates_path, benchmark_path)
+    return applied
+
+
 def _load_samples(path: str | Path) -> list[MarketRelevanceSample]:
     input_path = Path(path)
     if not input_path.exists():
@@ -71,3 +140,13 @@ def _load_samples(path: str | Path) -> list[MarketRelevanceSample]:
             continue
         samples.append(MarketRelevanceSample.model_validate(json.loads(stripped)))
     return samples
+
+
+def _requires_review(sample: MarketRelevanceSample, *, low_confidence_threshold: float) -> bool:
+    if sample.annotation.confidence < low_confidence_threshold:
+        return True
+    if sample.labels.noise_type == "other":
+        return True
+    title = sample.content.title.strip()
+    summary = (sample.content.summary or "").strip()
+    return len(title) < 12 or not summary

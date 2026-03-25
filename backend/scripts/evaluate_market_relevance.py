@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.db.session import SessionLocal
 from app.services.news_relevance_dataset import load_benchmark_samples
-from app.services.news_relevance_evaluator import evaluate_market_relevance, predict_market_relevance
+from app.services.news_relevance_evaluator import evaluate_market_relevance, predict_market_relevance_batch
+from app.services.news_relevance_experiment_runner import append_baseline_ledger_row
 
 
 def main() -> None:
@@ -13,12 +19,12 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, required=True, help="Path to benchmark JSONL file")
     parser.add_argument("--output-dir", type=Path, required=True, help="Directory for evaluation artifacts")
     parser.add_argument("--min-recall", type=float, default=0.4, help="Minimum acceptable recall")
+    parser.add_argument("--ledger", type=Path, default=None, help="Optional ledger TSV path for baseline capture")
+    parser.add_argument("--experiment-id", default=None, help="Ledger experiment id when appending baseline")
     args = parser.parse_args()
 
-    samples = [
-        sample.model_copy(update={"predicted_market_relevant": predict_market_relevance(sample)})
-        for sample in load_benchmark_samples(args.dataset)
-    ]
+    with SessionLocal() as session:
+        samples = predict_market_relevance_batch(load_benchmark_samples(args.dataset), session=session)
     result = evaluate_market_relevance(samples, min_recall=args.min_recall)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +49,15 @@ def main() -> None:
         ),
         encoding="utf-8",
     )
+    if args.ledger is not None:
+        experiment_id = args.experiment_id or datetime.now(timezone.utc).strftime("baseline-%Y%m%dT%H%M%SZ")
+        append_baseline_ledger_row(
+            args.ledger,
+            experiment_id=experiment_id,
+            metrics=result.metrics,
+            dataset_path=str(args.dataset),
+            artifact_dir=str(args.output_dir),
+        )
     print(json.dumps(summary, ensure_ascii=False))
 
 

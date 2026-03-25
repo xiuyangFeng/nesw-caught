@@ -11,14 +11,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
+from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.services.news_ingestion import SourceDefinition
 from app.services.news_relevance_dataset import (
     DuplicateSampleIdError,
     InvalidBenchmarkSampleError,
+    apply_reviewed_samples,
     merge_reviewed_samples,
     load_benchmark_samples,
     save_samples,
+    select_review_samples,
 )
 
 
@@ -95,6 +98,73 @@ def test_merge_reviewed_samples_preserves_existing_benchmark_rows(tmp_path) -> N
     assert promoted == 1
     benchmark_samples = load_benchmark_samples(benchmark_path)
     assert [sample.sample_id for sample in benchmark_samples] == ["existing", "new-reviewed"]
+
+
+def test_select_review_samples_captures_mandatory_and_spot_check_cases() -> None:
+    samples = [
+        _sample_payload(sample_id="low-confidence", label_source="model_only"),
+        _sample_payload(sample_id="other-noise", label_source="model_only"),
+        _sample_payload(sample_id="short-title", label_source="model_only"),
+        _sample_payload(sample_id="high-confidence-positive", label_source="model_only"),
+        _sample_payload(sample_id="high-confidence-negative", label_source="model_only"),
+    ]
+    samples[0]["annotation"]["confidence"] = 0.42
+    samples[1]["labels"] = {"market_relevant": False, "noise_type": "other"}
+    samples[2]["content"]["title"] = "Brief"
+    samples[2]["content"]["summary"] = ""
+    samples[3]["annotation"]["confidence"] = 0.98
+    samples[4]["annotation"]["confidence"] = 0.97
+    samples[4]["labels"] = {"market_relevant": False, "noise_type": "off_topic"}
+
+    review_samples = select_review_samples(samples, spot_check_count_per_bucket=1, rng_seed=7)
+
+    assert {sample.sample_id for sample in review_samples} == {
+        "low-confidence",
+        "other-noise",
+        "short-title",
+        "high-confidence-positive",
+        "high-confidence-negative",
+    }
+
+
+def test_apply_reviewed_samples_updates_candidates_and_benchmark(tmp_path) -> None:
+    candidates_path = tmp_path / "annotated.jsonl"
+    review_path = tmp_path / "review.jsonl"
+    benchmark_path = tmp_path / "benchmark.jsonl"
+    save_samples(
+        candidates_path,
+        [
+            _sample_payload(sample_id="keep-positive", label_source="model_only"),
+            _sample_payload(sample_id="flip-negative", label_source="model_only"),
+        ],
+    )
+    reviewed = [
+        _sample_payload(sample_id="keep-positive", label_source="human_reviewed"),
+        _sample_payload(sample_id="flip-negative", label_source="human_corrected"),
+    ]
+    reviewed[1]["labels"] = {"market_relevant": False, "noise_type": "off_topic"}
+    save_samples(review_path, reviewed)
+
+    applied = apply_reviewed_samples(candidates_path, review_path, benchmark_path)
+
+    assert applied == 2
+    candidate_rows = [json.loads(line) for line in candidates_path.read_text(encoding="utf-8").splitlines()]
+    assert [row["annotation"]["label_source"] for row in candidate_rows] == ["human_reviewed", "human_corrected"]
+    assert candidate_rows[1]["labels"] == {"market_relevant": False, "noise_type": "off_topic"}
+    benchmark_rows = [sample.sample_id for sample in load_benchmark_samples(benchmark_path)]
+    assert benchmark_rows == ["keep-positive", "flip-negative"]
+
+
+def test_select_review_samples_skips_already_reviewed_rows() -> None:
+    samples = [
+        _sample_payload(sample_id="reviewed", label_source="human_reviewed"),
+        _sample_payload(sample_id="pending", label_source="model_only"),
+    ]
+    samples[1]["annotation"]["confidence"] = 0.4
+
+    review_samples = select_review_samples(samples, spot_check_count_per_bucket=1, rng_seed=7)
+
+    assert [sample.sample_id for sample in review_samples] == ["pending"]
 
 
 def _load_sampling_module():
@@ -177,6 +247,39 @@ def test_sampling_script_preserves_historical_and_realtime_mix(tmp_path, monkeyp
     assert [sample["source_type"] for sample in persisted] == ["historical", "historical", "realtime"]
 
 
+def test_sampling_script_includes_article_body_excerpt_when_present(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
+    module = _load_sampling_module()
+
+    with session_local() as session:
+        item = _make_news_item(
+            news_id=21,
+            source_name="Legacy Feed",
+            canonical_url="https://example.com/body-story",
+            fetched_at=datetime(2025, 3, 17, 1, 0, tzinfo=timezone.utc),
+        )
+        session.add(item)
+        session.flush()
+        session.add(
+            ArticleContent(
+                news_id=item.id,
+                content_text="Body excerpt with revenue guidance and supply chain detail.",
+                content_html=None,
+                extract_status="success",
+                extract_error=None,
+                extracted_at=datetime(2025, 3, 17, 1, 5, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+        monkeypatch.setattr(module, "load_sources", lambda: [])
+
+        records = module.build_market_relevance_candidates(session, historical_limit=1, realtime_limit=0)
+
+    assert records[0].content.body_excerpt == "Body excerpt with revenue guidance and supply chain detail."
+
+
 def test_sampling_script_deduplicates_canonical_urls_across_pools(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(bind=engine)
@@ -205,3 +308,100 @@ def test_sampling_script_deduplicates_canonical_urls_across_pools(monkeypatch) -
     assert len(records) == 1
     assert records[0].origin.canonical_url == shared_url
     assert records[0].source_type == "historical"
+
+
+def test_sampling_script_can_cap_per_source_to_reduce_overrepresentation(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
+    module = _load_sampling_module()
+
+    with session_local() as session:
+        for index in range(1, 6):
+            session.add(
+                _make_news_item(
+                    news_id=index,
+                    source_name="CLS Telegraph",
+                    canonical_url=f"https://example.com/cls-{index}",
+                    fetched_at=datetime(2025, 3, 17, index, 0, tzinfo=timezone.utc),
+                )
+            )
+        session.add(
+            _make_news_item(
+                news_id=101,
+                source_name="Reuters",
+                canonical_url="https://example.com/reuters-1",
+                fetched_at=datetime(2025, 3, 17, 6, 0, tzinfo=timezone.utc),
+            )
+        )
+        session.add(
+            _make_news_item(
+                news_id=102,
+                source_name="Bloomberg",
+                canonical_url="https://example.com/bloomberg-1",
+                fetched_at=datetime(2025, 3, 17, 7, 0, tzinfo=timezone.utc),
+            )
+        )
+        session.commit()
+
+        monkeypatch.setattr(module, "load_sources", lambda: [])
+        records = module.build_market_relevance_candidates(
+            session,
+            historical_limit=4,
+            realtime_limit=0,
+            historical_source_cap=1,
+        )
+
+    assert [record.origin.source_name for record in records] == [
+        "CLS Telegraph",
+        "Reuters",
+        "Bloomberg",
+    ]
+
+
+def test_sampling_script_source_cap_keeps_filling_beyond_initial_skewed_window(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(bind=engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
+    module = _load_sampling_module()
+
+    with session_local() as session:
+        for index in range(1, 1001):
+            session.add(
+                _make_news_item(
+                    news_id=index,
+                    source_name="A",
+                    canonical_url=f"https://example.com/a-{index}",
+                    fetched_at=datetime(2025, 3, 17, 0, 0, tzinfo=timezone.utc),
+                )
+            )
+        for index in range(1001, 1011):
+            session.add(
+                _make_news_item(
+                    news_id=index,
+                    source_name="B",
+                    canonical_url=f"https://example.com/b-{index}",
+                    fetched_at=datetime(2025, 3, 18, 0, 0, tzinfo=timezone.utc),
+                )
+            )
+        for index in range(1011, 1021):
+            session.add(
+                _make_news_item(
+                    news_id=index,
+                    source_name="C",
+                    canonical_url=f"https://example.com/c-{index}",
+                    fetched_at=datetime(2025, 3, 19, 0, 0, tzinfo=timezone.utc),
+                )
+            )
+        session.commit()
+
+        monkeypatch.setattr(module, "load_sources", lambda: [])
+        records = module.build_market_relevance_candidates(
+            session,
+            historical_limit=30,
+            realtime_limit=0,
+            historical_source_cap=10,
+        )
+
+    assert len(records) == 30
+    assert [record.origin.source_name for record in records[:6]] == ["A", "B", "C", "A", "B", "C"]

@@ -7,6 +7,7 @@ import pytest
 from app.schemas.research import EvaluationMetrics
 from app.services.news_relevance_experiment_runner import (
     ExperimentScopeError,
+    append_baseline_ledger_row,
     append_experiment_ledger_row,
     decide_experiment_outcome,
     ensure_allowed_paths,
@@ -67,3 +68,20 @@ def test_append_experiment_ledger_row_writes_header_and_row(tmp_path) -> None:
     content = ledger_path.read_text(encoding="utf-8").splitlines()
     assert content[0].startswith("experiment_id\tbaseline_id\thypothesis\tdecision")
     assert "exp-002" in content[1]
+
+
+def test_append_baseline_ledger_row_writes_baseline_record(tmp_path) -> None:
+    ledger_path = tmp_path / "experiments.tsv"
+
+    append_baseline_ledger_row(
+        ledger_path,
+        experiment_id="baseline-001",
+        metrics=EvaluationMetrics(precision=0.62, recall=0.55, noise_rejection_rate=0.71),
+        dataset_path="backend/data/research/market_relevance_benchmark.jsonl",
+        artifact_dir="artifacts/research/baseline",
+    )
+
+    content = ledger_path.read_text(encoding="utf-8").splitlines()
+    assert content[0].startswith("experiment_id\tbaseline_id\thypothesis\tdecision")
+    assert content[1].startswith("baseline-001\tbaseline-001\tbaseline evaluation\tbaseline\t")
+    assert "backend/data/research/market_relevance_benchmark.jsonl" in content[1]

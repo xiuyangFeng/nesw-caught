@@ -55,3 +55,17 @@ def test_experiment_decision_rejects_metric_regression_without_reason() -> None:
         return
 
     raise AssertionError("expected ValidationError when reject decision omits reason")
+
+
+def test_experiment_decision_allows_baseline_rows() -> None:
+    decision = ExperimentDecision.model_validate(
+        {
+            "experiment_id": "baseline-001",
+            "decision": "baseline",
+            "reason": "initial baseline capture",
+            "metrics_before": {"precision": 0.62, "recall": 0.55, "noise_rejection_rate": 0.7},
+            "metrics_after": {"precision": 0.62, "recall": 0.55, "noise_rejection_rate": 0.7},
+        }
+    )
+
+    assert decision.decision == "baseline"

@@ -100,7 +100,14 @@ class NewsSignalClassifier:
     def __init__(self, session) -> None:
         self.config_repository = LLMProviderConfigRepository(session)
 
-    def classify(self, *, title: str, summary: str | None, body: str | None) -> ClassificationResult:
+    def classify(
+        self,
+        *,
+        title: str,
+        summary: str | None,
+        body: str | None,
+        allow_llm: bool = True,
+    ) -> ClassificationResult:
         text = " ".join(part for part in [title, summary or "", body or ""] if part).lower()
         tokens = self._tokenize(text)
         score = sum(POSITIVE_TERMS.get(token, 0.0) for token in tokens) + sum(
@@ -132,7 +139,7 @@ class NewsSignalClassifier:
             topic_summary_hint=(summary_hint[:280] if summary_hint else None),
         )
 
-        should_refine = get_settings().ai_enabled and confidence <= 0.55
+        should_refine = allow_llm and get_settings().ai_enabled and confidence <= 0.55
         if not should_refine:
             return result
         return self._llm_refine(result, title=title, summary=summary, body=body)

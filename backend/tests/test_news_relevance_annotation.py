@@ -93,6 +93,58 @@ def test_annotation_service_requires_llm_provider_config() -> None:
         service.annotate_sample(MarketRelevanceSample.model_validate(_sample_payload()))
 
 
+def test_annotation_service_rejects_placeholder_provider_config(monkeypatch) -> None:
+    sample = MarketRelevanceSample.model_validate(_sample_payload())
+    fake_config = SimpleNamespace(
+        provider_name="openai_compatible",
+        model_name="deepseek-chat",
+        base_url="https://example-llm.test/v1",
+        api_key="sk-test-placeholder",
+    )
+
+    monkeypatch.setattr(
+        "app.services.news_relevance_annotation.LLMProviderConfigRepository.get_active",
+        lambda self: fake_config,
+    )
+
+    service = MarketRelevanceAnnotationService(session=object())
+
+    with pytest.raises(MarketRelevanceAnnotationError, match="placeholder"):
+        service.annotate_sample(sample)
+
+
+def test_annotation_service_allows_non_placeholder_hostnames_that_start_with_example(monkeypatch) -> None:
+    sample = MarketRelevanceSample.model_validate(_sample_payload())
+    fake_config = SimpleNamespace(
+        provider_name="openai_compatible",
+        model_name="deepseek-chat",
+        base_url="https://example-llm.company.com/v1",
+        api_key="sk-live-realistic",
+    )
+
+    monkeypatch.setattr(
+        "app.services.news_relevance_annotation.LLMProviderConfigRepository.get_active",
+        lambda self: fake_config,
+    )
+    monkeypatch.setattr(
+        "app.services.news_relevance_annotation.build_provider",
+        lambda config: SimpleNamespace(
+            generate_text=lambda **kwargs: json.dumps(
+                {
+                    "market_relevant": True,
+                    "noise_type": None,
+                    "confidence": 0.88,
+                    "reason": "Business update has clear investor relevance.",
+                }
+            )
+        ),
+    )
+
+    annotated = MarketRelevanceAnnotationService(session=object()).annotate_sample(sample)
+
+    assert annotated.annotation.confidence == 0.88
+
+
 def test_annotate_market_relevance_file_writes_annotated_jsonl(tmp_path, monkeypatch) -> None:
     input_path = tmp_path / "candidates.jsonl"
     output_path = tmp_path / "annotated.jsonl"
@@ -126,3 +178,168 @@ def test_annotate_market_relevance_file_writes_annotated_jsonl(tmp_path, monkeyp
     assert persisted["labels"]["market_relevant"] is False
     assert persisted["labels"]["noise_type"] == "low_information"
     assert persisted["annotation"]["confidence"] == 0.64
+
+
+def test_annotate_market_relevance_file_can_resume_from_existing_output(tmp_path, monkeypatch) -> None:
+    input_path = tmp_path / "candidates.jsonl"
+    output_path = tmp_path / "annotated.jsonl"
+    input_path.write_text(
+        "\n".join(
+            [
+                json.dumps(_sample_payload("sample-1")),
+                json.dumps(_sample_payload("sample-2")),
+                json.dumps(_sample_payload("sample-3")),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    completed = _sample_payload("sample-1")
+    completed["annotation"] = {
+        "label_source": "model_only",
+        "model_name": "deepseek-chat",
+        "confidence": 0.77,
+        "review_notes": "annotated sample-1",
+    }
+    output_path.write_text(json.dumps(completed) + "\n", encoding="utf-8")
+
+    seen: list[str] = []
+
+    def fake_annotate_sample(self, sample):  # type: ignore[no-untyped-def]
+        seen.append(sample.sample_id)
+        return sample.model_copy(
+            update={
+                "annotation": MarketRelevanceAnnotation(
+                    label_source="model_only",
+                    model_name="deepseek-chat",
+                    confidence=0.77,
+                    review_notes=f"annotated {sample.sample_id}",
+                )
+            }
+        )
+
+    monkeypatch.setattr(
+        "app.services.news_relevance_annotation.MarketRelevanceAnnotationService.annotate_sample",
+        fake_annotate_sample,
+    )
+
+    annotated_samples = annotate_market_relevance_file(
+        input_path,
+        output_path,
+        session=object(),
+        resume=True,
+    )
+
+    assert [sample.sample_id for sample in annotated_samples] == ["sample-1", "sample-2", "sample-3"]
+    assert seen == ["sample-2", "sample-3"]
+    output_lines = output_path.read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["sample_id"] for line in output_lines] == ["sample-1", "sample-2", "sample-3"]
+
+
+def test_annotate_market_relevance_file_resume_reannotates_placeholder_rows(tmp_path, monkeypatch) -> None:
+    input_path = tmp_path / "candidates.jsonl"
+    output_path = tmp_path / "annotated.jsonl"
+    input_path.write_text(
+        "\n".join(
+            [
+                json.dumps(_sample_payload("sample-1")),
+                json.dumps(_sample_payload("sample-2")),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output_path.write_text(json.dumps(_sample_payload("sample-1")) + "\n", encoding="utf-8")
+
+    seen: list[str] = []
+
+    def fake_annotate_sample(self, sample):  # type: ignore[no-untyped-def]
+        seen.append(sample.sample_id)
+        return sample.model_copy(
+            update={
+                "annotation": MarketRelevanceAnnotation(
+                    label_source="model_only",
+                    model_name="deepseek-chat",
+                    confidence=0.81,
+                    review_notes=f"annotated {sample.sample_id}",
+                )
+            }
+        )
+
+    monkeypatch.setattr(
+        "app.services.news_relevance_annotation.MarketRelevanceAnnotationService.annotate_sample",
+        fake_annotate_sample,
+    )
+
+    annotated_samples = annotate_market_relevance_file(
+        input_path,
+        output_path,
+        session=object(),
+        resume=True,
+    )
+
+    assert [sample.sample_id for sample in annotated_samples] == ["sample-1", "sample-2"]
+    assert seen == ["sample-1", "sample-2"]
+
+
+def test_annotate_market_relevance_file_flushes_each_batch(tmp_path, monkeypatch) -> None:
+    input_path = tmp_path / "candidates.jsonl"
+    output_path = tmp_path / "annotated.jsonl"
+    input_path.write_text(
+        "\n".join(
+            [
+                json.dumps(_sample_payload("sample-1")),
+                json.dumps(_sample_payload("sample-2")),
+                json.dumps(_sample_payload("sample-3")),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    calls: list[list[str]] = []
+
+    def fake_annotate_sample(self, sample):  # type: ignore[no-untyped-def]
+        return sample.model_copy(
+            update={
+                "annotation": MarketRelevanceAnnotation(
+                    label_source="model_only",
+                    model_name="deepseek-chat",
+                    confidence=0.8,
+                    review_notes=f"annotated {sample.sample_id}",
+                )
+            }
+        )
+
+    def fake_save_samples(path, samples):  # type: ignore[no-untyped-def]
+        calls.append([sample.sample_id for sample in samples])
+
+    monkeypatch.setattr(
+        "app.services.news_relevance_annotation.MarketRelevanceAnnotationService.annotate_sample",
+        fake_annotate_sample,
+    )
+    monkeypatch.setattr("app.services.news_relevance_annotation.save_samples", fake_save_samples)
+
+    annotate_market_relevance_file(
+        input_path,
+        output_path,
+        session=object(),
+        batch_size=2,
+    )
+
+    assert calls == [["sample-1", "sample-2"], ["sample-1", "sample-2", "sample-3"]]
+
+
+@pytest.mark.parametrize("batch_size", [0, -1])
+def test_annotate_market_relevance_file_rejects_non_positive_batch_size(tmp_path, batch_size) -> None:
+    input_path = tmp_path / "candidates.jsonl"
+    output_path = tmp_path / "annotated.jsonl"
+    input_path.write_text(json.dumps(_sample_payload("sample-1")) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="batch_size"):
+        annotate_market_relevance_file(
+            input_path,
+            output_path,
+            session=object(),
+            batch_size=batch_size,
+        )

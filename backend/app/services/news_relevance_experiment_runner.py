@@ -109,6 +109,43 @@ def append_experiment_ledger_row(
         handle.write("\n")
 
 
+def append_baseline_ledger_row(
+    ledger_path: str | Path,
+    *,
+    experiment_id: str,
+    metrics: EvaluationMetrics,
+    dataset_path: str,
+    artifact_dir: str,
+) -> None:
+    path = Path(ledger_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.write_text(
+            "experiment_id\tbaseline_id\thypothesis\tdecision\treason\tchanged_files\ttimestamp\n",
+            encoding="utf-8",
+        )
+
+    reason = (
+        f"precision={metrics.precision:.4f},recall={metrics.recall:.4f},"
+        f"noise_rejection_rate={metrics.noise_rejection_rate:.4f},"
+        f"dataset={dataset_path},artifacts={artifact_dir}"
+    )
+    row = "\t".join(
+        [
+            experiment_id,
+            experiment_id,
+            "baseline evaluation",
+            "baseline",
+            reason,
+            "",
+            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        ]
+    )
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(row)
+        handle.write("\n")
+
+
 def _is_relative_to(path: Path, candidate: Path) -> bool:
     try:
         path.relative_to(candidate)

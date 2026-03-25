@@ -2,6 +2,87 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 15:52
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch review follow-up hardening
+- 变更内容：按本轮 code review 补了两处会影响后续 benchmark 可靠性的实现收紧。其一，`sample_market_relevance_dataset.py` 在启用 source cap 时不再只看固定 oversample 窗口，而是直接扫描完整候选池后再做 round-robin 限额，避免前部数据被单一来源淹没时把目标样本数严重抽空；测试侧新增了一个“前 1000 条都来自同一 source，但后面仍有足够 B/C source 填满 limit”的用例，确认 source cap 不会因为窗口偏斜而只吐出少量样本。其二，`OpenAICompatibleProvider` 的占位 host 检查从“凡是 hostname 以 `example-` / `example.` 开头都拒绝”收窄为只拒绝保留测试域（如 `.test` 和标准 `example.com/.org/.net`），避免误伤真实公司域名中恰好带 `example-` 前缀的 host；测试侧同步补了允许 `https://example-llm.company.com/v1` 继续正常走 provider 调用的覆盖。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/llm_providers.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/sample_market_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_annotation.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；仅收紧 provider placeholder 判定与 source cap 抽样语义
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_annotation.py::test_annotation_service_allows_non_placeholder_hostnames_that_start_with_example backend/tests/test_news_relevance_dataset.py::test_sampling_script_source_cap_keeps_filling_beyond_initial_skewed_window -q` 通过（2 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/llm_providers.py backend/scripts/sample_market_relevance_dataset.py` 通过
+- 风险/后续事项：source cap starvation 和 placeholder host 误判都已修正，但 sampling 仍未达到最终设计里要求的 market/time/noise 全量分层；后续若要正式合并 baseline/benchmark 产物，还需要继续把 sampling allocator 和离线 benchmark 执行链打通
+
+## 2026-03-25 15:39
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch annotation 可恢复批处理
+- 变更内容：为 `annotate_market_relevance.py` 和底层 `annotate_market_relevance_file()` 补了最小可恢复执行能力，避免整批 `400` 条候选首标时“长时间无进度、失败后从头再来”。当前实现新增了两项控制：`--resume` 会复用已有 output 中真正已完成的样本并只继续剩余样本；`--batch-size` 会在每 N 条新标注后把当前累计结果重新写回输出文件，确保中途中断后有可恢复的阶段性产物。收到 review 后又补了两处收紧：`resume` 现在只会跳过 `confidence > 0` 的已完成标注，不会把候选集里那种占位 `model_only + confidence=0` 行误判为已完成；`batch-size` 也要求必须是正整数，避免 `0` 或负数被静默接受。测试侧补了三类回归：已完成 output 续跑、占位 output 需要重标、以及分批 flush/非法 batch size 的边界。这样后续继续跑整批候选时，可以先用小批量探路，再反复 `--resume` 补齐，而不是依赖一次长时间串行请求。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/news_relevance_annotation.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/annotate_market_relevance.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_annotation.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/docs/code-change-log.md`
+- 接口/数据结构变化：annotation CLI 新增 `--resume` 和 `--batch-size`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_annotation.py -q` 通过（9 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_annotation.py backend/scripts/annotate_market_relevance.py` 通过
+- 风险/后续事项：当前仍是串行逐条请求外部 LLM，只是已经可恢复；如果整批运行仍然太慢，下一步应继续补更明确的进度输出，或增加 `--limit/--offset` 一类显式分片控制，方便并行或分段执行
+
+## 2026-03-25 15:08
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch annotation provider 诊断与采样 source cap
+- 变更内容：基于当前 worktree 继续推进 `market relevance autoresearch`，先按真实复现结果收紧了 annotation 入口的 provider 校验，再给候选集抽样补了一层最小的来源限额控制。LLM provider 侧在 `OpenAICompatibleProvider` 增加了占位配置 fail-fast：当活动配置仍指向 `example-*` / `.test` 之类占位 host，或使用 `sk-test...` 占位 key 时，会在真正发请求前直接抛出受控错误，避免 annotation CLI 长跑后才在 TLS 握手阶段报 `UNEXPECTED_EOF_WHILE_READING`。抽样侧为 `sample_market_relevance_dataset.py` 增加了 `--historical-source-cap` / `--realtime-source-cap` 参数，并在查询窗口上做 oversample 后按 source round-robin 限额分配，避免“先取前 N 条再裁剪”导致 `CLS Telegraph` 一类单源直接挤掉其他来源。用当前 SQLite 数据做 smoke run 时，`source cap=40` 能明显压下单源暴涨，但也暴露出只靠 source cap 还不足以稳定补满 `400` 条样本，当前会落到 `315` 条，说明下一步仍需继续做更完整的 stratified allocator，而不是把 source cap 当最终方案。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/llm_providers.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/sample_market_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_annotation.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/docs/code-change-log.md`
+- 接口/数据结构变化：annotation provider 请求前新增占位配置拒绝语义；候选集采样 CLI 新增 `--historical-source-cap` 与 `--realtime-source-cap`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_annotation.py backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_relevance_experiment_runner.py backend/tests/test_research_schemas.py -q` 通过（30 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/llm_providers.py backend/scripts/sample_market_relevance_dataset.py backend/tests/test_news_relevance_annotation.py backend/tests/test_news_relevance_dataset.py` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/sample_market_relevance_dataset.py --historical-limit 240 --realtime-limit 160 --historical-source-cap 40 --realtime-source-cap 40 --output /tmp/market_relevance_candidates_cap_XXXX.jsonl` 通过，生成 `315` 条候选样本，前几大来源收敛为 `The Verge/36Kr/CLS Telegraph` 各 `80` 条
+- 风险/后续事项：当前 annotation 仍然没有“真正跑通”到可用 LLM，因为主工作区数据库里的活动 provider 还是占位配置，需先换成真实可连通的 endpoint 后再继续半自动标注；source cap 只是第一层止血，无法单独保证 `400` 条样本补满，也无法同时约束 market/time/noise 分布，后续仍应按设计继续做显式分层抽样
+
+## 2026-03-25 15:29
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch LLM provider 实配与 annotation 连通性验证
+- 变更内容：按用户提供的 DeepSeek API key，把主工作区 SQLite 数据库 `/Users/xiuyang/Desktop/news-caught/backend/data/app.db` 中的活动 `llm_provider_config` 从占位值切换为真实 `DeepSeek` 配置（`openai_compatible + https://api.deepseek.com/v1 + deepseek-chat`），随后在 benchmark worktree 内重跑了单样本 `annotate_market_relevance.py` 验证，确认 annotation 已可实际返回结构化标签、置信度和 review notes，不再停在占位 host / TLS EOF 阶段。继续尝试整批 `400` 条候选首标时，现有脚本因为串行外部请求且没有中间落盘或进度输出，在数分钟内仍无阶段性产物，因此本轮没有继续盲等到整批完成，也没有生成完整 `market_relevance_candidates.annotated.jsonl`；后续更适合把标注切成可恢复的小批次，或给脚本补中间落盘/进度。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/docs/code-change-log.md`
+- 接口/数据结构变化：无代码接口变化；主工作区数据库中的活动 LLM provider 配置已改为真实 DeepSeek endpoint
+- 验证情况：`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/annotate_market_relevance.py backend/data/research/market_relevance_candidates.first.jsonl backend/data/research/market_relevance_candidates.first.annotated.jsonl` 通过，成功标注 `1` 条样本；随后对 `backend/data/research/market_relevance_candidates.jsonl` 发起整批首标，因脚本为串行外部请求且无中间落盘，本轮手动停止，未产出完整批次文件
+- 风险/后续事项：当前真实 endpoint 已可连通，但整批首标的执行策略还不适合长批次运行；如果要继续推进 benchmark，优先应把 annotation 改成分批可恢复或带进度/中间落盘的模式，再继续跑完整候选集
+
+## 2026-03-25 14:21
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 候选集执行闭环与离线评测贴近生产逻辑
+- 变更内容：继续沿既有 `market relevance autoresearch` plan 推进，补齐了当前真正阻塞落地的几个执行缺口。候选集侧为 `sample_market_relevance_dataset.py` 增加了正式 CLI 参数，并在抽样时把 `ArticleContent.content_text` 摘要带入 `body_excerpt`，随后基于主工作区现有 SQLite 数据库生成了第一批 `400` 条候选样本（`historical=240`、`realtime=160`，其中 `388` 条带正文摘要）；review 侧新增了“导出待复核队列 + 应用人工复核结果”的闭环，且会跳过已经 `human_reviewed/human_corrected` 的样本，避免二次复核时重复入队；evaluator 侧不再只靠独立词表，而是复用真实 `NewsSignalClassifier` 的 rule-only 路径并显式禁用 LLM refinement，使离线 benchmark 能使用生产分类器的关键词/主题抽取与正文输入，同时保持纯离线、可复现；baseline 评测脚本补上了 ledger 写入能力，baseline row 也与 schema 对齐，并为未显式传入的 baseline run 生成唯一 `experiment_id`；另外为 research CLI 入口统一补了本地 `backend/` 的 `sys.path` 注入，修复 `conda run` 下 worktree 脚本误导入主工作区 `app.*` 的运行时污染问题。本轮同时验证了半自动标注在当前本机配置下仍被活动 LLM endpoint 阻塞：单样本 `annotate_market_relevance.py` 会稳定报 `llm provider request failed: [SSL: UNEXPECTED_EOF_WHILE_READING]`，因此第一版 benchmark 与 baseline 还不能在当前 provider 配置下真实产出。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/schemas/research.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/news_relevance_experiment_runner.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/app/services/news_signal_classifier.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/sample_market_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/annotate_market_relevance.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/review_market_relevance_annotations.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/evaluate_market_relevance.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/scripts/run_news_relevance_experiment.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_research_schemas.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/tests/test_news_relevance_experiment_runner.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/backend/data/research/market_relevance_candidates.jsonl`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/market-relevance-benchmark/docs/code-change-log.md`
+- 接口/数据结构变化：新增了 reviewed sample apply/select 工作流、baseline ledger row 语义以及 `ExperimentDecision.decision="baseline"`；评测预测路径改为支持复用真实 classifier 且使用 `body_excerpt`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_research_schemas.py backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_relevance_experiment_runner.py -q` 通过（25 个用例）；`conda run -n news-caught python -m py_compile backend/scripts/sample_market_relevance_dataset.py backend/scripts/annotate_market_relevance.py backend/scripts/review_market_relevance_annotations.py backend/scripts/evaluate_market_relevance.py backend/scripts/run_news_relevance_experiment.py backend/app/services/news_relevance_dataset.py backend/app/services/news_relevance_evaluator.py backend/app/services/news_relevance_experiment_runner.py backend/app/services/news_signal_classifier.py backend/app/schemas/research.py` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python scripts/sample_market_relevance_dataset.py --historical-limit 240 --realtime-limit 160 --output data/research/market_relevance_candidates.jsonl` 通过并生成 `400` 条候选样本；`conda run -n news-caught python scripts/review_market_relevance_annotations.py select data/research/market_relevance_candidates.jsonl data/research/market_relevance_review_queue.jsonl --confidence-threshold 0.75 --spot-check-count 20 --seed 7` 通过（随后已删除临时 review queue）；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python scripts/annotate_market_relevance.py data/research/market_relevance_candidates.first.jsonl data/research/market_relevance_candidates.first.annotated.jsonl` 失败，错误为 `llm provider request failed: [SSL: UNEXPECTED_EOF_WHILE_READING]`
+- 风险/后续事项：第一批候选集已生成，但 source 分布仍明显偏向 `CLS Telegraph` / `36Kr`，后续如要降低标注成本并提升 benchmark 代表性，仍建议把 sampling 继续升级成显式分层抽样；当前 benchmark 与 baseline 的真实产出仍受活动 LLM provider 连接异常阻塞，需先修正本机可用 provider 或切换到有效 DeepSeek/OpenAI-compatible endpoint 后，再继续跑半自动标注和 baseline capture
+
 ## 2026-03-25 13:42
 
 - 修改人：Codex

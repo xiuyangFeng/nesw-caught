@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import urlparse
 
 import httpx
 
@@ -15,15 +16,27 @@ class OpenAICompatibleProvider:
     def __init__(self, config: LLMProviderConfig) -> None:
         self.config = config
 
+    def _validate_config(self) -> None:
+        base_url = (self.config.base_url or "").strip()
+        if not base_url:
+            raise LLMProviderError("llm provider base url is not configured")
+
+        hostname = (urlparse(base_url).hostname or "").lower()
+        if hostname.endswith(".test") or hostname in {"example.com", "example.org", "example.net"}:
+            raise LLMProviderError(f"llm provider uses placeholder base url: {base_url}")
+
+        api_key = self.config.api_key or ""
+        if api_key.startswith("sk-test"):
+            raise LLMProviderError("llm provider uses placeholder api key")
+
     def _request_completion(
         self,
         *,
         messages: list[dict[str, str]],
         response_format: dict[str, str] | None = None,
     ) -> str:
+        self._validate_config()
         base_url = (self.config.base_url or "").rstrip("/")
-        if not base_url:
-            raise LLMProviderError("llm provider base url is not configured")
         if not self.config.api_key:
             raise LLMProviderError("llm provider api key is not configured")
 
