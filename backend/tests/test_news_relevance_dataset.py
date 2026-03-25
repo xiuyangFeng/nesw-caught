@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import importlib.util
 import json
 from datetime import datetime, timezone
@@ -17,7 +18,11 @@ from app.services.news_ingestion import SourceDefinition
 from app.services.news_relevance_dataset import (
     DuplicateSampleIdError,
     InvalidBenchmarkSampleError,
+    InvalidReviewDecisionError,
     apply_reviewed_samples,
+    export_review_samples_csv,
+    export_review_samples_markdown,
+    import_review_decisions_csv,
     merge_reviewed_samples,
     load_benchmark_samples,
     save_samples,
@@ -165,6 +170,124 @@ def test_select_review_samples_skips_already_reviewed_rows() -> None:
     review_samples = select_review_samples(samples, spot_check_count_per_bucket=1, rng_seed=7)
 
     assert [sample.sample_id for sample in review_samples] == ["pending"]
+
+
+def test_export_review_samples_markdown_renders_readable_sections() -> None:
+    samples = [
+        _sample_payload(sample_id="positive", label_source="model_only"),
+        _sample_payload(sample_id="negative", label_source="model_only"),
+    ]
+    samples[0]["annotation"]["confidence"] = 0.91
+    samples[0]["annotation"]["review_notes"] = "Likely market relevant because of clear regulatory impact."
+    samples[1]["labels"] = {"market_relevant": False, "noise_type": "generic_tech"}
+    samples[1]["annotation"]["confidence"] = 0.66
+    samples[1]["annotation"]["review_notes"] = "Looks like generic product chatter."
+
+    rendered = export_review_samples_markdown(samples)
+
+    assert "# Market Relevance Review Queue" in rendered
+    assert "## 1. positive" in rendered
+    assert "## 2. negative" in rendered
+    assert "- Model Label: relevant" in rendered
+    assert "- Model Label: not relevant (`generic_tech`)" in rendered
+    assert "- Review Action: set `annotation.label_source` to `human_reviewed` or `human_corrected`" in rendered
+    assert "Likely market relevant because of clear regulatory impact." in rendered
+
+
+def test_export_review_samples_csv_writes_editable_columns() -> None:
+    samples = [
+        _sample_payload(sample_id="positive", label_source="model_only"),
+        _sample_payload(sample_id="negative", label_source="model_only"),
+    ]
+    samples[1]["labels"] = {"market_relevant": False, "noise_type": "generic_tech"}
+    samples[1]["annotation"]["review_notes"] = "Generic product chatter."
+
+    rendered = export_review_samples_csv(samples)
+    rows = list(csv.DictReader(rendered.splitlines()))
+
+    assert rows[0]["sample_id"] == "positive"
+    assert rows[0]["model_market_relevant"] == "true"
+    assert rows[0]["review_market_relevant"] == ""
+    assert rows[1]["model_noise_type"] == "generic_tech"
+    assert rows[1]["model_reason"] == "Generic product chatter."
+
+
+def test_import_review_decisions_csv_updates_reviewed_samples(tmp_path) -> None:
+    queue_path = tmp_path / "queue.jsonl"
+    csv_path = tmp_path / "review.csv"
+    output_path = tmp_path / "reviewed.jsonl"
+    samples = [
+        _sample_payload(sample_id="positive", label_source="model_only"),
+        _sample_payload(sample_id="negative", label_source="model_only"),
+    ]
+    samples[1]["labels"] = {"market_relevant": False, "noise_type": "generic_tech"}
+    save_samples(queue_path, samples)
+    csv_path.write_text(
+        "\n".join(
+            [
+                "sample_id,review_market_relevant,review_noise_type,review_label_source,review_notes",
+                "positive,true,,human_reviewed,keep as relevant",
+                "negative,false,off_topic,human_corrected,should be off topic",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    imported = import_review_decisions_csv(queue_path, csv_path, output_path)
+
+    assert [sample.annotation.label_source for sample in imported] == ["human_reviewed", "human_corrected"]
+    assert imported[0].labels.market_relevant is True
+    assert imported[1].labels.noise_type == "off_topic"
+    persisted = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+    assert persisted[1]["annotation"]["review_notes"] == "should be off topic"
+
+
+def test_import_review_decisions_csv_rejects_missing_queue_rows(tmp_path) -> None:
+    queue_path = tmp_path / "queue.jsonl"
+    csv_path = tmp_path / "review.csv"
+    output_path = tmp_path / "reviewed.jsonl"
+    samples = [
+        _sample_payload(sample_id="positive", label_source="model_only"),
+        _sample_payload(sample_id="negative", label_source="model_only"),
+    ]
+    samples[1]["labels"] = {"market_relevant": False, "noise_type": "generic_tech"}
+    save_samples(queue_path, samples)
+    csv_path.write_text(
+        "\n".join(
+            [
+                "sample_id,review_market_relevant,review_noise_type,review_label_source,review_notes",
+                "positive,true,,human_reviewed,keep as relevant",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InvalidReviewDecisionError):
+        import_review_decisions_csv(queue_path, csv_path, output_path)
+
+
+def test_import_review_decisions_csv_rejects_duplicate_sample_ids(tmp_path) -> None:
+    queue_path = tmp_path / "queue.jsonl"
+    csv_path = tmp_path / "review.csv"
+    output_path = tmp_path / "reviewed.jsonl"
+    samples = [_sample_payload(sample_id="positive", label_source="model_only")]
+    save_samples(queue_path, samples)
+    csv_path.write_text(
+        "\n".join(
+            [
+                "sample_id,review_market_relevant,review_noise_type,review_label_source,review_notes",
+                "positive,true,,human_reviewed,keep as relevant",
+                "positive,false,off_topic,human_corrected,duplicate row",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(InvalidReviewDecisionError):
+        import_review_decisions_csv(queue_path, csv_path, output_path)
 
 
 def _load_sampling_module():

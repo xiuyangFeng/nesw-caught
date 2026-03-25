@@ -8,6 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.news_relevance_dataset import (
     apply_reviewed_samples,
+    export_review_samples_csv,
+    export_review_samples_markdown,
+    import_review_decisions_csv,
     select_review_samples,
     save_samples,
 )
@@ -29,6 +32,19 @@ def main() -> None:
     apply_parser.add_argument("candidates", type=Path, help="Path to annotated candidate JSONL file")
     apply_parser.add_argument("reviewed", type=Path, help="Path to reviewed queue JSONL file")
     apply_parser.add_argument("benchmark", type=Path, help="Path to benchmark JSONL file")
+
+    export_parser = subparsers.add_parser("export", help="Export review queue to a readable Markdown file")
+    export_parser.add_argument("review_queue", type=Path, help="Path to review queue JSONL file")
+    export_parser.add_argument("output", type=Path, help="Path to write Markdown export")
+
+    export_csv_parser = subparsers.add_parser("export-csv", help="Export review queue to an editable CSV file")
+    export_csv_parser.add_argument("review_queue", type=Path, help="Path to review queue JSONL file")
+    export_csv_parser.add_argument("output", type=Path, help="Path to write CSV export")
+
+    import_csv_parser = subparsers.add_parser("import-csv", help="Import reviewed CSV decisions back to JSONL")
+    import_csv_parser.add_argument("review_queue", type=Path, help="Path to original review queue JSONL file")
+    import_csv_parser.add_argument("review_csv", type=Path, help="Path to edited review CSV file")
+    import_csv_parser.add_argument("output", type=Path, help="Path to write reviewed queue JSONL file")
     args = parser.parse_args()
 
     if args.command == "select":
@@ -41,6 +57,23 @@ def main() -> None:
         )
         save_samples(args.output, review_queue)
         print(f"selected {len(review_queue)} samples -> {args.output}")
+        return
+
+    if args.command == "export":
+        samples = [_load_sample(line) for line in _read_jsonl_lines(args.review_queue)]
+        args.output.write_text(export_review_samples_markdown(samples), encoding="utf-8")
+        print(f"exported {len(samples)} samples -> {args.output}")
+        return
+
+    if args.command == "export-csv":
+        samples = [_load_sample(line) for line in _read_jsonl_lines(args.review_queue)]
+        args.output.write_text(export_review_samples_csv(samples), encoding="utf-8", newline="")
+        print(f"exported {len(samples)} samples -> {args.output}")
+        return
+
+    if args.command == "import-csv":
+        imported = import_review_decisions_csv(args.review_queue, args.review_csv, args.output)
+        print(f"imported {len(imported)} samples -> {args.output}")
         return
 
     promoted = apply_reviewed_samples(args.candidates, args.reviewed, args.benchmark)

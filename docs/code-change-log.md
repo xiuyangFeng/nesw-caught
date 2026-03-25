@@ -2,6 +2,42 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 17:06
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 review 决策回填、benchmark 首版产出与 baseline evaluator 回归修正
+- 变更内容：基于已导出的 `market_relevance_review_queue.csv`，先代填了当前 `59` 条 review queue 的首版人审决策，并通过 `import-csv` 导回 `market_relevance_reviewed.jsonl`，随后执行 `apply` 将复核结果回填到候选集并生成首版 `market_relevance_benchmark.jsonl`。在真正跑 baseline 时发现 evaluator 的 market-signal 规则过于依赖窄英文 token，导致 `17` 条正样本被全部预测成 `False`、recall 直接掉到 `0.0`；经定位后，为 `news_relevance_evaluator.py` 增补了更贴近真实 ingestion/filter 语义的监管披露词和中文市场短语匹配，并补了中文业绩快报、回购/派息、SEC 基金持仓披露三个回归测试。收到 code review 后又继续收紧了两处：`SEC` 不再作为裸 token 直接触发市场相关，而是改成更具体的监管披露短语；`import-csv` 现在会拒绝漏行和重复 `sample_id`，避免编辑 CSV 时静默丢失 review 决策。修正后 baseline 已成功产出，指标为 `precision=0.75`、`recall=0.5294`、`noise_rejection_rate=0.9286`，同时把最终 baseline 记录追加到了实验 ledger。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_review_queue.csv`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_reviewed.jsonl`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_candidates.annotated.jsonl`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_benchmark.jsonl`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_baseline/evaluation.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_baseline/evaluation.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/research/market-relevance-experiments.tsv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；baseline evaluator 的 market relevance 规则扩大到支持部分监管披露英文短语与中文市场短语命中
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_relevance_experiment_runner.py -q` 通过（33 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_dataset.py backend/app/services/news_relevance_evaluator.py backend/scripts/review_market_relevance_annotations.py backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_evaluator.py` 通过；`conda run -n news-caught python backend/scripts/review_market_relevance_annotations.py import-csv backend/data/research/market_relevance_review_queue.jsonl backend/data/research/market_relevance_review_queue.csv backend/data/research/market_relevance_reviewed.jsonl` 通过；`conda run -n news-caught python backend/scripts/review_market_relevance_annotations.py apply backend/data/research/market_relevance_candidates.annotated.jsonl backend/data/research/market_relevance_reviewed.jsonl backend/data/research/market_relevance_benchmark.jsonl` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/evaluate_market_relevance.py --dataset backend/data/research/market_relevance_benchmark.jsonl --output-dir backend/data/research/market_relevance_baseline --ledger docs/research/market-relevance-experiments.tsv --experiment-id baseline-20260325-market-relevance-v2` 通过并产出 baseline 指标
+- 风险/后续事项：当前 benchmark 仍只有 `59` 条复核样本，主要覆盖低置信度和 spot-check 队列，代表性还不足以支撑更强结论；evaluator 虽已不再全量漏判，但规则仍偏启发式，下一步应继续基于这批 false positive / false negative 收紧真实 market catalyst 与泛宏观/泛舆情边界
+
+## 2026-03-25 16:08
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 review queue 可读/可编辑导出
+- 变更内容：为当前 `market relevance` 人审环节补了两条 review queue 辅助路径。其一，在 `news_relevance_dataset.py` 中新增 review queue 的 Markdown 和 CSV renderer，以及把编辑后的 CSV 决策安全导回 reviewed JSONL 的 helper；其二，在 `review_market_relevance_annotations.py` 中新增 `export`、`export-csv` 和 `import-csv` 命令，让 review queue 不再只能直接改 JSONL。本轮已基于现有 `backend/data/research/market_relevance_review_queue.jsonl` 生成两份人读产物：`market_relevance_review_queue.md` 和更适合直接编辑的 `market_relevance_review_queue.csv`。这样后续你只需要编辑 CSV 中的 `review_market_relevant`、`review_noise_type`、`review_label_source`、`review_notes` 四列，我就可以把结果导回 JSONL 并继续 apply/benchmark/baseline。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/review_market_relevance_annotations.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_review_queue.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_review_queue.csv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：review CLI 新增 `export-csv` 与 `import-csv`；CSV 约定字段包括 `sample_id`、模型判断列和 `review_*` 编辑列
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_dataset.py::test_export_review_samples_markdown_renders_readable_sections backend/tests/test_news_relevance_dataset.py::test_export_review_samples_csv_writes_editable_columns backend/tests/test_news_relevance_dataset.py::test_import_review_decisions_csv_updates_reviewed_samples -q` 通过（3 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_dataset.py backend/scripts/review_market_relevance_annotations.py` 通过；`conda run -n news-caught python backend/scripts/review_market_relevance_annotations.py export backend/data/research/market_relevance_review_queue.jsonl backend/data/research/market_relevance_review_queue.md` 与 `export-csv backend/data/research/market_relevance_review_queue.jsonl backend/data/research/market_relevance_review_queue.csv` 通过
+- 风险/后续事项：CSV 只是人审编辑入口，正式 benchmark 仍然以导回后的 reviewed JSONL 为准；你完成 CSV 编辑后，还需要继续执行 `import-csv -> apply -> evaluate`
+
 ## 2026-03-25 15:52
 
 - 修改人：Codex

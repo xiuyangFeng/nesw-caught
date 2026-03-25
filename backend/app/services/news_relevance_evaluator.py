@@ -10,6 +10,10 @@ MARKET_SIGNAL_TERMS = {
     "guidance",
     "revenue",
     "earnings",
+    "fund",
+    "funds",
+    "portfolio",
+    "holdings",
     "tariff",
     "policy",
     "regulation",
@@ -28,6 +32,31 @@ MARKET_SIGNAL_TERMS = {
     "bank",
     "fed",
     "ipo",
+}
+
+MARKET_SIGNAL_PHRASES = {
+    "sec proposes",
+    "sec announces enforcement",
+    "fund portfolio holdings",
+    "reporting of fund",
+    "buyback",
+    "dividend",
+    "share repurchase",
+}
+
+CHINESE_MARKET_SIGNAL_PHRASES = {
+    "业绩快报",
+    "净利润",
+    "回购股票",
+    "派息",
+    "股东",
+    "减持",
+    "增持",
+    "股指",
+    "指数",
+    "收盘上涨",
+    "期货",
+    "自由现金流",
 }
 
 GENERIC_TECH_TERMS = {
@@ -103,7 +132,7 @@ def predict_market_relevance(
     *,
     classifier: NewsSignalClassifier | object | None = None,
 ) -> bool:
-    text = " ".join(
+    raw_text = " ".join(
         part
         for part in [
             sample.content.title,
@@ -111,7 +140,8 @@ def predict_market_relevance(
             sample.content.body_excerpt or "",
         ]
         if part
-    ).lower()
+    )
+    text = raw_text.lower()
     tokens = set(re.findall(r"[a-z0-9]+", text))
     classifier_tokens: set[str] = set()
     if classifier is not None:
@@ -126,6 +156,10 @@ def predict_market_relevance(
 
     combined_market_tokens = tokens.union(classifier_tokens)
     if combined_market_tokens.intersection(MARKET_SIGNAL_TERMS):
+        return True
+    if any(phrase in text for phrase in MARKET_SIGNAL_PHRASES):
+        return True
+    if any(phrase in raw_text for phrase in CHINESE_MARKET_SIGNAL_PHRASES):
         return True
     if tokens.intersection(GENERIC_TECH_TERMS) or classifier_tokens.intersection(GENERIC_TECH_TERMS):
         return False

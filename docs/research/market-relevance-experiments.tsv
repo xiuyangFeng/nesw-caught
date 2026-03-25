@@ -1,1 +1,2 @@
 experiment_id	baseline_id	hypothesis	decision	reason	changed_files	timestamp
+baseline-20260325-market-relevance-v2	baseline-20260325-market-relevance-v2	baseline evaluation	baseline	precision=0.7500,recall=0.5294,noise_rejection_rate=0.9286,dataset=backend/data/research/market_relevance_benchmark.jsonl,artifacts=backend/data/research/market_relevance_baseline		2026-03-25T15:20:27.953701Z

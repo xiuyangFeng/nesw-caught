@@ -159,6 +159,126 @@ def test_predict_market_relevance_keeps_market_moving_company_news() -> None:
     assert predict_market_relevance(sample) is True
 
 
+def test_predict_market_relevance_keeps_chinese_earnings_flash() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="earnings-flash-cn",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=7,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/earnings-flash-cn",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="国药一致业绩快报：2025年净利润11.36亿元，同比增长76.8%",
+            summary="公司披露最新业绩快报，净利润同比增长。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_keeps_buyback_and_dividend_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="buyback-dividend",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=8,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/buyback-dividend",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="英伟达计划将50%的自由现金流用于回报投资者",
+            summary="预计将在下半年回购股票，并派息。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_keeps_sec_fund_reporting_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sec-fund-reporting",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=9,
+            source_name="SEC",
+            canonical_url="https://example.com/sec-fund-reporting",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="SEC Proposes Amendments to Reduce Burdens in Reporting of Fund Portfolio Holdings",
+            summary="The proposal updates disclosure requirements for registered funds.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_does_not_treat_generic_sec_notice_as_market_signal() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sec-committee-notice",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=10,
+            source_name="SEC",
+            canonical_url="https://example.com/sec-committee-notice",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="SEC Seeks Candidates for Membership on the Investor Advisory Committee",
+            summary="The Securities and Exchange Commission is seeking candidates for appointment as members of the SEC Investor Advisory Committee.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="low_information",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is False
+
+
 def test_predict_market_relevance_uses_classifier_with_body_excerpt() -> None:
     sample = MarketRelevanceSample(
         sample_id="body-assisted",
