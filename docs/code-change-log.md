@@ -2,6 +2,45 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 13:42
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 基础工具链
+- 变更内容：完成了第一批可执行的 research tooling，实现了 research schema、样本数据集读写与 reviewed merge、`DeepSeek` 首标服务与批量标注脚本、历史/实时混合候选集采样脚本、离线 relevance evaluator、受控 experiment runner 以及 review/evaluate/run 三个薄 CLI；同时新增实验 ledger 初始文件。随后在独立 code review 后继续修正了 4 个关键闭环问题：benchmark merge 改为保留历史基准样本而不是覆盖、evaluator 缺失预测值时会直接报错而非静默按 `False` 计分、experiment decision 增加对 `noise_rejection_rate` 回退的拒绝逻辑、runner 的 repo root 改为动态推导以兼容 worktree 和非固定路径 checkout。当前 evaluator 已内置第一版可解释的 relevance heuristic，用于区分市场事件类新闻与泛科技消费资讯，后续可继续替换为更强策略；本轮未改前端和基础设施。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/research.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_annotation.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_experiment_runner.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/sample_market_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/annotate_market_relevance.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/review_market_relevance_annotations.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/evaluate_market_relevance.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/run_news_relevance_experiment.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_research_schemas.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_dataset.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_annotation.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_experiment_runner.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/research/market-relevance-experiments.tsv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增项目内 research schema（样本、标签、评测指标、实验决策）、候选集/benchmark JSONL 约定、evaluation artifact 输出和 experiment ledger 记录格式；未改现有 API route
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_research_schemas.py backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_annotation.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_relevance_experiment_runner.py -q` 通过（20 个用例）；`conda run -n news-caught python -m py_compile backend/app/schemas/research.py backend/app/services/news_relevance_dataset.py backend/app/services/news_relevance_annotation.py backend/app/services/news_relevance_evaluator.py backend/app/services/news_relevance_experiment_runner.py backend/scripts/sample_market_relevance_dataset.py backend/scripts/annotate_market_relevance.py backend/scripts/review_market_relevance_annotations.py backend/scripts/evaluate_market_relevance.py backend/scripts/run_news_relevance_experiment.py` 通过；`conda run -n news-caught pytest backend/tests -q` 通过（144 个用例）
+- 风险/后续事项：当前 `predict_market_relevance()` 仍是第一版启发式规则，适合作为 baseline，但还不足以代表最终研究代理的策略上限；下一阶段应继续把 evaluator 与真实 ingestion/filter 逻辑接得更紧，并补 baseline 产物、benchmark 样本内容以及更完整的“kept volume” guardrail
+
+## 2026-03-25 12:49
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch implementation plan
+- 变更内容：在确认设计后补写了一份正式 implementation plan，按当前仓库结构和最近新闻链路改动重新拆解了后续实施顺序：先做 research schema、混合抽样与 `DeepSeek` 半自动标注，再做离线评测器与 baseline，最后再做受控 experiment runner 和实验账本；计划中明确限定只动新闻相关后端代码，不碰前端和基础设施，并为每个任务补了 TDD 步骤、验证命令和建议提交点。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-25-market-news-relevance-autoresearch-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：仅计划层面提出后续新增 research schema、数据集文件、评测产物和实验账本，本次未改运行时代码
+- 验证情况：未验证；本次为计划文档产出，待进入实现阶段后按计划执行测试和评测验证
+- 风险/后续事项：当前仓库存在用户近期未提交改动，后续实现需在不回退这些修改的前提下按计划推进；计划尚未进入执行阶段
+
 ## 2026-03-25 12:38
 
 - 修改人：Codex

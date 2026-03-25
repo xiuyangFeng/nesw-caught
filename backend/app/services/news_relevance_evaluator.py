@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import re
+
+from app.schemas.research import EvaluationMetrics, MarketRelevanceSample
+
+MARKET_SIGNAL_TERMS = {
+    "guidance",
+    "revenue",
+    "earnings",
+    "tariff",
+    "policy",
+    "regulation",
+    "acquisition",
+    "merger",
+    "demand",
+    "supply",
+    "shipment",
+    "outlook",
+    "shares",
+    "stock",
+    "stocks",
+    "profit",
+    "forecast",
+    "rates",
+    "bank",
+    "fed",
+    "ipo",
+}
+
+GENERIC_TECH_TERMS = {
+    "camera",
+    "reviewers",
+    "display",
+    "battery",
+    "gaming",
+    "smartphone",
+    "laptop",
+    "hands-on",
+    "benchmark",
+}
+
+
+class EvaluationGuardrailError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class MarketRelevanceEvaluationResult:
+    metrics: EvaluationMetrics
+    false_positive_ids: list[str]
+    false_negative_ids: list[str]
+
+
+def evaluate_market_relevance(
+    samples: list[MarketRelevanceSample],
+    *,
+    min_recall: float = 0.0,
+) -> MarketRelevanceEvaluationResult:
+    tp = fp = tn = fn = 0
+    false_positive_ids: list[str] = []
+    false_negative_ids: list[str] = []
+
+    for sample in samples:
+        if sample.predicted_market_relevant is None:
+            raise EvaluationGuardrailError(
+                f"sample {sample.sample_id} is missing predicted_market_relevant"
+            )
+        predicted = sample.predicted_market_relevant
+        expected = sample.labels.market_relevant
+        if predicted and expected:
+            tp += 1
+        elif predicted and not expected:
+            fp += 1
+            false_positive_ids.append(sample.sample_id)
+        elif not predicted and expected:
+            fn += 1
+            false_negative_ids.append(sample.sample_id)
+        else:
+            tn += 1
+
+    precision = _safe_divide(tp, tp + fp)
+    recall = _safe_divide(tp, tp + fn)
+    noise_rejection_rate = _safe_divide(tn, tn + fp)
+    if recall < min_recall:
+        raise EvaluationGuardrailError(f"recall {recall:.4f} fell below guardrail {min_recall:.4f}")
+
+    return MarketRelevanceEvaluationResult(
+        metrics=EvaluationMetrics(
+            precision=round(precision, 4),
+            recall=round(recall, 4),
+            noise_rejection_rate=round(noise_rejection_rate, 4),
+        ),
+        false_positive_ids=false_positive_ids,
+        false_negative_ids=false_negative_ids,
+    )
+
+
+def predict_market_relevance(sample: MarketRelevanceSample) -> bool:
+    text = " ".join(
+        part
+        for part in [
+            sample.content.title,
+            sample.content.summary or "",
+            sample.content.body_excerpt or "",
+        ]
+        if part
+    ).lower()
+    tokens = set(re.findall(r"[a-z0-9]+", text))
+    if tokens.intersection(MARKET_SIGNAL_TERMS):
+        return True
+    if tokens.intersection(GENERIC_TECH_TERMS):
+        return False
+    return False
+
+
+def _safe_divide(numerator: int, denominator: int) -> float:
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
