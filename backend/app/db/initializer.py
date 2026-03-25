@@ -12,6 +12,7 @@ from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
 from app.models.news_stock_mention import NewsStockMention
 from app.models.price_snapshot import PriceSnapshot
+from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
 from app.models.watchlist_item import WatchlistItem
@@ -81,11 +82,135 @@ def ensure_topic_cluster_columns() -> None:
                 connection.execute(text(statement))
 
 
+def _source_health_markets_by_source_name() -> dict[str, str]:
+    from app.services.news_ingestion import load_sources
+
+    markets: dict[str, str] = {}
+    for source in load_sources():
+        markets.setdefault(source.name, source.market)
+    return markets
+
+
+def _legacy_source_health_market(connection, source_name: str, source_markets: dict[str, str]) -> str:
+    market = connection.execute(
+        text(
+            """
+            SELECT market
+            FROM news_item
+            WHERE source_name = :source_name AND market IS NOT NULL
+            ORDER BY fetched_at DESC, id DESC
+            LIMIT 1
+            """
+        ),
+        {"source_name": source_name},
+    ).scalar_one_or_none()
+    if market:
+        return str(market)
+
+    if source_name in source_markets:
+        return source_markets[source_name]
+
+    return "unknown"
+
+
+def ensure_source_health_columns() -> None:
+    inspector = inspect(engine)
+    if "source_health" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("source_health")}
+    unique_sets = {tuple(constraint["column_names"]) for constraint in inspector.get_unique_constraints("source_health")}
+    unique_sets.update(
+        tuple(index["column_names"])
+        for index in inspector.get_indexes("source_health")
+        if index.get("unique")
+    )
+
+    if "market" in columns and ("source_name", "market") in unique_sets and ("source_name",) not in unique_sets:
+        return
+
+    source_markets = _source_health_markets_by_source_name()
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS source_health_new"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE source_health_new (
+                    id INTEGER PRIMARY KEY,
+                    source_name VARCHAR(120) NOT NULL,
+                    market VARCHAR(16) NOT NULL,
+                    source_type VARCHAR(16) NOT NULL,
+                    last_success_at DATETIME,
+                    last_failure_at DATETIME,
+                    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                    total_fetches INTEGER NOT NULL DEFAULT 0,
+                    total_failures INTEGER NOT NULL DEFAULT 0,
+                    avg_latency_ms FLOAT,
+                    is_disabled BOOLEAN NOT NULL DEFAULT 0,
+                    CONSTRAINT uq_source_health_source_market UNIQUE (source_name, market)
+                )
+                """
+            )
+        )
+        rows = list(connection.execute(text("SELECT * FROM source_health")).mappings())
+        for row in rows:
+            market = row.get("market") or _legacy_source_health_market(connection, str(row["source_name"]), source_markets)
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO source_health_new (
+                        id,
+                        source_name,
+                        market,
+                        source_type,
+                        last_success_at,
+                        last_failure_at,
+                        consecutive_failures,
+                        total_fetches,
+                        total_failures,
+                        avg_latency_ms,
+                        is_disabled
+                    ) VALUES (
+                        :id,
+                        :source_name,
+                        :market,
+                        :source_type,
+                        :last_success_at,
+                        :last_failure_at,
+                        :consecutive_failures,
+                        :total_fetches,
+                        :total_failures,
+                        :avg_latency_ms,
+                        :is_disabled
+                    )
+                    """
+                ),
+                {
+                    "id": row["id"],
+                    "source_name": row["source_name"],
+                    "market": market,
+                    "source_type": row["source_type"],
+                    "last_success_at": row["last_success_at"],
+                    "last_failure_at": row["last_failure_at"],
+                    "consecutive_failures": row["consecutive_failures"],
+                    "total_fetches": row["total_fetches"],
+                    "total_failures": row["total_failures"],
+                    "avg_latency_ms": row["avg_latency_ms"],
+                    "is_disabled": row["is_disabled"],
+                },
+            )
+        connection.execute(text("DROP TABLE source_health"))
+        connection.execute(text("ALTER TABLE source_health_new RENAME TO source_health"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_source_health_source_name ON source_health (source_name)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_source_health_market ON source_health (market)"))
+
+
 def initialize_database() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_price_snapshot_columns()
     ensure_news_item_columns()
     ensure_topic_cluster_columns()
+    ensure_source_health_columns()
 
     with SessionLocal() as session:
         has_watchlist = session.scalar(select(WatchlistItem.id).limit(1)) is not None

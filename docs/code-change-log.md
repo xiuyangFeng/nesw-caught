@@ -2,6 +2,37 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 11:34
+
+- 修改人：Codex
+- 修改范围：health projection market field + source-health backfill precedence fix
+- 变更内容：为公开 health sources 视图补上 `market` 字段，避免 source+market 作用域在 API 层被压扁；同时调整 legacy `source_health` 回填优先级，改为先从 `news_item` 里确定市场，再回退到当前配置，最后才使用 `"unknown"`。为保证 TDD 约束，本轮先补了两个失败测试：一个覆盖 `/api/health/sources` 输出 `market`，一个覆盖旧数据库回填时以新闻历史市场为准。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/source_health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：`GET /api/health/sources` 的 `SourceHealthView` 新增 `market`；legacy source-health backfill 的市场决定顺序变为 `news_item` -> current source config -> `"unknown"`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_health.py::test_health_sources_endpoint_includes_market backend/tests/test_news_ingestion.py::test_initialize_database_prefers_news_item_market_when_backfilling_source_health -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（26 个用例）
+- 风险/后续事项：`initialize_database()` 里的 legacy SQLite 重建逻辑仍然依赖当前 schema 与历史数据结构基本一致；如果后续旧库的 `news_item` 表也出现字段缺失或 schema 漂移，这条回填路径还需要再做更强的兼容处理
+
+## 2026-03-25 11:28
+
+- 修改人：Codex
+- 修改范围：news source health market scope + legacy SQLite rebuild
+- 变更内容：将 `source_health` 的作用域从 `source_name` 单列唯一调整为 `source_name + market` 联合唯一；`NewsIngestionService` 在刷新源时按当前源市场写入/更新 health 记录；`SourceHealthRepository` 改为按源名和市场联合查找；`initialize_database()` 新增兼容旧本地数据库的迁移/回填逻辑，会在检测到旧版 `source_health` 表时重建为带 `market` 列和联合唯一约束的结构，并尽量从已配置 sources / 现有 `news_item` 记录中补齐市场值。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/source_health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/source_health_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：`source_health` 现在以 `source_name + market` 作为唯一键；仓储层 `get_or_create()` 需要显式传入 `market`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_refresh_source_tracks_health_per_source_market_pair backend/tests/test_news_ingestion.py::test_initialize_database_backfills_source_health_market_for_legacy_databases -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（26 个用例）
+- 风险/后续事项：SQLite legacy-table rebuild 目前是“重建 `source_health` 表并复制旧数据”的兼容路径，默认市场回填优先使用当前 sources 配置，其次尝试从 `news_item` 反推，最后退回 `"unknown"`；如果旧库里存在同一 source_name 的多市场历史记录但配置已变更，回填市场可能不是历史上最精确的值，需要后续按更可靠的来源再细化
+
 ## 2026-03-25 11:48
 
 - 修改人：Codex

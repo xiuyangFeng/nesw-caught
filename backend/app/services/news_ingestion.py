@@ -613,6 +613,7 @@ class NewsIngestionService:
         health = self.source_health_repository.get_or_create(
             source_name=source.name,
             source_type=source.source_type,
+            market=source.market,
         )
         health.total_fetches += 1
 
@@ -665,6 +666,7 @@ class NewsIngestionService:
             health = self.source_health_repository.get_or_create(
                 source_name=source.name,
                 source_type=source.source_type,
+                market=source.market,
             )
             health.last_failure_at = _utc_now()
             health.total_failures += 1

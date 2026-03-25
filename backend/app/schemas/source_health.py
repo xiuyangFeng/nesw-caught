@@ -5,6 +5,7 @@ from app.schemas.common import UTCDateTime
 
 class SourceHealthView(BaseModel):
     source_name: str
+    market: str
     source_type: str
     last_success_at: UTCDateTime | None = None
     last_failure_at: UTCDateTime | None = None

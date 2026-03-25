@@ -5,13 +5,18 @@ from hashlib import sha256
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, select
+from sqlalchemy import create_engine, delete, select
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.db.base import Base
+from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
+from app.models.source_health import SourceHealth
 from app.main import app
+from app.repositories.source_health_repository import SourceHealthRepository
 from app.services.news_ingestion import (
     RefreshSummary,
     NewsIngestionService,
@@ -401,6 +406,150 @@ def test_load_sources_rejects_non_finite_registry_values(
 
     with pytest.raises(ValueError, match=message):
         _load_sources_from_config(config, monkeypatch)
+
+
+def test_refresh_source_tracks_health_per_source_market_pair(monkeypatch) -> None:
+    class FakeResponse:
+        text = "<rss version='2.0'><channel></channel></rss>"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    source_name = "Multi Market Feed"
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+
+    try:
+        with SessionLocal() as session:
+            service = NewsIngestionService(session)
+            service._refresh_source(
+                SourceDefinition(
+                    name=source_name,
+                    source_type="rss",
+                    url="https://example.com/us/rss",
+                    market="us",
+                    markets=["us", "hk"],
+                )
+            )
+            service._refresh_source(
+                SourceDefinition(
+                    name=source_name,
+                    source_type="rss",
+                    url="https://example.com/hk/rss",
+                    market="hk",
+                    markets=["us", "hk"],
+                )
+            )
+
+            health_rows = SourceHealthRepository(session).list_all()
+            scoped_rows = [item for item in health_rows if item.source_name == source_name]
+            assert {(item.source_name, item.market) for item in scoped_rows} == {
+                (source_name, "us"),
+                (source_name, "hk"),
+            }
+    finally:
+        with SessionLocal() as session:
+            session.execute(delete(SourceHealth).where(SourceHealth.source_name == source_name))
+            session.commit()
+
+
+def test_initialize_database_prefers_news_item_market_when_backfilling_source_health(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = tmp_path / "legacy.db"
+    engine = create_engine(f"sqlite:///{db_path}", future=True)
+    testing_session = sessionmaker(bind=engine, autoflush=False, autocommit=False, class_=Session)
+
+    Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE source_health")
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE source_health (
+                id INTEGER PRIMARY KEY,
+                source_name VARCHAR(120) NOT NULL UNIQUE,
+                source_type VARCHAR(16) NOT NULL,
+                last_success_at DATETIME,
+                last_failure_at DATETIME,
+                consecutive_failures INTEGER NOT NULL DEFAULT 0,
+                total_fetches INTEGER NOT NULL DEFAULT 0,
+                total_failures INTEGER NOT NULL DEFAULT 0,
+                avg_latency_ms FLOAT,
+                is_disabled BOOLEAN NOT NULL DEFAULT 0
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            INSERT INTO source_health (
+                source_name,
+                source_type,
+                consecutive_failures,
+                total_fetches,
+                total_failures,
+                is_disabled
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            ("Legacy Feed", "rss", 2, 5, 1, 0),
+        )
+
+    with testing_session() as session:
+        session.add(
+            NewsItem(
+                source_name="Legacy Feed",
+                source_url="https://example.com/rss",
+                title="Legacy title",
+                summary=None,
+                canonical_url="https://example.com/legacy",
+                url_hash="legacy-hash",
+                market="hk",
+                language=None,
+                sentiment_label=None,
+                sentiment_score=None,
+                published_at=None,
+                fetched_at=datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            )
+        )
+        session.commit()
+
+    monkeypatch.setattr("app.db.initializer.engine", engine)
+    monkeypatch.setattr("app.db.initializer.SessionLocal", testing_session)
+    monkeypatch.setattr(
+        "app.services.news_ingestion.load_sources",
+        lambda: [
+            SourceDefinition(
+                name="Legacy Feed",
+                source_type="rss",
+                url="https://example.com/rss",
+                market="us",
+                markets=["us", "hk"],
+            )
+        ],
+    )
+
+    initialize_database()
+
+    with testing_session() as session:
+        row = session.scalar(select(SourceHealth).where(SourceHealth.source_name == "Legacy Feed"))
+        assert row is not None
+        assert row.market == "hk"
+        assert row.consecutive_failures == 2
+        assert row.total_fetches == 5
+        assert row.total_failures == 1
 
 
 def test_persist_item_backfills_existing_news_when_detail_arrives() -> None:
