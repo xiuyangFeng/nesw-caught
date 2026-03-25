@@ -6,6 +6,10 @@
       "url": "https://investor.example.com/rss/news.xml",
       "market": "us",
       "language": "en",
+      "tier": "primary",
+      "priority": 10,
+      "cadence_seconds": 300,
+      "markets": ["us"],
       "item_limit": 20
     },
     {
@@ -15,6 +19,10 @@
       "market": "us",
       "language": "en",
       "parser": "selector_html",
+      "tier": "primary",
+      "priority": 20,
+      "cadence_seconds": 300,
+      "markets": ["us"],
       "item_limit": 20,
       "entry_selector": ".news-item",
       "title_selector": ".news-item__title",

@@ -1,9 +1,13 @@
+import json
+import os
 from datetime import datetime, timezone
 from hashlib import sha256
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
@@ -13,12 +17,27 @@ from app.services.news_ingestion import (
     NewsIngestionService,
     SourceDefinition,
     SourceItem,
+    load_sources,
     _parse_minimax_detail_html,
     _parse_anchor_list_html,
     _parse_rss_or_atom,
     _parse_selector_html,
     _parse_zhipu_news_inline_json,
 )
+
+
+def _load_sources_from_config(config_path, monkeypatch):
+    original_news_sources_file = os.environ.get("NEWS_SOURCES_FILE")
+    monkeypatch.setenv("NEWS_SOURCES_FILE", str(config_path))
+    get_settings.cache_clear()
+    try:
+        return load_sources()
+    finally:
+        if original_news_sources_file is None:
+            monkeypatch.delenv("NEWS_SOURCES_FILE", raising=False)
+        else:
+            monkeypatch.setenv("NEWS_SOURCES_FILE", original_news_sources_file)
+        get_settings.cache_clear()
 
 
 def test_parse_rss_source_items() -> None:
@@ -160,6 +179,228 @@ def test_parse_zhipu_inline_json_source_items() -> None:
     assert items[0].title == "智谱新闻标题"
     assert items[0].canonical_url == "https://www.zhipuai.cn/zh/news/97"
     assert items[0].summary == "智谱新闻摘要"
+
+
+def test_load_sources_backfills_registry_defaults_from_legacy_config(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Legacy Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    sources = _load_sources_from_config(config, monkeypatch)
+
+    legacy = next(item for item in sources if item.name == "Legacy Feed")
+    assert legacy.tier == "primary"
+    assert legacy.priority == 100
+    assert legacy.cadence_seconds == 300
+    assert legacy.markets == ["us"]
+    assert legacy.supports_incremental is False
+
+
+def test_load_sources_rejects_invalid_tier(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                        "tier": "broken",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid tier"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_invalid_priority(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                        "priority": 0,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="priority must be positive"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_invalid_cadence_seconds(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                        "cadence_seconds": 0,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cadence_seconds must be positive"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_malformed_registry_entries(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(json.dumps({"sources": [1]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source definition at index 0 must be an object"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_null_sources_array(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(json.dumps({"sources": None}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="sources must be an array"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_non_numeric_priority(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                        "priority": "high",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="priority must be a number"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_non_numeric_cadence_seconds(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                        "cadence_seconds": "often",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cadence_seconds must be a number"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+def test_load_sources_rejects_malformed_markets_array(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "markets": {"us": True},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="markets must be an array of strings"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+@pytest.mark.parametrize("payload", [None, []])
+def test_load_sources_rejects_malformed_top_level_payload(tmp_path, monkeypatch, payload) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="sources registry payload must be an object"):
+        _load_sources_from_config(config, monkeypatch)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value", "message"),
+    [
+        ("priority", float("inf"), "priority must be a finite number"),
+        ("cadence_seconds", float("nan"), "cadence_seconds must be a finite number"),
+    ],
+)
+def test_load_sources_rejects_non_finite_registry_values(
+    tmp_path, monkeypatch, field_name, field_value, message
+) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "Broken Feed",
+                        "source_type": "rss",
+                        "url": "https://example.com/rss",
+                        "market": "us",
+                        field_name: field_value,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        _load_sources_from_config(config, monkeypatch)
 
 
 def test_persist_item_backfills_existing_news_when_detail_arrives() -> None:

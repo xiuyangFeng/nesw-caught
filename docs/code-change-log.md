@@ -2,6 +2,84 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 11:48
+
+- 修改人：Codex
+- 修改范围：news ingestion registry hardening final follow-up
+- 变更内容：进一步收紧了 source registry 的输入校验：`_coerce_positive_int()` 现在会把 `Infinity` / `NaN` 这类非有限数值直接转换成受控 `ValueError`，避免在 `int(...)` 上触发 `OverflowError`；`load_sources()` 也不再把解析出来的顶层 `null`、`[]` 等非对象 payload 当作“没有配置”，而是明确报 `sources registry payload must be an object`。同步把这两类回归补成测试并保留前一轮的 schema-safe 覆盖。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；仅强化 source registry 输入校验
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_load_sources_rejects_malformed_top_level_payload backend/tests/test_news_ingestion.py::test_load_sources_rejects_non_finite_registry_values -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（24 个用例）
+- 风险/后续事项：暂无新增风险；后续如果 registry 继续扩字段，建议沿用“先测试、再做 schema-safe hydration”的同类模式
+
+## 2026-03-25 11:39
+
+- 修改人：Codex
+- 修改范围：news ingestion registry schema-safe validation follow-up
+- 变更内容：补齐了 `load_sources()` 对 malformed source registry 的受控错误处理：当顶层 `sources` 为 `null` 或其他非数组值时会返回明确的 `ValueError`；`markets` 现在只接受字符串数组或单一 `market` 回退值，遇到字典/空数组/非字符串元素会统一报 `ValueError`；`priority` 和 `cadence_seconds` 在 hydration 阶段先做数值规范化，避免 JSON 字符串或其他非数值触发 `TypeError`。同时把这几类边界情况拆成独立测试，保持回归覆盖清晰。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；仅加强 source registry 输入校验
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_load_sources_rejects_null_sources_array backend/tests/test_news_ingestion.py::test_load_sources_rejects_non_numeric_priority backend/tests/test_news_ingestion.py::test_load_sources_rejects_non_numeric_cadence_seconds backend/tests/test_news_ingestion.py::test_load_sources_rejects_malformed_markets_array -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（20 个用例）
+- 风险/后续事项：当前 `markets` 仍接受非空字符串数组和单一 `market` 回退；如果后续 registry 要求更严格的 ISO/market code 约束，可再单独补 schema 校验
+
+## 2026-03-25 11:26
+
+- 修改人：Codex
+- 修改范围：news ingestion registry validation follow-up
+- 变更内容：根据 review 反馈补齐了 source registry 的边界处理：`load_sources()` 现在会对顶层非对象条目返回受控 `ValueError`，避免出现 `AttributeError` 之类的内部异常；测试侧把 registry 相关用例拆成了独立的 `tier`、`priority`、`cadence_seconds` 保护，并增加了 malformed registry entry 的覆盖。同时把临时 `NEWS_SOURCES_FILE`/`get_settings()` 缓存处理封装成测试辅助函数，在用例结束时恢复环境和缓存状态，避免温热缓存污染后续测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；仅强化 source registry 读取时的输入校验
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_load_sources_backfills_registry_defaults_from_legacy_config backend/tests/test_news_ingestion.py::test_load_sources_rejects_invalid_tier backend/tests/test_news_ingestion.py::test_load_sources_rejects_invalid_priority backend/tests/test_news_ingestion.py::test_load_sources_rejects_invalid_cadence_seconds backend/tests/test_news_ingestion.py::test_load_sources_rejects_malformed_registry_entries -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（16 个用例）
+- 风险/后续事项：测试辅助函数当前按本次 task 需要恢复 `NEWS_SOURCES_FILE` 和 settings cache；如果后续有更多环境变量驱动的配置测试，建议复用同样的恢复模式
+
+## 2026-03-25 11:18
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 设计文档
+- 变更内容：新增一份正式 design spec，把 `karpathy/autoresearch` 的“受控实验”思路迁移到本项目新闻相关性优化场景，明确了第一阶段目标为“市场相关新闻命中率”提升，并设计了约 `400` 条混合样本的半自动标注数据集、`DeepSeek` 首标加人工复核流程、以 `precision` 为主指标的离线评测器、研究代理的可改动边界、实验保留规则以及项目内研究账本/目录结构；本次仅产出设计，不涉及运行时代码实现。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-25-market-news-relevance-autoresearch-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：仅设计层面提出后续新增研究数据集 schema、评测结果产物和实验账本字段，本次未改现有 API 或数据库
+- 验证情况：未验证；本次为设计文档产出，待进入 implementation plan 和实现阶段后再补脚本、测试与评测验证
+- 风险/后续事项：该设计仍需用户 review，并在确认后进入 `writing-plans` 阶段细化为实现计划；当前尚未定义具体 `DeepSeek` prompt、样本文件路径和实验控制脚本接口
+
+## 2026-03-25 11:12
+
+- 修改人：Codex
+- 修改范围：news ingestion source registry defaults/validation
+- 变更内容：为 `news_ingestion` 的 source registry 增加了兼容旧配置的 hydration 层和基础校验：旧版只写 `market` 的配置现在会自动回填 `markets`、`tier`、`priority`、`cadence_seconds` 和 `supports_incremental` 的默认值；同时对 `tier`、`priority`、`cadence_seconds` 做了最小有效性校验，非法 registry 值会在加载阶段直接报错，而不是等到刷新时才暴露。同步把 `news_sources.example.json` 改成带 registry 字段的新形状，并补了测试覆盖 legacy backfill 与 invalid registry values。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/news_sources.example.json`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：source registry 允许新增 `tier`、`priority`、`cadence_seconds`、`markets` 和 `supports_incremental` 字段；旧配置继续兼容
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_load_sources_backfills_registry_defaults_from_legacy_config backend/tests/test_news_ingestion.py::test_load_sources_rejects_invalid_registry_values -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（13 个用例）
+- 风险/后续事项：当前校验只覆盖本 task 要求的 `tier`、`priority`、`cadence_seconds`，未进一步约束 `markets` 的内容或 registry 中其他字段的 schema；后续 Task 2/后续配置迁移可以继续收紧
+
+## 2026-03-25 10:41
+
+- 修改人：Codex
+- 修改范围：newsfeed 数据源与实时性 design/plan 文档
+- 变更内容：基于现有 `news_ingestion`、事件总线、`newsStore` 和 `News Feed` 视图，新增并完善了一份正式 design spec 与对应 implementation plan，明确了新闻源分层治理、增量事件闭环、freshness/source health 可观测以及分阶段实施顺序；在 reviewer 反馈后进一步补齐了 orchestrator 触发阈值、`GET /api/news/runtime` schema、事件幂等语义、source 配置失败策略、事件消费者迁移矩阵、runtime 唯一事实来源与裁决顺序，并明确了 `news.updated` 走现有 `SSE` 通道、`runtimeStatusStore`/`newsStore` 的 owner 边界、scoped list 的增量移除规则、旧 source 配置迁移默认值，以及“迟到/补源模式/状态带”这些前端阈值与渲染口径；最后补充了后端发布/转发接线点、`source_health` 的 `source_name + market` 粒度、`enabled market` 定义和离线 market 的 `mode = none`，并将实现计划细化到 DB migration/backfill、example config、独立 runtime service、SSE 转发和前端最小接线。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-25-newsfeed-source-realtime-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-25-newsfeed-source-realtime-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：仅设计文档层面提出后续新增 source registry 字段、`news.created` / `news.updated` 事件与 `GET /api/news/runtime`，本次未改运行时代码
+- 验证情况：未验证；本次为设计文档产出，待后续进入计划与实现阶段后补代码级验证
+- 风险/后续事项：该 design 仍需进入 spec review 和用户 review，确认后再写 implementation plan，避免与现有新闻、事件层和 runtime 状态链路冲突
+
 ## 2026-03-24 00:31
 
 - 修改人：Codex

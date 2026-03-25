@@ -6,6 +6,7 @@ from email.utils import parsedate_to_datetime
 from hashlib import sha256
 import html
 import json
+import math
 import re
 import time
 from typing import Literal
@@ -25,6 +26,7 @@ from app.services.http_client import HttpClientFactory
 from app.services.news_signal_pipeline import NewsSignalPipelineService
 
 SourceType = Literal["rss", "html"]
+VALID_SOURCE_TIERS = {"primary", "secondary", "fallback"}
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,11 @@ class SourceDefinition:
     source_type: SourceType
     url: str
     market: str
+    tier: str = "primary"
+    priority: int = 100
+    cadence_seconds: int = 300
+    markets: list[str] | None = None
+    supports_incremental: bool = False
     language: str | None = None
     parser: str = "rss"
     item_limit: int = 20
@@ -466,6 +473,71 @@ def _default_sources() -> list[SourceDefinition]:
     ]
 
 
+def _coerce_positive_int(value: object, field_name: str, source_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field_name} must be a number for source {source_name}")
+    if not math.isfinite(value):
+        raise ValueError(f"{field_name} must be a finite number for source {source_name}")
+    if int(value) != value or int(value) <= 0:
+        raise ValueError(f"{field_name} must be positive for source {source_name}")
+    return int(value)
+
+
+def _normalize_markets(raw: dict[str, object]) -> list[str]:
+    markets_value = raw.get("markets")
+    if markets_value is None:
+        market = raw.get("market")
+        if market is None:
+            raise ValueError("source definition is missing market")
+        if not isinstance(market, str) or not market.strip():
+            raise ValueError("market must be a string")
+        return [market]
+
+    if isinstance(markets_value, str) or not isinstance(markets_value, list):
+        raise ValueError("markets must be an array of strings")
+
+    markets: list[str] = []
+    for market in markets_value:
+        if not isinstance(market, str) or not market.strip():
+            raise ValueError("markets must be an array of strings")
+        markets.append(market)
+
+    if not markets:
+        raise ValueError("markets must be an array of strings")
+    return markets
+
+
+def _hydrate_source_definition(raw: dict[str, object]) -> dict[str, object]:
+    markets = _normalize_markets(raw)
+    market = raw.get("market")
+    if market is not None and (not isinstance(market, str) or not market.strip()):
+        raise ValueError("market must be a string")
+
+    market = market or markets[0]
+
+    hydrated = {
+        **raw,
+        "market": market,
+        "tier": raw.get("tier", "primary"),
+        "priority": _coerce_positive_int(raw.get("priority", 100), "priority", str(raw.get("name", "unknown"))),
+        "cadence_seconds": _coerce_positive_int(
+            raw.get("cadence_seconds", 300), "cadence_seconds", str(raw.get("name", "unknown"))
+        ),
+        "markets": markets,
+        "supports_incremental": raw.get("supports_incremental", False),
+    }
+    return hydrated
+
+
+def _validate_source_definition(source: SourceDefinition) -> None:
+    if source.tier not in VALID_SOURCE_TIERS:
+        raise ValueError(f"invalid tier for source {source.name}: {source.tier}")
+    if source.priority <= 0:
+        raise ValueError(f"priority must be positive for source {source.name}")
+    if source.cadence_seconds <= 0:
+        raise ValueError(f"cadence_seconds must be positive for source {source.name}")
+
+
 def load_sources() -> list[SourceDefinition]:
     settings = get_settings()
     sources = _default_sources()
@@ -478,9 +550,20 @@ def load_sources() -> list[SourceDefinition]:
     except FileNotFoundError:
         return sources
 
-    extras = payload.get("sources", []) if isinstance(payload, dict) else []
-    for raw in extras:
-        sources.append(SourceDefinition(**raw))
+    if not isinstance(payload, dict):
+        raise ValueError("sources registry payload must be an object")
+
+    extras = payload.get("sources", [])
+    if extras is None:
+        raise ValueError("sources must be an array")
+    if not isinstance(extras, list):
+        raise ValueError("sources must be an array")
+    for index, raw in enumerate(extras):
+        if not isinstance(raw, dict):
+            raise ValueError(f"source definition at index {index} must be an object")
+        source = SourceDefinition(**_hydrate_source_definition(raw))
+        _validate_source_definition(source)
+        sources.append(source)
     return sources
 
 
