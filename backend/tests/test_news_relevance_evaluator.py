@@ -279,6 +279,96 @@ def test_predict_market_relevance_does_not_treat_generic_sec_notice_as_market_si
     assert predict_market_relevance(sample) is False
 
 
+def test_predict_market_relevance_keeps_index_spike_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="index-spike",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=11,
+            source_name="36Kr",
+            canonical_url="https://example.com/index-spike",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="沪指重返3900点上方",
+            summary="36氪获悉，沪指重返3900点上方，日内涨超0.5%。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_keeps_commodity_price_wire_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="commodity-price-wire",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=12,
+            source_name="Mysteel",
+            canonical_url="https://example.com/commodity-price-wire",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="财联社3月18日电，今日MMLC电池级碳酸锂（早盘）价格较昨日下跌1250元/吨。",
+            summary="中间价报154900元/吨。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_keeps_market_stability_measures() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="market-stability-plan",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=13,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/market-stability-plan",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="财联社3月18日电，据韩国金融监管机构，必要时将扩大100万亿韩元市场稳定计划。",
+            summary="监管机构表示必要时将扩大市场稳定计划。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
 def test_predict_market_relevance_uses_classifier_with_body_excerpt() -> None:
     sample = MarketRelevanceSample(
         sample_id="body-assisted",

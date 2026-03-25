@@ -7,9 +7,17 @@ from app.schemas.research import EvaluationMetrics, ExperimentDecision
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _ALLOWED_PREFIXES = (
-    _REPO_ROOT / "backend/app/services/news_ingestion.py",
-    _REPO_ROOT / "backend/app/services/news_signal_pipeline.py",
-    _REPO_ROOT / "backend/app/services/news_signal_classifier.py",
+    _REPO_ROOT / "backend/app/services/news_relevance_annotation.py",
+    _REPO_ROOT / "backend/app/services/news_relevance_dataset.py",
+    _REPO_ROOT / "backend/app/services/news_relevance_evaluator.py",
+    _REPO_ROOT / "backend/app/services/news_relevance_experiment_runner.py",
+    _REPO_ROOT / "backend/app/services/news_relevance_report.py",
+    _REPO_ROOT / "backend/scripts/annotate_market_relevance.py",
+    _REPO_ROOT / "backend/scripts/evaluate_market_relevance.py",
+    _REPO_ROOT / "backend/scripts/render_market_relevance_report.py",
+    _REPO_ROOT / "backend/scripts/review_market_relevance_annotations.py",
+    _REPO_ROOT / "backend/scripts/run_news_relevance_experiment.py",
+    _REPO_ROOT / "backend/scripts/sample_market_relevance_dataset.py",
     _REPO_ROOT / "backend/data",
 )
 

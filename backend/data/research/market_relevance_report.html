@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market Relevance Morning Report</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --card: #fffdf8;
+      --ink: #1f1d19;
+      --muted: #6f675b;
+      --line: #ddd2bf;
+      --accent: #8a4b2a;
+      --accent-soft: #efe0d0;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: linear-gradient(180deg, #f7f2e9 0%, #efe5d5 100%); color: var(--ink); }
+    main { max-width: 1180px; margin: 0 auto; padding: 32px 20px 56px; }
+    h1, h2, h3 { margin: 0 0 12px; }
+    p { margin: 0; color: var(--muted); }
+    .hero { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px; box-shadow: 0 14px 40px rgba(71, 45, 22, 0.08); }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 20px; }
+    .metric, .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+    .metric strong { display: block; font-size: 28px; margin-bottom: 4px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+    .cards { display: grid; gap: 12px; }
+    .sample-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fffcf6; }
+    .sample-card .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .next { margin-top: 18px; background: var(--accent-soft); border-radius: 16px; padding: 16px; border: 1px solid #d8b89d; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Autoresearch Morning Read</div>
+      <h1>Market Relevance Morning Report</h1>
+      <p>Open this first to see current benchmark health, missed signals, and the latest experiment trail.</p>
+      <h2 style="margin-top: 20px;">Latest Metrics</h2>
+      <div class="metrics">
+        <div class="metric"><strong>0.8125</strong><span>Precision</span></div>
+        <div class="metric"><strong>0.7647</strong><span>Recall</span></div>
+        <div class="metric"><strong>0.9286</strong><span>Noise Rejection</span></div>
+        <div class="metric"><strong>59</strong><span>Evaluated Samples</span></div>
+      </div>
+    </section>
+    <section class="grid">
+      <div class="panel">
+        <h2>Benchmark Snapshot</h2>
+        <div class="metrics">
+          <div class="metric"><strong>59</strong><span>Total</span></div>
+          <div class="metric"><strong>17</strong><span>Relevant</span></div>
+          <div class="metric"><strong>42</strong><span>Noise</span></div>
+        </div>
+      </div>
+      <div class="panel next">
+        <h2>Next Read</h2>
+        <p>Prioritize false negatives first. If precision slips, compare against the latest kept or rejected experiment before changing rules again.</p>
+      </div>
+    </section>
+    <section class="grid">
+      <div class="panel">
+        <h2>False Positives</h2>
+        <div class="cards"><article class="sample-card"><strong>historical-0134-134</strong><div>8点1氪丨宝宝巴士推送低俗广告被罚30万；山姆客服回应给三文鱼加不可生食标签；360回应“安全龙虾”私钥泄露</div><div class="meta">expected: not relevant (low_information)</div></article><article class="sample-card"><strong>historical-0212-212</strong><div>湖北交投建设集团注册资金增至65亿元</div><div class="meta">expected: not relevant (off_topic)</div></article><article class="sample-card"><strong>realtime-0280-1720</strong><div>山西省融资再担保集团注册资本增至约39.9亿元</div><div class="meta">expected: not relevant (off_topic)</div></article></div>
+      </div>
+      <div class="panel">
+        <h2>False Negatives</h2>
+        <div class="cards"><article class="sample-card"><strong>historical-0010-10</strong><div>Shippers Wary of Red Sea Routes Despite Houthi Pledge to End Targeting</div><div class="meta">expected: relevant</div></article><article class="sample-card"><strong>historical-0188-188</strong><div>【国台办回应美国对台军售】 财联社3月18日电，国台办举行例行新闻发布会。记者提问，据英国路透社报道，美国一项涵盖先进拦截导弹的对台大型军售案准备呈交总统特朗普批准，特朗普可能在访问中国后签署。请问对此有何评论？国台办发言人陈斌华表示，我们坚决反对有关国家向中国台湾地区出售武器，这一立场是一贯的、明确的。美方应恪守一个中国原则和中美三个联合公报，慎重处理对台军售问题，以实际行动维护中美关系稳定和台海和平。 (日月谭天)</div><div class="meta">expected: relevant</div></article><article class="sample-card"><strong>historical-0194-194</strong><div>【腾讯概念持续走高 世纪恒通20cm涨停】 财联社3月18日电，腾讯概念盘中持续走高，世纪恒通20cm涨停，此前东方国信触及20cm涨停，高澜股份、平治信息、依米康涨超10%，云赛智联、绿盟科技、亚康股份、首都在线等跟涨。消息面上，腾讯QClaw将于近期开启公测，3月18日将发布全新版本，微信入口会全面升级，进一步提升互联体验，降低“养虾”门槛。</div><div class="meta">expected: relevant</div></article><article class="sample-card"><strong>realtime-0255-1745</strong><div>【限制特朗普战争权力的议案再遭美参议院否决】 财联社3月25日电，美国国会参议院24日投票，一项旨在阻止总统特朗普未经国会批准进一步对伊朗发动军事行动的议案被否决。当天参议院投票结果为47票赞成、53票反对，议案未获通过。投票结果几乎完全按照党派划分，除肯塔基州共和党籍参议员兰德·保罗外，所有共和党人都投了反对票；除宾夕法尼亚州民主党籍参议员约翰·费特曼外，所有民主党人都投了赞成票。这是自美国和以色列2月底对伊朗发起联合军事打击以来，参议院第三次未能通过旨在限制特朗普在伊朗问题上动武权力的议案。 (新华社)</div><div class="meta">expected: relevant</div></article></div>
+      </div>
+    </section>
+    <section class="panel" style="margin-top: 18px;">
+      <h2>Recent Experiments</h2>
+      <table>
+        <thead>
+          <tr><th>Timestamp</th><th>ID</th><th>Decision</th><th>Hypothesis</th><th>Reason</th></tr>
+        </thead>
+        <tbody><tr><td>2026-03-25T15:54:47.760062Z</td><td>exp-20260325-index-signals</td><td>keep</td><td>Catch index spikes, commodity price wires, and market stability plans</td><td>precision improved from 0.7500 to 0.8125</td></tr><tr><td>2026-03-25T15:20:27.953701Z</td><td>baseline-20260325-market-relevance-v2</td><td>baseline</td><td>baseline evaluation</td><td>precision=0.7500,recall=0.5294,noise_rejection_rate=0.9286,dataset=backend/data/research/market_relevance_benchmark.jsonl,artifacts=backend/data/research/market_relevance_baseline</td></tr></tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

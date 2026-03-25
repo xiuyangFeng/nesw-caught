@@ -24,6 +24,16 @@ def test_experiment_runner_rejects_changes_outside_allowed_paths() -> None:
         )
 
 
+def test_experiment_runner_allows_news_relevance_research_files() -> None:
+    ensure_allowed_paths(
+        [
+            Path("/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py"),
+            Path("/Users/xiuyang/Desktop/news-caught/backend/scripts/render_market_relevance_report.py"),
+            Path("/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_index_signals/evaluation.json"),
+        ]
+    )
+
+
 def test_decide_experiment_outcome_rejects_precision_regression() -> None:
     decision = decide_experiment_outcome(
         experiment_id="exp-001",

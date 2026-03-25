@@ -2,6 +2,44 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 18:14
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 首轮手动 experiment 迭代
+- 变更内容：手动启动了 `market relevance autoresearch` 的第一轮 experiment，针对 baseline 中成簇出现的 false negative，选择“指数异动 / 商品价格快讯 / 市场稳定措施”作为单一假设进行收紧。按 TDD 先为 `news_relevance_evaluator.py` 补了三条失败测试，再新增 `沪指`、`深成指`、`电池级碳酸锂`、`市场稳定计划` 等更窄中文市场短语命中；随后用真实 benchmark 重跑评测，指标从 baseline 的 `precision=0.7500 / recall=0.5294 / noise_rejection_rate=0.9286` 提升到 `precision=0.8125 / recall=0.7647 / noise_rejection_rate=0.9286`。在把结果写入 experiment ledger 时，又发现 `news_relevance_experiment_runner.py` 的 scope guard 仍停留在旧的新闻主链范围，会错误拒绝 `news_relevance_evaluator.py` 这类 research 相关改动；本轮同步补了允许 `news_relevance_*` 服务和 research 脚本的测试与实现修正。最后基于这轮 experiment 结果刷新了晨读面板，使明天打开 report 时能直接看到最新 keep 实验，而不是旧 baseline。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_experiment_runner.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_experiment_runner.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_index_signals/evaluation.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_index_signals/evaluation.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.html`
+  - `/Users/xiuyang/Desktop/news-caught/docs/research/market-relevance-experiments.tsv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；experiment runner 的允许修改范围扩大到当前 `news relevance autoresearch` 实际会触及的 research 服务与脚本
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_report.py backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_relevance_experiment_runner.py -q` 通过；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_report.py backend/scripts/render_market_relevance_report.py backend/app/services/news_relevance_evaluator.py backend/app/services/news_relevance_experiment_runner.py` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/evaluate_market_relevance.py --dataset backend/data/research/market_relevance_benchmark.jsonl --output-dir backend/data/research/market_relevance_experiment_index_signals` 通过；`conda run -n news-caught python backend/scripts/run_news_relevance_experiment.py --experiment-id exp-20260325-index-signals --baseline-id baseline-20260325-market-relevance-v2 --hypothesis "Catch index spikes, commodity price wires, and market stability plans" --changed-file backend/app/services/news_relevance_evaluator.py --changed-file backend/app/services/news_relevance_experiment_runner.py --metrics-before backend/data/research/market_relevance_baseline/evaluation.json --metrics-after backend/data/research/market_relevance_experiment_index_signals/evaluation.json --ledger docs/research/market-relevance-experiments.tsv` 通过并记录 `keep`
+- 风险/后续事项：这轮提升主要覆盖了指数 / 商品价格 / 市场稳定措施这组市场层面信号，剩余 false negative 仍集中在地缘政治与主题联动类新闻；下一轮更适合单独检验“地缘政治是否应保留为市场相关”的边界，而不是继续往中文市场短语里堆规则
+
+## 2026-03-25 17:58
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 晨读成果面板
+- 变更内容：为当前 `market relevance autoresearch` 增加了一个轻量成果面板生成链路，新增 `news_relevance_report.py` 负责读取现有 benchmark、baseline evaluation 与 experiment ledger，并汇总成统一的晨读 report model；同时新增 `render_market_relevance_report.py`，可一次性生成两份输出：适合审阅和 diff 的 `market_relevance_report.md`，以及适合明早直接打开看的 `market_relevance_report.html`。两份面板都会展示最新指标、benchmark 样本分布、false positive / false negative 样本标题，以及最近几条 experiment ledger 记录。基于当前真实产物已经生成了首版晨读面板，后续可被 automation 每轮刷新。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_report.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/scripts/render_market_relevance_report.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_report.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.html`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-25-market-relevance-report-panel-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-25-market-relevance-report-panel-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增 report 生成 CLI `backend/scripts/render_market_relevance_report.py`；未改现有评测、benchmark 或 annotation 数据结构
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_report.py backend/tests/test_news_relevance_dataset.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_relevance_experiment_runner.py -q` 通过；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_report.py backend/scripts/render_market_relevance_report.py` 通过；`conda run -n news-caught python backend/scripts/render_market_relevance_report.py --benchmark backend/data/research/market_relevance_benchmark.jsonl --evaluation backend/data/research/market_relevance_baseline/evaluation.json --ledger docs/research/market-relevance-experiments.tsv --markdown-output backend/data/research/market_relevance_report.md --html-output backend/data/research/market_relevance_report.html` 通过
+- 风险/后续事项：当前成果面板仍然是静态文件，不会自动显示跨轮次指标 diff；如果后续夜间实验数量增多，建议继续补“上一轮 vs 当前轮”的显式变化摘要，避免只看原始列表
+
 ## 2026-03-25 17:06
 
 - 修改人：Codex
