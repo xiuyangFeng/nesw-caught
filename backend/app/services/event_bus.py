@@ -33,6 +33,14 @@ class InMemoryEventBus:
     def subscribe(self, event_name: str, handler: EventHandler) -> None:
         self._handlers[event_name].append(handler)
 
+    def unsubscribe(self, event_name: str, handler: EventHandler) -> None:
+        handlers = self._handlers.get(event_name)
+        if not handlers:
+            return
+        self._handlers[event_name] = [item for item in handlers if item is not handler]
+        if not self._handlers[event_name]:
+            self._handlers.pop(event_name, None)
+
     def publish(self, event_name: str, payload: dict[str, Any]) -> None:
         for handler in self._handlers[event_name]:
             handler(payload)
@@ -59,6 +67,9 @@ class HybridEventBus:
 
     def subscribe(self, event_name: str, handler: EventHandler) -> None:
         self.local_bus.subscribe(event_name, handler)
+
+    def unsubscribe(self, event_name: str, handler: EventHandler) -> None:
+        self.local_bus.unsubscribe(event_name, handler)
 
     def publish(self, event_name: str, payload: dict[str, Any]) -> None:
         self._status.last_event_name = event_name

@@ -187,3 +187,62 @@ describe('apiClient.getStockKline', () => {
     });
   });
 });
+
+describe('apiClient.getNewsRuntime', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('loads news runtime from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          feed_status: 'live',
+          last_refresh_finished_at: '2026-03-25T02:40:00Z',
+          last_news_created_at: '2026-03-25T02:39:40Z',
+          last_incremental_event_at: '2026-03-25T02:39:55Z',
+          degraded_market_count: 0,
+          markets: [
+            {
+              market: 'us',
+              status: 'live',
+              mode: 'primary',
+              last_primary_success_at: '2026-03-25T02:39:30Z',
+              last_news_created_at: '2026-03-25T02:39:40Z',
+              degraded_reason: null,
+            },
+          ],
+          sources: [
+            {
+              source_name: 'Example Source',
+              market: 'us',
+              tier: 'primary',
+              status: 'ok',
+              last_attempt_at: '2026-03-25T02:39:20Z',
+              last_success_at: '2026-03-25T02:39:30Z',
+              consecutive_failures: 0,
+              avg_fetch_latency_ms: 320,
+              latest_news_published_at: '2026-03-25T02:35:00Z',
+              latest_news_fetched_at: '2026-03-25T02:39:30Z',
+              last_error: null,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const response = await apiClient.getNewsRuntime();
+
+    expect(fetch).toHaveBeenCalledWith('/api/news/runtime', {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.feed_status).toBe('live');
+    expect(response.data.sources).toHaveLength(1);
+  });
+});

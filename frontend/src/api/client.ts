@@ -15,6 +15,7 @@ import type {
   NewsDetail,
   NewsItem,
   NewsQuery,
+  NewsRuntimeStatus,
   NewsRefreshResult,
   WatchlistSparklineMap,
   StockQuoteDetail,
@@ -42,6 +43,7 @@ import {
   mockNews,
   mockNewsDetails,
   mockNewsRefreshResult,
+  mockNewsRuntimeStatus,
   mockRelatedNews,
   mockStockQuoteDetails,
   mockStreamStatus,
@@ -142,6 +144,9 @@ export const apiClient = {
   },
   refreshNews() {
     return withMockFallback<NewsRefreshResult>(() => postJson('/api/news/refresh', {}), () => mockNewsRefreshResult);
+  },
+  getNewsRuntime() {
+    return withMockFallback<NewsRuntimeStatus>(() => getJson('/api/news/runtime'), () => mockNewsRuntimeStatus);
   },
   refreshMarketQuotes() {
     return withMockFallback<MarketRefreshResult>(

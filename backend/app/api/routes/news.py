@@ -7,10 +7,11 @@ from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
 from app.schemas.news import NewsArticleView, NewsDetailView, NewsItemSummary, NewsMentionView, NewsTopicRefView
 from app.schemas.llm import NewsAnalysisView
-from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView
+from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView, NewsRuntimeView
 from app.services.event_bus import get_event_bus
 from app.services.news_analysis import NewsAnalysisError, NewsAnalysisService
 from app.services.news_ingestion import NewsIngestionService
+from app.services.news_runtime import NewsRuntimeService
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,11 @@ def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefr
             for item in summary.results
         ],
     )
+
+
+@router.get("/runtime", response_model=NewsRuntimeView)
+def get_news_runtime(session: Session = Depends(get_db_session)) -> NewsRuntimeView:
+    return NewsRuntimeService(session).build()
 
 
 @router.get("/{news_id}/analysis", response_model=NewsAnalysisView | None)

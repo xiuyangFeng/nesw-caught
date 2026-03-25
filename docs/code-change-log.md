@@ -2,6 +2,160 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-25 12:38
+
+- 修改人：Codex
+- 修改范围：feed runtime banner connection overlay
+- 变更内容：补齐 `NewsFeedView` 顶部状态带的最终裁决逻辑，当客户端 `SSE` 连接状态为 `offline/degraded` 时，优先展示“实时连接异常”，覆盖服务端 `newsRuntimeStatus.feed_status` 的文案与 tone；并新增对应视图测试，验证连接异常会压过服务端 delayed 状态。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/NewsFeedView.test.ts src/components/layout/AppShell.test.ts src/stores/newsStore.test.ts src/api/client.test.ts` 通过（26 个用例）
+- 风险/后续事项：当前顶部状态带已经覆盖客户端连接异常，但 detail 文案仍以服务端 runtime 摘要为主；如果后续需要更强诊断性，可以再补连接错误原因或最近一次 stream 错误时间
+
+## 2026-03-25 12:35
+
+- 修改人：Codex
+- 修改范围：stream keepalive continuity fix + final verification refresh
+- 变更内容：代码复核后修正了 `/api/stream/events` 的 keepalive 语义，空闲超时后不再只发一次 `stream.keepalive` 就结束连接，而是按 keepalive 周期持续发送，避免前端 `EventSource` 被错误判定为断线；同步新增 keepalive 连续发送测试，并刷新整轮 backend/frontend/build 验证结果。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/stream.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_stream_events.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；`GET /api/stream/events` 的 keepalive 行为从“单次超时响应”修正为“持续保活”
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_ingestion.py backend/tests/test_news_signal_pipeline.py backend/tests/test_stream_events.py backend/tests/test_stream_status.py -q` 通过（40 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/stores/newsStore.test.ts src/views/NewsFeedView.test.ts src/components/layout/AppShell.test.ts` 通过（25 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：feed 顶部状态带仍未把客户端 `SSE` 连接态覆盖到最终展示文案；如果要完全对齐设计稿，还需要把 `connectionStore/runtimeStatusStore` 的连接异常覆盖逻辑补到 `NewsFeedView`
+
+## 2026-03-25 12:33
+
+- 修改人：Codex
+- 修改范围：newsfeed 数据源与实时性基础链路 verified slice
+- 变更内容：完成并验证了本轮 plan 的 backend realtime slice 与 frontend runtime slice：后端补齐 `GET /api/news/runtime` 的 spec 契约、`news.created`/`news.updated` 内容流事件和 `/api/stream/events` SSE 转发；前端补齐 news runtime 类型与 API client、`newsStore` 的 runtime/update 处理、`AppShell` 的 `news.updated` 分发，以及 `NewsFeedView` 的最小顶部状态带。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_runtime.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/stream.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/event_bus.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_signal_pipeline.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_stream_events.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增并接通 `GET /api/news/runtime`、`news.created`、`news.updated`、`GET /api/stream/events`；前端开始消费 `NewsRuntimeStatus` 和 `NewsUpdateEvent`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_ingestion.py backend/tests/test_news_signal_pipeline.py backend/tests/test_stream_events.py backend/tests/test_stream_status.py -q` 通过（39 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/stores/newsStore.test.ts src/views/NewsFeedView.test.ts src/components/layout/AppShell.test.ts` 通过（25 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：feed 顶部状态带当前只消费服务端 news runtime，没有把客户端 `SSE` 连接异常覆盖到最终展示文案；如果后续要完全对齐设计稿，需要再把 `connectionStore/runtimeStatusStore` 的连接态覆盖逻辑接进 `NewsFeedView`
+
+## 2026-03-25 12:33
+
+- 修改人：Codex
+- 修改范围：frontend news runtime status band + update event routing
+- 变更内容：`AppShell` 的统一 stream 入口现在会把 `news.updated` 转交给 `newsStore.upsertNewsUpdate()`，并在启动时同步拉取 `loadNewsRuntime()`；`NewsFeedView` 顶部 `StatusBanner` 改为消费 `newsRuntimeStatus`、`lastIncrementalAt` 和 `sourceHealth`，最小展示 `live/delayed/degraded` 文案、最近入流时间和异常来源数。测试侧补了 `news.updated` 事件分发断言，以及 feed 头部状态带文案断言。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；前端开始消费已存在的 `news.updated` 事件和 `news runtime` store 状态
+- 验证情况：`npm --prefix frontend run test -- --run src/views/NewsFeedView.test.ts src/components/layout/AppShell.test.ts src/stores/newsStore.test.ts` 通过（16 个用例）
+- 风险/后续事项：当前状态带只展示最小 runtime 摘要，还没有把客户端 `SSE` 连接异常和服务端供给状态做最终合成展示；如果要完全对齐设计稿，还需要再把 `connectionStore/runtimeStatusStore` 的覆盖逻辑接进 feed 顶部文案
+
+## 2026-03-25 12:31
+
+- 修改人：Codex
+- 修改范围：frontend news runtime client + store wiring
+- 变更内容：前端先接通了 `GET /api/news/runtime` 与增量更新边界。`types/api.ts` 新增 `NewsRuntimeStatus`、market/source runtime 类型和 `news.updated` 事件类型；`apiClient` 新增 `getNewsRuntime()`，并补了一份降级 mock payload；`newsStore` 新增 `newsRuntimeStatus`、`lastIncrementalAt`、`sourceHealth`，支持 `loadNewsRuntime()` 拉取 runtime 状态，同时补了 `upsertNewsUpdate()`，会按当前 scoped query 对 dashboard/feed/sentiment 三个列表执行替换、插入或移除。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：前端类型层新增 `NewsRuntimeStatus`、`NewsRuntimeMarket`、`NewsRuntimeSource`、`NewsUpdateEvent`；`apiClient` 新增 `getNewsRuntime()`
+- 验证情况：`npm --prefix frontend run test -- --run src/api/client.test.ts` 通过（9 个用例）；`npm --prefix frontend run test -- --run src/stores/newsStore.test.ts` 通过（3 个用例）
+- 风险/后续事项：`AppShell` 和 `NewsFeedView` 还没有消费这组新 state，顶部状态带与 `news.updated` 事件分发仍待后续 UI 接线任务完成
+
+## 2026-03-25 12:25
+
+- 修改人：Codex
+- 修改范围：news updated enrichment event publish
+- 变更内容：在 `news.created_batch` 订阅处理器里补上 `news.updated` 发布，信号流水线处理完成后会读取已更新的新闻记录，按 `NewsItemSummary` 序列化为前端可直接 upsert 的 payload，并附带 `updated_fields=["sentiment_label"]`；同时把 payload 构造收敛到 session 内完成，修掉了回归测试中暴露的 `DetachedInstanceError`。测试侧新增 batch-handler 事件用例，验证处理完成后会发出 `news.updated`。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/main.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_signal_pipeline.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增后端内容流事件 `news.updated`，字段为 `NewsItemSummary` + `updated_fields`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_signal_pipeline.py::test_news_created_batch_handler_publishes_news_updated_after_processing -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_signal_pipeline.py backend/tests/test_news_ingestion.py -q` 通过（30 个用例）
+- 风险/后续事项：当前 `updated_fields` 只覆盖本轮真实会变化的 `sentiment_label`；如果后续把 topic/summary/mentions 等展示字段也纳入异步富化，需要同步扩展这份字段列表和对应前端合并逻辑
+
+## 2026-03-25 12:23
+
+- 修改人：Codex
+- 修改范围：news created incremental event publish
+- 变更内容：在 `NewsIngestionService.refresh_all()` 中为每条首次插入的新闻增加 `news.created` 单条事件发布，载荷直接复用 `NewsItemSummary` 的列表级契约字段；保留现有 `news.created_batch`，并明确发布顺序为“逐条 created 后再 batch”，避免破坏后端批处理订阅者。测试侧把原有 refresh 事件用例扩成失败先行的增量契约测试，验证单条事件与 batch 事件会同时发出。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增后端内容流事件 `news.created`，字段为 `NewsItemSummary` 的最小卡片字段；`news.created_batch` 保持不变
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py::test_refresh_all_publishes_news_created_for_each_insert -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -q` 通过（26 个用例）
+- 风险/后续事项：当前只补了发布路径，前端 SSE 转发与 `news.updated` 富化事件还未完成；在这些后续任务落地前，单条 `news.created` 仍主要供后端测试和后续 stream 接线使用
+
+## 2026-03-25 12:21
+
+- 修改人：Codex
+- 修改范围：news runtime contract spec-fix
+- 变更内容：按 spec review 重做了 `NewsRuntimeService` 的 runtime 状态裁决：`last_incremental_event_at` 改为读取事件总线最近一次 `news.created/news.updated` 的发布时间，不再复用 `last_news_created_at`；`sources[].status` 收敛为 `ok/delayed/degraded/offline` 四态，移除 spec 外的 `disabled`；`markets[].mode` 改为按最近 30 分钟成功 source 的 tier 判定；`markets[].status` 与 `feed_status` 补齐 `live/delayed/degraded/offline` 语义。测试侧新增了一个多 market 契约用例，覆盖 delayed/degraded/offline/source-tier 切换和事件时间来源。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_runtime.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：`GET /api/news/runtime` 的字段名不变，但 `feed_status`、`markets[].status`、`markets[].mode`、`sources[].status` 与 `last_incremental_event_at` 的语义按设计稿收紧
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py::test_news_runtime_returns_market_and_source_health_contract backend/tests/test_news.py::test_news_runtime_maps_runtime_statuses_per_spec -q` 通过（2 个用例）；`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_ingestion.py -q` 通过（32 个用例）
+- 风险/后续事项：当前 `last_incremental_event_at` 仍依赖事件总线只暴露“最近一次事件”的状态；如果后续 `news.updated` 明显比 `news.created` 更频繁，且产品严格要求区分“最近 created”和“最近 updated”，需要为内容流事件补更细的独立 runtime 指标
+
+## 2026-03-25 11:43
+
+- 修改人：Codex
+- 修改范围：news route import regression follow-up
+- 变更内容：补回 `backend/app/api/routes/news.py` 中 `analyze_news()` 所需的 `get_event_bus` 导入，修复 runtime 路由改动时引入的 `NameError` 回归；同步复核了 news route 文件，未发现其他同类缺失导入。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_analysis.py -q` 通过（19 个用例）
+- 风险/后续事项：暂无新增风险
+
+## 2026-03-25 11:41
+
+- 修改人：Codex
+- 修改范围：news runtime API contract + aggregation service
+- 变更内容：新增 `GET /api/news/runtime`，由独立的 `NewsRuntimeService` 汇总当前 source health、最近新闻创建时间和 market 级运行态，并补充了 runtime response schema。测试侧先补了 `/api/news/runtime` 的契约用例，再按 TDD 最小实现路由与服务，确保返回字段、时间序列化和 market/source 结构与计划一致。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/source_health.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_runtime.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/news/runtime`，返回 `feed_status`、`last_refresh_finished_at`、`last_news_created_at`、`last_incremental_event_at`、`degraded_market_count`、`markets[]` 和 `sources[]`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py::test_news_runtime_returns_market_and_source_health_contract -q` 通过；`conda run -n news-caught pytest backend/tests/test_news.py -q` 通过（5 个用例）；`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_health.py -q` 通过（7 个用例）
+- 风险/后续事项：runtime 聚合目前是基于本地数据库中现有的 source health 与 news 记录做同步汇总；如果后续需要把 `last_incremental_event_at` 与真实事件总线强绑定，还需要补事件源或缓存层，而不是只依赖当前的新闻写入时间
+
 ## 2026-03-25 11:34
 
 - 修改人：Codex

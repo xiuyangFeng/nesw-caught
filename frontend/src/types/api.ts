@@ -54,6 +54,43 @@ export interface NewsDetail extends NewsItem {
   topic: NewsTopicRef | null;
 }
 
+export interface NewsRuntimeSource {
+  source_name: string;
+  market: Market;
+  tier: string;
+  status: 'ok' | 'delayed' | 'degraded' | 'offline';
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  consecutive_failures: number;
+  avg_fetch_latency_ms: number | null;
+  latest_news_published_at: string | null;
+  latest_news_fetched_at: string | null;
+  last_error: string | null;
+}
+
+export interface NewsRuntimeMarket {
+  market: Market;
+  status: 'live' | 'delayed' | 'degraded' | 'offline';
+  mode: 'primary' | 'secondary' | 'fallback' | 'none';
+  last_primary_success_at: string | null;
+  last_news_created_at: string | null;
+  degraded_reason: string | null;
+}
+
+export interface NewsRuntimeStatus {
+  feed_status: 'live' | 'delayed' | 'degraded';
+  last_refresh_finished_at: string | null;
+  last_news_created_at: string | null;
+  last_incremental_event_at: string | null;
+  degraded_market_count: number;
+  markets: NewsRuntimeMarket[];
+  sources: NewsRuntimeSource[];
+}
+
+export interface NewsUpdateEvent extends NewsItem {
+  updated_fields: string[];
+}
+
 export interface LLMConfigSummary {
   configured: boolean;
   provider_name: string | null;
@@ -284,6 +321,7 @@ export type WatchlistSparklineMap = Record<string, SparklineSeries>;
 
 export interface StreamEventMap {
   'news.created': NewsItem;
+  'news.updated': NewsUpdateEvent;
   'topic.updated': Pick<TopicItem, 'id' | 'topic_title' | 'market' | 'importance_score' | 'news_count' | 'last_seen_at'>;
   'watchlist.movement': MarketSnapshot;
   'stream.keepalive': { status: 'ok' };

@@ -18,8 +18,10 @@ const connectionStore = {
 
 const newsStore = {
   loadDashboardNews: vi.fn(async () => undefined),
+  loadNewsRuntime: vi.fn(async () => undefined),
   refreshDashboardNews: vi.fn(async () => false),
   upsertNews: vi.fn(),
+  upsertNewsUpdate: vi.fn(),
 };
 
 const marketStore = {
@@ -110,8 +112,10 @@ describe('AppShell', () => {
     connectionStore.connect.mockClear();
     connectionStore.disconnect.mockClear();
     newsStore.loadDashboardNews.mockClear();
+    newsStore.loadNewsRuntime.mockClear();
     newsStore.refreshDashboardNews.mockClear();
     newsStore.upsertNews.mockClear();
+    newsStore.upsertNewsUpdate.mockClear();
     marketStore.loadSnapshots.mockClear();
     marketStore.upsertSnapshot.mockClear();
     topicStore.loadTopics.mockClear();
@@ -216,6 +220,35 @@ describe('AppShell', () => {
     });
 
     expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledTimes(2);
+  });
+
+  it('routes news.updated events into the news store', async () => {
+    mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
+    expect(handleEvent).toBeTypeOf('function');
+
+    const updatedItem = {
+      id: 7,
+      title: 'Updated headline',
+      summary: 'Updated summary',
+      source_name: 'Reuters',
+      canonical_url: 'https://example.com/updated',
+      market: 'us',
+      sentiment_label: 'positive',
+      published_at: '2026-03-25T02:30:00Z',
+      fetched_at: '2026-03-25T02:31:00Z',
+      updated_fields: ['sentiment_label'],
+    };
+
+    handleEvent({
+      type: 'news.updated',
+      occurred_at: '2026-03-25T02:31:00Z',
+      payload: updatedItem,
+    });
+
+    expect(newsStore.upsertNewsUpdate).toHaveBeenCalledWith(updatedItem);
   });
 
   it('starts low-frequency runtime polling after bootstrap and clears it on unmount', async () => {

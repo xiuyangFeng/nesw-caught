@@ -11,6 +11,7 @@ from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.repositories.news_repository import NewsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
+from app.schemas.news import NewsItemSummary
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
 from app.services.market_quote_producer import MarketQuoteProducer
 from app.services.news_signal_pipeline import NewsSignalPipelineService
@@ -36,7 +37,18 @@ def _register_event_handlers() -> None:
             return
         with SessionLocal() as session:
             summary = NewsSignalPipelineService(session).process_news_ids(news_ids)
+            news_repo = NewsRepository(session)
+            update_payloads: list[dict[str, object]] = []
+            for news_id in summary.news_ids:
+                item = news_repo.get_by_id(news_id)
+                if item is None:
+                    continue
+                payload = NewsItemSummary.model_validate(item, from_attributes=True).model_dump(mode="json")
+                payload["updated_fields"] = ["sentiment_label"]
+                update_payloads.append(payload)
             session.commit()
+        for payload in update_payloads:
+            event_bus.publish("news.updated", payload)
         if summary.processed_count > 0:
             event_bus.publish(
                 "news.signals_processed",

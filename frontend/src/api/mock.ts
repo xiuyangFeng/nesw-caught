@@ -9,6 +9,7 @@ import type {
   NewsDetail,
   NewsEventMarker,
   NewsItem,
+  NewsRuntimeStatus,
   NewsRefreshResult,
   SparklineSeries,
   StockKlineResponse,
@@ -604,6 +605,60 @@ export const mockNewsRefreshResult: NewsRefreshResult = {
   fetched_count: 4,
   inserted_count: 0,
   results: [],
+};
+
+export const mockNewsRuntimeStatus: NewsRuntimeStatus = {
+  feed_status: 'degraded',
+  last_refresh_finished_at: isoMinutesAgo(2),
+  last_news_created_at: isoMinutesAgo(6),
+  last_incremental_event_at: isoMinutesAgo(5),
+  degraded_market_count: 1,
+  markets: [
+    {
+      market: 'us',
+      status: 'live',
+      mode: 'primary',
+      last_primary_success_at: isoMinutesAgo(3),
+      last_news_created_at: isoMinutesAgo(6),
+      degraded_reason: null,
+    },
+    {
+      market: 'hk',
+      status: 'degraded',
+      mode: 'secondary',
+      last_primary_success_at: isoMinutesAgo(45),
+      last_news_created_at: isoMinutesAgo(8),
+      degraded_reason: 'primary sources failing; fallback supply active',
+    },
+  ],
+  sources: [
+    {
+      source_name: 'Reuters',
+      market: 'us',
+      tier: 'primary',
+      status: 'ok',
+      last_attempt_at: isoMinutesAgo(3),
+      last_success_at: isoMinutesAgo(3),
+      consecutive_failures: 0,
+      avg_fetch_latency_ms: 280,
+      latest_news_published_at: isoMinutesAgo(10),
+      latest_news_fetched_at: isoMinutesAgo(6),
+      last_error: null,
+    },
+    {
+      source_name: 'AAStocks',
+      market: 'hk',
+      tier: 'secondary',
+      status: 'degraded',
+      last_attempt_at: isoMinutesAgo(4),
+      last_success_at: isoMinutesAgo(8),
+      consecutive_failures: 2,
+      avg_fetch_latency_ms: 410,
+      latest_news_published_at: isoMinutesAgo(12),
+      latest_news_fetched_at: isoMinutesAgo(8),
+      last_error: 'upstream timeout',
+    },
+  ],
 };
 
 export const mockStreamEvents: StreamEnvelope[] = [

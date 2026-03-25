@@ -21,6 +21,7 @@ from app.core.config import get_settings
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
+from app.schemas.news import NewsItemSummary
 from app.services.event_bus import get_event_bus
 from app.services.http_client import HttpClientFactory
 from app.services.news_signal_pipeline import NewsSignalPipelineService
@@ -599,7 +600,13 @@ class NewsIngestionService:
         )
         target_news_ids = [item.id for item in inserted_items]
         if target_news_ids:
-            get_event_bus().publish("news.created_batch", {"news_ids": target_news_ids})
+            event_bus = get_event_bus()
+            for item in inserted_items:
+                event_bus.publish(
+                    "news.created",
+                    NewsItemSummary.model_validate(item, from_attributes=True).model_dump(mode="json"),
+                )
+            event_bus.publish("news.created_batch", {"news_ids": target_news_ids})
         else:
             pipeline = NewsSignalPipelineService(self.session)
             target_news_ids = pipeline.list_pending_news_ids(limit=50)

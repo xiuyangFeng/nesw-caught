@@ -32,3 +32,36 @@ class NewsRefreshResponse(BaseModel):
     fetched_count: int
     inserted_count: int
     results: list[SourceFetchResultView]
+
+
+class NewsRuntimeSourceView(BaseModel):
+    source_name: str
+    market: str
+    tier: str
+    status: str
+    last_attempt_at: UTCDateTime | None = None
+    last_success_at: UTCDateTime | None = None
+    consecutive_failures: int
+    avg_fetch_latency_ms: float | None = None
+    latest_news_published_at: UTCDateTime | None = None
+    latest_news_fetched_at: UTCDateTime | None = None
+    last_error: str | None = None
+
+
+class NewsRuntimeMarketView(BaseModel):
+    market: str
+    status: str
+    mode: str
+    last_primary_success_at: UTCDateTime | None = None
+    last_news_created_at: UTCDateTime | None = None
+    degraded_reason: str | None = None
+
+
+class NewsRuntimeView(BaseModel):
+    feed_status: str
+    last_refresh_finished_at: UTCDateTime | None = None
+    last_news_created_at: UTCDateTime | None = None
+    last_incremental_event_at: UTCDateTime | None = None
+    degraded_market_count: int
+    markets: list[NewsRuntimeMarketView]
+    sources: list[NewsRuntimeSourceView]

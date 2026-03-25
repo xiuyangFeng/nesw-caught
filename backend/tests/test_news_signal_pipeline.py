@@ -196,3 +196,81 @@ def test_process_news_ids_falls_back_to_rule_output_when_llm_fails(monkeypatch: 
             assert topic is not None
     finally:
         _cleanup_news(url_hashes)
+
+
+def test_news_created_batch_handler_publishes_news_updated_after_processing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main as main_module
+
+    news_id = 4242
+
+    class FakeBus:
+        def __init__(self) -> None:
+            self.handlers: dict[str, list] = {}
+            self.published: list[tuple[str, dict[str, object]]] = []
+
+        def subscribe(self, event_name: str, handler) -> None:
+            self.handlers.setdefault(event_name, []).append(handler)
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+            for handler in self.handlers.get(event_name, []):
+                handler(payload)
+
+    class FakePipelineService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def process_news_ids(self, news_ids: list[int]):
+            assert news_ids == [news_id]
+            return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
+
+    class FakeNewsRepository:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def get_by_id(self, requested_id: int) -> NewsItem:
+            assert requested_id == news_id
+            item = _make_news(
+                title="Processed headline",
+                summary="Processed summary",
+                url_hash="pipeline-news-updated",
+            )
+            item.id = news_id
+            item.source_name = "Reuters"
+            item.canonical_url = "https://example.com/story"
+            item.sentiment_label = "positive"
+            item.fetched_at = datetime(2026, 3, 25, 2, 31, 3, tzinfo=timezone.utc)
+            item.published_at = datetime(2026, 3, 25, 2, 30, tzinfo=timezone.utc)
+            return item
+
+    class FakeNotificationService:
+        def on_news_created(self, payload: dict[str, object]) -> None:
+            del payload
+
+        def on_analysis_completed(self, payload: dict[str, object]) -> None:
+            del payload
+
+    fake_bus = FakeBus()
+    monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
+    monkeypatch.setattr(main_module, "NewsSignalPipelineService", FakePipelineService)
+    monkeypatch.setattr(main_module, "NewsRepository", FakeNewsRepository)
+    monkeypatch.setattr(main_module, "get_notification_service", lambda: FakeNotificationService())
+
+    main_module._register_event_handlers()
+    fake_bus.publish("news.created_batch", {"news_ids": [news_id]})
+
+    assert (
+        "news.updated",
+        {
+            "id": news_id,
+            "title": "Processed headline",
+            "summary": "Processed summary",
+            "source_name": "Reuters",
+            "canonical_url": "https://example.com/story",
+            "market": "us",
+            "sentiment_label": "positive",
+            "published_at": "2026-03-25T02:30:00Z",
+            "fetched_at": "2026-03-25T02:31:03Z",
+            "updated_fields": ["sentiment_label"],
+        },
+    ) in fake_bus.published

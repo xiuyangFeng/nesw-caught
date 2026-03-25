@@ -17,6 +17,7 @@ from app.models.news_item import NewsItem
 from app.models.source_health import SourceHealth
 from app.main import app
 from app.repositories.source_health_repository import SourceHealthRepository
+from app.schemas.news import NewsItemSummary
 from app.services.news_ingestion import (
     RefreshSummary,
     NewsIngestionService,
@@ -723,7 +724,7 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
     ]
 
 
-def test_refresh_all_runs_signal_pipeline_for_inserted_items(monkeypatch) -> None:
+def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None:
     source = SourceDefinition(
         name="Pipeline Refresh",
         source_type="rss",
@@ -798,8 +799,26 @@ def test_refresh_all_runs_signal_pipeline_for_inserted_items(monkeypatch) -> Non
 
         assert summary.inserted_count == 1
         assert len(summary.inserted_items) == 1
-        assert bus.published == [("news.created_batch", {"news_ids": [summary.inserted_items[0].id]})]
-        assert calls == [[summary.inserted_items[0].id]]
+        inserted_id = summary.inserted_items[0].id
+        inserted_payload = NewsItemSummary.model_validate(summary.inserted_items[0], from_attributes=True).model_dump(mode="json")
+        assert bus.published == [
+            (
+                "news.created",
+                {
+                    "id": inserted_id,
+                    "title": "Pipeline refresh item",
+                    "summary": "Fresh signal text",
+                    "source_name": "Pipeline Refresh",
+                    "canonical_url": "https://example.com/pipeline-refresh-item",
+                    "market": "us",
+                    "sentiment_label": None,
+                    "published_at": "2026-03-19T10:00:00Z",
+                    "fetched_at": inserted_payload["fetched_at"],
+                },
+            ),
+            ("news.created_batch", {"news_ids": [inserted_id]}),
+        ]
+        assert calls == [[inserted_id]]
 
         session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
         session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))

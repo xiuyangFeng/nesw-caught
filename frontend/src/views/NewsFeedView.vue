@@ -7,11 +7,13 @@ import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import NewsCard from '../components/news/NewsCard.vue';
+import { useConnectionStore } from '../stores/connectionStore';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
 import type { EditorialStoryEntry } from '../utils/newsEditorial';
 
 const newsStore = useNewsStore();
+const connectionStore = useConnectionStore();
 const router = useRouter();
 const filters = reactive<{
   market: Market | '';
@@ -26,6 +28,39 @@ const filters = reactive<{
 const sourceOptions = computed(() => [...new Set(newsStore.feedItems.map((item) => item.source_name))]);
 const selectedSource = ref('');
 const hydratingIds = new Set<number>();
+const degradedSourceCount = computed(() =>
+  newsStore.sourceHealth.filter((item) => item.status === 'degraded' || item.status === 'offline').length,
+);
+const runtimeBannerTitle = computed(() => {
+  if (connectionStore.state === 'offline' || connectionStore.state === 'degraded') {
+    return '实时连接异常';
+  }
+  const status = newsStore.newsRuntimeStatus?.feed_status;
+  if (status === 'degraded') {
+    return '新闻供给降级';
+  }
+  if (status === 'delayed') {
+    return '新闻更新延迟';
+  }
+  return '新闻供给正常';
+});
+const runtimeBannerTone = computed(() => {
+  if (connectionStore.state === 'offline' || connectionStore.state === 'degraded') {
+    return 'danger';
+  }
+  const status = newsStore.newsRuntimeStatus?.feed_status;
+  if (status === 'degraded') {
+    return 'danger';
+  }
+  if (status === 'delayed') {
+    return 'warning';
+  }
+  return 'success';
+});
+const runtimeBannerDetail = computed(() => {
+  const recentFlow = newsStore.lastIncrementalAt ?? '无';
+  return `最近入流 ${recentFlow} · 异常来源 ${degradedSourceCount.value}`;
+});
 const orderedEntries = computed<EditorialStoryEntry[]>(() =>
   newsStore.feedItems.map((item) => ({
     item,
@@ -91,10 +126,10 @@ onMounted(async () => {
     </header>
 
     <StatusBanner
-      kicker="System"
-      :title="newsStore.usingMock ? '已启用 mock 兼容层' : '历史数据来自 REST 接口'"
-      :tone="newsStore.usingMock ? 'warning' : 'default'"
-      detail="当详情接口或主题接口缺失时，页面保留空状态和降级文案，不臆造字段。"
+      kicker="Runtime"
+      :title="runtimeBannerTitle"
+      :tone="runtimeBannerTone"
+      :detail="runtimeBannerDetail"
     />
 
     <section class="surface grid gap-[18px] rounded-[22px] p-5" data-role="news-feed-shell">

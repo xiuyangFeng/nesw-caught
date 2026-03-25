@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 
 import { apiClient } from '../api/client';
-import type { NewsAnalysis, NewsDetail, NewsItem, NewsQuery } from '../types/api';
+import type { NewsAnalysis, NewsDetail, NewsItem, NewsQuery, NewsRuntimeSource, NewsRuntimeStatus, NewsUpdateEvent } from '../types/api';
 import { isStale } from '../utils/time';
 
 export const useNewsStore = defineStore('newsStore', () => {
@@ -12,6 +12,9 @@ export const useNewsStore = defineStore('newsStore', () => {
   const analysisErrorMap = ref<Record<number, string | null>>({});
   const detailLoading = ref(false);
   const usingMock = ref(false);
+  const newsRuntimeStatus = ref<NewsRuntimeStatus | null>(null);
+  const lastIncrementalAt = ref<string | null>(null);
+  const sourceHealth = ref<NewsRuntimeSource[]>([]);
 
   const dashboardItems = ref<NewsItem[]>([]);
   const dashboardLoading = ref(false);
@@ -97,12 +100,40 @@ export const useNewsStore = defineStore('newsStore', () => {
     });
   }
 
+  async function loadNewsRuntime() {
+    const response = await apiClient.getNewsRuntime();
+    newsRuntimeStatus.value = response.data;
+    lastIncrementalAt.value = response.data.last_incremental_event_at;
+    sourceHealth.value = response.data.sources;
+    usingMock.value = usingMock.value || response.degraded;
+  }
+
   function upsertScopedItems(itemsRef: typeof dashboardItems, query: NewsQuery, item: NewsItem) {
     if (!matchesQuery(item, query)) {
       return;
     }
 
     const existingIndex = itemsRef.value.findIndex((candidate) => candidate.id === item.id);
+    if (existingIndex >= 0) {
+      itemsRef.value.splice(existingIndex, 1, item);
+    } else {
+      itemsRef.value.unshift(item);
+      const limit = query.limit ?? itemsRef.value.length;
+      if (itemsRef.value.length > limit) {
+        itemsRef.value.length = limit;
+      }
+    }
+  }
+
+  function upsertScopedUpdate(itemsRef: typeof dashboardItems, query: NewsQuery, item: NewsItem) {
+    const existingIndex = itemsRef.value.findIndex((candidate) => candidate.id === item.id);
+    if (!matchesQuery(item, query)) {
+      if (existingIndex >= 0) {
+        itemsRef.value.splice(existingIndex, 1);
+      }
+      return;
+    }
+
     if (existingIndex >= 0) {
       itemsRef.value.splice(existingIndex, 1, item);
     } else {
@@ -175,6 +206,12 @@ export const useNewsStore = defineStore('newsStore', () => {
     dashboardLastLoadedAt.value = new Date().toISOString();
   }
 
+  function upsertNewsUpdate(item: NewsUpdateEvent) {
+    upsertScopedUpdate(dashboardItems, dashboardQuery.value, item);
+    upsertScopedUpdate(feedItems, feedQuery.value, item);
+    upsertScopedUpdate(sentimentItems, sentimentQuery.value, item);
+  }
+
   return {
     detailMap,
     analysisMap,
@@ -182,6 +219,9 @@ export const useNewsStore = defineStore('newsStore', () => {
     analysisErrorMap,
     detailLoading,
     usingMock,
+    newsRuntimeStatus,
+    lastIncrementalAt,
+    sourceHealth,
     dashboardItems,
     dashboardLoading,
     dashboardLastLoadedAt,
@@ -201,11 +241,13 @@ export const useNewsStore = defineStore('newsStore', () => {
     loadDashboardNews,
     loadFeedNews,
     loadSentimentNews,
+    loadNewsRuntime,
     loadDetail,
     loadAnalysis,
     analyzeNews,
     refreshNews,
     refreshDashboardNews,
     upsertNews,
+    upsertNewsUpdate,
   };
 });

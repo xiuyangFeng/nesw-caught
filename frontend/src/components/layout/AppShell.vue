@@ -184,6 +184,7 @@ async function bootstrap() {
 
   await Promise.all([
     newsStore.loadDashboardNews({ limit: 200 }),
+    newsStore.loadNewsRuntime(),
     marketStore.loadSnapshots(),
     topicStore.loadTopics(),
     watchlistStore.loadWatchlist(),
@@ -197,6 +198,10 @@ async function bootstrap() {
   connectionStore.connect((event) => {
     if (event.type === 'news.created') {
       newsStore.upsertNews(event.payload);
+      return;
+    }
+    if (event.type === 'news.updated') {
+      newsStore.upsertNewsUpdate(event.payload);
       return;
     }
     if (event.type === 'topic.updated') {

@@ -5,6 +5,9 @@ import type { NewsDetail, NewsItem } from '../types/api';
 import NewsFeedView from './NewsFeedView.vue';
 
 const mockPush = vi.fn();
+const connectionStore = {
+  state: 'live',
+};
 
 const items: NewsItem[] = [
   {
@@ -64,6 +67,45 @@ const newsStore = {
   feedLoading: false,
   feedStale: false,
   usingMock: false,
+  newsRuntimeStatus: {
+    feed_status: 'delayed',
+    last_refresh_finished_at: '2026-03-25T02:40:00Z',
+    last_news_created_at: '2026-03-25T02:39:40Z',
+    last_incremental_event_at: '2026-03-25T02:39:55Z',
+    degraded_market_count: 1,
+    markets: [],
+    sources: [
+      {
+        source_name: 'Bloomberg',
+        market: 'us',
+        tier: 'primary',
+        status: 'degraded',
+        last_attempt_at: '2026-03-25T02:39:20Z',
+        last_success_at: '2026-03-25T02:39:30Z',
+        consecutive_failures: 2,
+        avg_fetch_latency_ms: 320,
+        latest_news_published_at: '2026-03-25T02:35:00Z',
+        latest_news_fetched_at: '2026-03-25T02:39:30Z',
+        last_error: 'timeout',
+      },
+    ],
+  },
+  sourceHealth: [
+    {
+      source_name: 'Bloomberg',
+      market: 'us',
+      tier: 'primary',
+      status: 'degraded',
+      last_attempt_at: '2026-03-25T02:39:20Z',
+      last_success_at: '2026-03-25T02:39:30Z',
+      consecutive_failures: 2,
+      avg_fetch_latency_ms: 320,
+      latest_news_published_at: '2026-03-25T02:35:00Z',
+      latest_news_fetched_at: '2026-03-25T02:39:30Z',
+      last_error: 'timeout',
+    },
+  ],
+  lastIncrementalAt: '2026-03-25T02:39:55Z',
   loadFeedNews: vi.fn(async () => undefined),
   loadDetail: vi.fn(async () => undefined),
 };
@@ -74,6 +116,10 @@ vi.mock('vue-router', () => ({
   }),
 }));
 
+vi.mock('../stores/connectionStore', () => ({
+  useConnectionStore: () => connectionStore,
+}));
+
 vi.mock('../stores/newsStore', () => ({
   useNewsStore: () => newsStore,
 }));
@@ -81,6 +127,7 @@ vi.mock('../stores/newsStore', () => ({
 describe('NewsFeedView', () => {
   beforeEach(() => {
     mockPush.mockReset();
+    connectionStore.state = 'live';
     newsStore.loadFeedNews.mockClear();
     newsStore.loadDetail.mockClear();
   });
@@ -115,5 +162,21 @@ describe('NewsFeedView', () => {
     await wrapper.get('[data-role="news-card-shell"]').trigger('click');
 
     expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 1 } });
+  });
+
+  it('renders delayed/degraded/live status copy in the feed header', () => {
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.text()).toContain('新闻更新延迟');
+    expect(wrapper.text()).toContain('最近入流');
+    expect(wrapper.text()).toContain('异常来源');
+  });
+
+  it('overrides runtime status copy when the sse connection is degraded', () => {
+    connectionStore.state = 'offline';
+
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.text()).toContain('实时连接异常');
   });
 });
