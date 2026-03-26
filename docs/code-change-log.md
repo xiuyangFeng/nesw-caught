@@ -2,6 +2,24 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-26 18:51
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 台湾军售 false negative 迭代
+- 变更内容：基于当前主仓库 `market_relevance_experiment_recall_merge` 的剩余 false negative，仅选择 `historical-0188-188` 这一条“对台军售 + 拦截导弹”样本做单点修正。按 TDD 先在 `test_news_relevance_evaluator.py` 新增一个台湾军售正例和一个联合国叙利亚会议负例，并确认正例先因规则缺失而失败；随后仅在 `news_relevance_evaluator.py` 增加“`对台/台湾/台海` 与 `军售/导弹/武器` 共现”时判为市场相关的窄规则。重跑 benchmark 后，新实验 `market_relevance_experiment_taiwan_arms_sale` 的指标从 `precision=0.8333 / recall=0.8824 / noise_rejection_rate=0.9286` 提升到 `precision=0.8421 / recall=0.9412 / noise_rejection_rate=0.9286`，并把 keep decision 写入 experiment ledger，同时刷新晨读 report。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_taiwan_arms_sale/evaluation.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_taiwan_arms_sale/evaluation.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.html`
+  - `/Users/xiuyang/Desktop/news-caught/docs/research/market-relevance-experiments.tsv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或数据结构；仅补充 evaluator 启发式规则与一轮新实验产物
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -k 'taiwan_arms_sale or un_security_council_update' -q` 先失败后通过；`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -q` 通过（20 个用例）；`python -m py_compile backend/app/services/news_relevance_evaluator.py backend/scripts/evaluate_market_relevance.py` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/evaluate_market_relevance.py --dataset backend/data/research/market_relevance_benchmark.jsonl --output-dir backend/data/research/market_relevance_experiment_taiwan_arms_sale` 通过；`conda run -n news-caught python backend/scripts/run_news_relevance_experiment.py --experiment-id exp-20260326-taiwan-arms-sale --baseline-id exp-20260326-recall-merge --hypothesis "Catch Taiwan arms-sale headlines without broadening generic geopolitics" --changed-file backend/app/services/news_relevance_evaluator.py --metrics-before backend/data/research/market_relevance_experiment_recall_merge/evaluation.json --metrics-after backend/data/research/market_relevance_experiment_taiwan_arms_sale/evaluation.json --ledger docs/research/market-relevance-experiments.tsv` 通过并记录 `keep`；`conda run -n news-caught python backend/scripts/render_market_relevance_report.py --benchmark backend/data/research/market_relevance_benchmark.jsonl --evaluation backend/data/research/market_relevance_experiment_taiwan_arms_sale/evaluation.json --ledger docs/research/market-relevance-experiments.tsv --markdown-output backend/data/research/market_relevance_report.md --html-output backend/data/research/market_relevance_report.html` 通过
+- 风险/后续事项：主仓库剩余 false negative 现在只剩 `realtime-0255-1745`（伊朗战争权力议案）；后续如果继续提 recall，应继续保持单点地缘政治边界验证，避免把泛国际政治 headline 一并放进市场相关范围
+
 ## 2026-03-26 14:47
 
 - 修改人：Codex

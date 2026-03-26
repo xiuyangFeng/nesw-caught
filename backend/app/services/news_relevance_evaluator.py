@@ -87,6 +87,8 @@ GENERIC_TECH_TERMS = {
 
 SHIPPING_ROUTE_TERMS = {"shipper", "shippers", "shipping", "container", "operators"}
 SHIPPING_DISRUPTION_PHRASES = {"red sea", "route", "routes", "targeting"}
+TAIWAN_TENSION_TERMS = {"对台", "台湾", "台海"}
+ARMS_SALE_TERMS = {"军售", "导弹", "武器"}
 
 
 class EvaluationGuardrailError(ValueError):
@@ -182,6 +184,10 @@ def predict_market_relevance(
         return True
     if combined_market_tokens.intersection(SHIPPING_ROUTE_TERMS) and any(
         phrase in text for phrase in SHIPPING_DISRUPTION_PHRASES
+    ):
+        return True
+    if any(term in raw_text for term in TAIWAN_TENSION_TERMS) and any(
+        term in raw_text for term in ARMS_SALE_TERMS
     ):
         return True
     if tokens.intersection(GENERIC_TECH_TERMS) or classifier_tokens.intersection(GENERIC_TECH_TERMS):

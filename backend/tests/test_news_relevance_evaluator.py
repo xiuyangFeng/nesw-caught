@@ -489,6 +489,66 @@ def test_predict_market_relevance_does_not_keep_generic_gaza_humanitarian_update
     assert predict_market_relevance(sample) is False
 
 
+def test_predict_market_relevance_keeps_taiwan_arms_sale_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="taiwan-arms-sale",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=18,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/taiwan-arms-sale",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="【国台办回应美国对台军售】据路透报道，美国一项涵盖先进拦截导弹的对台大型军售案准备呈交总统批准。",
+            summary="发言人表示坚决反对有关国家向中国台湾地区出售武器。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_does_not_keep_generic_un_security_council_update() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="un-security-council-update",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=19,
+            source_name="Xinhua",
+            canonical_url="https://example.com/un-security-council-update",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="联合国安理会就叙利亚局势举行会议",
+            summary="与会代表呼吁有关各方继续通过外交渠道缓和局势。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="off_topic",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is False
+
+
 def test_predict_market_relevance_uses_classifier_with_body_excerpt() -> None:
     sample = MarketRelevanceSample(
         sample_id="body-assisted",
