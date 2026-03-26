@@ -111,6 +111,9 @@ SHIPPING_ROUTE_TERMS = {"shipper", "shippers", "shipping", "container", "operato
 SHIPPING_DISRUPTION_PHRASES = {"red sea", "route", "routes", "targeting"}
 TAIWAN_TENSION_TERMS = {"对台", "台湾", "台海"}
 ARMS_SALE_TERMS = {"军售", "导弹", "武器"}
+IRAN_TENSION_TERMS = {"伊朗"}
+MILITARY_ACTION_TERMS = {"军事行动", "动武", "军事打击", "空袭", "袭击"}
+WAR_POWERS_PROCESS_TERMS = {"战争权力", "议案", "参议院", "投票", "否决"}
 AI_COMPUTE_ANCHOR_TERMS = {"ai", "gpu", "nvidia", "accelerator", "accelerators"}
 SEMICONDUCTOR_TERMS = {"chip", "chips", "chipmaker", "chipmakers", "semiconductor", "semiconductors", "wafer"}
 CHINESE_INTERNET_TERMS = {"tencent", "alibaba", "meituan", "jd", "baidu", "pdd", "netease", "gaming", "internet"}
@@ -247,6 +250,8 @@ def predict_market_relevance_details(
         term in raw_text for term in ARMS_SALE_TERMS
     ):
         return MarketRelevancePredictionDetails(True, sector_tags, "taiwan_arms_sale")
+    if _looks_like_iran_war_powers_flash(raw_text):
+        return MarketRelevancePredictionDetails(True, sector_tags, "iran_war_powers")
     if sector_tags and (
         combined_market_tokens.intersection(SECTOR_TRIGGER_TERMS)
         or "export controls" in text
@@ -279,6 +284,14 @@ def _safe_divide(numerator: int, denominator: int) -> float:
 def _looks_like_chinese_concept_mover(raw_text: str) -> bool:
     return any(term in raw_text for term in CHINESE_CONCEPT_SIGNAL_TERMS) and any(
         term in raw_text for term in CHINESE_EQUITY_MOVE_TERMS
+    )
+
+
+def _looks_like_iran_war_powers_flash(raw_text: str) -> bool:
+    return (
+        any(term in raw_text for term in IRAN_TENSION_TERMS)
+        and any(term in raw_text for term in MILITARY_ACTION_TERMS)
+        and any(term in raw_text for term in WAR_POWERS_PROCESS_TERMS)
     )
 
 

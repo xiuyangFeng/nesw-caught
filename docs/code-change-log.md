@@ -2,6 +2,24 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-27 00:18
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch 伊朗战争权力议案 false negative 迭代
+- 变更内容：按当前 benchmark 只剩的单条 false negative，选择 `realtime-0255-1745` 这一条“伊朗军事行动 + 战争权力议案”样本做单点修正。按 TDD 先在 `test_news_relevance_evaluator.py` 增加一个伊朗战争权力正例和一个“伊朗 + 参议院听证会”负例 guardrail，并确认正例在现状下先失败；随后仅在 `news_relevance_evaluator.py` 增加一个窄规则，要求 `伊朗` 与 `军事行动/动武/军事打击` 以及 `战争权力/议案/参议院/投票/否决` 这组三类词共现时才判为市场相关，避免泛伊朗政治流程新闻被一并放宽。重跑 benchmark 后，新实验 `market_relevance_experiment_iran_war_powers` 的指标从 `precision=0.8421 / recall=0.9412 / noise_rejection_rate=0.9286` 提升到 `precision=0.8500 / recall=1.0000 / noise_rejection_rate=0.9286`，并把 keep decision 写入 experiment ledger，同时刷新晨读 report。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_iran_war_powers/evaluation.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_iran_war_powers/evaluation.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.html`
+  - `/Users/xiuyang/Desktop/news-caught/docs/research/market-relevance-experiments.tsv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或数据结构；仅补充一条更窄的地缘政治市场相关性启发式规则与对应实验产物
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -k 'iran_war_powers_vote_updates or generic_iran_senate_process_update' -q` 先失败后通过；`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -q` 通过（28 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_evaluator.py backend/scripts/evaluate_market_relevance.py` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/evaluate_market_relevance.py --dataset backend/data/research/market_relevance_benchmark.jsonl --output-dir backend/data/research/market_relevance_experiment_iran_war_powers` 通过；`conda run -n news-caught python backend/scripts/run_news_relevance_experiment.py --experiment-id exp-20260327-iran-war-powers --baseline-id exp-20260326-taiwan-arms-sale --hypothesis "Catch Iran war-powers vote headlines without broadening generic Iran politics" --changed-file backend/app/services/news_relevance_evaluator.py --metrics-before backend/data/research/market_relevance_experiment_taiwan_arms_sale/evaluation.json --metrics-after backend/data/research/market_relevance_experiment_iran_war_powers/evaluation.json --ledger docs/research/market-relevance-experiments.tsv` 通过并记录 `keep`；`conda run -n news-caught python backend/scripts/render_market_relevance_report.py --benchmark backend/data/research/market_relevance_benchmark.jsonl --evaluation backend/data/research/market_relevance_experiment_iran_war_powers/evaluation.json --ledger docs/research/market-relevance-experiments.tsv --markdown-output backend/data/research/market_relevance_report.md --html-output backend/data/research/market_relevance_report.html` 通过
+- 风险/后续事项：当前 benchmark 上的 false negative 已清零，后续应优先回头审视剩余 3 条 false positive，避免在 recall 已满时继续扩地缘政治规则；本轮规则仍是中文 headline 级启发式，如后续出现英文同类 headline，需要单独用 benchmark 样本验证后再扩
+
 ## 2026-03-26 19:08
 
 - 修改人：Codex

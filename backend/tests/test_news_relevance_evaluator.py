@@ -746,6 +746,66 @@ def test_predict_market_relevance_does_not_keep_generic_un_security_council_upda
     assert predict_market_relevance(sample) is False
 
 
+def test_predict_market_relevance_keeps_iran_war_powers_vote_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="iran-war-powers-vote",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=25,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/iran-war-powers-vote",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="【限制特朗普战争权力的议案再遭美参议院否决】美国参议院否决限制总统对伊朗发动军事行动的议案。",
+            summary="这已是自美以对伊朗发起联合军事打击以来，参议院第三次未能通过限制动武权力的议案。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_does_not_keep_generic_iran_senate_process_update() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="iran-senate-process-update",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=26,
+            source_name="Xinhua",
+            canonical_url="https://example.com/iran-senate-process-update",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="美国参议院下周将就伊朗问题举行听证会",
+            summary="议员计划讨论外交路线与地区局势，并听取国务院官员证词。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="off_topic",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is False
+
+
 def test_predict_market_relevance_uses_classifier_with_body_excerpt() -> None:
     sample = MarketRelevanceSample(
         sample_id="body-assisted",
