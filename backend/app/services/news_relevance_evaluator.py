@@ -63,6 +63,16 @@ CHINESE_MARKET_SIGNAL_PHRASES = {
     "自由现金流",
 }
 
+CHINESE_CONCEPT_SIGNAL_TERMS = {
+    "概念",
+    "板块",
+}
+
+CHINESE_EQUITY_MOVE_TERMS = {
+    "涨停",
+    "跟涨",
+}
+
 GENERIC_TECH_TERMS = {
     "camera",
     "reviewers",
@@ -74,6 +84,9 @@ GENERIC_TECH_TERMS = {
     "hands-on",
     "benchmark",
 }
+
+SHIPPING_ROUTE_TERMS = {"shipper", "shippers", "shipping", "container", "operators"}
+SHIPPING_DISRUPTION_PHRASES = {"red sea", "route", "routes", "targeting"}
 
 
 class EvaluationGuardrailError(ValueError):
@@ -165,6 +178,12 @@ def predict_market_relevance(
         return True
     if any(phrase in raw_text for phrase in CHINESE_MARKET_SIGNAL_PHRASES):
         return True
+    if _looks_like_chinese_concept_mover(raw_text):
+        return True
+    if combined_market_tokens.intersection(SHIPPING_ROUTE_TERMS) and any(
+        phrase in text for phrase in SHIPPING_DISRUPTION_PHRASES
+    ):
+        return True
     if tokens.intersection(GENERIC_TECH_TERMS) or classifier_tokens.intersection(GENERIC_TECH_TERMS):
         return False
     return False
@@ -186,3 +205,9 @@ def _safe_divide(numerator: int, denominator: int) -> float:
     if denominator == 0:
         return 0.0
     return numerator / denominator
+
+
+def _looks_like_chinese_concept_mover(raw_text: str) -> bool:
+    return any(term in raw_text for term in CHINESE_CONCEPT_SIGNAL_TERMS) and any(
+        term in raw_text for term in CHINESE_EQUITY_MOVE_TERMS
+    )

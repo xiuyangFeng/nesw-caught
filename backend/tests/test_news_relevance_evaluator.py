@@ -369,6 +369,126 @@ def test_predict_market_relevance_keeps_market_stability_measures() -> None:
     assert predict_market_relevance(sample) is True
 
 
+def test_predict_market_relevance_keeps_concept_mover_wires() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="concept-mover-wire",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=14,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/concept-mover-wire",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="【腾讯概念持续走高 世纪恒通20cm涨停】",
+            summary="腾讯概念盘中持续走高，世纪恒通20cm涨停，云赛智联、绿盟科技、亚康股份等跟涨。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_does_not_keep_generic_product_concept_story() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="generic-product-concept",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=15,
+            source_name="36Kr",
+            canonical_url="https://example.com/generic-product-concept",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="腾讯概念新品发布会带动用户讨论",
+            summary="文章介绍新版本功能体验，称相关概念热度走高，但没有任何二级市场价格信息。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="generic_tech",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is False
+
+
+def test_predict_market_relevance_keeps_shipping_route_disruption_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="shipping-route-disruption",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=16,
+            source_name="WSJ World News",
+            canonical_url="https://example.com/shipping-route-disruption",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Shippers Wary of Red Sea Routes Despite Houthi Pledge to End Targeting",
+            summary="The world's top three container operators said they fear instability in Gaza and broader regional tensions mean continued danger.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
+def test_predict_market_relevance_does_not_keep_generic_gaza_humanitarian_updates() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="gaza-humanitarian-update",
+        source_type="historical",
+        origin=MarketRelevanceOrigin(
+            news_id=17,
+            source_name="CLS Telegraph",
+            canonical_url="https://example.com/gaza-humanitarian-update",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="拉法口岸18日起重新开放 允许有限人员双向通行",
+            summary="拉法口岸位于加沙地带南部与埃及交界处，对加沙地带人道主义援助至关重要。",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="off_topic",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is False
+
+
 def test_predict_market_relevance_uses_classifier_with_body_excerpt() -> None:
     sample = MarketRelevanceSample(
         sample_id="body-assisted",

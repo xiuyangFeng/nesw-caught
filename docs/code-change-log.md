@@ -2,6 +2,26 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-26 14:47
+
+- 修改人：Codex
+- 修改范围：市场新闻相关性 AutoResearch recall 合并落主仓库
+- 变更内容：按你确认的“优先提 recall”方案，把自动化 worktree 中最稳妥的两条 keep 结果合并回了 `main`：一条是“概念/板块 + 涨停/跟涨”的中文题材异动识别，另一条是“航运主体 + 红海/路线/targeting 扰动”的英文航运风险识别。按 TDD 先在 `test_news_relevance_evaluator.py` 增加四条回归测试并确认两条正例先失败，再在 `news_relevance_evaluator.py` 只补这两条最窄规则。随后重跑 benchmark，生成新的组合实验产物 `market_relevance_experiment_recall_merge`，并把结果记录为新的 keep experiment；当前主仓库晨读 report 已刷新到这轮组合结果，指标从上一轮 `index-signals` 的 `precision=0.8125 / recall=0.7647 / noise_rejection_rate=0.9286` 提升到 `precision=0.8333 / recall=0.8824 / noise_rejection_rate=0.9286`。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_recall_merge/evaluation.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_experiment_recall_merge/evaluation.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.md`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/research/market_relevance_report.html`
+  - `/Users/xiuyang/Desktop/news-caught/docs/research/market-relevance-experiments.tsv`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-26-market-relevance-recall-merge-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-26-market-relevance-recall-merge-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或数据结构；仅收紧 evaluator 的启发式规则并新增一轮组合实验产物
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -k 'concept_mover or shipping_route_disruption or generic_product_concept or generic_gaza_humanitarian_updates' -q` 先失败后通过；`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -q` 通过（18 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/news_relevance_evaluator.py backend/scripts/evaluate_market_relevance.py backend/scripts/render_market_relevance_report.py` 通过；`DATABASE_URL=sqlite:////Users/xiuyang/Desktop/news-caught/backend/data/app.db conda run -n news-caught python backend/scripts/evaluate_market_relevance.py --dataset backend/data/research/market_relevance_benchmark.jsonl --output-dir backend/data/research/market_relevance_experiment_recall_merge` 通过；`conda run -n news-caught python backend/scripts/run_news_relevance_experiment.py --experiment-id exp-20260326-recall-merge --baseline-id exp-20260325-index-signals --hypothesis "Combine concept-mover and shipping-route recall improvements" --changed-file backend/app/services/news_relevance_evaluator.py --metrics-before backend/data/research/market_relevance_experiment_index_signals/evaluation.json --metrics-after backend/data/research/market_relevance_experiment_recall_merge/evaluation.json --ledger docs/research/market-relevance-experiments.tsv` 通过并记录 `keep`；`conda run -n news-caught python backend/scripts/render_market_relevance_report.py --benchmark backend/data/research/market_relevance_benchmark.jsonl --evaluation backend/data/research/market_relevance_experiment_recall_merge/evaluation.json --ledger docs/research/market-relevance-experiments.tsv --markdown-output backend/data/research/market_relevance_report.md --html-output backend/data/research/market_relevance_report.html` 通过
+- 风险/后续事项：剩余 false negative 现在只剩“对台军售”和“伊朗战争权力议案”两类地缘政治边界样本；后续如果继续提 recall，最好单独验证“地缘政治 headline 何时应视为市场相关”，不要顺手放宽泛政治规则
+
 ## 2026-03-25 18:14
 
 - 修改人：Codex
