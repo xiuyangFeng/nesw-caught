@@ -6,7 +6,7 @@ import re
 from app.schemas.research import EvaluationMetrics, MarketRelevanceSample
 from app.services.news_signal_classifier import NewsSignalClassifier
 
-MARKET_SIGNAL_TERMS = {
+HIGH_CONFIDENCE_MARKET_SIGNAL_TERMS = {
     "guidance",
     "revenue",
     "earnings",
@@ -19,9 +19,6 @@ MARKET_SIGNAL_TERMS = {
     "regulation",
     "acquisition",
     "merger",
-    "demand",
-    "supply",
-    "shipment",
     "outlook",
     "shares",
     "stock",
@@ -34,6 +31,12 @@ MARKET_SIGNAL_TERMS = {
     "ipo",
 }
 
+LOW_CONFIDENCE_MARKET_SIGNAL_TERMS = {
+    "demand",
+    "supply",
+    "shipment",
+}
+
 MARKET_SIGNAL_PHRASES = {
     "sec proposes",
     "sec announces enforcement",
@@ -42,6 +45,25 @@ MARKET_SIGNAL_PHRASES = {
     "buyback",
     "dividend",
     "share repurchase",
+}
+
+SECTOR_TRIGGER_TERMS = {
+    "guidance",
+    "orders",
+    "order",
+    "demand",
+    "supply",
+    "shipments",
+    "shipment",
+    "outlook",
+    "tariff",
+    "policy",
+    "regulation",
+    "earnings",
+    "revenue",
+    "recovery",
+    "export",
+    "controls",
 }
 
 CHINESE_MARKET_SIGNAL_PHRASES = {
@@ -89,6 +111,23 @@ SHIPPING_ROUTE_TERMS = {"shipper", "shippers", "shipping", "container", "operato
 SHIPPING_DISRUPTION_PHRASES = {"red sea", "route", "routes", "targeting"}
 TAIWAN_TENSION_TERMS = {"对台", "台湾", "台海"}
 ARMS_SALE_TERMS = {"军售", "导弹", "武器"}
+AI_COMPUTE_ANCHOR_TERMS = {"ai", "gpu", "nvidia", "accelerator", "accelerators"}
+SEMICONDUCTOR_TERMS = {"chip", "chips", "chipmaker", "chipmakers", "semiconductor", "semiconductors", "wafer"}
+CHINESE_INTERNET_TERMS = {"tencent", "alibaba", "meituan", "jd", "baidu", "pdd", "netease", "gaming", "internet"}
+APPLE_SUPPLY_CHAIN_TERMS = {
+    "apple",
+    "iphone",
+    "ipad",
+    "macbook",
+    "airpods",
+    "display",
+    "camera",
+    "lens",
+    "consumer",
+    "electronics",
+    "supplier",
+    "suppliers",
+}
 
 
 class EvaluationGuardrailError(ValueError):
@@ -100,6 +139,13 @@ class MarketRelevanceEvaluationResult:
     metrics: EvaluationMetrics
     false_positive_ids: list[str]
     false_negative_ids: list[str]
+
+
+@dataclass(frozen=True)
+class MarketRelevancePredictionDetails:
+    is_market_relevant: bool
+    sector_tags: tuple[str, ...]
+    relevance_reason: str | None
 
 
 def evaluate_market_relevance(
@@ -151,6 +197,14 @@ def predict_market_relevance(
     *,
     classifier: NewsSignalClassifier | object | None = None,
 ) -> bool:
+    return predict_market_relevance_details(sample, classifier=classifier).is_market_relevant
+
+
+def predict_market_relevance_details(
+    sample: MarketRelevanceSample,
+    *,
+    classifier: NewsSignalClassifier | object | None = None,
+) -> MarketRelevancePredictionDetails:
     raw_text = " ".join(
         part
         for part in [
@@ -174,25 +228,34 @@ def predict_market_relevance(
         classifier_tokens.update(re.findall(r"[a-z0-9]+", getattr(result, "topic_key", "")))
 
     combined_market_tokens = tokens.union(classifier_tokens)
-    if combined_market_tokens.intersection(MARKET_SIGNAL_TERMS):
-        return True
+    sector_tags = _detect_sector_tags(raw_text, combined_market_tokens)
+    if combined_market_tokens.intersection(HIGH_CONFIDENCE_MARKET_SIGNAL_TERMS):
+        return MarketRelevancePredictionDetails(True, sector_tags, "market_signal_term")
+    if sector_tags and combined_market_tokens.intersection(LOW_CONFIDENCE_MARKET_SIGNAL_TERMS):
+        return MarketRelevancePredictionDetails(True, sector_tags, "sector_signal_term")
     if any(phrase in text for phrase in MARKET_SIGNAL_PHRASES):
-        return True
+        return MarketRelevancePredictionDetails(True, sector_tags, "market_signal_phrase")
     if any(phrase in raw_text for phrase in CHINESE_MARKET_SIGNAL_PHRASES):
-        return True
+        return MarketRelevancePredictionDetails(True, sector_tags, "chinese_market_phrase")
     if _looks_like_chinese_concept_mover(raw_text):
-        return True
+        return MarketRelevancePredictionDetails(True, sector_tags, "concept_mover")
     if combined_market_tokens.intersection(SHIPPING_ROUTE_TERMS) and any(
         phrase in text for phrase in SHIPPING_DISRUPTION_PHRASES
     ):
-        return True
+        return MarketRelevancePredictionDetails(True, sector_tags, "shipping_disruption")
     if any(term in raw_text for term in TAIWAN_TENSION_TERMS) and any(
         term in raw_text for term in ARMS_SALE_TERMS
     ):
-        return True
+        return MarketRelevancePredictionDetails(True, sector_tags, "taiwan_arms_sale")
+    if sector_tags and (
+        combined_market_tokens.intersection(SECTOR_TRIGGER_TERMS)
+        or "export controls" in text
+        or "supply chain" in text
+    ):
+        return MarketRelevancePredictionDetails(True, sector_tags, "sector_signal")
     if tokens.intersection(GENERIC_TECH_TERMS) or classifier_tokens.intersection(GENERIC_TECH_TERMS):
-        return False
-    return False
+        return MarketRelevancePredictionDetails(False, sector_tags, "generic_tech")
+    return MarketRelevancePredictionDetails(False, sector_tags, None)
 
 
 def predict_market_relevance_batch(
@@ -217,3 +280,29 @@ def _looks_like_chinese_concept_mover(raw_text: str) -> bool:
     return any(term in raw_text for term in CHINESE_CONCEPT_SIGNAL_TERMS) and any(
         term in raw_text for term in CHINESE_EQUITY_MOVE_TERMS
     )
+
+
+def _detect_sector_tags(raw_text: str, tokens: set[str]) -> tuple[str, ...]:
+    text = raw_text.lower()
+    tags: list[str] = []
+
+    if (
+        tokens.intersection(AI_COMPUTE_ANCHOR_TERMS)
+        or "ai server" in text
+        or "ai servers" in text
+    ) and any(term in text for term in {"ai", "gpu", "server", "compute", "accelerator", "nvidia"}):
+        tags.append("ai_compute")
+    if tokens.intersection(SEMICONDUCTOR_TERMS) and any(
+        term in text for term in {"chip", "chips", "semiconductor", "export controls", "wafer"}
+    ):
+        tags.append("semiconductors")
+    if tokens.intersection(CHINESE_INTERNET_TERMS) and any(
+        term in text for term in {"tencent", "alibaba", "meituan", "jd", "baidu", "internet", "gaming"}
+    ):
+        tags.append("chinese_internet")
+    if tokens.intersection(APPLE_SUPPLY_CHAIN_TERMS) and any(
+        term in text for term in {"apple", "iphone", "display", "camera", "supplier", "consumer electronics"}
+    ):
+        tags.append("apple_supply_chain")
+
+    return tuple(dict.fromkeys(tags))

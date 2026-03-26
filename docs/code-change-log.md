@@ -2,6 +2,25 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-26 19:08
+
+- 修改人：Codex
+- 修改范围：港美板块新闻第一轮来源与去噪升级
+- 变更内容：按“最小闭环”方案补了第一轮板块新闻升级。`news_ingestion.py` 现在支持 `api` 类型来源和 `the_news_api_json` 解析，可把聚合 API 结果统一归一化到现有 `SourceItem`/入库流程；同时增加了基于 `host + 小时窗口 + 标题归一化` 的轻量重复抑制，避免同一窗口内的改写稿反复入库，并在同窗重复出现时优先保留更高 `tier/priority` 的来源元数据。重复签名归一化也从 ASCII 扩到中文标题，避免港股/中文快讯场景直接漏重。`news_relevance_evaluator.py` 在保留现有布尔 market relevance 兼容层的前提下，新增了 `predict_market_relevance_details()`，可返回 `sector_tags` 和 `relevance_reason`，先覆盖 `ai_compute`、`semiconductors`、`chinese_internet`、`apple_supply_chain` 四类板块标签；同时把市场信号词拆成高低置信两层，并新增 generic Apple/server chatter 负例，避免把泛产品评测或泛企业服务器刷新误判成板块信号。另新增 `news_priority.py` 作为纯 Python 排序 helper，用于按 `source tier -> sector tag -> official signal -> recency` 排序，作为后续 report/feed surfacing 的基础。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/backend/app/services/news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/backend/app/services/news_priority.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/backend/tests/test_news_relevance_evaluator.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/backend/tests/test_news_priority.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/docs/superpowers/specs/2026-03-26-sector-news-upgrade-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/docs/superpowers/plans/2026-03-26-sector-news-upgrade-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-sector-news/docs/code-change-log.md`
+- 接口/数据结构变化：运行时未改现有 API route 和数据库 schema；新增 `api` source type 配置能力、新的 `predict_market_relevance_details()` 返回结构，以及独立的新闻排序 helper
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -k 'api_source or supports_api_news_payload or duplicate_titles' -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -k 'sector_tag' -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py -k 'promotes_duplicate_to_primary_source_metadata or deduplicates_same_window_chinese_titles' -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -k 'generic_server_refresh or sector_tag' -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_relevance_evaluator.py -k 'company_event or shipping_route_disruption or taiwan_arms_sale' -q` 通过；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_news_priority.py -q` 通过（60 个用例）；`conda run -n news-caught pytest backend/tests/test_news_relevance_report.py backend/tests/test_news_signal_pipeline.py backend/tests/test_news.py -q` 通过（13 个用例）；`conda run -n news-caught python -m py_compile backend/app/services/news_ingestion.py backend/app/services/news_relevance_evaluator.py backend/app/services/news_priority.py` 通过
+- 风险/后续事项：当前 `api` 来源解析只先接了 `the_news_api_json` 这一种 payload，后续接入真实 The News API 仍需要补配置文件与 API key；重复抑制目前仍只覆盖“同 host、同小时窗口、标题近似一致”的改写稿，跨 host 转载和跨语言同义改写还未处理；新的板块 tagging 仍是启发式规则，后续应继续用 benchmark 扩样验证 precision/recall 边界，并把 `source tier` 元数据真正接到后续 report/feed 输出
+
 ## 2026-03-26 18:51
 
 - 修改人：Codex

@@ -215,6 +215,35 @@ def test_load_sources_backfills_registry_defaults_from_legacy_config(tmp_path, m
     assert legacy.supports_incremental is False
 
 
+def test_load_sources_accepts_api_source_registry_entries(tmp_path, monkeypatch) -> None:
+    config = tmp_path / "sources.json"
+    config.write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": "The News API",
+                        "source_type": "api",
+                        "url": "https://api.thenewsapi.com/v1/news/top",
+                        "market": "us",
+                        "language": "en",
+                        "tier": "secondary",
+                        "parser": "the_news_api_json",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    sources = _load_sources_from_config(config, monkeypatch)
+
+    api_source = next(item for item in sources if item.name == "The News API")
+    assert api_source.source_type == "api"
+    assert api_source.parser == "the_news_api_json"
+    assert api_source.tier == "secondary"
+
+
 def test_load_sources_rejects_invalid_tier(tmp_path, monkeypatch) -> None:
     config = tmp_path / "sources.json"
     config.write_text(
@@ -616,6 +645,320 @@ def test_persist_item_backfills_existing_news_when_detail_arrives() -> None:
         with SessionLocal() as session:
             session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
             session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+            session.commit()
+
+
+def test_refresh_source_supports_api_news_payload(monkeypatch) -> None:
+    class FakeResponse:
+        text = json.dumps(
+            {
+                "data": [
+                    {
+                        "uuid": "story-1",
+                        "title": "Nvidia supplier sees AI server demand accelerate",
+                        "description": "The company raised guidance after stronger AI server orders.",
+                        "snippet": "AI server demand remains strong heading into the second half.",
+                        "url": "https://news.example.com/story-1",
+                        "published_at": "2026-03-26T01:00:00Z",
+                    }
+                ]
+            }
+        )
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    source = SourceDefinition(
+        name="The News API",
+        source_type="api",
+        url="https://api.thenewsapi.com/v1/news/top",
+        market="us",
+        language="en",
+        tier="secondary",
+        parser="the_news_api_json",
+    )
+
+    inserted_url = "https://news.example.com/story-1"
+    url_hash = sha256(inserted_url.encode("utf-8")).hexdigest()
+    with SessionLocal() as session:
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+        session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+        session.commit()
+
+    try:
+        with SessionLocal() as session:
+            result = NewsIngestionService(session)._refresh_source(source)
+
+            stored = session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
+            article = session.scalar(select(ArticleContent).where(ArticleContent.news_id == stored.id))
+
+            assert result.status == "ok"
+            assert result.fetched_count == 1
+            assert result.inserted_count == 1
+            assert stored is not None
+            assert stored.source_name == "The News API"
+            assert stored.summary == "The company raised guidance after stronger AI server orders."
+            assert article is not None
+            assert article.content_text == "AI server demand remains strong heading into the second half."
+    finally:
+        with SessionLocal() as session:
+            session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+            session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+            session.commit()
+
+
+def test_refresh_source_skips_same_window_duplicate_titles_from_same_host(monkeypatch) -> None:
+    class FakeResponse:
+        text = json.dumps(
+            {
+                "data": [
+                    {
+                        "uuid": "story-1",
+                        "title": "Nvidia supplier lifts AI server guidance",
+                        "description": "Headline rewrite one.",
+                        "snippet": "Body one.",
+                        "url": "https://news.example.com/story-1",
+                        "published_at": "2026-03-26T01:00:00Z",
+                    },
+                    {
+                        "uuid": "story-2",
+                        "title": "NVIDIA supplier lifts AI server guidance!",
+                        "description": "Headline rewrite two.",
+                        "snippet": "Body two.",
+                        "url": "https://news.example.com/story-2?utm_source=wire",
+                        "published_at": "2026-03-26T01:20:00Z",
+                    },
+                ]
+            }
+        )
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    source = SourceDefinition(
+        name="The News API",
+        source_type="api",
+        url="https://api.thenewsapi.com/v1/news/top",
+        market="us",
+        language="en",
+        tier="secondary",
+        parser="the_news_api_json",
+    )
+    url_hashes = [
+        sha256("https://news.example.com/story-1".encode("utf-8")).hexdigest(),
+        sha256("https://news.example.com/story-2?utm_source=wire".encode("utf-8")).hexdigest(),
+    ]
+    with SessionLocal() as session:
+        session.execute(
+            delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+        )
+        session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+        session.commit()
+
+    try:
+        with SessionLocal() as session:
+            result = NewsIngestionService(session)._refresh_source(source)
+            stored_items = session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))).all()
+
+            assert result.status == "ok"
+            assert result.fetched_count == 2
+            assert result.inserted_count == 1
+            assert len(stored_items) == 1
+    finally:
+        with SessionLocal() as session:
+            session.execute(
+                delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+            )
+            session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+            session.commit()
+
+
+def test_refresh_source_promotes_duplicate_to_primary_source_metadata(monkeypatch) -> None:
+    class FakeResponse:
+        text = json.dumps(
+            {
+                "data": [
+                    {
+                        "uuid": "story-1",
+                        "title": "TSMC raises advanced packaging expansion plan",
+                        "description": "Secondary rewrite first.",
+                        "snippet": "Secondary rewrite body.",
+                        "url": "https://news.example.com/story-1",
+                        "published_at": "2026-03-26T02:00:00Z",
+                    }
+                ]
+            }
+        )
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    primary_source = SourceDefinition(
+        name="HKEX",
+        source_type="api",
+        url="https://api.hkex.example.com/news",
+        market="hk",
+        language="zh",
+        tier="primary",
+        parser="the_news_api_json",
+    )
+    secondary_source = SourceDefinition(
+        name="The News API",
+        source_type="api",
+        url="https://api.thenewsapi.com/v1/news/top",
+        market="us",
+        language="en",
+        tier="secondary",
+        parser="the_news_api_json",
+    )
+    inserted_url = "https://news.example.com/story-1"
+    url_hash = sha256(inserted_url.encode("utf-8")).hexdigest()
+    with SessionLocal() as session:
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+        session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+        session.commit()
+
+    try:
+        with SessionLocal() as session:
+            service = NewsIngestionService(session)
+            service._refresh_source(secondary_source)
+            service._refresh_source(primary_source)
+
+            stored = session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
+
+            assert stored is not None
+            assert stored.source_name == "HKEX"
+            assert stored.source_url == primary_source.url
+            assert stored.market == "hk"
+    finally:
+        with SessionLocal() as session:
+            session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
+            session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
+            session.commit()
+
+
+def test_refresh_source_deduplicates_same_window_chinese_titles(monkeypatch) -> None:
+    class FakeResponse:
+        text = json.dumps(
+            {
+                "data": [
+                    {
+                        "uuid": "story-1",
+                        "title": "台积电上调资本开支",
+                        "description": "中文改写一。",
+                        "snippet": "中文正文一。",
+                        "url": "https://news.example.com/cn-story-1",
+                        "published_at": "2026-03-26T03:00:00Z",
+                    },
+                    {
+                        "uuid": "story-2",
+                        "title": "台积电上调资本开支！",
+                        "description": "中文改写二。",
+                        "snippet": "中文正文二。",
+                        "url": "https://news.example.com/cn-story-2",
+                        "published_at": "2026-03-26T03:10:00Z",
+                    },
+                ]
+            }
+        )
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    source = SourceDefinition(
+        name="The News API CN",
+        source_type="api",
+        url="https://api.thenewsapi.com/v1/news/top",
+        market="hk",
+        language="zh",
+        tier="secondary",
+        parser="the_news_api_json",
+    )
+    url_hashes = [
+        sha256("https://news.example.com/cn-story-1".encode("utf-8")).hexdigest(),
+        sha256("https://news.example.com/cn-story-2".encode("utf-8")).hexdigest(),
+    ]
+    with SessionLocal() as session:
+        session.execute(
+            delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+        )
+        session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+        session.commit()
+
+    try:
+        with SessionLocal() as session:
+            result = NewsIngestionService(session)._refresh_source(source)
+            stored_items = session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))).all()
+
+            assert result.status == "ok"
+            assert result.inserted_count == 1
+            assert len(stored_items) == 1
+    finally:
+        with SessionLocal() as session:
+            session.execute(
+                delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+            )
+            session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
             session.commit()
 
 

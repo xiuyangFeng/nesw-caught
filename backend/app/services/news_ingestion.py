@@ -10,7 +10,7 @@ import math
 import re
 import time
 from typing import Literal
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import xml.etree.ElementTree as ET
 
 from bs4 import BeautifulSoup
@@ -26,8 +26,10 @@ from app.services.event_bus import get_event_bus
 from app.services.http_client import HttpClientFactory
 from app.services.news_signal_pipeline import NewsSignalPipelineService
 
-SourceType = Literal["rss", "html"]
+SourceType = Literal["rss", "html", "api"]
 VALID_SOURCE_TIERS = {"primary", "secondary", "fallback"}
+VALID_SOURCE_TYPES = {"rss", "html", "api"}
+SOURCE_TIER_RANKS = {"primary": 3, "secondary": 2, "fallback": 1}
 
 
 @dataclass(frozen=True)
@@ -220,6 +222,36 @@ def _parse_selector_html(content: str, source: SourceDefinition) -> list[SourceI
     return items
 
 
+def _normalize_title_for_signature(title: str) -> str:
+    normalized = re.sub(r"[^\w]+", " ", title.lower())
+    return " ".join(normalized.split())
+
+
+def _build_duplicate_signature(item: SourceItem) -> str | None:
+    published_at = _normalize_datetime(item.published_at)
+    if published_at is None:
+        return None
+
+    normalized_title = _normalize_title_for_signature(item.title)
+    host = urlparse(item.canonical_url).netloc.lower()
+    if not normalized_title or not host:
+        return None
+
+    return f"{host}|{published_at.strftime('%Y-%m-%dT%H')}|{normalized_title}"
+
+
+def _source_rank(priority: int, tier: str) -> tuple[int, int]:
+    return (SOURCE_TIER_RANKS.get(tier, 0), -priority)
+
+
+def _should_promote_source_metadata(news_item: NewsItem, source: SourceDefinition) -> bool:
+    source_by_name = {item.name: item for item in load_sources()}
+    existing_source = source_by_name.get(news_item.source_name)
+    existing_rank = _source_rank(existing_source.priority, existing_source.tier) if existing_source else (0, 0)
+    incoming_rank = _source_rank(source.priority, source.tier)
+    return incoming_rank > existing_rank
+
+
 def _extract_json_array(content: str, marker: str) -> str | None:
     marker_index = content.find(marker)
     if marker_index == -1:
@@ -409,6 +441,39 @@ def _parse_zhipu_news_inline_json(content: str, source: SourceDefinition) -> lis
     return items
 
 
+def _parse_the_news_api_json(content: str, source: SourceDefinition) -> list[SourceItem]:
+    payload = json.loads(content)
+    records = payload.get("data", [])
+    if not isinstance(records, list):
+        raise ValueError("the news api payload is missing data array")
+
+    items: list[SourceItem] = []
+    for record in records[: source.item_limit]:
+        if not isinstance(record, dict):
+            continue
+
+        title = record.get("title")
+        canonical_url = record.get("url")
+        if not isinstance(title, str) or not title.strip():
+            continue
+        if not isinstance(canonical_url, str) or not canonical_url.strip():
+            continue
+
+        summary = _clean_text(record.get("description"))
+        content_text = _clean_text(record.get("snippet")) or summary
+        items.append(
+            SourceItem(
+                title=title.strip(),
+                canonical_url=canonical_url.strip(),
+                summary=summary[:280] if summary else None,
+                content_text=content_text,
+                content_html=None,
+                published_at=_parse_feed_datetime(record.get("published_at")),
+            )
+        )
+    return items
+
+
 def _default_sources() -> list[SourceDefinition]:
     return [
         SourceDefinition(
@@ -531,12 +596,16 @@ def _hydrate_source_definition(raw: dict[str, object]) -> dict[str, object]:
 
 
 def _validate_source_definition(source: SourceDefinition) -> None:
+    if source.source_type not in VALID_SOURCE_TYPES:
+        raise ValueError(f"invalid source_type for source {source.name}: {source.source_type}")
     if source.tier not in VALID_SOURCE_TIERS:
         raise ValueError(f"invalid tier for source {source.name}: {source.tier}")
     if source.priority <= 0:
         raise ValueError(f"priority must be positive for source {source.name}")
     if source.cadence_seconds <= 0:
         raise ValueError(f"cadence_seconds must be positive for source {source.name}")
+    if source.source_type == "api" and source.parser != "the_news_api_json":
+        raise ValueError(f"unsupported api parser for source {source.name}: {source.parser}")
 
 
 def load_sources() -> list[SourceDefinition]:
@@ -630,6 +699,8 @@ class NewsIngestionService:
                 response.raise_for_status()
                 if source.source_type == "rss":
                     items = _parse_rss_or_atom(response.text, source)
+                elif source.source_type == "api":
+                    items = _parse_the_news_api_json(response.text, source)
                 elif source.parser == "anchor_list_html":
                     items = _parse_anchor_list_html(response.text, source)
                 elif source.parser == "zhipu_news_inline_json":
@@ -695,7 +766,12 @@ class NewsIngestionService:
         url_hash = sha256(canonical_url.encode("utf-8")).hexdigest()
         existing = self.session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
         if existing is not None:
-            self._update_existing_item(existing, item)
+            self._update_existing_item(existing, item, source=source)
+            return None
+
+        duplicate = self._find_duplicate_item(item)
+        if duplicate is not None:
+            self._update_existing_item(duplicate, item, source=source)
             return None
 
         news_item = NewsItem(
@@ -729,7 +805,51 @@ class NewsIngestionService:
             )
         return news_item
 
-    def _update_existing_item(self, news_item: NewsItem, item: SourceItem) -> None:
+    def _find_duplicate_item(self, item: SourceItem) -> NewsItem | None:
+        signature = _build_duplicate_signature(item)
+        if signature is None:
+            return None
+
+        published_at = _normalize_datetime(item.published_at)
+        if published_at is None:
+            return None
+
+        window_start = published_at.replace(minute=0, second=0, microsecond=0)
+        window_end = published_at.replace(minute=59, second=59, microsecond=999999)
+        candidates = self.session.scalars(
+            select(NewsItem).where(
+                NewsItem.published_at.is_not(None),
+                NewsItem.published_at >= window_start,
+                NewsItem.published_at <= window_end,
+            )
+        ).all()
+        for candidate in candidates:
+            candidate_signature = _build_duplicate_signature(
+                SourceItem(
+                    title=candidate.title,
+                    canonical_url=candidate.canonical_url,
+                    summary=candidate.summary,
+                    content_text=None,
+                    published_at=candidate.published_at,
+                )
+            )
+            if candidate_signature == signature:
+                return candidate
+        return None
+
+    def _update_existing_item(
+        self,
+        news_item: NewsItem,
+        item: SourceItem,
+        *,
+        source: SourceDefinition | None = None,
+    ) -> None:
+        self.session.flush()
+        if source is not None and _should_promote_source_metadata(news_item, source):
+            news_item.source_name = source.name
+            news_item.source_url = source.url
+            news_item.market = source.market
+            news_item.language = source.language
         if item.summary and (
             not news_item.summary
             or news_item.summary.startswith("模型 文本 ")

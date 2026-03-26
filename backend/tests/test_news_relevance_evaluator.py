@@ -13,6 +13,7 @@ from app.schemas.research import (
 from app.services.news_relevance_evaluator import (
     EvaluationGuardrailError,
     evaluate_market_relevance,
+    predict_market_relevance_details,
     predict_market_relevance,
     predict_market_relevance_batch,
 )
@@ -517,6 +518,202 @@ def test_predict_market_relevance_keeps_taiwan_arms_sale_updates() -> None:
     )
 
     assert predict_market_relevance(sample) is True
+
+
+def test_sector_tag_ai_compute_story() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sector-ai-compute",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=19,
+            source_name="The News API",
+            canonical_url="https://example.com/sector-ai-compute",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Nvidia suppliers raise AI server outlook on stronger GPU demand",
+            summary="Server builders said AI compute demand is accelerating into the second half.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    details = predict_market_relevance_details(sample)
+
+    assert details.is_market_relevant is True
+    assert "ai_compute" in details.sector_tags
+
+
+def test_sector_tag_semiconductor_export_control_story() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sector-semiconductor",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=20,
+            source_name="Reuters",
+            canonical_url="https://example.com/sector-semiconductor",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="U.S. weighs tighter chip export controls on advanced AI semiconductors",
+            summary="The proposal could hit semiconductor equipment and advanced chip supply chains.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    details = predict_market_relevance_details(sample)
+
+    assert details.is_market_relevant is True
+    assert "semiconductors" in details.sector_tags
+
+
+def test_sector_tag_chinese_internet_story() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sector-chinese-internet",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=21,
+            source_name="HKEX",
+            canonical_url="https://example.com/sector-chinese-internet",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Tencent flags stronger advertising demand and gaming recovery in latest results",
+            summary="Management said the Chinese internet platform business improved across key segments.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    details = predict_market_relevance_details(sample)
+
+    assert details.is_market_relevant is True
+    assert "chinese_internet" in details.sector_tags
+
+
+def test_sector_tag_apple_supply_chain_story() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sector-apple-supply-chain",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=22,
+            source_name="The News API",
+            canonical_url="https://example.com/sector-apple-supply-chain",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Apple suppliers brace for stronger iPhone demand after display and camera orders rise",
+            summary="Consumer electronics names tied to the Apple supply chain gained on the report.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=True,
+            noise_type=None,
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    details = predict_market_relevance_details(sample)
+
+    assert details.is_market_relevant is True
+    assert "apple_supply_chain" in details.sector_tags
+
+
+def test_sector_tag_does_not_keep_generic_product_chatter() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sector-generic-product-chatter",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=23,
+            source_name="The Verge",
+            canonical_url="https://example.com/sector-generic-product-chatter",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="iPhone camera review says display upgrade and battery life look better this year",
+            summary="Reviewers highlighted the camera and display changes after early hands-on testing.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="generic_tech",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    details = predict_market_relevance_details(sample)
+
+    assert details.is_market_relevant is False
+
+
+def test_sector_tag_does_not_keep_generic_server_refresh_story() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="sector-generic-server-refresh",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=24,
+            source_name="The News API",
+            canonical_url="https://example.com/sector-generic-server-refresh",
+            published_at="2026-03-25T00:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="Dell server demand improves in enterprise refresh cycle",
+            summary="Customers are replacing older enterprise servers after a routine infrastructure refresh.",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(
+            market_relevant=False,
+            noise_type="generic_tech",
+        ),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="deepseek-chat",
+            confidence=0.95,
+            review_notes="",
+        ),
+    )
+
+    details = predict_market_relevance_details(sample)
+
+    assert details.is_market_relevant is False
 
 
 def test_predict_market_relevance_does_not_keep_generic_un_security_council_update() -> None:
