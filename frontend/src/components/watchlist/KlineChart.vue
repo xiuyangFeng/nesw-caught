@@ -68,6 +68,20 @@ const selectedDrawing = computed(() => {
   return symbol && id ? chartStore.findDrawing(symbol, id) : null;
 });
 const overlayDisabled = computed(() => !props.klineData || !candles.value.length);
+const chartProjector = computed(() => ({
+  getXForTime(time: string) {
+    return (chart?.timeScale() as { timeToCoordinate?: (value: string) => number | null } | undefined)?.timeToCoordinate?.(time) ?? null;
+  },
+  getTimeForX(x: number) {
+    return (chart?.timeScale() as { coordinateToTime?: (value: number) => string | null } | undefined)?.coordinateToTime?.(x) ?? null;
+  },
+  getYForPrice(price: number) {
+    return (candleSeries as { priceToCoordinate?: (value: number) => number | null } | null)?.priceToCoordinate?.(price) ?? null;
+  },
+  getPriceForY(y: number) {
+    return (candleSeries as { coordinateToPrice?: (value: number) => number | null } | null)?.coordinateToPrice?.(y) ?? null;
+  },
+}));
 
 const legendItems = computed(() =>
   activeLines.value.map((item) => ({
@@ -359,6 +373,13 @@ function handleDrawingMoveCommit(drawingId: string, anchors: { time: string; pri
   chartStore.moveDrawing(props.klineData.symbol, drawingId, anchors);
 }
 
+function handleDrawingLabelCommit(drawingId: string, text: string) {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.commitLabelEdit(props.klineData.symbol, drawingId, text);
+}
+
 function currentRangeRatio() {
   if (!candles.value.length) {
     return null;
@@ -413,6 +434,8 @@ watch(
   () => [props.klineData?.symbol, props.klineData?.candles.length],
   () => {
     hoveredAnchor.value = null;
+    chartStore.selectDrawing(null);
+    chartStore.cancelDraft();
     if (props.klineData?.symbol) {
       chartStore.hydrateForSymbol(props.klineData.symbol, props.klineData.candles);
       renderChart();
@@ -504,6 +527,7 @@ onBeforeUnmount(() => {
                 :active-tool="chartStore.activeTool"
                 :selected-drawing-id="chartStore.selectedDrawingId"
                 :disabled="overlayDisabled"
+                :chart-projector="chartProjector"
                 @draft-start="handleDraftStart"
                 @draft-update="chartStore.updateDraft($event)"
                 @draft-commit="handleDraftCommit"
@@ -512,6 +536,7 @@ onBeforeUnmount(() => {
                 @hover-anchor-change="handleHoverAnchorChange"
                 @drawing-anchor-commit="handleDrawingAnchorCommit"
                 @drawing-move-commit="handleDrawingMoveCommit"
+                @drawing-label-commit="handleDrawingLabelCommit"
               />
               <KlineDrawingSelectionPopover
                 :drawing="selectedDrawing"

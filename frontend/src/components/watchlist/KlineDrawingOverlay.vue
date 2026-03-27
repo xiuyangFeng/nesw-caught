@@ -10,6 +10,7 @@ import {
   moveDrawingByAnchor,
   moveDrawingByDelta,
   remapAnchorTime,
+  type KlineChartProjector,
   type ProjectedPoint,
 } from '../../utils/klineOverlayGeometry';
 
@@ -21,6 +22,7 @@ const props = defineProps<{
   activeTool: KlineDrawingTool;
   selectedDrawingId: string | null;
   disabled?: boolean;
+  chartProjector?: KlineChartProjector | null;
 }>();
 
 const emit = defineEmits<{
@@ -32,12 +34,14 @@ const emit = defineEmits<{
   hoverAnchorChange: [anchor: KlineDrawingAnchor | null];
   drawingAnchorCommit: [drawingId: string, anchors: KlineDrawingAnchor[]];
   drawingMoveCommit: [drawingId: string, anchors: KlineDrawingAnchor[]];
+  drawingLabelCommit: [drawingId: string, text: string];
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
 const overlayDisabled = computed(() => props.disabled || !props.candles.length || !props.symbol);
 const overlaySize = ref({ width: 0, height: 0 });
 const hoverAnchor = ref<KlineDrawingAnchor | null>(null);
+const editingLabel = ref<{ drawingId: string; text: string } | null>(null);
 const dragState = ref<
   | {
       mode: 'anchor' | 'object';
@@ -76,9 +80,13 @@ function buildAnchor(event: MouseEvent): KlineDrawingAnchor | null {
   const high = Math.max(...props.candles.map((item) => item.high));
   const low = Math.min(...props.candles.map((item) => item.low));
   const ratio = 1 - (event.clientY - rect.top) / Math.max(rect.height, 1);
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const mappedTime = props.chartProjector?.getTimeForX?.(x);
+  const projectedPrice = props.chartProjector?.getPriceForY?.(y);
   return {
-    time: candle.time,
-    price: low + (high - low) * ratio,
+    time: mappedTime ? remapAnchorTime({ time: mappedTime, price: projectedPrice ?? 0 }, props.candles) : candle.time,
+    price: projectedPrice ?? low + (high - low) * ratio,
   };
 }
 
@@ -113,7 +121,14 @@ function selectedDrawing() {
 }
 
 function isEditableDrawing(drawing: KlineDrawing | null) {
-  return drawing && (drawing.toolType === 'trend_line' || drawing.toolType === 'horizontal_line' || drawing.toolType === 'price_range');
+  return (
+    drawing &&
+    (drawing.toolType === 'trend_line' ||
+      drawing.toolType === 'horizontal_line' ||
+      drawing.toolType === 'price_range' ||
+      drawing.toolType === 'fibonacci_retracement' ||
+      drawing.toolType === 'price_note')
+  );
 }
 
 const crosshair = computed(() =>
@@ -122,6 +137,7 @@ const crosshair = computed(() =>
     candles: props.candles,
     width: overlaySize.value.width,
     height: overlaySize.value.height,
+    projector: props.chartProjector,
   }),
 );
 
@@ -184,8 +200,21 @@ function onMousemove(event: MouseEvent) {
 }
 
 function onKeydown(event: KeyboardEvent) {
+  if (editingLabel.value) {
+    if (event.key === 'Escape') {
+      editingLabel.value = null;
+    }
+    return;
+  }
   if (event.key === 'Escape') {
     emit('draftCancel');
+    return;
+  }
+  if (event.key === 'Enter') {
+    const drawing = selectedDrawing();
+    if (drawing?.toolType === 'price_note') {
+      editingLabel.value = { drawingId: drawing.id, text: drawing.payload.text ?? drawing.anchors[0]?.price.toFixed(2) ?? '' };
+    }
   }
 }
 
@@ -238,6 +267,24 @@ function beginBodyDrag(drawingId: string, event: MouseEvent) {
 
 function handleWindowMouseup() {
   dragState.value = null;
+}
+
+function startLabelEdit(drawing: KlineDrawing) {
+  if (drawing.toolType !== 'price_note') {
+    return;
+  }
+  editingLabel.value = {
+    drawingId: drawing.id,
+    text: drawing.payload.text ?? drawing.anchors[0]?.price.toFixed(2) ?? '',
+  };
+}
+
+function commitLabelEdit() {
+  if (!editingLabel.value) {
+    return;
+  }
+  emit('drawingLabelCommit', editingLabel.value.drawingId, editingLabel.value.text);
+  editingLabel.value = null;
 }
 
 onMounted(() => {
@@ -310,7 +357,11 @@ onBeforeUnmount(() => {
           :fill-opacity="drawing.style.fillOpacity"
           @mousedown.stop="beginBodyDrag(drawing.id, $event)"
         />
-        <g v-else-if="drawing.toolType === 'fibonacci_retracement' && drawingPoints(drawing).length >= 2">
+        <g
+          v-else-if="drawing.toolType === 'fibonacci_retracement' && drawingPoints(drawing).length >= 2"
+          :data-role="`drawing-body-${drawing.id}`"
+          @mousedown.stop="beginBodyDrag(drawing.id, $event)"
+        >
           <line
             v-for="level in fibLevels(drawingPoints(drawing))"
             :key="level.key"
@@ -332,7 +383,15 @@ onBeforeUnmount(() => {
             {{ level.label }}
           </text>
         </g>
-        <text v-if="drawing.toolType === 'price_note' && drawingPoints(drawing).length >= 1" :x="Math.min((drawingPoints(drawing)[0]?.x ?? 0) + 8, Math.max(overlaySize.width - 80, 8))" :y="(drawingPoints(drawing)[0]?.y ?? 0) - 8" fill="#f8fafc" font-size="12">
+        <text
+          v-if="drawing.toolType === 'price_note' && drawingPoints(drawing).length >= 1"
+          :data-role="`price-note-label-${drawing.id}`"
+          :x="Math.min((drawingPoints(drawing)[0]?.x ?? 0) + 8, Math.max(overlaySize.width - 80, 8))"
+          :y="(drawingPoints(drawing)[0]?.y ?? 0) - 8"
+          fill="#f8fafc"
+          font-size="12"
+          @dblclick.stop="startLabelEdit(drawing)"
+        >
           {{ drawing.payload.text }}
         </text>
         <circle
@@ -362,5 +421,18 @@ onBeforeUnmount(() => {
         <line x1="20" y1="20" x2="120" y2="120" stroke="#ffb66d" stroke-width="2" stroke-dasharray="6 4" />
       </g>
     </svg>
+    <div
+      v-if="editingLabel"
+      class="absolute inset-x-3 top-3 z-20 flex justify-end"
+    >
+      <input
+        data-role="price-note-editor-input"
+        v-model="editingLabel.text"
+        class="w-40 rounded-md border border-border bg-[rgba(7,12,22,0.96)] px-2 py-1 text-xs text-text outline-none"
+        maxlength="24"
+        @keydown.enter.prevent="commitLabelEdit"
+        @keydown.esc.prevent="editingLabel = null"
+      />
+    </div>
   </div>
 </template>

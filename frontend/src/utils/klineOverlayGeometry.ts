@@ -12,6 +12,15 @@ export interface CrosshairProjection {
   priceLabel: string;
 }
 
+export interface KlineChartProjector {
+  getXForTime?: (time: string) => number | null;
+  getTimeForX?: (x: number) => string | null;
+  getYForPrice?: (price: number) => number | null;
+  getPriceForY?: (y: number) => number | null;
+  getTimeLabel?: (time: string, x: number) => string | null;
+  getPriceLabel?: (price: number, y: number) => string | null;
+}
+
 function distance(left: ProjectedPoint, right: ProjectedPoint) {
   return Math.hypot(left.x - right.x, left.y - right.y);
 }
@@ -72,6 +81,12 @@ export function moveDrawingByDelta(drawing: KlineDrawing, candles: KlineCandle[]
   if (drawing.toolType === 'horizontal_line') {
     return drawing.anchors.map((anchor) => ({ time: anchor.time, price: anchor.price + priceDelta }));
   }
+  if (drawing.toolType === 'price_note') {
+    return drawing.anchors.map((anchor) => ({
+      time: shiftAnchorTime(anchor.time, candles, timeDelta),
+      price: anchor.price + priceDelta,
+    }));
+  }
   return drawing.anchors.map((anchor) => ({
     time: shiftAnchorTime(anchor.time, candles, timeDelta),
     price: anchor.price + priceDelta,
@@ -83,21 +98,26 @@ export function buildCrosshairProjection(input: {
   candles: KlineCandle[];
   width: number;
   height: number;
+  projector?: KlineChartProjector | null;
 }): CrosshairProjection | null {
-  const { anchor, candles, width, height } = input;
+  const { anchor, candles, width, height, projector } = input;
   if (!anchor || !candles.length) {
     return null;
   }
   const index = findCandleIndexForTime(anchor.time, candles);
   const high = Math.max(...candles.map((item) => item.high));
   const low = Math.min(...candles.map((item) => item.low));
-  const x = candles.length > 1 ? (index / (candles.length - 1)) * width : width / 2;
-  const y = high === low ? height / 2 : (1 - (anchor.price - low) / (high - low)) * height;
+  const fallbackX = candles.length > 1 ? (index / (candles.length - 1)) * width : width / 2;
+  const fallbackY = high === low ? height / 2 : (1 - (anchor.price - low) / (high - low)) * height;
+  const x = clamp(projector?.getXForTime?.(candles[index]?.time ?? anchor.time) ?? fallbackX, 0, width);
+  const y = clamp(projector?.getYForPrice?.(anchor.price) ?? fallbackY, 0, height);
+  const resolvedPrice = projector?.getPriceForY?.(y) ?? anchor.price;
+  const resolvedTime = projector?.getTimeForX?.(x) ?? candles[index]?.time ?? anchor.time;
   return {
     x,
     y,
-    timeLabel: candles[index]?.time ?? anchor.time,
-    priceLabel: anchor.price.toFixed(2),
+    timeLabel: projector?.getTimeLabel?.(resolvedTime, x) ?? resolvedTime,
+    priceLabel: projector?.getPriceLabel?.(resolvedPrice, y) ?? resolvedPrice.toFixed(2),
   };
 }
 

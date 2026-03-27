@@ -110,6 +110,26 @@ describe('klineOverlayGeometry', () => {
       moveDrawingByDelta(
         {
           ...base,
+          id: 'fib-1',
+          toolType: 'fibonacci_retracement' as const,
+          anchors: [
+            { time: '2026-03-18', price: 560 },
+            { time: '2026-03-19', price: 530 },
+          ],
+        },
+        candles,
+        1,
+        -6,
+      ),
+    ).toEqual([
+      { time: '2026-03-19', price: 554 },
+      { time: '2026-03-20', price: 524 },
+    ]);
+
+    expect(
+      moveDrawingByDelta(
+        {
+          ...base,
           id: 'horizontal-1',
           toolType: 'horizontal_line' as const,
           anchors: [{ time: '2026-03-18', price: 540 }],
@@ -119,6 +139,21 @@ describe('klineOverlayGeometry', () => {
         -4,
       ),
     ).toEqual([{ time: '2026-03-18', price: 536 }]);
+
+    expect(
+      moveDrawingByDelta(
+        {
+          ...base,
+          id: 'note-1',
+          toolType: 'price_note' as const,
+          anchors: [{ time: '2026-03-18', price: 540 }],
+          payload: { text: '540.00' },
+        },
+        candles,
+        2,
+        -4,
+      ),
+    ).toEqual([{ time: '2026-03-20', price: 536 }]);
   });
 
   it('builds a crosshair projection payload for labels', () => {
@@ -128,11 +163,18 @@ describe('klineOverlayGeometry', () => {
         candles,
         width: 300,
         height: 120,
+        projector: {
+          getXForTime: (time) => (time === '2026-03-19' ? 164 : null),
+          getYForPrice: (price) => (price === 550.5 ? 26 : null),
+          getTimeLabel: () => '03-19 10:30',
+          getPriceLabel: () => '550.55',
+        },
       }),
     ).toMatchObject({
-      timeLabel: '2026-03-19',
-      priceLabel: '550.50',
-      x: 150,
+      timeLabel: '03-19 10:30',
+      priceLabel: '550.55',
+      x: 164,
+      y: 26,
     });
   });
 });

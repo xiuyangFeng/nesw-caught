@@ -130,6 +130,12 @@ describe('KlineDrawingOverlay', () => {
         draftAnchors: null,
         activeTool: 'select',
         selectedDrawingId: 'trend-1',
+        chartProjector: {
+          getXForTime: (time: string) => (time === '2026-03-19' ? 170 : null),
+          getYForPrice: (price: number) => (price === 555 ? 18 : null),
+          getTimeLabel: () => '03-19 10:30',
+          getPriceLabel: () => '555.55',
+        },
       },
       attachTo: document.body,
     });
@@ -152,8 +158,8 @@ describe('KlineDrawingOverlay', () => {
 
     await overlay.trigger('mousemove', { clientX: 150, clientY: 20 });
     expect(wrapper.find('[data-role="crosshair-vertical"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="crosshair-time-label"]').text()).toContain('2026-03-19');
-    expect(wrapper.find('[data-role="crosshair-price-label"]').text()).toContain('555.00');
+    expect(wrapper.find('[data-role="crosshair-time-label"]').text()).toContain('03-19 10:30');
+    expect(wrapper.find('[data-role="crosshair-price-label"]').text()).toContain('555.55');
     expect(wrapper.find('[data-role="drawing-anchor-handle-trend-1-0"]').exists()).toBe(true);
 
     await wrapper.get('[data-role="drawing-anchor-handle-trend-1-1"]').trigger('mousedown', { clientX: 150, clientY: 20 });
@@ -173,6 +179,88 @@ describe('KlineDrawingOverlay', () => {
       { time: '2026-03-18', price: 530.7 },
       { time: '2026-03-19', price: 548 },
     ]);
+  });
+
+  it('supports fib editing and price-note label commits', async () => {
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+          { time: '2026-03-20', open: 551, high: 560, low: 545, close: 558.3, volume: 980 },
+        ],
+        drawings: [
+          {
+            id: 'fib-1',
+            symbol: '0700.HK',
+            toolType: 'fibonacci_retracement',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#c084fc', lineWidth: 1, lineStyle: 'solid', fillOpacity: 0.12 },
+            anchors: [
+              { time: '2026-03-18', price: 560 },
+              { time: '2026-03-19', price: 530 },
+            ],
+            payload: {},
+          },
+          {
+            id: 'note-1',
+            symbol: '0700.HK',
+            toolType: 'price_note',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#fb7185', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0 },
+            anchors: [{ time: '2026-03-19', price: 545 }],
+            payload: { text: '观察位' },
+          },
+        ],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: 'fib-1',
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    await overlay.trigger('mousemove', { clientX: 150, clientY: 20 });
+    expect(wrapper.find('[data-role="drawing-anchor-handle-fib-1-0"]').exists()).toBe(true);
+
+    await wrapper.get('[data-role="drawing-body-fib-1"]').trigger('mousedown', { clientX: 80, clientY: 55 });
+    await overlay.trigger('mouseup', { clientX: 220, clientY: 65 });
+    expect(wrapper.emitted('drawingMoveCommit')?.[0]?.[0]).toBe('fib-1');
+
+    await wrapper.setProps({ selectedDrawingId: 'note-1' });
+    expect(wrapper.find('[data-role="drawing-anchor-handle-note-1-0"]').exists()).toBe(true);
+
+    await wrapper.get('[data-role="drawing-body-note-1"]').trigger('mousedown', { clientX: 150, clientY: 60 });
+    await overlay.trigger('mouseup', { clientX: 280, clientY: 70 });
+    expect(wrapper.emitted('drawingMoveCommit')?.[1]?.[0]).toBe('note-1');
+
+    await wrapper.get('[data-role="price-note-label-note-1"]').trigger('dblclick');
+    const input = wrapper.get('[data-role="price-note-editor-input"]');
+    await input.setValue('突破确认');
+    await input.trigger('keydown.enter');
+    expect(wrapper.emitted('drawingLabelCommit')?.[0]).toEqual(['note-1', '突破确认']);
   });
 
   it('does not drag locked drawings', async () => {

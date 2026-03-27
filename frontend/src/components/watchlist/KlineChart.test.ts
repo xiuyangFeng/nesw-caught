@@ -7,7 +7,7 @@ vi.mock('@vue/devtools-api', () => ({
 
 vi.mock('./KlineDrawingOverlay.vue', () => ({
   default: {
-    props: ['activeTool'],
+    props: ['activeTool', 'chartProjector'],
     emits: [
       'draftStart',
       'draftUpdate',
@@ -17,9 +17,11 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
       'hoverAnchorChange',
       'drawingAnchorCommit',
       'drawingMoveCommit',
+      'drawingLabelCommit',
     ],
     template: `
       <div data-role="kline-drawing-overlay-stub">
+        <span data-role="overlay-projector-ready">{{ chartProjector ? 'yes' : 'no' }}</span>
         <button
           data-role="overlay-hover-anchor"
           @click="$emit('hoverAnchorChange', { time: '2026-03-18', price: 534 })"
@@ -43,6 +45,12 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
           @click="$emit('drawingMoveCommit', 'drawing-1', [{ time: '2026-03-19', price: 537 }, { time: '2026-03-20', price: 554 }])"
         >
           move
+        </button>
+        <button
+          data-role="overlay-label-commit"
+          @click="$emit('drawingLabelCommit', 'drawing-1', '突破确认')"
+        >
+          label
         </button>
       </div>
     `,
@@ -159,6 +167,7 @@ describe('KlineChart', () => {
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('开');
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('550.5');
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('成交量');
+    expect(wrapper.find('[data-role="overlay-projector-ready"]').text()).toBe('yes');
     expect(wrapper.find('[data-role="kline-layout-shell"]').attributes('data-sidebar-collapsed')).toBe('false');
     expect(wrapper.find('[data-role="kline-chart-dashboard"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="toggle-dashboard"]').text()).toContain('收起面板');
@@ -184,6 +193,9 @@ describe('KlineChart', () => {
 
     await wrapper.find('[data-role="overlay-move-commit"]').trigger('click');
     expect(chartStore.drawingsBySymbol['0700.HK'][0]?.anchors?.[0]).toEqual({ time: '2026-03-19', price: 537 });
+
+    await wrapper.find('[data-role="overlay-label-commit"]').trigger('click');
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.payload?.text).toBe('突破确认');
 
     await wrapper.find('[data-role="indicator-switch-macd"]').trigger('click');
     expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('DIF');
@@ -222,5 +234,6 @@ describe('KlineChart', () => {
       },
     });
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('108');
+    expect(chartStore.selectedDrawingId).toBeNull();
   });
 });

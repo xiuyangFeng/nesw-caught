@@ -2,6 +2,25 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 00:31
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线 fib / price note 编辑与更贴近原生轴的 crosshair 联动
+- 变更内容：继续补齐 K 线工作台交互闭环。`KlineDrawingOverlay` 现在把 `fibonacci_retracement` 和 `price_note` 一并纳入可编辑对象：fib 支持端点拖拽和对象整体平移，price note 支持锚点/对象移动，并新增双击标签后的轻量文本编辑输入，提交后通过现有 store 的 `commitLabelEdit` 写回。与此同时，crosshair 的价格 / 时间标签不再只靠 overlay 按全量 high-low 比例换算，而是优先消费 `KlineChart` 透传的 chart projector，使用图表时间轴与价格坐标 API 做投影，fallback 时才退回旧的近似映射。同步扩展了 `klineOverlayGeometry`、overlay 和 chart 测试，锁定 fib / price note 编辑和 projector 优先路径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineOverlayGeometry.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineOverlayGeometry.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-kline-fib-note-nativeish-crosshair-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-kline-fib-note-nativeish-crosshair-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增后端接口或持久化结构；前端 overlay 事件新增 `drawing-label-commit`，仅在本地图表工作台层消费
+- 验证情况：`npm --prefix frontend run test -- --run src/utils/klineOverlayGeometry.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 先失败后通过（3 个文件 / 11 个用例）；`npm --prefix frontend run test -- --run src/utils/klineOverlayGeometry.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts src/components/watchlist/KlineToolbar.test.ts src/components/watchlist/KlineIndicatorWorkbench.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（7 个文件 / 19 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前时间标签仍主要依赖 candle 时间字符串和 chart time scale 的轻量投影，不是完整订阅图表原生 crosshair move 事件；后续若继续追求更高保真度，应进一步接入 visible range / logical index 级联动
+
 ## 2026-03-28 00:14
 
 - 修改人：Codex
