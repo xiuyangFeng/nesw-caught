@@ -110,10 +110,20 @@ class MarketChartService:
             auto_adjust=False,
             progress=False,
             timeout=10,
+            multi_level_index=False,
         )
+        frame = self._normalize_history_frame(frame)
         if frame.empty:
             raise RuntimeError(f"no kline data for {provider_symbol}")
         return frame
+
+    def _normalize_history_frame(self, history: pd.DataFrame) -> pd.DataFrame:
+        if not isinstance(history.columns, pd.MultiIndex):
+            return history
+
+        normalized = history.copy()
+        normalized.columns = normalized.columns.get_level_values(0)
+        return normalized
 
     def _serialize_candles(self, history: pd.DataFrame) -> list[dict]:
         candles: list[dict] = []

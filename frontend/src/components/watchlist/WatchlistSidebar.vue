@@ -68,7 +68,7 @@ const filteredRows = computed(() => {
       <p v-if="deleteError" class="mt-2 text-sm text-negative">{{ deleteError }}</p>
     </div>
 
-    <div class="grid gap-3" data-role="watchlist-compact-list">
+    <div class="grid gap-2.5" data-role="watchlist-compact-list">
       <StockCard
         v-for="row in filteredRows"
         :key="row.symbol"

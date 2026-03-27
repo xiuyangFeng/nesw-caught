@@ -10,6 +10,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type { NewsEventMarker, StockKlineResponse } from '../../types/api';
+import { formatNumber, formatPercent } from '../../utils/format';
 
 const props = defineProps<{
   klineData: StockKlineResponse | null;
@@ -20,11 +21,21 @@ const emit = defineEmits<{
   focusNews: [event: NewsEventMarker];
 }>();
 
-const chartRef = ref<HTMLElement | null>(null);
+const mainChartRef = ref<HTMLElement | null>(null);
+const subChartRef = ref<HTMLElement | null>(null);
+const activeSubIndicator = ref<'VOL' | 'MACD' | 'KDJ'>('VOL');
+
 let chart: IChartApi | null = null;
+let subChart: IChartApi | null = null;
 let candleSeries: ISeriesApi<'Candlestick'> | null = null;
-let volumeSeries: ISeriesApi<'Histogram'> | null = null;
 const lineSeriesMap = new Map<string, ISeriesApi<'Line'>>();
+let volumeSeries: ISeriesApi<'Histogram'> | null = null;
+let macdHistogramSeries: ISeriesApi<'Histogram'> | null = null;
+let macdDifSeries: ISeriesApi<'Line'> | null = null;
+let macdDeaSeries: ISeriesApi<'Line'> | null = null;
+let kSeries: ISeriesApi<'Line'> | null = null;
+let dSeries: ISeriesApi<'Line'> | null = null;
+let jSeries: ISeriesApi<'Line'> | null = null;
 
 const legendItems = computed(() => {
   const items = [
@@ -41,6 +52,119 @@ const legendItems = computed(() => {
   return items;
 });
 
+const candles = computed(() => props.klineData?.candles ?? []);
+const latestCandle = computed(() => candles.value.at(-1) ?? null);
+const latestMacd = computed(() => props.klineData?.indicators.macd.at(-1) ?? null);
+const latestKdj = computed(() => props.klineData?.indicators.kdj.at(-1) ?? null);
+const latestBoll = computed(() => props.klineData?.indicators.bollinger.at(-1) ?? null);
+
+function clampRatio(value: number | null): number | null {
+  if (value === null || Number.isNaN(value)) {
+    return null;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+function formatRatio(value: number | null): string {
+  if (value === null) {
+    return '--';
+  }
+  return `${Math.round(value * 100)}%`;
+}
+
+function latestValue(points: Array<{ value: number }> | undefined): number | null {
+  if (!points?.length) {
+    return null;
+  }
+  return points.at(-1)?.value ?? null;
+}
+
+const sessionRangeRatio = computed(() => {
+  const candle = latestCandle.value;
+  if (!candle || candle.high <= candle.low) {
+    return null;
+  }
+  return clampRatio((candle.close - candle.low) / (candle.high - candle.low));
+});
+
+const rangeRatio = computed(() => {
+  if (!candles.value.length) {
+    return null;
+  }
+  const high = Math.max(...candles.value.map((item) => item.high));
+  const low = Math.min(...candles.value.map((item) => item.low));
+  const latest = latestCandle.value?.close ?? null;
+  if (latest === null || high <= low) {
+    return null;
+  }
+  return clampRatio((latest - low) / (high - low));
+});
+
+const averageVolume20 = computed(() => {
+  const volumes = candles.value.slice(-20).map((item) => item.volume).filter((item): item is number => item !== null);
+  if (!volumes.length) {
+    return null;
+  }
+  return volumes.reduce((sum, value) => sum + value, 0) / volumes.length;
+});
+
+const dashboardGauges = computed(() => [
+  {
+    label: 'Session Range',
+    value: formatRatio(sessionRangeRatio.value),
+    ratio: sessionRangeRatio.value ?? 0,
+  },
+  {
+    label: '6M Range',
+    value: formatRatio(rangeRatio.value),
+    ratio: rangeRatio.value ?? 0,
+  },
+  {
+    label: 'Bias vs MA20',
+    value:
+      latestCandle.value && latestValue(props.klineData?.indicators.ma20)
+        ? formatPercent(((latestCandle.value.close - (latestValue(props.klineData?.indicators.ma20) ?? 0)) / (latestValue(props.klineData?.indicators.ma20) ?? 1)) * 100)
+        : '--',
+    ratio:
+      latestCandle.value && latestValue(props.klineData?.indicators.ma20)
+        ? clampRatio(0.5 + ((latestCandle.value.close - (latestValue(props.klineData?.indicators.ma20) ?? 0)) / (latestValue(props.klineData?.indicators.ma20) ?? 1)) * 2)
+        : 0,
+  },
+]);
+
+const technicalReadouts = computed(() => [
+  ['MA5', formatNumber(latestValue(props.klineData?.indicators.ma5))],
+  ['MA10', formatNumber(latestValue(props.klineData?.indicators.ma10))],
+  ['MA20', formatNumber(latestValue(props.klineData?.indicators.ma20))],
+  ['MA60', formatNumber(latestValue(props.klineData?.indicators.ma60))],
+  ['BOLL U', formatNumber(latestBoll.value?.upper)],
+  ['BOLL M', formatNumber(latestBoll.value?.middle)],
+  ['BOLL L', formatNumber(latestBoll.value?.lower)],
+  ['Avg Vol 20', formatNumber(averageVolume20.value, 0)],
+]);
+
+const subIndicatorRows = computed(() => {
+  if (activeSubIndicator.value === 'MACD') {
+    return [
+      ['DIF', formatNumber(latestMacd.value?.dif)],
+      ['DEA', formatNumber(latestMacd.value?.dea)],
+      ['Histogram', formatNumber(latestMacd.value?.histogram)],
+    ];
+  }
+  if (activeSubIndicator.value === 'KDJ') {
+    return [
+      ['K', formatNumber(latestKdj.value?.k)],
+      ['D', formatNumber(latestKdj.value?.d)],
+      ['J', formatNumber(latestKdj.value?.j)],
+    ];
+  }
+  return [
+    ['Volume', formatNumber(latestCandle.value?.volume, 0)],
+    ['Avg Vol 20', formatNumber(averageVolume20.value, 0)],
+    ['Close', formatNumber(latestCandle.value?.close)],
+  ];
+});
+
 const summaryItems = computed(() => {
   const klineData = props.klineData;
   return [
@@ -52,13 +176,13 @@ const summaryItems = computed(() => {
 });
 
 function ensureChart() {
-  if (chart || !chartRef.value) {
+  if (chart || !mainChartRef.value) {
     return;
   }
 
-  chart = createChart(chartRef.value, {
+  chart = createChart(mainChartRef.value, {
     autoSize: true,
-    height: 320,
+    height: 420,
     layout: {
       background: { color: 'transparent' },
       textColor: 'rgba(226,232,240,0.72)',
@@ -89,13 +213,6 @@ function ensureChart() {
     wickDownColor: '#22c55e',
     priceLineVisible: false,
     lastValueVisible: false,
-  });
-
-  volumeSeries = chart.addSeries(HistogramSeries, {
-    priceFormat: { type: 'volume' },
-    priceLineVisible: false,
-    lastValueVisible: false,
-    color: 'rgba(255,182,109,0.35)',
   });
 
   lineSeriesMap.set(
@@ -134,21 +251,172 @@ function ensureChart() {
       lastValueVisible: false,
     }),
   );
+  lineSeriesMap.set(
+    'bollUpper',
+    chart.addSeries(LineSeries, {
+      color: 'rgba(52,211,153,0.65)',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    }),
+  );
+  lineSeriesMap.set(
+    'bollMiddle',
+    chart.addSeries(LineSeries, {
+      color: 'rgba(52,211,153,0.45)',
+      lineWidth: 1,
+      lineStyle: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    }),
+  );
+  lineSeriesMap.set(
+    'bollLower',
+    chart.addSeries(LineSeries, {
+      color: 'rgba(52,211,153,0.65)',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    }),
+  );
+}
+
+function ensureSubChart() {
+  if (subChart || !subChartRef.value) {
+    return;
+  }
+
+  subChart = createChart(subChartRef.value, {
+    autoSize: true,
+    height: 140,
+    layout: {
+      background: { color: 'transparent' },
+      textColor: 'rgba(148,163,184,0.72)',
+      attributionLogo: false,
+    },
+    grid: {
+      vertLines: { color: 'rgba(148,163,184,0.06)' },
+      horzLines: { color: 'rgba(148,163,184,0.08)' },
+    },
+    rightPriceScale: {
+      borderVisible: false,
+      scaleMargins: {
+        top: 0.12,
+        bottom: 0.12,
+      },
+    },
+    timeScale: {
+      borderVisible: false,
+    },
+    crosshair: {
+      vertLine: { labelVisible: false },
+      horzLine: { labelVisible: false },
+    },
+  });
+
+  volumeSeries = subChart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' },
+    priceLineVisible: false,
+    lastValueVisible: false,
+    color: 'rgba(255,182,109,0.35)',
+  });
+  macdHistogramSeries = subChart.addSeries(HistogramSeries, {
+    priceLineVisible: false,
+    lastValueVisible: false,
+    color: 'rgba(255,182,109,0.32)',
+  });
+  macdDifSeries = subChart.addSeries(LineSeries, {
+    color: '#ffd166',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+  macdDeaSeries = subChart.addSeries(LineSeries, {
+    color: '#7dd3fc',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+  kSeries = subChart.addSeries(LineSeries, {
+    color: '#ffd166',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+  dSeries = subChart.addSeries(LineSeries, {
+    color: '#7dd3fc',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+  jSeries = subChart.addSeries(LineSeries, {
+    color: '#fb7185',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
 }
 
 function clearChart() {
   candleSeries?.setData([]);
-  volumeSeries?.setData([]);
   lineSeriesMap.forEach((series) => series.setData([]));
+}
+
+function clearSubChart() {
+  volumeSeries?.setData([]);
+  macdHistogramSeries?.setData([]);
+  macdDifSeries?.setData([]);
+  macdDeaSeries?.setData([]);
+  kSeries?.setData([]);
+  dSeries?.setData([]);
+  jSeries?.setData([]);
+}
+
+function renderSubChart() {
+  ensureSubChart();
+  if (!subChart) {
+    return;
+  }
+  clearSubChart();
+  if (!props.klineData) {
+    return;
+  }
+
+  if (activeSubIndicator.value === 'VOL') {
+    volumeSeries?.setData(
+      props.klineData.candles.map((candle) => ({
+        time: candle.time,
+        value: candle.volume ?? 0,
+        color: candle.close >= candle.open ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.35)',
+      })),
+    );
+  } else if (activeSubIndicator.value === 'MACD') {
+    macdHistogramSeries?.setData(
+      props.klineData.indicators.macd.map((point) => ({
+        time: point.time,
+        value: point.histogram,
+        color: point.histogram >= 0 ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.4)',
+      })),
+    );
+    macdDifSeries?.setData(props.klineData.indicators.macd.map((point) => ({ time: point.time, value: point.dif })));
+    macdDeaSeries?.setData(props.klineData.indicators.macd.map((point) => ({ time: point.time, value: point.dea })));
+  } else {
+    kSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.k })));
+    dSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.d })));
+    jSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.j })));
+  }
+
+  subChart.timeScale().fitContent();
 }
 
 function renderChart() {
   ensureChart();
-  if (!chart || !candleSeries || !volumeSeries) {
+  if (!chart || !candleSeries) {
     return;
   }
   if (!props.klineData) {
     clearChart();
+    renderSubChart();
     return;
   }
 
@@ -162,19 +430,15 @@ function renderChart() {
     })),
   );
 
-  volumeSeries.setData(
-    props.klineData.candles.map((candle) => ({
-      time: candle.time,
-      value: candle.volume ?? 0,
-      color: candle.close >= candle.open ? 'rgba(249,115,22,0.4)' : 'rgba(34,197,94,0.35)',
-    })),
-  );
-
   (['ma5', 'ma10', 'ma20', 'ma60'] as const).forEach((key) => {
     lineSeriesMap.get(key)?.setData(props.klineData?.indicators[key] ?? []);
   });
+  lineSeriesMap.get('bollUpper')?.setData(props.klineData.indicators.bollinger.map((point) => ({ time: point.time, value: point.upper })));
+  lineSeriesMap.get('bollMiddle')?.setData(props.klineData.indicators.bollinger.map((point) => ({ time: point.time, value: point.middle })));
+  lineSeriesMap.get('bollLower')?.setData(props.klineData.indicators.bollinger.map((point) => ({ time: point.time, value: point.lower })));
 
   chart.timeScale().fitContent();
+  renderSubChart();
 }
 
 onMounted(() => {
@@ -182,7 +446,7 @@ onMounted(() => {
 });
 
 watch(
-  () => props.klineData,
+  [() => props.klineData, activeSubIndicator],
   () => {
     renderChart();
   },
@@ -191,9 +455,17 @@ watch(
 
 onBeforeUnmount(() => {
   chart?.remove();
+  subChart?.remove();
   chart = null;
+  subChart = null;
   candleSeries = null;
   volumeSeries = null;
+  macdHistogramSeries = null;
+  macdDifSeries = null;
+  macdDeaSeries = null;
+  kSeries = null;
+  dSeries = null;
+  jSeries = null;
   lineSeriesMap.clear();
 });
 </script>
@@ -207,69 +479,155 @@ onBeforeUnmount(() => {
       <div class="space-y-1">
         <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Trading Desk</p>
         <strong class="block text-lg text-text">{{ klineData?.symbol ?? 'Market Overview' }}</strong>
-        <p class="text-xs text-text-faint">{{ klineData?.stale ? 'Data stale' : 'Live chart shell' }}</p>
+        <p class="text-xs text-text-faint">{{ klineData?.stale ? 'Data stale' : 'Terminal chart shell' }}</p>
       </div>
     </header>
 
-    <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+    <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_292px] xl:items-start">
       <div
-        class="grid gap-2 rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-3"
-        data-role="kline-chart-summary"
+        class="grid gap-3"
       >
-        <div class="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
-          <span
-            v-for="item in summaryItems"
-            :key="item.label"
-            class="rounded-full border border-border/70 px-2.5 py-1"
+        <div class="grid gap-3 rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-3" data-role="kline-chart-summary">
+          <div class="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
+            <span
+              v-for="item in summaryItems"
+              :key="item.label"
+              class="rounded-full border border-border/70 px-2.5 py-1"
+            >
+              {{ item.label }}: <span class="text-text">{{ item.value }}</span>
+            </span>
+          </div>
+          <div class="flex flex-wrap justify-start gap-2" data-role="kline-chart-legend">
+            <span
+              v-for="item in legendItems"
+              :key="item.key"
+              class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-text-faint"
+            >
+              <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
+              {{ item.label }}
+            </span>
+          </div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)]">
+          <div class="grid gap-0 p-3">
+            <div ref="mainChartRef" class="h-[440px] w-full" />
+            <div class="border-t border-border/60 pt-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    data-role="indicator-switch-vol"
+                    class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
+                    :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+                    @click="activeSubIndicator = 'VOL'"
+                  >
+                    VOL
+                  </button>
+                  <button
+                    type="button"
+                    data-role="indicator-switch-macd"
+                    class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
+                    :class="activeSubIndicator === 'MACD' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+                    @click="activeSubIndicator = 'MACD'"
+                  >
+                    MACD
+                  </button>
+                  <button
+                    type="button"
+                    data-role="indicator-switch-kdj"
+                    class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
+                    :class="activeSubIndicator === 'KDJ' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+                    @click="activeSubIndicator = 'KDJ'"
+                  >
+                    KDJ
+                  </button>
+                </div>
+                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">Sub Panel {{ activeSubIndicator }}</span>
+              </div>
+              <div ref="subChartRef" class="mt-3 h-[140px] w-full" />
+              <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-subindicator-panel">
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">{{ activeSubIndicator }}</span>
+                  <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">Latest Signal</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                  <article v-for="[label, value] in subIndicatorRows" :key="label" class="grid gap-0.5">
+                    <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ label }}</span>
+                    <strong class="text-sm text-text">{{ value }}</strong>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            v-if="!klineData"
+            class="pointer-events-none absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,rgba(9,14,23,0.82),rgba(9,14,23,0.5))] p-6"
+            data-role="kline-chart-empty-state"
           >
-            {{ item.label }}: <span class="text-text">{{ item.value }}</span>
-          </span>
+            <div class="grid w-full gap-3">
+              <div class="h-4 w-32 animate-pulse rounded-full bg-white/10" />
+              <div class="h-6 w-2/3 animate-pulse rounded-full bg-white/10" />
+              <div class="h-40 w-full animate-pulse rounded-[16px] bg-white/5" />
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="event in klineData?.news_events ?? []"
+            :key="event.time"
+            :data-role="`kline-event-chip-${event.time}`"
+            :data-active="props.highlightedEventTime === event.time ? 'true' : 'false'"
+            type="button"
+            class="justify-self-start rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.12em]"
+            :class="
+              props.highlightedEventTime === event.time
+                ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffdfba]'
+                : 'border-[rgba(255,159,47,0.26)] text-[#ffca97]'
+            "
+            @click="emit('focusNews', event)"
+          >
+            {{ event.time }} · {{ event.items.length }} news
+          </button>
         </div>
       </div>
-      <div class="flex flex-wrap justify-start gap-2 md:justify-end" data-role="kline-chart-legend">
-        <span
-          v-for="item in legendItems"
-          :key="item.key"
-          class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-text-faint"
-        >
-          <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
-          {{ item.label }}
-        </span>
-      </div>
-    </div>
 
-    <div class="relative overflow-hidden rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)]">
-      <div ref="chartRef" class="h-80 w-full" />
-      <div
-        v-if="!klineData"
-        class="pointer-events-none absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,rgba(9,14,23,0.82),rgba(9,14,23,0.5))] p-6"
-        data-role="kline-chart-empty-state"
+      <aside
+        class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(180deg,rgba(15,22,34,0.98),rgba(9,14,22,0.98))] p-3"
+        data-role="kline-chart-dashboard"
       >
-        <div class="grid w-full gap-3">
-          <div class="h-4 w-32 animate-pulse rounded-full bg-white/10" />
-          <div class="h-6 w-2/3 animate-pulse rounded-full bg-white/10" />
-          <div class="h-24 w-full animate-pulse rounded-[16px] bg-white/5" />
+        <div class="grid gap-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">Indicator Deck</span>
+            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ activeSubIndicator }}</span>
+          </div>
+          <div class="grid gap-2">
+            <article v-for="item in dashboardGauges" :key="item.label" class="grid gap-1 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ item.label }}</span>
+                <strong class="text-sm text-text">{{ item.value }}</strong>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-[rgba(148,163,184,0.12)]">
+                <div class="h-full rounded-full bg-[linear-gradient(90deg,#ff8f3f,#ffd28a)]" :style="{ width: `${Math.round(item.ratio * 100)}%` }" />
+              </div>
+            </article>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <div class="flex flex-wrap gap-2">
-      <button
-        v-for="event in klineData?.news_events ?? []"
-        :key="event.time"
-        :data-role="`kline-event-chip-${event.time}`"
-        :data-active="props.highlightedEventTime === event.time ? 'true' : 'false'"
-        type="button"
-        class="justify-self-start rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.12em]"
-        :class="
-          props.highlightedEventTime === event.time
-            ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffdfba]'
-            : 'border-[rgba(255,159,47,0.26)] text-[#ffca97]'
-        "
-        @click="emit('focusNews', event)"
-      >
-        {{ event.time }} · {{ event.items.length }} news
-      </button>
+        <div class="grid gap-2 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">Technical Grid</span>
+            <strong class="text-sm text-text">{{ formatNumber(latestCandle?.close) }}</strong>
+          </div>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+            <article v-for="[label, value] in technicalReadouts" :key="label" class="grid gap-0.5">
+              <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ label }}</span>
+              <strong class="text-sm text-text">{{ value }}</strong>
+            </article>
+          </div>
+        </div>
+      </aside>
     </div>
   </section>
 </template>
