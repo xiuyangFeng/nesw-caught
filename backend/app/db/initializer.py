@@ -82,6 +82,25 @@ def ensure_topic_cluster_columns() -> None:
                 connection.execute(text(statement))
 
 
+def ensure_x_account_columns() -> None:
+    inspector = inspect(engine)
+    if "x_account" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("x_account")}
+    required_columns = {
+        "tier": "ALTER TABLE x_account ADD COLUMN tier VARCHAR(16) DEFAULT 'watch'",
+        "source": "ALTER TABLE x_account ADD COLUMN source VARCHAR(32) DEFAULT 'manual'",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in required_columns.items():
+            if column_name not in existing:
+                connection.execute(text(statement))
+        connection.execute(text("UPDATE x_account SET tier = 'watch' WHERE tier IS NULL OR tier = ''"))
+        connection.execute(text("UPDATE x_account SET source = 'manual' WHERE source IS NULL OR source = ''"))
+
+
 def _source_health_markets_by_source_name() -> dict[str, str]:
     from app.services.news_ingestion import load_sources
 
@@ -210,6 +229,7 @@ def initialize_database() -> None:
     ensure_price_snapshot_columns()
     ensure_news_item_columns()
     ensure_topic_cluster_columns()
+    ensure_x_account_columns()
     ensure_source_health_columns()
 
     with SessionLocal() as session:
@@ -406,6 +426,8 @@ def initialize_database() -> None:
                         market_focus="us",
                         is_active=True,
                         priority=100,
+                        tier="core",
+                        source="manual",
                         notes="Macro and breaking market headlines",
                     ),
                     XAccount(
@@ -414,6 +436,8 @@ def initialize_database() -> None:
                         market_focus="us",
                         is_active=True,
                         priority=80,
+                        tier="watch",
+                        source="manual",
                         notes="Tech and EV market chatter",
                     ),
                 ]

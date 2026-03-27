@@ -2,6 +2,33 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-27 01:05
+
+- 修改人：Codex
+- 修改范围：X Monitor 账号管理改造
+- 变更内容：把 `X Monitor` 的账号管理从“刷新前按 JSON 文件强同步”的只读名单，改成了“数据库作为运行时真相源，页面可直接增删改，文件只做显式导入/导出”的工作流。后端为 `x_account` 新增 `tier` 和 `source` 字段，并在数据库初始化阶段补齐旧库兼容列；`x_monitor.py` 新增账号创建、更新、删除、导入、导出能力，刷新逻辑不再隐式读取配置文件，而是仅抓取数据库中 `is_active=true` 且 `tier!=muted` 的账号，并按 `core -> watch` 顺序刷新。API 层新增了 `POST /api/x/accounts`、`PATCH /api/x/accounts/{handle}`、`DELETE /api/x/accounts/{handle}`、`POST /api/x/accounts/import`、`POST /api/x/accounts/export`，同时 `GET /api/x/accounts` 返回新字段。前端 `XMonitorView` 左侧面板升级为账号管理台，加入账号创建表单、导入/导出按钮、层级标签、启停和删除动作，并默认隐藏 `muted` 账号帖子；Pinia store、API client、mock fallback 和 Vitest 用例都同步到了这套新契约。另补充了本轮设计文档和实现计划文档，供后续继续迭代。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/app/api/routes/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/app/models/x_account.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/app/repositories/x_account_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/app/schemas/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/app/services/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/api/http.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/stores/xMonitorStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/docs/superpowers/specs/2026-03-27-x-monitor-account-management-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/docs/superpowers/plans/2026-03-27-x-monitor-account-management-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-x-monitor-account-management/docs/code-change-log.md`
+- 接口/数据结构变化：`x_account` 新增 `tier` 与 `source` 字段；新增 X 账号 CRUD / import / export API；`GET /api/x/accounts` 返回结构新增 `tier`、`source`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -k 'x_accounts or import_accounts_from_file or export_accounts_to_file or prioritizes_core or implicit_file_sync' -q` 先失败后通过（8 个用例）；`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q` 通过（24 个用例）；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 先失败后通过（5 个用例）；`conda run -n news-caught pytest backend/tests/test_x_monitor.py backend/tests/test_health.py -q` 通过（26 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前页面支持新增、启停、删除和导入导出，但还没有做“编辑已有账号的 display name / priority / tier / notes”独立 UI，当前只先暴露了最常用的新增与状态动作；现有数据库兼容通过初始化补列处理，生产环境仍需要确认服务启动时一定会执行该初始化流程；导入语义目前是 merge-only，不会删除数据库里独有账号，后续如果要支持“按文件完整替换”应单独加预览和确认
+
 ## 2026-03-27 00:18
 
 - 修改人：Codex

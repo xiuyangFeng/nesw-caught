@@ -13,4 +13,6 @@ class XAccount(Base):
     market_focus: Mapped[str | None] = mapped_column(String(16), default=None)
     is_active: Mapped[bool] = mapped_column(Boolean(), default=True)
     priority: Mapped[int] = mapped_column(Integer(), default=0)
+    tier: Mapped[str] = mapped_column(String(16), default="watch")
+    source: Mapped[str] = mapped_column(String(32), default="manual")
     notes: Mapped[str | None] = mapped_column(Text(), default=None)

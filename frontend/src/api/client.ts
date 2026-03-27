@@ -27,12 +27,16 @@ import type {
   WatchlistItemCreate,
   WatchlistQuoteSummary,
   XAccount,
+  XAccountCreatePayload,
+  XAccountUpdatePayload,
+  XAccountsExportResult,
+  XAccountsImportResult,
   XHealth,
   XPost,
   XPostQuery,
   XRefreshResult,
 } from '../types/api';
-import { HttpError, deleteJson, getJson, postJson } from './http';
+import { HttpError, deleteJson, getJson, patchJson, postJson } from './http';
 import {
   mockFeishuConfig,
   mockFeishuTestResult,
@@ -228,6 +232,62 @@ export const apiClient = {
   },
   getXAccounts() {
     return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), () => mockXAccounts);
+  },
+  createXAccount(payload: XAccountCreatePayload) {
+    return withMockFallback<XAccount>(
+      () => postJson('/api/x/accounts', payload),
+      () => {
+        const created: XAccount = {
+          id: Math.max(0, ...mockXAccounts.map((item) => item.id)) + 1,
+          handle: payload.handle.replace(/^@+/, ''),
+          display_name: payload.display_name,
+          market_focus: payload.market_focus,
+          is_active: payload.is_active,
+          priority: payload.priority,
+          tier: payload.tier,
+          source: 'manual',
+          notes: payload.notes,
+        };
+        mockXAccounts.unshift(created);
+        return created;
+      },
+    );
+  },
+  updateXAccount(handle: string, payload: XAccountUpdatePayload) {
+    return withMockFallback<XAccount>(
+      () => patchJson(`/api/x/accounts/${encodeURIComponent(handle)}`, payload),
+      () => {
+        const existing = mockXAccounts.find((item) => item.handle === handle);
+        if (!existing) {
+          throw new Error(`x account not found: ${handle}`);
+        }
+        Object.assign(existing, payload);
+        return { ...existing };
+      },
+    );
+  },
+  deleteXAccount(handle: string) {
+    return withMockFallback<void>(
+      () => deleteJson(`/api/x/accounts/${encodeURIComponent(handle)}`),
+      () => {
+        const index = mockXAccounts.findIndex((item) => item.handle === handle);
+        if (index >= 0) {
+          mockXAccounts.splice(index, 1);
+        }
+      },
+    );
+  },
+  importXAccounts() {
+    return withMockFallback<XAccountsImportResult>(
+      () => postJson('/api/x/accounts/import', {}),
+      () => ({ created_count: 0, updated_count: mockXAccounts.length, skipped_count: 0 }),
+    );
+  },
+  exportXAccounts() {
+    return withMockFallback<XAccountsExportResult>(
+      () => postJson('/api/x/accounts/export', {}),
+      () => ({ exported_count: mockXAccounts.length }),
+    );
   },
   getXPosts(query: XPostQuery = {}) {
     return withMockFallback<XPost[]>(

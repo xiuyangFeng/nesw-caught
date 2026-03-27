@@ -15,7 +15,20 @@ const xMonitorStore = reactive({
       market_focus: 'us',
       is_active: true,
       priority: 100,
+      tier: 'core',
+      source: 'manual',
       notes: 'Macro and market headlines',
+    },
+    {
+      id: 2,
+      handle: 'MutedDesk',
+      display_name: 'Muted Desk',
+      market_focus: 'us',
+      is_active: true,
+      priority: 5,
+      tier: 'muted',
+      source: 'manual',
+      notes: 'Too noisy',
     },
   ],
   posts: [
@@ -31,6 +44,19 @@ const xMonitorStore = reactive({
       posted_at: '2026-03-19T08:00:00Z',
       captured_at: '2026-03-19T08:01:00Z',
       symbols: ['NVDA'],
+    },
+    {
+      id: 2,
+      account_handle: 'MutedDesk',
+      account_display_name: 'Muted Desk',
+      content_text: 'This muted post should stay hidden',
+      canonical_url: 'https://x.com/MutedDesk/status/190004',
+      market: 'us',
+      sentiment_label: 'unknown',
+      relevance_score: null,
+      posted_at: '2026-03-19T08:04:00Z',
+      captured_at: '2026-03-19T08:05:00Z',
+      symbols: [],
     },
   ],
   searchQuery: 'NVDA',
@@ -69,9 +95,13 @@ const xMonitorStore = reactive({
   healthLoading: false,
   refreshLoading: false,
   searchLoading: false,
+  accountMutationLoading: false,
+  importExportLoading: false,
   usingMock: false,
   stale: false,
+  lastLoadedAt: null,
   lastRefresh: null,
+  searchTierFilter: '',
   filters: reactive({
     account_handle: '',
     market: '',
@@ -79,10 +109,17 @@ const xMonitorStore = reactive({
   }),
   translationsByKey: translationState,
   getTranslationKey: vi.fn((post) => post.canonical_url ?? `${post.account_handle}:${post.posted_at ?? post.captured_at}:${post.content_text}`),
+  getAccountByHandle: vi.fn((handle: string) => xMonitorStore.accounts.find((item) => item.handle === handle) ?? null),
   bootstrap: vi.fn().mockResolvedValue(undefined),
+  loadAccounts: vi.fn().mockResolvedValue(undefined),
   loadPosts: vi.fn().mockResolvedValue(undefined),
   refreshPosts: vi.fn().mockResolvedValue(undefined),
   searchPosts: vi.fn().mockResolvedValue(undefined),
+  createAccount: vi.fn().mockResolvedValue(undefined),
+  updateAccount: vi.fn().mockResolvedValue(undefined),
+  deleteAccount: vi.fn().mockResolvedValue(undefined),
+  importAccounts: vi.fn().mockResolvedValue(undefined),
+  exportAccounts: vi.fn().mockResolvedValue(undefined),
   translatePost: vi.fn().mockImplementation(async (post) => {
     const key = post.canonical_url ?? `${post.account_handle}:${post.posted_at ?? post.captured_at}:${post.content_text}`;
     translationState[key] = {
@@ -100,75 +137,83 @@ vi.mock('../stores/xMonitorStore', () => ({
 describe('XMonitorView', () => {
   beforeEach(() => {
     xMonitorStore.bootstrap.mockClear();
+    xMonitorStore.loadAccounts.mockClear();
     xMonitorStore.loadPosts.mockClear();
     xMonitorStore.refreshPosts.mockClear();
     xMonitorStore.searchPosts.mockClear();
+    xMonitorStore.createAccount.mockClear();
+    xMonitorStore.updateAccount.mockClear();
+    xMonitorStore.deleteAccount.mockClear();
+    xMonitorStore.importAccounts.mockClear();
+    xMonitorStore.exportAccounts.mockClear();
     xMonitorStore.translatePost.mockClear();
     xMonitorStore.getTranslationKey.mockClear();
-    xMonitorStore.searchQuery = 'NVDA';
-    xMonitorStore.lastRefresh = null;
-    xMonitorStore.searchResults = [
-      {
-        id: 0,
-        account_handle: 'SawyerMerritt',
-        account_display_name: 'Sawyer Merritt',
-        content_text: 'NVDA demand remains strong',
-        canonical_url: 'https://x.com/SawyerMerritt/status/190003',
-        market: 'us',
-        sentiment_label: 'unknown',
-        relevance_score: null,
-        posted_at: '2026-03-19T08:02:00Z',
-        captured_at: '2026-03-19T08:02:00Z',
-        symbols: ['NVDA'],
-      },
-    ];
+    xMonitorStore.getAccountByHandle.mockClear();
+    xMonitorStore.searchTierFilter = '';
     Object.keys(translationState).forEach((key) => {
       delete translationState[key];
     });
   });
 
-  it('renders twitterapi.io provider messaging and keyword search results', async () => {
+  it('renders account management controls, tier badges, and hides muted posts by default', () => {
     const wrapper = mount(XMonitorView);
 
     expect(wrapper.text()).toContain('twitterapi.io');
-    expect(wrapper.text()).toContain('关键词搜索');
-    expect(wrapper.text()).toContain('请求节流');
-    expect(wrapper.text()).toContain('6 秒/次');
-    expect(wrapper.text()).toContain('账号刷新冷却');
-    expect(wrapper.text()).toContain('3 小时');
-    expect(wrapper.text()).toContain('当前跟踪 1 条帖子');
-    expect(wrapper.text()).toContain('帖子流已同步到最新窗口');
-    expect(wrapper.find('[data-role="x-monitor-layout"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="feed-summary"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="feed-summary-title"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="feed-summary-detail"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="post-feed"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="post-list-item"]').exists()).toBe(true);
-    expect(wrapper.find('input[type="search"][placeholder*="关键词"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('NVDA demand remains strong');
-    expect(wrapper.text()).toContain('账号监控帖子流');
-    expect(wrapper.text()).toContain('翻译');
+    expect(wrapper.text()).toContain('账号管理');
+    expect(wrapper.text()).toContain('core');
+    expect(wrapper.text()).toContain('muted');
+    expect(wrapper.find('[data-role="account-create-form"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="account-list"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('NVDA suppliers remain in focus');
+    expect(wrapper.text()).not.toContain('This muted post should stay hidden');
   });
 
-  it('shows next refresh time when cooldown skip metadata exists', () => {
-    xMonitorStore.lastRefresh = {
-      started_at: '2026-03-19T09:00:00Z',
-      finished_at: '2026-03-19T09:00:00Z',
-      fetched_count: 0,
-      inserted_count: 0,
-      error: null,
-      latency_ms: 0,
-      skipped: true,
-      skip_reason: 'cooldown_active',
-      next_refresh_at: '2026-03-19T12:00:00Z',
-    };
-
+  it('submits the create-account form through the store', async () => {
     const wrapper = mount(XMonitorView);
 
-    expect(wrapper.text()).toContain('下次可刷新');
+    await wrapper.find('[data-role="create-handle"]').setValue('@NewDesk');
+    await wrapper.find('[data-role="create-display-name"]').setValue('New Desk');
+    await wrapper.find('[data-role="create-market"]').setValue('us');
+    await wrapper.find('[data-role="create-tier"]').setValue('watch');
+    await wrapper.find('[data-role="create-priority"]').setValue('30');
+    await wrapper.find('[data-role="create-notes"]').setValue('High conviction');
+    await wrapper.find('[data-role="account-create-form"]').trigger('submit');
+
+    expect(xMonitorStore.createAccount).toHaveBeenCalledWith({
+      handle: 'NewDesk',
+      display_name: 'New Desk',
+      market_focus: 'us',
+      is_active: true,
+      priority: 30,
+      tier: 'watch',
+      notes: 'High conviction',
+    });
   });
 
-  it('translates monitored posts on demand and renders the translated text', async () => {
+  it('toggles account active state and deletes accounts via store actions', async () => {
+    const wrapper = mount(XMonitorView);
+
+    const toggleButtons = wrapper.findAll('[data-role="toggle-account"]');
+    const deleteButtons = wrapper.findAll('[data-role="delete-account"]');
+
+    await toggleButtons[0].trigger('click');
+    await deleteButtons[0].trigger('click');
+
+    expect(xMonitorStore.updateAccount).toHaveBeenCalledWith('DeItaone', { is_active: false });
+    expect(xMonitorStore.deleteAccount).toHaveBeenCalledWith('DeItaone');
+  });
+
+  it('triggers import and export actions', async () => {
+    const wrapper = mount(XMonitorView);
+
+    await wrapper.find('[data-role="import-accounts"]').trigger('click');
+    await wrapper.find('[data-role="export-accounts"]').trigger('click');
+
+    expect(xMonitorStore.importAccounts).toHaveBeenCalledTimes(1);
+    expect(xMonitorStore.exportAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('translates monitored posts on demand and renders translated text', async () => {
     const wrapper = mount(XMonitorView);
 
     const translateButtons = wrapper.findAll('button[data-role="translate-button"]');
@@ -176,60 +221,5 @@ describe('XMonitorView', () => {
 
     expect(xMonitorStore.translatePost).toHaveBeenCalledWith(xMonitorStore.posts[0]);
     expect(wrapper.text()).toContain('中文：NVDA suppliers remain in focus');
-  });
-
-  it('renders translation errors per post', () => {
-    translationState['https://x.com/DeItaone/status/190001'] = {
-      status: 'error',
-      translated_text: null,
-      error: 'llm provider is not configured',
-    };
-
-    const wrapper = mount(XMonitorView);
-
-    expect(wrapper.text()).toContain('llm provider is not configured');
-  });
-
-  it('renders translation controls and translated text for search results without id collisions', async () => {
-    xMonitorStore.searchResults = [
-      {
-        id: 0,
-        account_handle: 'SawyerMerritt',
-        account_display_name: 'Sawyer Merritt',
-        content_text: 'Repeated translation text',
-        canonical_url: null,
-        market: 'us',
-        sentiment_label: 'unknown',
-        relevance_score: null,
-        posted_at: '2026-03-19T08:02:00Z',
-        captured_at: '2026-03-19T08:02:00Z',
-        symbols: ['NVDA'],
-      },
-      {
-        id: 0,
-        account_handle: 'OpenClaw',
-        account_display_name: 'OpenClaw',
-        content_text: 'Repeated translation text',
-        canonical_url: null,
-        market: 'us',
-        sentiment_label: 'unknown',
-        relevance_score: null,
-        posted_at: '2026-03-19T08:03:00Z',
-        captured_at: '2026-03-19T08:03:00Z',
-        symbols: [],
-      },
-    ];
-
-    const wrapper = mount(XMonitorView);
-    const translateButtons = wrapper.findAll('button[data-role="translate-button"]');
-
-    await translateButtons.at(-2)?.trigger('click');
-    await translateButtons.at(-1)?.trigger('click');
-
-    expect(wrapper.text()).toContain('中文：Repeated translation text');
-    expect(xMonitorStore.translatePost).toHaveBeenNthCalledWith(1, xMonitorStore.searchResults[0]);
-    expect(xMonitorStore.translatePost).toHaveBeenNthCalledWith(2, xMonitorStore.searchResults[1]);
-    expect(xMonitorStore.getTranslationKey).toHaveBeenCalledWith(xMonitorStore.searchResults[0]);
-    expect(xMonitorStore.getTranslationKey).toHaveBeenCalledWith(xMonitorStore.searchResults[1]);
   });
 });

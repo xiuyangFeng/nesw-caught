@@ -541,6 +541,8 @@ export const mockXAccounts: XAccount[] = [
     market_focus: 'us',
     is_active: true,
     priority: 100,
+    tier: 'core',
+    source: 'manual',
     notes: 'Official MiniMax AI account updates',
   },
 ];

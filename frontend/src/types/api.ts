@@ -350,7 +350,38 @@ export interface XAccount {
   market_focus: string | null;
   is_active: boolean;
   priority: number;
+  tier: 'core' | 'watch' | 'muted';
+  source: string;
   notes: string | null;
+}
+
+export interface XAccountCreatePayload {
+  handle: string;
+  display_name: string;
+  market_focus: string | null;
+  is_active: boolean;
+  priority: number;
+  tier: 'core' | 'watch' | 'muted';
+  notes: string | null;
+}
+
+export interface XAccountUpdatePayload {
+  display_name?: string | null;
+  market_focus?: string | null;
+  is_active?: boolean;
+  priority?: number;
+  tier?: 'core' | 'watch' | 'muted';
+  notes?: string | null;
+}
+
+export interface XAccountsImportResult {
+  created_count: number;
+  updated_count: number;
+  skipped_count: number;
+}
+
+export interface XAccountsExportResult {
+  exported_count: number;
 }
 
 export interface XPost {

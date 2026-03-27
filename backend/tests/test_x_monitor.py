@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
 from app.main import app
+from app.models.x_account import XAccount
 from app.services.x_monitor import _normalize_datetime
 from app.services.x_monitor import XMonitorService
 
@@ -268,9 +270,11 @@ def test_x_monitor_refresh_deduplicates_posts_by_tweet_id(monkeypatch, tmp_path:
 
     with _test_session() as session:
         service = XMonitorService(session)
+        import_result = service.import_accounts_from_file()
         first = service.refresh()
         second = service.refresh()
 
+        assert import_result.created_count == 1
         assert first.fetched_count == 1
         assert first.inserted_count == 1
         assert second.fetched_count == 1
@@ -319,6 +323,7 @@ def test_x_monitor_refresh_skips_when_cooldown_is_active(monkeypatch, tmp_path: 
 
     with _test_session() as session:
         service = XMonitorService(session)
+        service.import_accounts_from_file()
         health = service.health_repo.get_or_create("twitterapi.io")
         health.last_success_at = recent_success
         session.commit()
@@ -435,11 +440,391 @@ def test_x_monitor_provider_health_reports_unhealthy_when_probe_fails(monkeypatc
 
     with _test_session() as session:
         service = XMonitorService(session)
+        service.import_accounts_from_file()
 
         healthy, status = service.provider_health()
 
         assert healthy is False
         assert status == "twitterapi.io request failed with status 429"
+
+
+def test_x_accounts_endpoint_returns_tier_and_source(monkeypatch) -> None:
+    class FakeAccounts:
+        def list_all(self):
+            return [
+                SimpleNamespace(
+                    id=1,
+                    handle="DeItaone",
+                    display_name="Delta One",
+                    market_focus="us",
+                    is_active=True,
+                    priority=100,
+                    tier="core",
+                    source="manual",
+                    notes="Macro and breaking market headlines",
+                )
+            ]
+
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+            self.accounts = FakeAccounts()
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def sync_accounts_from_file(self):
+            return []
+
+    monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
+
+    client = TestClient(app)
+    response = client.get("/api/x/accounts")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["tier"] == "core"
+    assert payload[0]["source"] == "manual"
+
+
+def test_x_accounts_create_endpoint_normalizes_handle_and_defaults_tier(monkeypatch) -> None:
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def create_account(self, payload):
+            assert payload.handle == "DeItaone"
+            assert payload.display_name == "Delta One"
+            assert payload.tier == "watch"
+            return SimpleNamespace(
+                id=1,
+                handle="DeItaone",
+                display_name="Delta One",
+                market_focus="us",
+                is_active=True,
+                priority=100,
+                tier="watch",
+                source="manual",
+                notes=None,
+            )
+
+    monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/x/accounts",
+        json={
+            "handle": "@DeItaone",
+            "display_name": "Delta One",
+            "market_focus": "us",
+            "priority": 100,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["handle"] == "DeItaone"
+    assert payload["tier"] == "watch"
+    assert payload["source"] == "manual"
+
+
+def test_x_accounts_patch_endpoint_updates_existing_account(monkeypatch) -> None:
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def update_account(self, handle: str, payload):
+            assert handle == "DeItaone"
+            assert payload.display_name == "Delta One Fast"
+            assert payload.tier == "core"
+            assert payload.priority == 120
+            assert payload.is_active is False
+            assert payload.notes == "Higher signal only"
+            return SimpleNamespace(
+                id=1,
+                handle=handle,
+                display_name=payload.display_name,
+                market_focus="us",
+                is_active=payload.is_active,
+                priority=payload.priority,
+                tier=payload.tier,
+                source="manual",
+                notes=payload.notes,
+            )
+
+    monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
+
+    client = TestClient(app)
+    response = client.patch(
+        "/api/x/accounts/DeItaone",
+        json={
+            "display_name": "Delta One Fast",
+            "tier": "core",
+            "priority": 120,
+            "is_active": False,
+            "notes": "Higher signal only",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tier"] == "core"
+    assert payload["is_active"] is False
+
+
+def test_x_accounts_delete_endpoint_removes_account(monkeypatch) -> None:
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def delete_account(self, handle: str) -> None:
+            assert handle == "DeItaone"
+
+    monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
+
+    client = TestClient(app)
+    response = client.delete("/api/x/accounts/DeItaone")
+
+    assert response.status_code == 204
+
+
+def test_x_monitor_refresh_uses_database_accounts_without_implicit_file_sync(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        '{"accounts":[{"handle":"DeItaone","display_name":"Delta One","market_focus":"us","is_active":true,"priority":100,"tier":"core"}]}',
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            raise AssertionError("refresh should not pull accounts directly from file")
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        summary = service.refresh()
+
+        assert summary.fetched_count == 0
+        assert summary.inserted_count == 0
+        assert service.accounts.list_all() == []
+
+
+def test_x_monitor_import_accounts_from_file_returns_counts_and_marks_source(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        json.dumps(
+            {
+                "accounts": [
+                    {
+                        "handle": "DeItaone",
+                        "display_name": "Delta One",
+                        "market_focus": "us",
+                        "is_active": True,
+                        "priority": 100,
+                        "tier": "core",
+                    },
+                    {
+                        "handle": "SawyerMerritt",
+                        "display_name": "Sawyer Merritt",
+                        "market_focus": "us",
+                        "is_active": True,
+                        "priority": 80,
+                        "tier": "watch",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+
+    with _test_session() as session:
+        session.add(
+            XAccount(
+                handle="SawyerMerritt",
+                display_name="Sawyer Old",
+                market_focus="us",
+                is_active=True,
+                priority=10,
+                tier="watch",
+                source="manual",
+                notes=None,
+            )
+        )
+        session.add(
+            XAccount(
+                handle="ExistingOnly",
+                display_name="Existing Only",
+                market_focus="us",
+                is_active=True,
+                priority=1,
+                tier="watch",
+                source="manual",
+                notes=None,
+            )
+        )
+        session.commit()
+
+        service = XMonitorService(session)
+        result = service.import_accounts_from_file()
+        rows = service.accounts.list_all()
+
+        assert result.created_count == 1
+        assert result.updated_count == 1
+        assert result.skipped_count == 0
+        assert {row.handle for row in rows} == {"DeItaone", "SawyerMerritt", "ExistingOnly"}
+        imported = {row.handle: row for row in rows}
+        assert imported["DeItaone"].source == "file_import"
+        assert imported["SawyerMerritt"].source == "file_import"
+
+
+def test_x_monitor_export_accounts_to_file_writes_stable_order(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+
+    with _test_session() as session:
+        session.add_all(
+            [
+                XAccount(
+                    handle="ZuluDesk",
+                    display_name="Zulu Desk",
+                    market_focus="us",
+                    is_active=True,
+                    priority=50,
+                    tier="watch",
+                    source="manual",
+                    notes="B",
+                ),
+                XAccount(
+                    handle="AlphaDesk",
+                    display_name="Alpha Desk",
+                    market_focus="us",
+                    is_active=True,
+                    priority=50,
+                    tier="core",
+                    source="manual",
+                    notes="A",
+                ),
+            ]
+        )
+        session.commit()
+
+        service = XMonitorService(session)
+        result = service.export_accounts_to_file()
+
+        assert result.exported_count == 2
+        payload = json.loads(accounts_file.read_text(encoding="utf-8"))
+        assert [item["handle"] for item in payload["accounts"]] == ["AlphaDesk", "ZuluDesk"]
+        assert payload["accounts"][0]["tier"] == "core"
+        assert payload["accounts"][0]["source"] == "manual"
+
+
+def test_x_monitor_refresh_prioritizes_core_before_watch_and_excludes_muted(monkeypatch) -> None:
+    seen_handles: list[str] = []
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            seen_handles.append(handle)
+            return []
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=None,
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        session.add_all(
+            [
+                XAccount(
+                    handle="WatchDesk",
+                    display_name="Watch Desk",
+                    market_focus="us",
+                    is_active=True,
+                    priority=200,
+                    tier="watch",
+                    source="manual",
+                    notes=None,
+                ),
+                XAccount(
+                    handle="CoreDesk",
+                    display_name="Core Desk",
+                    market_focus="us",
+                    is_active=True,
+                    priority=50,
+                    tier="core",
+                    source="manual",
+                    notes=None,
+                ),
+                XAccount(
+                    handle="MutedDesk",
+                    display_name="Muted Desk",
+                    market_focus="us",
+                    is_active=True,
+                    priority=999,
+                    tier="muted",
+                    source="manual",
+                    notes=None,
+                ),
+            ]
+        )
+        session.commit()
+
+        service = XMonitorService(session)
+        summary = service.refresh()
+
+        assert summary.fetched_count == 0
+        assert seen_handles == ["CoreDesk", "WatchDesk"]
 
 
 def test_x_posts_endpoint_returns_disabled_when_feature_is_off(monkeypatch) -> None:

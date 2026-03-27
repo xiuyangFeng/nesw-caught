@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, reactive, watch } from 'vue';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
@@ -10,8 +10,29 @@ import { sentimentText } from '../utils/format';
 import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
 
 const xMonitorStore = useXMonitorStore();
+const createForm = reactive({
+  handle: '',
+  display_name: '',
+  market_focus: 'us',
+  tier: 'watch',
+  priority: '0',
+  notes: '',
+});
 
 const accountOptions = computed(() => xMonitorStore.accounts.filter((item) => item.is_active));
+const visiblePosts = computed(() =>
+  xMonitorStore.posts.filter((post) => {
+    const account = xMonitorStore.getAccountByHandle(post.account_handle);
+    const tier = account?.tier ?? 'watch';
+    if (xMonitorStore.searchTierFilter && tier !== xMonitorStore.searchTierFilter) {
+      return false;
+    }
+    if (!xMonitorStore.searchTierFilter && tier === 'muted') {
+      return false;
+    }
+    return true;
+  }),
+);
 const bannerTone = computed(() => {
   if (xMonitorStore.health?.enabled === false) return 'warning';
   if (xMonitorStore.health && !xMonitorStore.health.healthy) return 'danger';
@@ -38,7 +59,7 @@ const policySummary = computed(() => {
   if (!xMonitorStore.health) return null;
   return `请求节流 ${xMonitorStore.health.min_interval_seconds} 秒/次 · 账号刷新冷却 ${xMonitorStore.health.refresh_cooldown_hours} 小时`;
 });
-const feedSummaryTitle = computed(() => `当前跟踪 ${xMonitorStore.posts.length} 条帖子，帖子流已同步到最新窗口`);
+const feedSummaryTitle = computed(() => `当前跟踪 ${visiblePosts.value.length} 条帖子，帖子流已同步到最新窗口`);
 const feedSummaryDetail = computed(() => {
   const detailParts: string[] = [];
   if (policySummary.value) detailParts.push(policySummary.value);
@@ -56,6 +77,38 @@ function translationState(post: { account_handle: string; posted_at: string | nu
       error: null,
     }
   );
+}
+
+function tierTone(tier: string) {
+  if (tier === 'core') return 'positive';
+  if (tier === 'muted') return 'negative';
+  return 'neutral';
+}
+
+async function submitCreateAccount() {
+  await xMonitorStore.createAccount({
+    handle: createForm.handle.trim().replace(/^@+/, ''),
+    display_name: createForm.display_name.trim(),
+    market_focus: createForm.market_focus || null,
+    is_active: true,
+    priority: Number(createForm.priority || '0'),
+    tier: createForm.tier as 'core' | 'watch' | 'muted',
+    notes: createForm.notes.trim() || null,
+  });
+  createForm.handle = '';
+  createForm.display_name = '';
+  createForm.market_focus = 'us';
+  createForm.tier = 'watch';
+  createForm.priority = '0';
+  createForm.notes = '';
+}
+
+async function toggleAccount(account: { handle: string; is_active: boolean }) {
+  await xMonitorStore.updateAccount(account.handle, { is_active: !account.is_active });
+}
+
+async function removeAccount(handle: string) {
+  await xMonitorStore.deleteAccount(handle);
 }
 
 watch(
@@ -96,8 +149,8 @@ onMounted(async () => {
       冷却中，下次可刷新：{{ nextRefreshText }}
     </p>
 
-    <section class="grid gap-4 xl:grid-cols-[0.9fr_1.3fr]" data-role="x-monitor-layout">
-      <SectionCard title="状态与筛选" subtitle="provider 状态、账号白名单和帖子过滤条件">
+    <section class="grid gap-4 xl:grid-cols-[0.95fr_1.25fr]" data-role="x-monitor-layout">
+      <SectionCard title="状态与账号管理" subtitle="provider 状态、监控名单维护和帖子过滤条件">
         <div class="grid grid-cols-3 gap-2.5">
           <div class="grid gap-1 rounded-2xl border border-border bg-panel-stronger p-3.5">
             <span class="text-text-faint">模块</span>
@@ -134,18 +187,113 @@ onMounted(async () => {
             <option value="hk">港股</option>
             <option value="us">美股</option>
           </select>
-          <input v-model.trim="xMonitorStore.filters.q" class="flex-1 rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="search" placeholder="搜索帖子内容" />
+          <select v-model="xMonitorStore.searchTierFilter" class="flex-1 rounded-xl border border-border bg-field px-3 py-2.5 text-text">
+            <option value="">默认层级视图</option>
+            <option value="core">仅 core</option>
+            <option value="watch">仅 watch</option>
+            <option value="muted">仅 muted</option>
+          </select>
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-2 text-muted">
-          <span v-for="account in accountOptions" :key="account.id" class="pill neutral">
-            @{{ account.handle }} · {{ account.display_name }}
-          </span>
+        <input v-model.trim="xMonitorStore.filters.q" class="mt-2 w-full rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="search" placeholder="搜索帖子内容" />
+
+        <div class="mt-5 grid gap-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="m-0 text-sm font-semibold text-text">账号管理</p>
+              <p class="m-0 text-xs text-text-faint">页面直接维护监控账号，配置文件只用于显式导入和导出。</p>
+            </div>
+            <div class="flex gap-2">
+              <button
+                class="rounded-full border border-border bg-field px-3 py-1.5 text-sm text-text disabled:cursor-not-allowed disabled:opacity-60"
+                data-role="import-accounts"
+                type="button"
+                :disabled="xMonitorStore.importExportLoading"
+                @click="xMonitorStore.importAccounts()"
+              >
+                导入
+              </button>
+              <button
+                class="rounded-full border border-border bg-field px-3 py-1.5 text-sm text-text disabled:cursor-not-allowed disabled:opacity-60"
+                data-role="export-accounts"
+                type="button"
+                :disabled="xMonitorStore.importExportLoading"
+                @click="xMonitorStore.exportAccounts()"
+              >
+                导出
+              </button>
+            </div>
+          </div>
+
+          <form class="grid gap-2 rounded-2xl border border-border bg-panel-stronger p-3" data-role="account-create-form" @submit.prevent="submitCreateAccount">
+            <div class="grid gap-2 md:grid-cols-2">
+              <input v-model.trim="createForm.handle" data-role="create-handle" class="rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="text" placeholder="@handle" />
+              <input v-model.trim="createForm.display_name" data-role="create-display-name" class="rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="text" placeholder="显示名" />
+              <select v-model="createForm.market_focus" data-role="create-market" class="rounded-xl border border-border bg-field px-3 py-2.5 text-text">
+                <option value="us">美股</option>
+                <option value="hk">港股</option>
+                <option value="cn">A股/国内</option>
+              </select>
+              <select v-model="createForm.tier" data-role="create-tier" class="rounded-xl border border-border bg-field px-3 py-2.5 text-text">
+                <option value="core">core</option>
+                <option value="watch">watch</option>
+                <option value="muted">muted</option>
+              </select>
+              <input v-model="createForm.priority" data-role="create-priority" class="rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="number" placeholder="优先级" />
+              <input v-model.trim="createForm.notes" data-role="create-notes" class="rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="text" placeholder="备注" />
+            </div>
+            <div class="flex justify-end">
+              <button
+                class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+                type="submit"
+                :disabled="xMonitorStore.accountMutationLoading || !createForm.handle.trim() || !createForm.display_name.trim()"
+              >
+                新增账号
+              </button>
+            </div>
+          </form>
+
+          <div class="grid gap-2" data-role="account-list">
+            <article v-for="account in xMonitorStore.accounts" :key="account.id" class="grid gap-2 rounded-2xl border border-border bg-panel-stronger p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <strong>@{{ account.handle }}</strong>
+                  <span class="pill" :class="tierTone(account.tier)">{{ account.tier }}</span>
+                  <span class="text-text-faint">{{ account.display_name }}</span>
+                </div>
+                <span class="text-xs text-text-faint">{{ account.source }}</span>
+              </div>
+              <div class="flex flex-wrap gap-3 text-sm text-text-faint">
+                <span>{{ account.market_focus?.toUpperCase() ?? '--' }}</span>
+                <span>priority {{ account.priority }}</span>
+                <span>{{ account.is_active ? 'active' : 'paused' }}</span>
+              </div>
+              <p v-if="account.notes" class="m-0 text-sm text-text-soft">{{ account.notes }}</p>
+              <div class="flex gap-2">
+                <button
+                  class="rounded-full border border-border bg-field px-3 py-1.5 text-sm text-text"
+                  data-role="toggle-account"
+                  type="button"
+                  @click="toggleAccount(account)"
+                >
+                  {{ account.is_active ? '停用' : '启用' }}
+                </button>
+                <button
+                  class="rounded-full border border-[#7f1d1d] bg-[rgba(69,16,16,0.6)] px-3 py-1.5 text-sm text-[#fecaca]"
+                  data-role="delete-account"
+                  type="button"
+                  @click="removeAccount(account.handle)"
+                >
+                  删除
+                </button>
+              </div>
+            </article>
+          </div>
         </div>
       </SectionCard>
 
       <SectionCard title="账号监控帖子流" subtitle="保留博主、时间、情绪、股票命中和原帖链接">
-        <LoadingBlock :loading="xMonitorStore.loading || xMonitorStore.healthLoading" :empty="xMonitorStore.posts.length === 0" empty-text="当前没有可展示的 X 帖子">
+        <LoadingBlock :loading="xMonitorStore.loading || xMonitorStore.healthLoading" :empty="visiblePosts.length === 0" empty-text="当前没有可展示的 X 帖子">
           <div class="mb-3 grid gap-1.5 rounded-[14px] border-l-[3px] border-l-system bg-[linear-gradient(135deg,rgba(15,27,40,0.96),rgba(10,19,31,0.86))] px-4 py-3" data-role="feed-summary">
             <p class="m-0 text-[0.68rem] uppercase tracking-[0.14em] text-system">Monitor Status</p>
             <p class="m-0 text-[1.05rem] leading-[1.45]" data-role="feed-summary-title">{{ feedSummaryTitle }}</p>
@@ -156,7 +304,7 @@ onMounted(async () => {
             data-role="post-feed"
           >
             <article
-              v-for="post in xMonitorStore.posts"
+              v-for="post in visiblePosts"
               :key="post.id"
               class="grid gap-2 border-b border-system/10 px-[14px] py-3 last:border-b-0"
               data-role="post-list-item"

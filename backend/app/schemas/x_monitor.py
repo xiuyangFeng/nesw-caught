@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import UTCDateTime
 
@@ -10,7 +10,64 @@ class XAccountView(BaseModel):
     market_focus: str | None = None
     is_active: bool
     priority: int
+    tier: str
+    source: str
     notes: str | None = None
+
+
+class XAccountCreateRequest(BaseModel):
+    handle: str
+    display_name: str
+    market_focus: str | None = None
+    is_active: bool = True
+    priority: int = 0
+    tier: str = "watch"
+    notes: str | None = None
+
+    @field_validator("handle")
+    @classmethod
+    def normalize_handle(cls, value: str) -> str:
+        normalized = value.lstrip("@").strip()
+        if not normalized:
+            raise ValueError("handle is required")
+        return normalized
+
+    @field_validator("tier")
+    @classmethod
+    def normalize_tier(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"core", "watch", "muted"}:
+            raise ValueError("tier must be core, watch, or muted")
+        return normalized
+
+
+class XAccountUpdateRequest(BaseModel):
+    display_name: str | None = None
+    market_focus: str | None = None
+    is_active: bool | None = None
+    priority: int | None = None
+    tier: str | None = None
+    notes: str | None = None
+
+    @field_validator("tier")
+    @classmethod
+    def normalize_tier(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in {"core", "watch", "muted"}:
+            raise ValueError("tier must be core, watch, or muted")
+        return normalized
+
+
+class XAccountsImportResult(BaseModel):
+    created_count: int
+    updated_count: int
+    skipped_count: int = 0
+
+
+class XAccountsExportResult(BaseModel):
+    exported_count: int
 
 
 class XPostSummaryView(BaseModel):

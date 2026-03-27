@@ -18,6 +18,7 @@ from app.services.twitterapi_io_client import TwitterApiIoClient, TwitterApiIoEr
 
 VALID_MARKETS = {"hk", "us", "cn"}
 VALID_SENTIMENTS = {"positive", "negative", "neutral", "mixed", "unknown"}
+VALID_TIERS = {"core", "watch", "muted"}
 PROVIDER_NAME = "twitterapi.io"
 
 
@@ -32,6 +33,18 @@ class XRefreshSummary:
     skipped: bool = False
     skip_reason: str | None = None
     next_refresh_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class XAccountsImportSummary:
+    created_count: int
+    updated_count: int
+    skipped_count: int
+
+
+@dataclass(frozen=True)
+class XAccountsExportSummary:
+    exported_count: int
 
 
 def _utc_now() -> datetime:
@@ -124,6 +137,10 @@ def _extract_author_name(raw_tweet: dict[str, object], fallback_handle: str) -> 
     return fallback_handle
 
 
+def _normalize_handle(value: str) -> str:
+    return value.lstrip("@").strip()
+
+
 class XMonitorService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -153,9 +170,12 @@ class XMonitorService:
         for item in raw_accounts:
             if not isinstance(item, dict):
                 continue
-            account_handle = str(item.get("handle") or "").lstrip("@").strip()
+            account_handle = _normalize_handle(str(item.get("handle") or ""))
             if not account_handle:
                 continue
+            tier = str(item.get("tier") or "watch").strip().lower()
+            if tier not in VALID_TIERS:
+                tier = "watch"
             normalized.append(
                 {
                     "handle": account_handle,
@@ -163,13 +183,134 @@ class XMonitorService:
                     "market_focus": str(item.get("market_focus")) if item.get("market_focus") else None,
                     "is_active": bool(item.get("is_active", True)),
                     "priority": int(item.get("priority", 0)),
+                    "tier": tier,
+                    "source": "file_import",
                     "notes": str(item.get("notes")) if item.get("notes") else None,
                 }
             )
 
-        accounts = self.accounts.upsert_many(normalized)
+        return self.accounts.upsert_many(normalized)
+
+    def create_account(self, payload) -> object:
+        handle = _normalize_handle(payload.handle)
+        if self.accounts.get_by_handle(handle) is not None:
+            raise ValueError(f"x account already exists: {handle}")
+        account = self.accounts.create(
+            {
+                "handle": handle,
+                "display_name": payload.display_name.strip(),
+                "market_focus": payload.market_focus,
+                "is_active": payload.is_active,
+                "priority": payload.priority,
+                "tier": payload.tier,
+                "source": "manual",
+                "notes": payload.notes,
+            }
+        )
         self.session.commit()
-        return accounts
+        return account
+
+    def update_account(self, handle: str, payload) -> object:
+        instance = self.accounts.get_by_handle(handle)
+        if instance is None:
+            raise ValueError(f"x account not found: {handle}")
+        account = self.accounts.update(
+            instance,
+            {
+                "display_name": payload.display_name,
+                "market_focus": payload.market_focus,
+                "is_active": payload.is_active,
+                "priority": payload.priority,
+                "tier": payload.tier,
+                "notes": payload.notes,
+            },
+        )
+        self.session.commit()
+        return account
+
+    def delete_account(self, handle: str) -> None:
+        instance = self.accounts.get_by_handle(handle)
+        if instance is None:
+            raise ValueError(f"x account not found: {handle}")
+        self.accounts.delete(instance)
+        self.session.commit()
+
+    def import_accounts_from_file(self) -> XAccountsImportSummary:
+        accounts_file = self.settings.x_monitor_accounts_file
+        if not accounts_file:
+            raise ValueError("x monitor accounts file is not configured")
+
+        with open(accounts_file, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+
+        raw_accounts = payload.get("accounts", [])
+        if not isinstance(raw_accounts, list):
+            raise ValueError("x monitor accounts file must contain an accounts array")
+
+        created_count = 0
+        updated_count = 0
+        skipped_count = 0
+
+        for item in raw_accounts:
+            if not isinstance(item, dict):
+                skipped_count += 1
+                continue
+            handle = _normalize_handle(str(item.get("handle") or ""))
+            if not handle:
+                skipped_count += 1
+                continue
+            tier = str(item.get("tier") or "watch").strip().lower()
+            if tier not in VALID_TIERS:
+                tier = "watch"
+            existing = self.accounts.get_by_handle(handle)
+            payload_row = {
+                "handle": handle,
+                "display_name": str(item.get("display_name") or handle),
+                "market_focus": str(item.get("market_focus")) if item.get("market_focus") else None,
+                "is_active": bool(item.get("is_active", True)),
+                "priority": int(item.get("priority", 0)),
+                "tier": tier,
+                "source": "file_import",
+                "notes": str(item.get("notes")) if item.get("notes") else None,
+            }
+            if existing is None:
+                self.accounts.create(payload_row)
+                created_count += 1
+            else:
+                self.accounts.update(existing, payload_row)
+                updated_count += 1
+
+        self.session.commit()
+        return XAccountsImportSummary(
+            created_count=created_count,
+            updated_count=updated_count,
+            skipped_count=skipped_count,
+        )
+
+    def export_accounts_to_file(self) -> XAccountsExportSummary:
+        accounts_file = self.settings.x_monitor_accounts_file
+        if not accounts_file:
+            raise ValueError("x monitor accounts file is not configured")
+
+        payload = {
+            "accounts": [
+                {
+                    "handle": account.handle,
+                    "display_name": account.display_name,
+                    "market_focus": account.market_focus,
+                    "is_active": account.is_active,
+                    "priority": account.priority,
+                    "tier": account.tier,
+                    "source": account.source,
+                    "notes": account.notes,
+                }
+                for account in self.accounts.list_all()
+            ]
+        }
+        with open(accounts_file, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        return XAccountsExportSummary(exported_count=len(payload["accounts"]))
 
     def _to_summary_view(
         self,
@@ -212,9 +353,7 @@ class XMonitorService:
 
     def refresh(self) -> XRefreshSummary:
         self.ensure_enabled()
-        self.sync_accounts_from_file()
-
-        active_accounts = self.accounts.list_active()
+        active_accounts = self.accounts.list_refresh_targets()
         started_at = _utc_now()
         health = self.health_repo.get_or_create(PROVIDER_NAME)
 
@@ -351,8 +490,7 @@ class XMonitorService:
             return False, "disabled"
         if not self.provider.configured:
             return False, "not_configured"
-        self.sync_accounts_from_file()
-        active_accounts = self.accounts.list_active()
+        active_accounts = self.accounts.list_refresh_targets()
         if not active_accounts:
             return True, "configured"
         try:
