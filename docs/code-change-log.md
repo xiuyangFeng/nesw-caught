@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 00:40
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线 overlay 与主图手势让渡修复
+- 变更内容：修复了主 K 线图被 overlay 完整遮挡后，底层 `lightweight-charts` 无法收到鼠标拖拽 / 滚轮事件的问题。`KlineDrawingOverlay` 现在在 `select` 模式、非拖拽、非标签编辑且命中空白区域时，会把 `mousedown` 和 `wheel` 手势临时让渡给底层 chart；命中 drawing body / anchor 或处于绘制编辑态时，overlay 仍保持所有权，不影响现有 crosshair、画线创建和对象编辑。同步扩展了 overlay 测试，覆盖空白区转发和对象命中不转发两类路径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-kline-overlay-chart-gesture-handoff-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-kline-overlay-chart-gesture-handoff-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无后端接口或持久化结构变化；仅前端 overlay 增加底层 chart 手势转发逻辑
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts` 先失败后通过（1 个文件 / 8 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（2 个文件 / 9 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前让渡逻辑只覆盖鼠标 `mousedown` / `wheel`，足以恢复常见桌面手势；若后续要支持触控板 pinch 或更完整的图表原生手势，建议进一步接 `pointer` / `touch` 级别链路
+
 ## 2026-03-28 00:31
 
 - 修改人：Codex

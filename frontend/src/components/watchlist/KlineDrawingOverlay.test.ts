@@ -7,6 +7,11 @@ let resizeObserverCallback: ResizeObserverCallback | null = null;
 
 beforeEach(() => {
   resizeObserverCallback = null;
+  Object.defineProperty(document, 'elementFromPoint', {
+    value: vi.fn(() => null),
+    configurable: true,
+    writable: true,
+  });
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -387,5 +392,124 @@ describe('KlineDrawingOverlay', () => {
     resizeObserverCallback?.([], {} as ResizeObserver);
     await overlay.trigger('mousemove', { clientX: 180, clientY: 20 });
     expect(wrapper.find('[data-role="crosshair-vertical"]').attributes('x1')).toBe('180');
+  });
+
+  it('hands empty-space gestures back to the underlying chart element', async () => {
+    const underlying = document.createElement('div');
+    const mouseDownSpy = vi.fn();
+    const wheelSpy = vi.fn();
+    underlying.addEventListener('mousedown', mouseDownSpy);
+    underlying.addEventListener('wheel', wheelSpy);
+    document.body.appendChild(underlying);
+
+    const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint').mockImplementation(() => underlying);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: null,
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    await overlay.trigger('mousedown', { clientX: 200, clientY: 60, button: 0, buttons: 1 });
+    expect(mouseDownSpy).toHaveBeenCalledTimes(1);
+
+    overlay.element.dispatchEvent(
+      new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 200,
+        clientY: 60,
+        deltaY: -20,
+      }),
+    );
+    expect(wheelSpy).toHaveBeenCalledTimes(1);
+
+    elementFromPointSpy.mockRestore();
+    underlying.remove();
+  });
+
+  it('keeps gesture ownership when pressing on a drawing body', async () => {
+    const underlying = document.createElement('div');
+    const mouseDownSpy = vi.fn();
+    underlying.addEventListener('mousedown', mouseDownSpy);
+    document.body.appendChild(underlying);
+
+    const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint').mockImplementation(() => underlying);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [
+          {
+            id: 'horizontal-1',
+            symbol: '0700.HK',
+            toolType: 'horizontal_line',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#7dd3fc', lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
+            anchors: [{ time: '2026-03-18', price: 540 }],
+            payload: {},
+          },
+        ],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: 'horizontal-1',
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    await overlay.trigger('mousemove', { clientX: 120, clientY: 40 });
+    await wrapper.get('[data-role="drawing-body-horizontal-1"]').trigger('mousedown', { clientX: 120, clientY: 40, button: 0, buttons: 1 });
+    expect(mouseDownSpy).not.toHaveBeenCalled();
+
+    elementFromPointSpy.mockRestore();
+    underlying.remove();
   });
 });

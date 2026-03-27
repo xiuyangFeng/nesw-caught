@@ -42,6 +42,7 @@ const overlayDisabled = computed(() => props.disabled || !props.candles.length |
 const overlaySize = ref({ width: 0, height: 0 });
 const hoverAnchor = ref<KlineDrawingAnchor | null>(null);
 const editingLabel = ref<{ drawingId: string; text: string } | null>(null);
+const pointerPassthroughActive = ref(false);
 const dragState = ref<
   | {
       mode: 'anchor' | 'object';
@@ -116,6 +117,25 @@ function drawingPoints(drawing: KlineDrawing) {
     .filter((item): item is ProjectedPoint => item !== null);
 }
 
+function pointFromEvent(event: MouseEvent | WheelEvent, target: HTMLElement) {
+  const rect = target.getBoundingClientRect();
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+}
+
+function hitDrawingAtEvent(event: MouseEvent | WheelEvent) {
+  const target = overlayRef.value;
+  if (!target) {
+    return null;
+  }
+  const point = pointFromEvent(event, target);
+  return [...props.drawings]
+    .reverse()
+    .find((drawing) => drawing.visible && hitTestDrawing(drawing, point, (drawingAnchor) => projectAnchor(drawingAnchor, target))) ?? null;
+}
+
 function selectedDrawing() {
   return props.drawings.find((drawing) => drawing.id === props.selectedDrawingId) ?? null;
 }
@@ -165,14 +185,7 @@ function onClick(event: MouseEvent) {
   if (!anchor) {
     return;
   }
-  const target = event.currentTarget as HTMLElement;
-  const point = {
-    x: event.clientX - target.getBoundingClientRect().left,
-    y: event.clientY - target.getBoundingClientRect().top,
-  };
-  const hit = [...props.drawings].reverse().find(
-    (drawing) => drawing.visible && hitTestDrawing(drawing, point, (drawingAnchor) => projectAnchor(drawingAnchor, target)),
-  );
+  const hit = hitDrawingAtEvent(event);
   if (props.activeTool === 'select') {
     emit('drawingSelect', hit?.id ?? null);
     return;
@@ -197,6 +210,81 @@ function onMousemove(event: MouseEvent) {
   if (anchor && props.activeTool !== 'select' && !dragState.value) {
     emit('draftUpdate', anchor);
   }
+}
+
+function forwardMouseDownToChart(event: MouseEvent) {
+  if (!overlayRef.value) {
+    return;
+  }
+  pointerPassthroughActive.value = true;
+  overlayRef.value.style.pointerEvents = 'none';
+  const target = document.elementFromPoint(event.clientX, event.clientY);
+  if (!target) {
+    pointerPassthroughActive.value = false;
+    overlayRef.value.style.pointerEvents = '';
+    return;
+  }
+  target.dispatchEvent(
+    new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      button: event.button,
+      buttons: event.buttons,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }),
+  );
+}
+
+function forwardWheelToChart(event: WheelEvent) {
+  if (!overlayRef.value) {
+    return;
+  }
+  overlayRef.value.style.pointerEvents = 'none';
+  const target = document.elementFromPoint(event.clientX, event.clientY);
+  overlayRef.value.style.pointerEvents = pointerPassthroughActive.value ? 'none' : '';
+  if (!target) {
+    return;
+  }
+  target.dispatchEvent(
+    new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaZ: event.deltaZ,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    }),
+  );
+}
+
+function onMousedown(event: MouseEvent) {
+  if (
+    overlayDisabled.value ||
+    props.activeTool !== 'select' ||
+    dragState.value ||
+    editingLabel.value ||
+    hitDrawingAtEvent(event)
+  ) {
+    return;
+  }
+  forwardMouseDownToChart(event);
+}
+
+function onWheel(event: WheelEvent) {
+  if (overlayDisabled.value || props.activeTool !== 'select' || dragState.value || editingLabel.value || hitDrawingAtEvent(event)) {
+    return;
+  }
+  forwardWheelToChart(event);
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -267,6 +355,10 @@ function beginBodyDrag(drawingId: string, event: MouseEvent) {
 
 function handleWindowMouseup() {
   dragState.value = null;
+  pointerPassthroughActive.value = false;
+  if (overlayRef.value) {
+    overlayRef.value.style.pointerEvents = '';
+  }
 }
 
 function startLabelEdit(drawing: KlineDrawing) {
@@ -312,9 +404,11 @@ onBeforeUnmount(() => {
     data-role="kline-drawing-overlay"
     tabindex="0"
     @click="onClick"
+    @mousedown="onMousedown"
     @mousemove="onMousemove"
     @mouseleave="onMouseleave"
     @mouseup="onMouseup"
+    @wheel="onWheel"
     @keydown="onKeydown"
   >
     <svg class="h-full w-full">
