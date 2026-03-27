@@ -17,11 +17,10 @@ import type {
 import { isStale } from '../utils/time';
 
 const PERIOD_QUERY_MAP: Record<WatchlistDashboardPeriod, { interval: string; range: string }> = {
-  '1D': { interval: '1d', range: '6mo' },
-  '1W': { interval: '1wk', range: '1y' },
-  '1M': { interval: '1mo', range: '2y' },
-  '3M': { interval: '1d', range: '3mo' },
-  '1Y': { interval: '1d', range: '1y' },
+  '1D': { interval: '1d', range: '1y' },
+  '1W': { interval: '1wk', range: '5y' },
+  '1M': { interval: '1mo', range: '10y' },
+  '1Y': { interval: '1mo', range: 'max' },
 };
 
 export const useWatchlistStore = defineStore('watchlistStore', () => {
@@ -36,7 +35,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   const selectedSymbol = ref<string | null>(null);
   const currentPeriod = ref<WatchlistDashboardPeriod>('1D');
   const currentInterval = ref('1d');
-  const currentRange = ref('6mo');
+  const currentRange = ref('1y');
   const klineData = ref<StockKlineResponse | null>(null);
   const klineLoading = ref(false);
   const klineError = ref<string | null>(null);

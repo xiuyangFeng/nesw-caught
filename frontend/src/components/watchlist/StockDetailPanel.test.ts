@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./KlineChart.vue', () => ({
   default: {
-    props: ['highlightedEventTime'],
-    emits: ['focusNews'],
+    props: ['highlightedEventTime', 'currentPeriod'],
+    emits: ['focusNews', 'switchPeriod'],
     template: `
       <section data-role="kline-chart-stub">
+        <div data-role="kline-current-period">{{ currentPeriod }}</div>
         <div data-role="kline-highlighted-time">{{ highlightedEventTime ?? '' }}</div>
         <button data-role="kline-event-chip-2026-03-19" @click="$emit('focusNews', { time: '2026-03-19', items: [{ id: 101, title: 'Apple update', sentiment: 'neutral' }] })">
           event
@@ -40,7 +41,7 @@ vi.mock('./RelatedNewsSidebar.vue', () => ({
 import StockDetailPanel from './StockDetailPanel.vue';
 
 describe('StockDetailPanel', () => {
-  it('shows settings popover controls and preserves chart/news highlighting linkage', async () => {
+  it('passes the active period to the chart and preserves chart/news highlighting linkage', async () => {
     const wrapper = mount(StockDetailPanel, {
       props: {
         quote: {
@@ -66,7 +67,7 @@ describe('StockDetailPanel', () => {
         klineData: {
           symbol: 'AAPL',
           interval: '1d',
-          range: '6mo',
+          range: '1y',
           stale: false,
           candles: [{ time: '2026-03-18', open: 199, high: 202, low: 198, close: 200.1, volume: 10342 }],
           indicators: {
@@ -100,20 +101,33 @@ describe('StockDetailPanel', () => {
     });
 
     expect(wrapper.get('[data-role="trading-desk-price-strip"]').text()).toContain('200.10');
-    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('Open');
-    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('Prev Close');
-    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('Volume');
+    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('开盘');
+    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('昨收');
+    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('成交量');
+    expect(wrapper.get('[data-role="trading-desk-summary"]').text()).toContain('更新时间');
 
-    await wrapper.get('[data-role="watchlist-settings-trigger"]').trigger('click');
-
-    expect(wrapper.get('[data-role="watchlist-settings-popover"]').exists()).toBe(true);
-    expect(wrapper.get('[data-role="watchlist-settings-scroll"]').classes()).toContain('overflow-y-auto');
-    expect(wrapper.get('[data-role="period-1D"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(false);
+    expect(wrapper.get('[data-role="kline-current-period"]').text()).toBe('1D');
 
     await wrapper.get('[data-role="kline-event-chip-2026-03-19"]').trigger('click');
     expect(wrapper.get('[data-role="trading-desk-news-item-101"]').attributes('data-highlighted')).toBe('true');
 
     await wrapper.get('[data-role="trading-desk-news-item-101"]').trigger('click');
     expect(wrapper.get('[data-role="kline-highlighted-time"]').text()).toBe('2026-03-19');
+  });
+
+  it('shows Chinese loading copy while kline data is refreshing', () => {
+    const wrapper = mount(StockDetailPanel, {
+      props: {
+        quote: null,
+        klineData: null,
+        detailNews: [],
+        currentPeriod: '1Y',
+        klineLoading: true,
+        klineError: null,
+      },
+    });
+
+    expect(wrapper.get('[data-role="trading-desk-summary"]').text()).toContain('正在加载最新K线图');
   });
 });

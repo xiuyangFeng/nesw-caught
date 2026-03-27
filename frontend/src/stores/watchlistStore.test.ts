@@ -306,7 +306,7 @@ describe('watchlistStore', () => {
 
     await (store as any).selectSymbol('0700.HK');
 
-    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1d', '6mo');
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1d', '1y');
     expect(apiClient.getRelatedNews).toHaveBeenCalledWith('0700.HK');
     expect(store.selectedSymbol).toBe('0700.HK');
     expect((store as any).klineData?.symbol).toBe('0700.HK');
@@ -323,7 +323,7 @@ describe('watchlistStore', () => {
       data: {
         symbol: '0700.HK',
         interval: '1wk',
-        range: '1y',
+        range: '5y',
         stale: false,
         candles: [],
         indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
@@ -334,8 +334,33 @@ describe('watchlistStore', () => {
 
     await (store as any).switchPeriod('1W');
 
-    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1wk', '1y');
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1wk', '5y');
     expect((store as any).currentPeriod).toBe('1W');
+  });
+
+  it('maps the broker-style year view to the long-range monthly query', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+    store.selectedSymbol = '0700.HK';
+    apiClient.getStockKline.mockResolvedValue({
+      data: {
+        symbol: '0700.HK',
+        interval: '1mo',
+        range: 'max',
+        stale: false,
+        candles: [],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+
+    await (store as any).switchPeriod('1Y');
+
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1mo', 'max');
+    expect((store as any).currentPeriod).toBe('1Y');
   });
 
   it('ignores stale kline responses when periods are switched quickly', async () => {
@@ -358,7 +383,7 @@ describe('watchlistStore', () => {
       data: {
         symbol: '0700.HK',
         interval: '1mo',
-        range: '2y',
+        range: '10y',
         stale: false,
         candles: [{ time: '2026-03-20', open: 1, high: 2, low: 1, close: 2, volume: 10 }],
         indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
@@ -370,7 +395,7 @@ describe('watchlistStore', () => {
       data: {
         symbol: '0700.HK',
         interval: '1wk',
-        range: '1y',
+        range: '5y',
         stale: false,
         candles: [{ time: '2026-03-19', open: 1, high: 3, low: 1, close: 3, volume: 10 }],
         indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },

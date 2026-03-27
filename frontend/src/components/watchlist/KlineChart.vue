@@ -9,21 +9,24 @@ import {
 } from 'lightweight-charts';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import type { NewsEventMarker, StockKlineResponse } from '../../types/api';
+import type { NewsEventMarker, StockKlineResponse, WatchlistDashboardPeriod } from '../../types/api';
 import { formatNumber, formatPercent } from '../../utils/format';
 
 const props = defineProps<{
   klineData: StockKlineResponse | null;
+  currentPeriod?: WatchlistDashboardPeriod;
   highlightedEventTime?: string | null;
 }>();
 
 const emit = defineEmits<{
   focusNews: [event: NewsEventMarker];
+  switchPeriod: [period: WatchlistDashboardPeriod];
 }>();
 
 const mainChartRef = ref<HTMLElement | null>(null);
 const subChartRef = ref<HTMLElement | null>(null);
 const activeSubIndicator = ref<'VOL' | 'MACD' | 'KDJ'>('VOL');
+const dashboardCollapsed = ref(false);
 
 let chart: IChartApi | null = null;
 let subChart: IChartApi | null = null;
@@ -57,6 +60,50 @@ const latestCandle = computed(() => candles.value.at(-1) ?? null);
 const latestMacd = computed(() => props.klineData?.indicators.macd.at(-1) ?? null);
 const latestKdj = computed(() => props.klineData?.indicators.kdj.at(-1) ?? null);
 const latestBoll = computed(() => props.klineData?.indicators.bollinger.at(-1) ?? null);
+const subIndicatorLabelMap: Record<'VOL' | 'MACD' | 'KDJ', string> = {
+  VOL: '成交量',
+  MACD: 'MACD',
+  KDJ: 'KDJ',
+};
+const activeSubIndicatorLabel = computed(() => subIndicatorLabelMap[activeSubIndicator.value]);
+const periods: Array<{ value: WatchlistDashboardPeriod; label: string }> = [
+  { value: '1D', label: '日K' },
+  { value: '1W', label: '周K' },
+  { value: '1M', label: '月K' },
+  { value: '1Y', label: '年K' },
+];
+
+function formatKlinePeriod(interval: string | undefined, range: string | undefined): string {
+  if (interval === '1d' && range === '1y') {
+    return '日K';
+  }
+  if (interval === '1wk' && range === '5y') {
+    return '周K';
+  }
+  if (interval === '1mo' && range === '10y') {
+    return '月K';
+  }
+  if (interval === '1mo' && range === 'max') {
+    return '年K';
+  }
+  return interval ?? '--';
+}
+
+function formatKlineRange(interval: string | undefined, range: string | undefined): string {
+  if (interval === '1d' && range === '1y') {
+    return '近1年';
+  }
+  if (interval === '1wk' && range === '5y') {
+    return '近5年';
+  }
+  if (interval === '1mo' && range === '10y') {
+    return '近10年';
+  }
+  if (interval === '1mo' && range === 'max') {
+    return '长期';
+  }
+  return range ?? '--';
+}
 
 function clampRatio(value: number | null): number | null {
   if (value === null || Number.isNaN(value)) {
@@ -110,17 +157,17 @@ const averageVolume20 = computed(() => {
 
 const dashboardGauges = computed(() => [
   {
-    label: 'Session Range',
+    label: '日内区间',
     value: formatRatio(sessionRangeRatio.value),
     ratio: sessionRangeRatio.value ?? 0,
   },
   {
-    label: '6M Range',
+    label: '区间位置',
     value: formatRatio(rangeRatio.value),
     ratio: rangeRatio.value ?? 0,
   },
   {
-    label: 'Bias vs MA20',
+    label: '偏离MA20',
     value:
       latestCandle.value && latestValue(props.klineData?.indicators.ma20)
         ? formatPercent(((latestCandle.value.close - (latestValue(props.klineData?.indicators.ma20) ?? 0)) / (latestValue(props.klineData?.indicators.ma20) ?? 1)) * 100)
@@ -137,10 +184,10 @@ const technicalReadouts = computed(() => [
   ['MA10', formatNumber(latestValue(props.klineData?.indicators.ma10))],
   ['MA20', formatNumber(latestValue(props.klineData?.indicators.ma20))],
   ['MA60', formatNumber(latestValue(props.klineData?.indicators.ma60))],
-  ['BOLL U', formatNumber(latestBoll.value?.upper)],
-  ['BOLL M', formatNumber(latestBoll.value?.middle)],
-  ['BOLL L', formatNumber(latestBoll.value?.lower)],
-  ['Avg Vol 20', formatNumber(averageVolume20.value, 0)],
+  ['BOLL上轨', formatNumber(latestBoll.value?.upper)],
+  ['BOLL中轨', formatNumber(latestBoll.value?.middle)],
+  ['BOLL下轨', formatNumber(latestBoll.value?.lower)],
+  ['20日均量', formatNumber(averageVolume20.value, 0)],
 ]);
 
 const subIndicatorRows = computed(() => {
@@ -148,7 +195,7 @@ const subIndicatorRows = computed(() => {
     return [
       ['DIF', formatNumber(latestMacd.value?.dif)],
       ['DEA', formatNumber(latestMacd.value?.dea)],
-      ['Histogram', formatNumber(latestMacd.value?.histogram)],
+      ['柱值', formatNumber(latestMacd.value?.histogram)],
     ];
   }
   if (activeSubIndicator.value === 'KDJ') {
@@ -159,19 +206,19 @@ const subIndicatorRows = computed(() => {
     ];
   }
   return [
-    ['Volume', formatNumber(latestCandle.value?.volume, 0)],
-    ['Avg Vol 20', formatNumber(averageVolume20.value, 0)],
-    ['Close', formatNumber(latestCandle.value?.close)],
+    ['成交量', formatNumber(latestCandle.value?.volume, 0)],
+    ['20日均量', formatNumber(averageVolume20.value, 0)],
+    ['收盘', formatNumber(latestCandle.value?.close)],
   ];
 });
 
 const summaryItems = computed(() => {
   const klineData = props.klineData;
   return [
-    { label: klineData?.symbol ?? 'Market Overview', value: klineData?.symbol ?? '--' },
-    { label: 'Interval', value: klineData?.interval ?? '--' },
-    { label: 'Range', value: klineData?.range ?? '--' },
-    { label: 'Candles', value: klineData?.candles.length.toString() ?? '0' },
+    { label: '代码', value: klineData?.symbol ?? '--' },
+    { label: '周期', value: formatKlinePeriod(klineData?.interval, klineData?.range) },
+    { label: '范围', value: formatKlineRange(klineData?.interval, klineData?.range) },
+    { label: 'K线数', value: klineData?.candles.length.toString() ?? '0' },
   ];
 });
 
@@ -477,17 +524,51 @@ onBeforeUnmount(() => {
   >
     <header class="flex flex-wrap items-start justify-between gap-3">
       <div class="space-y-1">
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Trading Desk</p>
-        <strong class="block text-lg text-text">{{ klineData?.symbol ?? 'Market Overview' }}</strong>
-        <p class="text-xs text-text-faint">{{ klineData?.stale ? 'Data stale' : 'Terminal chart shell' }}</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">K线图</p>
+        <strong class="block text-lg text-text">{{ klineData?.symbol ?? '市场概览' }}</strong>
+        <p class="text-xs text-text-faint">{{ klineData?.stale ? '数据可能不是最新' : '更新时间以最新行情返回为准' }}</p>
       </div>
+      <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">更新时间 {{ klineData ? '最新' : '--' }}</span>
     </header>
 
-    <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_292px] xl:items-start">
+    <div
+      class="grid gap-3 xl:items-start"
+      :class="dashboardCollapsed ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_292px]'"
+      data-role="kline-layout-shell"
+      :data-sidebar-collapsed="dashboardCollapsed ? 'true' : 'false'"
+    >
       <div
         class="grid gap-3"
       >
-        <div class="grid gap-3 rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-3" data-role="kline-chart-summary">
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-[16px] border border-border/70 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-period-toolbar">
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="period in periods"
+              :key="period.value"
+              type="button"
+              class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
+              :class="currentPeriod === period.value ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+              :data-role="`period-chip-${period.value}`"
+              :data-active="currentPeriod === period.value ? 'true' : 'false'"
+              @click="emit('switchPeriod', period.value)"
+            >
+              {{ period.label }}
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              data-role="toggle-dashboard"
+              class="rounded-full border border-border/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-text-faint"
+              @click="dashboardCollapsed = !dashboardCollapsed"
+            >
+              {{ dashboardCollapsed ? '展开面板' : '收起面板' }}
+            </button>
+            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">快速切换周期</span>
+          </div>
+        </div>
+
+        <div class="grid gap-3 rounded-[16px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-3" data-role="kline-chart-summary">
           <div class="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
             <span
               v-for="item in summaryItems"
@@ -522,7 +603,7 @@ onBeforeUnmount(() => {
                     :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
                     @click="activeSubIndicator = 'VOL'"
                   >
-                    VOL
+                    成交量
                   </button>
                   <button
                     type="button"
@@ -543,13 +624,13 @@ onBeforeUnmount(() => {
                     KDJ
                   </button>
                 </div>
-                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">Sub Panel {{ activeSubIndicator }}</span>
+                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">副图 {{ activeSubIndicatorLabel }}</span>
               </div>
               <div ref="subChartRef" class="mt-3 h-[140px] w-full" />
               <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-subindicator-panel">
                 <div class="flex items-center justify-between gap-3">
-                  <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">{{ activeSubIndicator }}</span>
-                  <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">Latest Signal</span>
+                  <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">{{ activeSubIndicatorLabel }}</span>
+                  <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">最新读数</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                   <article v-for="[label, value] in subIndicatorRows" :key="label" class="grid gap-0.5">
@@ -588,19 +669,20 @@ onBeforeUnmount(() => {
             "
             @click="emit('focusNews', event)"
           >
-            {{ event.time }} · {{ event.items.length }} news
+            {{ event.time }} · {{ event.items.length }} 条新闻
           </button>
         </div>
       </div>
 
       <aside
+        v-if="!dashboardCollapsed"
         class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(180deg,rgba(15,22,34,0.98),rgba(9,14,22,0.98))] p-3"
         data-role="kline-chart-dashboard"
       >
         <div class="grid gap-2">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">Indicator Deck</span>
-            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ activeSubIndicator }}</span>
+            <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">指标面板</span>
+            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ activeSubIndicatorLabel }}</span>
           </div>
           <div class="grid gap-2">
             <article v-for="item in dashboardGauges" :key="item.label" class="grid gap-1 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
@@ -617,7 +699,7 @@ onBeforeUnmount(() => {
 
         <div class="grid gap-2 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-3">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">Technical Grid</span>
+            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">技术读数</span>
             <strong class="text-sm text-text">{{ formatNumber(latestCandle?.close) }}</strong>
           </div>
           <div class="grid grid-cols-2 gap-x-3 gap-y-2">

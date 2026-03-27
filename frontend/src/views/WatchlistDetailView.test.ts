@@ -147,18 +147,14 @@ describe('WatchlistDetailView', () => {
     expect(wrapper.text()).toContain('返回自选股总览');
   });
 
-  it('renders the dedicated detail layout with news below kline and settings popover entry', async () => {
+  it('renders the dedicated detail layout with news below kline and without the old settings popover entry', async () => {
     const wrapper = mount(WatchlistDetailView);
     await flushPromises();
 
     expect(wrapper.find('[data-role="trading-desk-main"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="watchlist-detail-news"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="indicator-chart-stub"]').exists()).toBe(false);
-
-    await wrapper.get('[data-role="watchlist-settings-trigger"]').trigger('click');
-
-    expect(wrapper.find('[data-role="watchlist-settings-popover"]').exists()).toBe(true);
   });
 
   it('falls back to the watchlist list when the route symbol is missing', async () => {

@@ -21,11 +21,8 @@ const emit = defineEmits<{
 }>();
 
 const highlightedEventTime = ref<string | null>(null);
-const settingsOpen = ref(false);
 
-const periods: WatchlistDashboardPeriod[] = ['1D', '1W', '1M', '3M', '1Y'];
-
-const headline = computed(() => props.quote?.display_name ?? props.klineData?.symbol ?? 'Market Overview');
+const headline = computed(() => props.quote?.display_name ?? props.klineData?.symbol ?? '市场概览');
 const symbolLabel = computed(() => props.quote?.symbol ?? props.klineData?.symbol ?? '--');
 const lastPrice = computed(() => {
   if (props.quote?.price === null || props.quote?.price === undefined) {
@@ -102,15 +99,15 @@ const averageVolume20 = computed(() => {
 });
 
 const quoteMetrics = computed(() => [
-  ['Open', formatNumber(props.quote?.open_price)],
-  ['Prev Close', formatNumber(props.quote?.previous_close)],
-  ['High', formatNumber(props.quote?.day_high)],
-  ['Low', formatNumber(props.quote?.day_low)],
-  ['Volume', formatNumber(props.quote?.volume, 0)],
-  ['Amplitude', formatPercent(amplitude.value)],
-  ['Session Pos', formatRatio(sessionPosition.value)],
-  ['Avg Vol 20', formatNumber(averageVolume20.value, 0)],
-  ['6M Pos', formatRatio(sixMonthPosition.value)],
+  ['开盘', formatNumber(props.quote?.open_price)],
+  ['昨收', formatNumber(props.quote?.previous_close)],
+  ['最高', formatNumber(props.quote?.day_high)],
+  ['最低', formatNumber(props.quote?.day_low)],
+  ['成交量', formatNumber(props.quote?.volume, 0)],
+  ['振幅', formatPercent(amplitude.value)],
+  ['日内位置', formatRatio(sessionPosition.value)],
+  ['20日均量', formatNumber(averageVolume20.value, 0)],
+  ['区间位置', formatRatio(sixMonthPosition.value)],
 ]);
 
 function focusNewsEvent(event: NewsEventMarker) {
@@ -125,105 +122,58 @@ function focusNewsItem(item: NewsItem) {
 <template>
   <section class="grid gap-4" data-role="stock-detail-panel">
     <header
-      class="grid gap-3 rounded-[20px] border border-[rgba(148,163,184,0.16)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] p-4 shadow-[0_18px_46px_rgba(2,6,12,0.34)]"
+      class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] px-3 py-3 shadow-[0_14px_34px_rgba(2,6,12,0.28)]"
       data-role="trading-desk-summary"
     >
-      <div class="grid gap-3 xl:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.15fr)_auto] xl:items-start">
-        <div class="grid gap-2" data-role="trading-desk-price-strip">
-          <div class="grid gap-1">
-            <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Trading Desk</p>
+      <div class="grid gap-3 xl:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.22fr)] xl:items-center">
+        <div class="grid gap-1.5" data-role="trading-desk-price-strip">
+          <div class="grid gap-0.5">
+            <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">行情看盘</p>
             <div class="flex flex-wrap items-end gap-x-2 gap-y-1">
-              <h2 class="text-[28px] font-semibold leading-none text-text">{{ headline }}</h2>
+              <h2 class="text-[24px] font-semibold leading-none text-text">{{ headline }}</h2>
               <span class="text-[11px] uppercase tracking-[0.22em] text-text-faint">{{ symbolLabel }}</span>
             </div>
           </div>
-          <div class="flex flex-wrap items-end gap-x-3 gap-y-1">
-            <strong class="text-[40px] font-semibold leading-none text-text">{{ lastPrice }}</strong>
+          <div class="flex flex-wrap items-end gap-x-2.5 gap-y-1">
+            <strong class="text-[34px] font-semibold leading-none text-text">{{ lastPrice }}</strong>
             <div class="grid gap-0.5">
-              <span class="text-base font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+              <span class="text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
                 {{ changeAmount }}
               </span>
-              <span class="text-base font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+              <span class="text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
                 {{ formatPercent(quote?.change_percent) }}
               </span>
             </div>
           </div>
         </div>
         <div
-          class="grid gap-2 rounded-[16px] border border-[rgba(148,163,184,0.12)] bg-[rgba(255,255,255,0.03)] px-3 py-3"
+          class="grid gap-1.5 rounded-[14px] border border-[rgba(148,163,184,0.1)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5"
           data-role="terminal-quote-matrix"
         >
-          <div class="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-3 xl:grid-cols-3">
+          <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 md:grid-cols-3 xl:grid-cols-3">
             <article v-for="[label, value] in quoteMetrics" :key="label" class="grid gap-0.5">
               <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ label }}</span>
               <strong class="text-sm text-text">{{ value }}</strong>
             </article>
           </div>
         </div>
-        <div class="relative self-start">
-          <button
-            type="button"
-            class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(148,163,184,0.2)] bg-[rgba(255,255,255,0.04)] text-lg text-text-faint transition hover:border-[#ffb66d] hover:text-[#ffca97]"
-            data-role="watchlist-settings-trigger"
-            @click="settingsOpen = !settingsOpen"
-          >
-            ⚙
-          </button>
-          <div
-            v-if="settingsOpen"
-            class="absolute right-0 top-12 z-20 w-[280px] rounded-[18px] border border-[rgba(148,163,184,0.16)] bg-[linear-gradient(180deg,rgba(10,17,27,0.98),rgba(7,12,22,0.99))] p-3 shadow-[0_18px_40px_rgba(2,6,12,0.34)]"
-            data-role="watchlist-settings-popover"
-          >
-            <div class="grid gap-3">
-              <div class="flex items-center justify-between gap-2">
-                <div>
-                  <p class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">Settings</p>
-                  <strong class="text-sm text-text">图表工具</strong>
-                </div>
-                <button
-                  type="button"
-                  class="rounded-full border border-border px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-text-faint"
-                  @click="settingsOpen = false"
-                >
-                  关闭
-                </button>
-              </div>
-              <div class="grid max-h-[220px] gap-3 overflow-y-auto pr-1" data-role="watchlist-settings-scroll">
-                <section class="grid gap-2">
-                  <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">周期</span>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="period in periods"
-                      :key="period"
-                      type="button"
-                      class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.16em]"
-                      :class="
-                        currentPeriod === period
-                          ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
-                          : 'border-[rgba(148,163,184,0.18)] text-text-faint'
-                      "
-                      :data-role="`period-${period}`"
-                      @click="emit('switchPeriod', period)"
-                    >
-                      {{ period }}
-                    </button>
-                  </div>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
-      <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-text-soft">
+      <div class="flex flex-wrap items-center justify-between gap-2 text-[13px] text-text-soft">
         <p>
-          {{ klineLoading ? '正在加载最新终端行情图...' : klineError ? klineError : '主图主导，右侧仪表盘用于快速判断强弱、区间位置与技术状态。' }}
+          {{ klineLoading ? '正在加载最新K线图...' : klineError ? klineError : '上方可快速切换周期，主图与右侧面板分别负责趋势观察和技术读数。' }}
         </p>
-        <span class="text-[11px] uppercase tracking-[0.16em] text-text-faint">Updated {{ updatedAt }}</span>
+        <span class="text-[11px] uppercase tracking-[0.16em] text-text-faint">更新时间 {{ updatedAt }}</span>
       </div>
     </header>
 
     <section data-role="trading-desk-main">
-      <KlineChart :kline-data="klineData" :highlighted-event-time="highlightedEventTime" @focus-news="focusNewsEvent" />
+      <KlineChart
+        :kline-data="klineData"
+        :current-period="currentPeriod"
+        :highlighted-event-time="highlightedEventTime"
+        @focus-news="focusNewsEvent"
+        @switch-period="emit('switchPeriod', $event)"
+      />
     </section>
 
     <section class="grid gap-4" data-role="watchlist-detail-news">
