@@ -30,7 +30,7 @@ const emit = defineEmits<{
   draftUpdate: [anchor: KlineDrawingAnchor];
   draftCommit: [];
   draftCancel: [];
-  drawingSelect: [id: string | null];
+  drawingSelect: [selection: { id: string | null; append: boolean }];
   hoverAnchorChange: [anchor: KlineDrawingAnchor | null];
   drawingAnchorCommit: [drawingId: string, anchors: KlineDrawingAnchor[]];
   drawingMoveCommit: [drawingId: string, anchors: KlineDrawingAnchor[]];
@@ -178,7 +178,7 @@ function fibLevels(points: ProjectedPoint[]) {
 
 function onClick(event: MouseEvent) {
   if (overlayDisabled.value) {
-    emit('drawingSelect', null);
+    emit('drawingSelect', { id: null, append: false });
     return;
   }
   const anchor = buildAnchor(event);
@@ -187,7 +187,7 @@ function onClick(event: MouseEvent) {
   }
   const hit = hitDrawingAtEvent(event);
   if (props.activeTool === 'select') {
-    emit('drawingSelect', hit?.id ?? null);
+    emit('drawingSelect', { id: hit?.id ?? null, append: Boolean(event.shiftKey) });
     return;
   }
   emit('draftStart', anchor);

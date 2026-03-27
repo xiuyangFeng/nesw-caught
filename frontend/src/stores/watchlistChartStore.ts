@@ -12,6 +12,7 @@ import type {
 } from '../types/api';
 import {
   createDrawing,
+  createDrawingId,
   drawingStorageKey,
   restoreDrawings,
   serializeDrawings,
@@ -29,6 +30,7 @@ import {
 export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
   const activeTool = ref<KlineDrawingTool>('select');
   const selectedDrawingId = ref<string | null>(null);
+  const selectedDrawingIds = ref<string[]>([]);
   const safeStorage = (() => {
     try {
       return globalThis.localStorage;
@@ -44,6 +46,8 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     toolType: Exclude<KlineDrawingTool, 'select'>;
     anchors: KlineDrawingAnchor[];
   } | null>(null);
+  const historyPastBySymbol = ref<Record<string, KlineDrawing[][]>>({});
+  const historyFutureBySymbol = ref<Record<string, KlineDrawing[][]>>({});
 
   let persistHandle: ReturnType<typeof setTimeout> | null = null;
 
@@ -75,8 +79,63 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     if (!candles.length) {
       activeTool.value = 'select';
       draft.value = null;
-      selectedDrawingId.value = null;
+      clearSelection();
     }
+  }
+
+  function cloneDrawings(drawings: KlineDrawing[]) {
+    return drawings.map((drawing) => ({
+      ...drawing,
+      style: { ...drawing.style },
+      anchors: drawing.anchors.map((anchor) => ({ ...anchor })),
+      payload: { ...drawing.payload },
+    }));
+  }
+
+  function pushHistory(symbol: string) {
+    const current = cloneDrawings(drawingsBySymbol.value[symbol] ?? []);
+    historyPastBySymbol.value[symbol] = [...(historyPastBySymbol.value[symbol] ?? []), current];
+    historyFutureBySymbol.value[symbol] = [];
+  }
+
+  function canUndo(symbol: string) {
+    return (historyPastBySymbol.value[symbol]?.length ?? 0) > 0;
+  }
+
+  function canRedo(symbol: string) {
+    return (historyFutureBySymbol.value[symbol]?.length ?? 0) > 0;
+  }
+
+  function restoreSnapshot(symbol: string, snapshot: KlineDrawing[]) {
+    drawingsBySymbol.value[symbol] = cloneDrawings(snapshot);
+    const availableIds = new Set(drawingsBySymbol.value[symbol].map((drawing) => drawing.id));
+    selectedDrawingIds.value = selectedDrawingIds.value.filter((id) => availableIds.has(id));
+    selectedDrawingId.value = selectedDrawingIds.value[0] ?? null;
+    schedulePersist(symbol);
+  }
+
+  function undo(symbol: string) {
+    const past = historyPastBySymbol.value[symbol] ?? [];
+    if (!past.length) {
+      return;
+    }
+    const current = cloneDrawings(drawingsBySymbol.value[symbol] ?? []);
+    const snapshot = past[past.length - 1];
+    historyPastBySymbol.value[symbol] = past.slice(0, -1);
+    historyFutureBySymbol.value[symbol] = [...(historyFutureBySymbol.value[symbol] ?? []), current];
+    restoreSnapshot(symbol, snapshot);
+  }
+
+  function redo(symbol: string) {
+    const future = historyFutureBySymbol.value[symbol] ?? [];
+    if (!future.length) {
+      return;
+    }
+    const current = cloneDrawings(drawingsBySymbol.value[symbol] ?? []);
+    const snapshot = future[future.length - 1];
+    historyFutureBySymbol.value[symbol] = future.slice(0, -1);
+    historyPastBySymbol.value[symbol] = [...(historyPastBySymbol.value[symbol] ?? []), current];
+    restoreSnapshot(symbol, snapshot);
   }
 
   function selectTool(tool: KlineDrawingTool) {
@@ -112,8 +171,10 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     if (!draft.value) {
       return;
     }
+    pushHistory(symbol);
     const drawing = createDrawing(symbol, draft.value.toolType, draft.value.anchors);
     drawingsBySymbol.value[symbol] = [...(drawingsBySymbol.value[symbol] ?? []), drawing];
+    selectedDrawingIds.value = [drawing.id];
     selectedDrawingId.value = drawing.id;
     draft.value = null;
     activeTool.value = 'select';
@@ -125,7 +186,24 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     activeTool.value = 'select';
   }
 
-  function selectDrawing(id: string | null) {
+  function clearSelection() {
+    selectedDrawingId.value = null;
+    selectedDrawingIds.value = [];
+  }
+
+  function selectDrawing(id: string | null, options?: { append?: boolean }) {
+    if (!id) {
+      clearSelection();
+      return;
+    }
+    if (options?.append) {
+      selectedDrawingIds.value = selectedDrawingIds.value.includes(id)
+        ? selectedDrawingIds.value.filter((item) => item !== id)
+        : [...selectedDrawingIds.value, id];
+      selectedDrawingId.value = selectedDrawingIds.value[0] ?? null;
+      return;
+    }
+    selectedDrawingIds.value = [id];
     selectedDrawingId.value = id;
   }
 
@@ -135,9 +213,13 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
 
   function patchDrawing(symbol: string, id: string, updater: (drawing: KlineDrawing) => KlineDrawing | null) {
     const current = drawingsBySymbol.value[symbol] ?? [];
+    pushHistory(symbol);
     drawingsBySymbol.value[symbol] = current
       .map((drawing) => (drawing.id === id ? updater(drawing) : drawing))
       .filter((drawing): drawing is KlineDrawing => drawing !== null);
+    const availableIds = new Set(drawingsBySymbol.value[symbol].map((drawing) => drawing.id));
+    selectedDrawingIds.value = selectedDrawingIds.value.filter((drawingId) => availableIds.has(drawingId));
+    selectedDrawingId.value = selectedDrawingIds.value[0] ?? null;
     schedulePersist(symbol);
   }
 
@@ -161,14 +243,12 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
 
   function deleteDrawing(symbol: string, id: string) {
     patchDrawing(symbol, id, () => null);
-    if (selectedDrawingId.value === id) {
-      selectedDrawingId.value = null;
-    }
   }
 
   function clearSymbolDrawings(symbol: string) {
+    pushHistory(symbol);
     drawingsBySymbol.value[symbol] = [];
-    selectedDrawingId.value = null;
+    clearSelection();
     schedulePersist(symbol);
   }
 
@@ -218,6 +298,71 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     subIndicator.value = indicator;
   }
 
+  function deleteSelectedDrawings(symbol: string) {
+    if (!selectedDrawingIds.value.length) {
+      return;
+    }
+    pushHistory(symbol);
+    const selected = new Set(selectedDrawingIds.value);
+    drawingsBySymbol.value[symbol] = (drawingsBySymbol.value[symbol] ?? []).filter((drawing) => !selected.has(drawing.id));
+    clearSelection();
+    schedulePersist(symbol);
+  }
+
+  function duplicateSelectedDrawings(symbol: string) {
+    if (!selectedDrawingIds.value.length) {
+      return;
+    }
+    const current = drawingsBySymbol.value[symbol] ?? [];
+    const selected = current.filter((drawing) => selectedDrawingIds.value.includes(drawing.id));
+    if (!selected.length) {
+      return;
+    }
+    pushHistory(symbol);
+    const now = new Date().toISOString();
+    const clones = selected.map((drawing) => ({
+      ...drawing,
+      id: createDrawingId(),
+      createdAt: now,
+      updatedAt: now,
+      style: { ...drawing.style },
+      anchors: drawing.anchors.map((anchor) => ({ ...anchor })),
+      payload: { ...drawing.payload },
+    }));
+    drawingsBySymbol.value[symbol] = [...current, ...clones];
+    selectedDrawingIds.value = clones.map((drawing) => drawing.id);
+    selectedDrawingId.value = selectedDrawingIds.value[0] ?? null;
+    schedulePersist(symbol);
+  }
+
+  function toggleSelectedLocked(symbol: string) {
+    if (!selectedDrawingIds.value.length) {
+      return;
+    }
+    const selected = new Set(selectedDrawingIds.value);
+    const drawings = drawingsBySymbol.value[symbol] ?? [];
+    const shouldLock = drawings.some((drawing) => selected.has(drawing.id) && !drawing.locked);
+    pushHistory(symbol);
+    drawingsBySymbol.value[symbol] = drawings.map((drawing) =>
+      selected.has(drawing.id) ? updateDrawing(drawing, { locked: shouldLock }) : drawing,
+    );
+    schedulePersist(symbol);
+  }
+
+  function toggleSelectedVisible(symbol: string) {
+    if (!selectedDrawingIds.value.length) {
+      return;
+    }
+    const selected = new Set(selectedDrawingIds.value);
+    const drawings = drawingsBySymbol.value[symbol] ?? [];
+    const shouldShow = drawings.some((drawing) => selected.has(drawing.id) && !drawing.visible);
+    pushHistory(symbol);
+    drawingsBySymbol.value[symbol] = drawings.map((drawing) =>
+      selected.has(drawing.id) ? updateDrawing(drawing, { visible: shouldShow }) : drawing,
+    );
+    schedulePersist(symbol);
+  }
+
   function flushAll() {
     Object.keys(drawingsBySymbol.value).forEach(flushSymbol);
     persistTemplates();
@@ -230,6 +375,7 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
   return {
     activeTool,
     selectedDrawingId,
+    selectedDrawingIds,
     templates,
     activeTemplateId,
     activeTemplate,
@@ -243,7 +389,12 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     commitDraft,
     cancelDraft,
     selectDrawing,
+    clearSelection,
     findDrawing,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
     updateDrawingAnchors,
     updateDrawingStyle,
     moveDrawing,
@@ -257,6 +408,10 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     copyActiveTemplate,
     deleteCustomTemplate,
     setSubIndicator,
+    deleteSelectedDrawings,
+    duplicateSelectedDrawings,
+    toggleSelectedLocked,
+    toggleSelectedVisible,
     flushAll,
   };
 });

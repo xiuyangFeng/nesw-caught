@@ -6,12 +6,16 @@ defineProps<{
   activeTool: KlineDrawingTool;
   drawingDisabled?: boolean;
   collapsed?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }>();
 
 const emit = defineEmits<{
   periodChange: [period: WatchlistDashboardPeriod];
   toolChange: [tool: KlineDrawingTool];
   clearDrawings: [];
+  undo: [];
+  redo: [];
   toggleDashboard: [];
 }>();
 
@@ -50,6 +54,24 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
         </button>
       </div>
       <div class="flex flex-wrap items-center gap-2" data-role="kline-toolbar-action-group">
+        <button
+          type="button"
+          class="rounded-full border border-border/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-text-faint disabled:cursor-not-allowed disabled:opacity-40"
+          data-role="undo-action"
+          :disabled="!canUndo"
+          @click="emit('undo')"
+        >
+          撤销
+        </button>
+        <button
+          type="button"
+          class="rounded-full border border-border/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-text-faint disabled:cursor-not-allowed disabled:opacity-40"
+          data-role="redo-action"
+          :disabled="!canRedo"
+          @click="emit('redo')"
+        >
+          重做
+        </button>
         <button
           type="button"
           class="rounded-full border border-[rgba(255,111,134,0.35)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ff9dad]"

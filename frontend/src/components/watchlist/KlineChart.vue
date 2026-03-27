@@ -10,6 +10,7 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type {
+  KlineDrawing,
   KlineDrawingStyle,
   KlineSubIndicator,
   NewsEventMarker,
@@ -67,6 +68,13 @@ const selectedDrawing = computed(() => {
   const id = chartStore.selectedDrawingId;
   return symbol && id ? chartStore.findDrawing(symbol, id) : null;
 });
+const selectedDrawings = computed(() => {
+  const symbol = props.klineData?.symbol;
+  if (!symbol) {
+    return [];
+  }
+  return chartStore.selectedDrawingIds.map((id) => chartStore.findDrawing(symbol, id)).filter((drawing): drawing is KlineDrawing => drawing !== null);
+});
 const overlayDisabled = computed(() => !props.klineData || !candles.value.length);
 const chartProjector = computed(() => ({
   getXForTime(time: string) {
@@ -104,10 +112,22 @@ const activeHudCandle = computed(() => {
   }
   return latestCandle.value;
 });
-const latestMacd = computed(() => props.klineData?.indicators.macd.at(-1) ?? null);
-const latestKdj = computed(() => props.klineData?.indicators.kdj.at(-1) ?? null);
-const latestRsi = computed(() => calculateRsi(candles.value, 14).at(-1)?.value ?? null);
-const latestBoll = computed(() => props.klineData?.indicators.bollinger.at(-1) ?? null);
+const activeCursorTime = computed(() => hoveredAnchor.value?.time ?? latestCandle.value?.time ?? null);
+
+function indicatorPointByTime<T extends { time: string }>(points: T[], time: string | null) {
+  if (!points.length) {
+    return null;
+  }
+  if (!time) {
+    return points.at(-1) ?? null;
+  }
+  return points.find((point) => point.time === time) ?? points.at(-1) ?? null;
+}
+
+const activeMacd = computed(() => indicatorPointByTime(props.klineData?.indicators.macd ?? [], activeCursorTime.value));
+const activeKdj = computed(() => indicatorPointByTime(props.klineData?.indicators.kdj ?? [], activeCursorTime.value));
+const activeRsi = computed(() => indicatorPointByTime(calculateRsi(candles.value, 14), activeCursorTime.value)?.value ?? null);
+const activeBoll = computed(() => indicatorPointByTime(props.klineData?.indicators.bollinger ?? [], activeCursorTime.value));
 
 function ensureChart() {
   if (chart || !mainChartRef.value) {
@@ -355,6 +375,10 @@ function handleDraftCommit() {
   chartStore.commitDraft(props.klineData.symbol);
 }
 
+function handleDrawingSelect(selection: { id: string | null; append: boolean }) {
+  chartStore.selectDrawing(selection.id, { append: selection.append });
+}
+
 function handleHoverAnchorChange(anchor: { time: string; price: number } | null) {
   hoveredAnchor.value = anchor;
 }
@@ -380,6 +404,40 @@ function handleDrawingLabelCommit(drawingId: string, text: string) {
   chartStore.commitLabelEdit(props.klineData.symbol, drawingId, text);
 }
 
+function handleUndo() {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.undo(props.klineData.symbol);
+}
+
+function handleRedo() {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.redo(props.klineData.symbol);
+}
+
+function handleWindowKeydown(event: KeyboardEvent) {
+  if (!props.klineData?.symbol || (!event.ctrlKey && !event.metaKey)) {
+    return;
+  }
+  if (event.key.toLowerCase() === 'z' && event.shiftKey) {
+    event.preventDefault();
+    chartStore.redo(props.klineData.symbol);
+    return;
+  }
+  if (event.key.toLowerCase() === 'z') {
+    event.preventDefault();
+    chartStore.undo(props.klineData.symbol);
+    return;
+  }
+  if (event.key.toLowerCase() === 'y') {
+    event.preventDefault();
+    chartStore.redo(props.klineData.symbol);
+  }
+}
+
 function currentRangeRatio() {
   if (!candles.value.length) {
     return null;
@@ -394,7 +452,7 @@ function currentRangeRatio() {
 }
 
 const dashboardGauges = computed(() => [
-  { label: '日内区间', value: latestCandle.value ? formatPercent(((latestCandle.value.high - latestCandle.value.low) / Math.max(latestCandle.value.close, 1)) * 100) : '--' },
+  { label: '日内区间', value: activeHudCandle.value ? formatPercent(((activeHudCandle.value.high - activeHudCandle.value.low) / Math.max(activeHudCandle.value.close, 1)) * 100) : '--' },
   { label: '区间位置', value: currentRangeRatio() === null ? '--' : `${Math.round(currentRangeRatio()! * 100)}%` },
   {
     label: '副图',
@@ -403,31 +461,31 @@ const dashboardGauges = computed(() => [
 ]);
 
 const technicalReadouts = computed(() => [
-  ['收盘', formatNumber(latestCandle.value?.close)],
-  ['BOLL上轨', formatNumber(latestBoll.value?.upper)],
-  ['DIF', formatNumber(latestMacd.value?.dif)],
-  ['K', formatNumber(latestKdj.value?.k)],
-  ['RSI14', formatNumber(latestRsi.value)],
+  ['收盘', formatNumber(activeHudCandle.value?.close)],
+  ['BOLL上轨', formatNumber(activeBoll.value?.upper)],
+  ['DIF', formatNumber(activeMacd.value?.dif)],
+  ['K', formatNumber(activeKdj.value?.k)],
+  ['RSI14', formatNumber(activeRsi.value)],
 ]);
 const subIndicatorRows = computed(() => {
   if (activeSubIndicator.value === 'MACD') {
     return [
-      ['DIF', formatNumber(latestMacd.value?.dif)],
-      ['DEA', formatNumber(latestMacd.value?.dea)],
-      ['柱值', formatNumber(latestMacd.value?.histogram)],
+      ['DIF', formatNumber(activeMacd.value?.dif)],
+      ['DEA', formatNumber(activeMacd.value?.dea)],
+      ['柱值', formatNumber(activeMacd.value?.histogram)],
     ];
   }
   if (activeSubIndicator.value === 'KDJ') {
     return [
-      ['K', formatNumber(latestKdj.value?.k)],
-      ['D', formatNumber(latestKdj.value?.d)],
-      ['J', formatNumber(latestKdj.value?.j)],
+      ['K', formatNumber(activeKdj.value?.k)],
+      ['D', formatNumber(activeKdj.value?.d)],
+      ['J', formatNumber(activeKdj.value?.j)],
     ];
   }
   if (activeSubIndicator.value === 'RSI') {
-    return [['RSI14', formatNumber(latestRsi.value)]];
+    return [['RSI14', formatNumber(activeRsi.value)]];
   }
-  return [['成交量', formatNumber(latestCandle.value?.volume, 0)]];
+  return [['成交量', formatNumber(activeHudCandle.value?.volume, 0)]];
 });
 
 watch(
@@ -454,9 +512,11 @@ watch(
 
 onMounted(() => {
   renderChart();
+  window.addEventListener('keydown', handleWindowKeydown);
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleWindowKeydown);
   chart?.remove();
   subChart?.remove();
   chartStore.flushAll();
@@ -481,9 +541,13 @@ onBeforeUnmount(() => {
           :active-tool="chartStore.activeTool"
           :drawing-disabled="overlayDisabled"
           :collapsed="dashboardCollapsed"
+          :can-undo="klineData?.symbol ? chartStore.canUndo(klineData.symbol) : false"
+          :can-redo="klineData?.symbol ? chartStore.canRedo(klineData.symbol) : false"
           @period-change="emit('switchPeriod', $event)"
           @tool-change="chartStore.selectTool($event)"
           @clear-drawings="klineData?.symbol && chartStore.clearSymbolDrawings(klineData.symbol)"
+          @undo="handleUndo"
+          @redo="handleRedo"
           @toggle-dashboard="dashboardCollapsed = !dashboardCollapsed"
         />
 
@@ -532,7 +596,7 @@ onBeforeUnmount(() => {
                 @draft-update="chartStore.updateDraft($event)"
                 @draft-commit="handleDraftCommit"
                 @draft-cancel="chartStore.cancelDraft()"
-                @drawing-select="chartStore.selectDrawing($event)"
+                @drawing-select="handleDrawingSelect"
                 @hover-anchor-change="handleHoverAnchorChange"
                 @drawing-anchor-commit="handleDrawingAnchorCommit"
                 @drawing-move-commit="handleDrawingMoveCommit"
@@ -540,9 +604,16 @@ onBeforeUnmount(() => {
               />
               <KlineDrawingSelectionPopover
                 :drawing="selectedDrawing"
+                :selected-drawings="selectedDrawings"
                 @style-change="klineData?.symbol && selectedDrawing && chartStore.updateDrawingStyle(klineData.symbol, selectedDrawing.id, $event as Partial<KlineDrawingStyle>)"
                 @drawing-lock-toggle="klineData?.symbol && selectedDrawing && chartStore.toggleDrawingLocked(klineData.symbol, selectedDrawing.id)"
+                @drawing-visible-toggle="klineData?.symbol && selectedDrawing && chartStore.toggleDrawingVisible(klineData.symbol, selectedDrawing.id)"
+                @drawing-duplicate="klineData?.symbol && selectedDrawing && (chartStore.selectDrawing(selectedDrawing.id), chartStore.duplicateSelectedDrawings(klineData.symbol))"
                 @drawing-delete="klineData?.symbol && selectedDrawing && chartStore.deleteDrawing(klineData.symbol, selectedDrawing.id)"
+                @drawing-group-lock-toggle="klineData?.symbol && chartStore.toggleSelectedLocked(klineData.symbol)"
+                @drawing-group-visible-toggle="klineData?.symbol && chartStore.toggleSelectedVisible(klineData.symbol)"
+                @drawing-group-duplicate="klineData?.symbol && chartStore.duplicateSelectedDrawings(klineData.symbol)"
+                @drawing-group-delete="klineData?.symbol && chartStore.deleteSelectedDrawings(klineData.symbol)"
               />
             </div>
             <div class="border-t border-border/60 pt-3">
@@ -609,7 +680,7 @@ onBeforeUnmount(() => {
         <div class="grid gap-2 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-3">
           <div class="flex items-center justify-between gap-2">
             <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">图表读数</span>
-            <strong class="text-sm text-text">{{ formatNumber(latestCandle?.close) }}</strong>
+            <strong class="text-sm text-text">{{ formatNumber(activeHudCandle?.close) }}</strong>
           </div>
           <div class="grid gap-2">
             <article v-for="item in dashboardGauges" :key="item.label" class="flex items-center justify-between gap-3">

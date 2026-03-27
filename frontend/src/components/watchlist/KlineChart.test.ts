@@ -23,6 +23,12 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
       <div data-role="kline-drawing-overlay-stub">
         <span data-role="overlay-projector-ready">{{ chartProjector ? 'yes' : 'no' }}</span>
         <button
+          data-role="overlay-select-append"
+          @click="$emit('drawingSelect', { id: 'drawing-2', append: true })"
+        >
+          append
+        </button>
+        <button
           data-role="overlay-hover-anchor"
           @click="$emit('hoverAnchorChange', { time: '2026-03-18', price: 534 })"
         >
@@ -98,6 +104,7 @@ describe('KlineChart', () => {
     const { createPinia, setActivePinia } = await import('pinia');
     setActivePinia(createPinia());
     const { default: KlineChart } = await import('./KlineChart.vue');
+    const { default: KlineToolbar } = await import('./KlineToolbar.vue');
     const { useWatchlistChartStore } = await import('../../stores/watchlistChartStore');
     const chartStore = useWatchlistChartStore();
     const event = { time: '2026-03-19', items: [{ id: 1, title: 'Mainland buyers lift sentiment', sentiment: 'positive' }] };
@@ -118,9 +125,18 @@ describe('KlineChart', () => {
             ma10: [{ time: '2026-03-19', value: 544 }],
             ma20: [{ time: '2026-03-19', value: 542 }],
             ma60: [{ time: '2026-03-19', value: 538 }],
-            macd: [],
-            kdj: [],
-            bollinger: [{ time: '2026-03-19', upper: 556, middle: 547, lower: 538 }],
+            macd: [
+              { time: '2026-03-18', dif: 1.2, dea: 0.8, histogram: 0.4 },
+              { time: '2026-03-19', dif: 2.4, dea: 1.6, histogram: 0.8 },
+            ],
+            kdj: [
+              { time: '2026-03-18', k: 45, d: 40, j: 55 },
+              { time: '2026-03-19', k: 58, d: 52, j: 70 },
+            ],
+            bollinger: [
+              { time: '2026-03-18', upper: 548, middle: 540, lower: 532 },
+              { time: '2026-03-19', upper: 556, middle: 547, lower: 538 },
+            ],
           },
           news_events: [event],
         },
@@ -144,8 +160,21 @@ describe('KlineChart', () => {
         ],
         payload: {},
       },
+      {
+        id: 'drawing-2',
+        symbol: '0700.HK',
+        toolType: 'horizontal_line',
+        createdAt: '2026-03-27T00:00:00.000Z',
+        updatedAt: '2026-03-27T00:00:00.000Z',
+        locked: false,
+        visible: true,
+        style: { color: '#7dd3fc', lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
+        anchors: [{ time: '2026-03-18', price: 540 }],
+        payload: {},
+      },
     ];
     chartStore.selectedDrawingId = 'drawing-1';
+    chartStore.selectedDrawingIds = ['drawing-1'];
 
     expect(chartMock).toHaveBeenCalledTimes(2);
     expect(addSeriesMock).toHaveBeenCalled();
@@ -159,6 +188,8 @@ describe('KlineChart', () => {
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('月K');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('年K');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('收起面板');
+    expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('撤销');
+    expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('重做');
     expect(wrapper.find('[data-role="period-chip-1W"]').attributes('data-active')).toBe('true');
     expect(wrapper.find('[data-role="kline-chart-stage"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="kline-stage-badges"]').text()).toContain('代码');
@@ -194,11 +225,16 @@ describe('KlineChart', () => {
     await wrapper.find('[data-role="overlay-move-commit"]').trigger('click');
     expect(chartStore.drawingsBySymbol['0700.HK'][0]?.anchors?.[0]).toEqual({ time: '2026-03-19', price: 537 });
 
+    await wrapper.find('[data-role="overlay-select-append"]').trigger('click');
+    expect(chartStore.selectedDrawingIds).toEqual(['drawing-1', 'drawing-2']);
+
     await wrapper.find('[data-role="overlay-label-commit"]').trigger('click');
     expect(chartStore.drawingsBySymbol['0700.HK'][0]?.payload?.text).toBe('突破确认');
 
     await wrapper.find('[data-role="indicator-switch-macd"]').trigger('click');
     expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('DIF');
+    await wrapper.find('[data-role="overlay-hover-anchor"]').trigger('click');
+    expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('1.2');
 
     await wrapper.find('[data-role="period-chip-1D"]').trigger('click');
     expect(wrapper.emitted('switchPeriod')?.[0]?.[0]).toBe('1D');
@@ -217,6 +253,28 @@ describe('KlineChart', () => {
 
     await wrapper.find('[data-role="kline-event-chip-2026-03-19"]').trigger('click');
     expect(wrapper.emitted('focusNews')?.[0]?.[0]).toEqual(event);
+
+    wrapper.getComponent(KlineToolbar).vm.$emit('undo');
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.payload?.text).not.toBe('突破确认');
+
+    wrapper.getComponent(KlineToolbar).vm.$emit('undo');
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.anchors?.[0]).toEqual({ time: '2026-03-18', price: 531 });
+
+    wrapper.getComponent(KlineToolbar).vm.$emit('redo');
+    await wrapper.vm.$nextTick();
+    wrapper.getComponent(KlineToolbar).vm.$emit('redo');
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.anchors?.[0]).toEqual({ time: '2026-03-19', price: 537 });
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.payload?.text).not.toBe('突破确认');
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true }));
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.payload?.text).toBe('突破确认');
 
     await wrapper.setProps({ klineData: null });
     expect(seriesMocks.some((series) => series.setData.mock.calls.some((args) => Array.isArray(args[0]) && args[0].length === 0))).toBe(true);

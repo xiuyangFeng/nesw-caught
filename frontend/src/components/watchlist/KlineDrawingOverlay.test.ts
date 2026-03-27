@@ -512,4 +512,72 @@ describe('KlineDrawingOverlay', () => {
     elementFromPointSpy.mockRestore();
     underlying.remove();
   });
+
+  it('supports additive selection with shift-click and clears selection on blank click', async () => {
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [
+          {
+            id: 'trend-1',
+            symbol: '0700.HK',
+            toolType: 'trend_line',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#ffb66d', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.18 },
+            anchors: [
+              { time: '2026-03-18', price: 533.2 },
+              { time: '2026-03-19', price: 550.5 },
+            ],
+            payload: {},
+          },
+          {
+            id: 'horizontal-1',
+            symbol: '0700.HK',
+            toolType: 'horizontal_line',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#7dd3fc', lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
+            anchors: [{ time: '2026-03-18', price: 540 }],
+            payload: {},
+          },
+        ],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: 'trend-1',
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    await overlay.trigger('mousemove', { clientX: 120, clientY: 66 });
+    await wrapper.get('[data-role="drawing-body-horizontal-1"]').trigger('click', { clientX: 120, clientY: 66, shiftKey: true });
+    expect(wrapper.emitted('drawingSelect')?.[0]?.[0]).toEqual({ id: 'horizontal-1', append: true });
+
+    await overlay.trigger('click', { clientX: 280, clientY: 100 });
+    expect(wrapper.emitted('drawingSelect')?.[1]?.[0]).toEqual({ id: null, append: false });
+  });
 });

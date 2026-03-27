@@ -2,6 +2,42 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 00:58
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线统一 cursor 读数与键盘 undo/redo
+- 变更内容：在上一轮 history / 多选基础上继续完成主线收口。`KlineChart` 现在把 hover/cursor 时间统一用作技术读数来源，主图 HUD 之外，副图读数面板、技术面板和右侧图表读数也会随当前 hover candle 切换，而不是始终停留在最新一根 candle。与此同时补入了 `Ctrl/Meta + Z`、`Ctrl/Meta + Shift + Z`、`Ctrl/Meta + Y` 的键盘撤销 / 重做，使 store history 不只可从工具条按钮触发。同步扩展 `KlineChart.test.ts`，锁定 hover 后副图 MACD 读数切换，以及 toolbar / keyboard 两条 undo-redo 路径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或持久化结构；仅前端 chart 集成层新增统一 cursor 派生读数与键盘 history 快捷键
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 先失败后通过（1 个文件 / 1 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistChartStore.test.ts src/components/watchlist/KlineToolbar.test.ts src/components/watchlist/KlineDrawingSelectionPopover.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts src/components/watchlist/KlineIndicatorWorkbench.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（8 个文件 / 20 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 unified cursor 仍主要基于 overlay hover 时间驱动，尚未完全订阅 chart 原生 crosshair move；若后续继续追求更高保真度，可把 visible range 与 logical index 也收进同一 cursor 模型
+
+## 2026-03-28 00:52
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线 store history / 多选 / 对象工具条基础接线
+- 变更内容：开启了这轮主线的第一批基础能力。`watchlistChartStore` 现在新增了 `selectedDrawingIds`、按 symbol 的 drawings 快照 history、`undo / redo`、批量锁定 / 显隐 / 复制 / 删除动作，并保持 `selectedDrawingId` 作为主选中对象兼容层。`KlineToolbar` 新增撤销 / 重做按钮，`KlineDrawingSelectionPopover` 升级为支持单选样式操作和多选 group actions 的对象工具条，`KlineDrawingOverlay` 的选择事件扩展为带 `append` 语义的 payload，支持 `Shift+Click` 加选。`KlineChart` 已接好 undo / redo、加选和 group actions 的基础 wiring，为后续统一 cursor 状态继续铺路。同步新增 `watchlistChartStore.test.ts` 和 `KlineDrawingSelectionPopover.test.ts`，并扩展 toolbar / overlay / chart 测试锁定这些契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineToolbar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineToolbar.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingSelectionPopover.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingSelectionPopover.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-kline-cursor-history-multiselect-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-kline-cursor-history-multiselect-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无后端接口变化；前端本地工作台状态新增多选与 history 契约，overlay `drawingSelect` 事件改为 `{ id, append }`
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/watchlistChartStore.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts` 通过（2 个文件 / 10 个用例）
+- 风险/后续事项：当前已完成多选和 history 的 store 基础，但统一 cursor state 还未完全把主图 HUD、副图读数和 hover 派生收束到同一模型；下一步应继续完成这部分整合并补整组回归验证
+
 ## 2026-03-28 00:40
 
 - 修改人：Codex
