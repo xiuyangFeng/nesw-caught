@@ -61,6 +61,7 @@ const drawings = computed(() => {
   const symbol = props.klineData?.symbol;
   return symbol ? chartStore.drawingsBySymbol[symbol] ?? [] : [];
 });
+const hoveredAnchor = ref<{ time: string; price: number } | null>(null);
 const selectedDrawing = computed(() => {
   const symbol = props.klineData?.symbol;
   const id = chartStore.selectedDrawingId;
@@ -83,6 +84,12 @@ const summaryItems = computed(() => [
 ]);
 
 const latestCandle = computed(() => candles.value.at(-1) ?? null);
+const activeHudCandle = computed(() => {
+  if (hoveredAnchor.value) {
+    return candles.value.find((candle) => candle.time === hoveredAnchor.value?.time) ?? latestCandle.value;
+  }
+  return latestCandle.value;
+});
 const latestMacd = computed(() => props.klineData?.indicators.macd.at(-1) ?? null);
 const latestKdj = computed(() => props.klineData?.indicators.kdj.at(-1) ?? null);
 const latestRsi = computed(() => calculateRsi(candles.value, 14).at(-1)?.value ?? null);
@@ -334,6 +341,10 @@ function handleDraftCommit() {
   chartStore.commitDraft(props.klineData.symbol);
 }
 
+function handleHoverAnchorChange(anchor: { time: string; price: number } | null) {
+  hoveredAnchor.value = anchor;
+}
+
 function currentRangeRatio() {
   if (!candles.value.length) {
     return null;
@@ -387,6 +398,7 @@ const subIndicatorRows = computed(() => {
 watch(
   () => [props.klineData?.symbol, props.klineData?.candles.length],
   () => {
+    hoveredAnchor.value = null;
     if (props.klineData?.symbol) {
       chartStore.hydrateForSymbol(props.klineData.symbol, props.klineData.candles);
       renderChart();
@@ -438,22 +450,36 @@ onBeforeUnmount(() => {
           @toggle-dashboard="dashboardCollapsed = !dashboardCollapsed"
         />
 
-        <div class="grid gap-3 rounded-[16px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-3" data-role="kline-chart-summary">
-          <div class="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
-            <span v-for="[label, value] in summaryItems" :key="label" class="rounded-full border border-border/70 px-2.5 py-1">
-              {{ label }}: <span class="text-text">{{ value }}</span>
-            </span>
+        <div class="relative overflow-hidden rounded-[18px] border border-border/80 bg-[linear-gradient(180deg,rgba(12,19,29,0.92),rgba(8,13,22,0.94))]" data-role="kline-chart-stage">
+          <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-start justify-between gap-3 p-3">
+            <div class="flex max-w-[70%] flex-wrap gap-2" data-role="kline-stage-badges">
+              <span v-for="[label, value] in summaryItems" :key="label" class="rounded-full border border-border/70 bg-[rgba(6,10,17,0.72)] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-text-faint">
+                {{ label }} <span class="text-text">{{ value }}</span>
+              </span>
+            </div>
+            <div class="flex flex-wrap justify-end gap-2" data-role="kline-chart-legend">
+              <span v-for="item in legendItems" :key="item.key" class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[rgba(6,10,17,0.72)] px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-text-faint">
+                <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
+                {{ item.label }}
+              </span>
+            </div>
           </div>
-          <div class="flex flex-wrap justify-start gap-2" data-role="kline-chart-legend">
-            <span v-for="item in legendItems" :key="item.key" class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-text-faint">
-              <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
-              {{ item.label }}
-            </span>
-          </div>
-        </div>
 
-        <div class="relative overflow-hidden rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)]">
-          <div class="relative grid gap-0 p-3">
+          <div class="pointer-events-none absolute left-3 top-14 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-[14px] border border-[rgba(255,183,125,0.18)] bg-[rgba(7,12,22,0.82)] px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
+            <span class="text-text-faint">开 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.open) }}</strong></span>
+            <span class="text-text-faint">高 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.high) }}</strong></span>
+            <span class="text-text-faint">低 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.low) }}</strong></span>
+            <span class="text-text-faint">收 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.close) }}</strong></span>
+            <span class="text-text-faint">
+              涨跌
+              <strong class="ml-1" :class="(activeHudCandle?.close ?? 0) >= (activeHudCandle?.open ?? 0) ? 'text-[#ffca97]' : 'text-[#86efac]'">
+                {{ activeHudCandle ? formatPercent(((activeHudCandle.close - activeHudCandle.open) / Math.max(activeHudCandle.open, 1)) * 100) : '--' }}
+              </strong>
+            </span>
+            <span class="text-text-faint">成交量 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.volume, 0) }}</strong></span>
+          </div>
+
+          <div class="relative grid gap-0 p-3 pt-24">
             <div class="relative">
               <div ref="mainChartRef" class="h-[440px] w-full" />
               <KlineDrawingOverlay
@@ -469,6 +495,7 @@ onBeforeUnmount(() => {
                 @draft-commit="handleDraftCommit"
                 @draft-cancel="chartStore.cancelDraft()"
                 @drawing-select="chartStore.selectDrawing($event)"
+                @hover-anchor-change="handleHoverAnchorChange"
               />
               <KlineDrawingSelectionPopover
                 :drawing="selectedDrawing"
@@ -478,13 +505,13 @@ onBeforeUnmount(() => {
               />
             </div>
             <div class="border-t border-border/60 pt-3">
-              <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center justify-between gap-2" data-role="kline-subindicator-strip">
                 <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">副图 {{ activeSubIndicator }}</span>
-              </div>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <button type="button" data-role="indicator-switch-vol" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('VOL')">成交量</button>
-                <button type="button" data-role="indicator-switch-macd" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'MACD' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('MACD')">MACD</button>
-                <button type="button" data-role="indicator-switch-kdj" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'KDJ' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('KDJ')">KDJ</button>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" data-role="indicator-switch-vol" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('VOL')">成交量</button>
+                  <button type="button" data-role="indicator-switch-macd" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'MACD' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('MACD')">MACD</button>
+                  <button type="button" data-role="indicator-switch-kdj" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'KDJ' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('KDJ')">KDJ</button>
+                </div>
               </div>
               <div ref="subChartRef" class="mt-3 h-[140px] w-full" />
               <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-subindicator-panel">

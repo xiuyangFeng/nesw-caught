@@ -20,6 +20,7 @@ const emit = defineEmits<{
   draftCommit: [];
   draftCancel: [];
   drawingSelect: [id: string | null];
+  hoverAnchorChange: [anchor: KlineDrawingAnchor | null];
 }>();
 
 const overlayRef = ref<HTMLElement | null>(null);
@@ -121,11 +122,13 @@ function onClick(event: MouseEvent) {
 }
 
 function onMousemove(event: MouseEvent) {
-  if (overlayDisabled.value || props.activeTool === 'select') {
+  if (overlayDisabled.value) {
+    emit('hoverAnchorChange', null);
     return;
   }
   const anchor = buildAnchor(event);
-  if (anchor) {
+  emit('hoverAnchorChange', anchor);
+  if (anchor && props.activeTool !== 'select') {
     emit('draftUpdate', anchor);
   }
 }
@@ -137,6 +140,10 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 const hasDraft = computed(() => (props.draftAnchors?.length ?? 0) > 0);
+
+function onMouseleave() {
+  emit('hoverAnchorChange', null);
+}
 
 onMounted(() => {
   refreshSize();
@@ -156,6 +163,7 @@ onBeforeUnmount(() => {
     tabindex="0"
     @click="onClick"
     @mousemove="onMousemove"
+    @mouseleave="onMouseleave"
     @keydown="onKeydown"
   >
     <svg class="h-full w-full">

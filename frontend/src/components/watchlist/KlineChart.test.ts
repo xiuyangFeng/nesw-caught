@@ -5,6 +5,29 @@ vi.mock('@vue/devtools-api', () => ({
   setupDevtoolsPlugin: () => undefined,
 }));
 
+vi.mock('./KlineDrawingOverlay.vue', () => ({
+  default: {
+    props: ['activeTool'],
+    emits: ['draftStart', 'draftUpdate', 'draftCommit', 'draftCancel', 'drawingSelect', 'hoverAnchorChange'],
+    template: `
+      <div data-role="kline-drawing-overlay-stub">
+        <button
+          data-role="overlay-hover-anchor"
+          @click="$emit('hoverAnchorChange', { time: '2026-03-18', price: 534 })"
+        >
+          hover
+        </button>
+        <button
+          data-role="overlay-clear-hover"
+          @click="$emit('hoverAnchorChange', null)"
+        >
+          clear
+        </button>
+      </div>
+    `,
+  },
+}));
+
 let addSeriesMock: ReturnType<typeof vi.fn>;
 let chartMock: ReturnType<typeof vi.fn>;
 let seriesMocks: Array<{ setData: ReturnType<typeof vi.fn> }>;
@@ -55,7 +78,10 @@ describe('KlineChart', () => {
           interval: '1mo',
           range: 'max',
           stale: false,
-          candles: [{ time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 }],
+          candles: [
+            { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+            { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+          ],
           indicators: {
             ma5: [{ time: '2026-03-19', value: 548 }],
             ma10: [{ time: '2026-03-19', value: 544 }],
@@ -78,27 +104,38 @@ describe('KlineChart', () => {
     expect(wrapper.find('[data-role="kline-chart-legend"]').text()).toContain('MA20');
     expect(wrapper.find('[data-role="kline-chart-legend"]').text()).toContain('MA60');
     expect(wrapper.find('[data-role="kline-chart-legend"]').text()).toContain('BOLL');
-    expect(wrapper.find('[data-role="kline-chart-summary"]').text()).toContain('0700.HK');
-    expect(wrapper.find('[data-role="kline-chart-summary"]').text()).toContain('年K');
-    expect(wrapper.find('[data-role="kline-chart-summary"]').text()).toContain('长期');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('日K');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('周K');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('月K');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('年K');
     expect(wrapper.find('[data-role="kline-period-toolbar"]').text()).toContain('收起面板');
     expect(wrapper.find('[data-role="period-chip-1W"]').attributes('data-active')).toBe('true');
+    expect(wrapper.find('[data-role="kline-chart-stage"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="kline-stage-badges"]').text()).toContain('代码');
+    expect(wrapper.find('[data-role="kline-stage-badges"]').text()).toContain('年K');
+    expect(wrapper.find('[data-role="kline-stage-badges"]').text()).toContain('长期');
+    expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('开');
+    expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('550.5');
+    expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('成交量');
     expect(wrapper.find('[data-role="kline-layout-shell"]').attributes('data-sidebar-collapsed')).toBe('false');
     expect(wrapper.find('[data-role="kline-chart-dashboard"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="toggle-dashboard"]').text()).toContain('收起面板');
-    expect(wrapper.find('[data-role="kline-chart-dashboard"]').text()).toContain('日内区间');
-    expect(wrapper.find('[data-role="kline-chart-dashboard"]').text()).toContain('区间位置');
+    expect(wrapper.find('[data-role="kline-chart-dashboard"]').text()).toContain('模板库');
     expect(wrapper.find('[data-role="indicator-switch-vol"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="indicator-switch-vol"]').text()).toContain('成交量');
     expect(wrapper.find('[data-role="indicator-switch-macd"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="indicator-switch-kdj"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('成交量');
+    expect(wrapper.find('[data-role="kline-subindicator-strip"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="kline-chart"]').text()).toContain('更新时间');
     expect(wrapper.find('[data-role="kline-event-chip-2026-03-19"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="kline-chart-summary"]').exists()).toBe(false);
+
+    await wrapper.find('[data-role="overlay-hover-anchor"]').trigger('click');
+    expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('533.2');
+
+    await wrapper.find('[data-role="overlay-clear-hover"]').trigger('click');
+    expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('550.5');
 
     await wrapper.find('[data-role="indicator-switch-macd"]').trigger('click');
     expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('DIF');

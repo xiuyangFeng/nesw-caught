@@ -2,6 +2,27 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-27 23:42
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线专业终端化重排
+- 变更内容：继续在上一版 K 线工作台基础上做“图优先”的专业终端化优化。将原先独立的摘要卡并入主图舞台，新增图内 `HUD` 读数带和顶部角标，将 `代码 / 周期 / 范围 / 图例` 收敛到图内信息层；把副图切换区压缩成更紧凑的控制条；将 `KlineToolbar` 重排为分组控制带、`KlineIndicatorWorkbench` 收紧为更像侧柜的模板库；同时为 `KlineDrawingOverlay` 增加 `hover-anchor-change` 事件，让主图可以根据 hover candle 实时切换 HUD 读数。为这轮调整新增了 `KlineToolbar`、`KlineIndicatorWorkbench`、`KlineDrawingOverlay` 三个组件级测试，并扩展了 `KlineChart` 集成测试覆盖图内 HUD 与 hover 回退。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineToolbar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineIndicatorWorkbench.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineToolbar.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineIndicatorWorkbench.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-kline-chart-professional-polish-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-chart-professional-polish-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增后端接口或数据结构；仅前端组件事件增加 `hover-anchor-change`，用于主图 HUD 的本地读数联动
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineToolbar.test.ts src/components/watchlist/KlineIndicatorWorkbench.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 先失败后通过（4 个文件 / 4 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（2 个文件 / 3 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineToolbar.test.ts src/components/watchlist/KlineIndicatorWorkbench.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（6 个文件 / 11 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮只做到 hover 读数 HUD，没有实现真正十字光标、价格轴联动或更高精度的 overlay 命中；当前 HUD 仍依赖前端 candle 序列近似吸附，下一轮如果继续追求专业终端体验，应该把 crosshair 和 hover 事件进一步接到更真实的图表坐标体系
+
 ## 2026-03-27 23:15
 
 - 修改人：Codex

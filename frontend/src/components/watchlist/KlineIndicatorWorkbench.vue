@@ -36,7 +36,7 @@ function summary(template: KlineIndicatorTemplate | null) {
 
 <template>
   <aside class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(180deg,rgba(15,22,34,0.98),rgba(9,14,22,0.98))] p-3" data-role="kline-indicator-workbench">
-    <div class="grid gap-1">
+    <div class="grid gap-1" data-role="workbench-template-header">
       <div class="flex items-center justify-between gap-2">
         <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">指标工作台</span>
         <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ subIndicator }}</span>
@@ -47,7 +47,11 @@ function summary(template: KlineIndicatorTemplate | null) {
       </p>
     </div>
 
-    <div class="grid gap-2" data-role="template-library">
+    <div class="grid gap-2" data-role="workbench-template-library">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">模板库</span>
+        <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ templates.length }} 套</span>
+      </div>
       <button
         v-for="template in templates"
         :key="template.id"
@@ -65,7 +69,7 @@ function summary(template: KlineIndicatorTemplate | null) {
       </button>
     </div>
 
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-2" data-role="workbench-action-row">
       <button type="button" data-role="template-save" class="rounded-full border border-border/70 px-3 py-1 text-[11px] text-text-faint" @click="emit('templateSave')">
         另存为模板
       </button>
@@ -89,7 +93,7 @@ function summary(template: KlineIndicatorTemplate | null) {
       </button>
     </div>
 
-    <div class="flex flex-wrap gap-2">
+    <div class="flex flex-wrap gap-2" data-role="workbench-subindicator-row">
       <button
         v-for="item in ['VOL', 'MACD', 'KDJ', 'RSI']"
         :key="item"

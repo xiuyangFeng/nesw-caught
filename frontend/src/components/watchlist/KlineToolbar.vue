@@ -33,9 +33,9 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
 </script>
 
 <template>
-  <div class="grid gap-2 rounded-[16px] border border-border/70 bg-[rgba(255,255,255,0.02)] px-3 py-2.5">
+  <div class="grid gap-2 rounded-[16px] border border-border/70 bg-[linear-gradient(180deg,rgba(16,22,33,0.95),rgba(10,15,24,0.92))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" data-role="kline-toolbar-shell">
     <div class="flex flex-wrap items-center justify-between gap-2" data-role="kline-period-toolbar">
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-2" data-role="kline-toolbar-period-group">
         <button
           v-for="period in periods"
           :key="period.value"
@@ -49,26 +49,28 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
           {{ period.label }}
         </button>
       </div>
-      <button
-        type="button"
-        class="rounded-full border border-[rgba(255,111,134,0.35)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ff9dad]"
-        data-role="clear-drawings"
-        :disabled="drawingDisabled"
-        @click="emit('clearDrawings')"
-      >
-        清空画线
-      </button>
-      <button
-        type="button"
-        class="rounded-full border border-border/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-text-faint"
-        data-role="toggle-dashboard"
-        @click="emit('toggleDashboard')"
-      >
-        {{ collapsed ? '展开面板' : '收起面板' }}
-      </button>
+      <div class="flex flex-wrap items-center gap-2" data-role="kline-toolbar-action-group">
+        <button
+          type="button"
+          class="rounded-full border border-[rgba(255,111,134,0.35)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ff9dad]"
+          data-role="clear-drawings"
+          :disabled="drawingDisabled"
+          @click="emit('clearDrawings')"
+        >
+          清空画线
+        </button>
+        <button
+          type="button"
+          class="rounded-full border border-border/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-text-faint"
+          data-role="toggle-dashboard"
+          @click="emit('toggleDashboard')"
+        >
+          {{ collapsed ? '展开面板' : '收起面板' }}
+        </button>
+      </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2" data-role="kline-tool-toolbar">
+    <div class="flex flex-wrap items-center gap-2" data-role="kline-toolbar-tool-group">
       <button
         v-for="tool in tools"
         :key="tool.value"
@@ -76,6 +78,7 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
         class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
         :class="activeTool === tool.value ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
         :data-role="`tool-chip-${tool.value}`"
+        :data-active="activeTool === tool.value ? 'true' : 'false'"
         :disabled="drawingDisabled && tool.value !== 'select'"
         @click="emit('toolChange', tool.value)"
       >
