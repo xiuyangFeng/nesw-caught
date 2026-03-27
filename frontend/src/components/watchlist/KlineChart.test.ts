@@ -8,7 +8,16 @@ vi.mock('@vue/devtools-api', () => ({
 vi.mock('./KlineDrawingOverlay.vue', () => ({
   default: {
     props: ['activeTool'],
-    emits: ['draftStart', 'draftUpdate', 'draftCommit', 'draftCancel', 'drawingSelect', 'hoverAnchorChange'],
+    emits: [
+      'draftStart',
+      'draftUpdate',
+      'draftCommit',
+      'draftCancel',
+      'drawingSelect',
+      'hoverAnchorChange',
+      'drawingAnchorCommit',
+      'drawingMoveCommit',
+    ],
     template: `
       <div data-role="kline-drawing-overlay-stub">
         <button
@@ -22,6 +31,18 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
           @click="$emit('hoverAnchorChange', null)"
         >
           clear
+        </button>
+        <button
+          data-role="overlay-anchor-commit"
+          @click="$emit('drawingAnchorCommit', 'drawing-1', [{ time: '2026-03-18', price: 531 }, { time: '2026-03-20', price: 559 }])"
+        >
+          anchor
+        </button>
+        <button
+          data-role="overlay-move-commit"
+          @click="$emit('drawingMoveCommit', 'drawing-1', [{ time: '2026-03-19', price: 537 }, { time: '2026-03-20', price: 554 }])"
+        >
+          move
         </button>
       </div>
     `,
@@ -69,6 +90,8 @@ describe('KlineChart', () => {
     const { createPinia, setActivePinia } = await import('pinia');
     setActivePinia(createPinia());
     const { default: KlineChart } = await import('./KlineChart.vue');
+    const { useWatchlistChartStore } = await import('../../stores/watchlistChartStore');
+    const chartStore = useWatchlistChartStore();
     const event = { time: '2026-03-19', items: [{ id: 1, title: 'Mainland buyers lift sentiment', sentiment: 'positive' }] };
     const wrapper = mount(KlineChart, {
       props: {
@@ -96,6 +119,25 @@ describe('KlineChart', () => {
       },
       attachTo: document.body,
     });
+
+    chartStore.drawingsBySymbol['0700.HK'] = [
+      {
+        id: 'drawing-1',
+        symbol: '0700.HK',
+        toolType: 'trend_line',
+        createdAt: '2026-03-27T00:00:00.000Z',
+        updatedAt: '2026-03-27T00:00:00.000Z',
+        locked: false,
+        visible: true,
+        style: { color: '#ffb66d', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.18 },
+        anchors: [
+          { time: '2026-03-18', price: 533.2 },
+          { time: '2026-03-19', price: 550.5 },
+        ],
+        payload: {},
+      },
+    ];
+    chartStore.selectedDrawingId = 'drawing-1';
 
     expect(chartMock).toHaveBeenCalledTimes(2);
     expect(addSeriesMock).toHaveBeenCalled();
@@ -137,6 +179,12 @@ describe('KlineChart', () => {
     await wrapper.find('[data-role="overlay-clear-hover"]').trigger('click');
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('550.5');
 
+    await wrapper.find('[data-role="overlay-anchor-commit"]').trigger('click');
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.anchors?.[1]).toEqual({ time: '2026-03-20', price: 559 });
+
+    await wrapper.find('[data-role="overlay-move-commit"]').trigger('click');
+    expect(chartStore.drawingsBySymbol['0700.HK'][0]?.anchors?.[0]).toEqual({ time: '2026-03-19', price: 537 });
+
     await wrapper.find('[data-role="indicator-switch-macd"]').trigger('click');
     expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('DIF');
 
@@ -161,5 +209,18 @@ describe('KlineChart', () => {
     await wrapper.setProps({ klineData: null });
     expect(seriesMocks.some((series) => series.setData.mock.calls.some((args) => Array.isArray(args[0]) && args[0].length === 0))).toBe(true);
     expect(wrapper.find('[data-role="kline-chart-empty-state"]').exists()).toBe(true);
+
+    await wrapper.setProps({
+      klineData: {
+        symbol: 'BABA',
+        interval: '1d',
+        range: '1y',
+        stale: false,
+        candles: [{ time: '2026-03-21', open: 100, high: 110, low: 98, close: 108, volume: 800 }],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+    });
+    expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('108');
   });
 });

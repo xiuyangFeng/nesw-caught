@@ -2,6 +2,38 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 00:14
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线 crosshair / 画线编辑 review 修正
+- 变更内容：根据本轮 code review 继续修正了 K 线 overlay 的三个实际问题。第一，统一把拖拽起点和结束点都改为基于 overlay 自身坐标系计算，避免从趋势线/矩形 SVG 本体发起拖拽时落入 shape 局部坐标，导致对象整体移动跳错 candle。第二，在 `mouseleave` 与全局 `mouseup` 上补了 drag state 清理，避免鼠标在图外释放后把旧拖拽状态带回下一次提交。第三，为 overlay 挂上 `ResizeObserver`，让侧栏折叠/展开等布局变化后也会刷新 overlay 尺寸，保持 crosshair 与标签定位不漂移。同步扩展了 `KlineDrawingOverlay.test.ts`，新增了对精确 anchors 提交、锁定对象不可拖动、stale drag reset 和 ResizeObserver 尺寸刷新的覆盖。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或持久化结构；仅修正前端 overlay 交互实现与测试覆盖
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts` 先失败后通过（1 个文件 / 5 个用例）；`npm --prefix frontend run test -- --run src/utils/klineOverlayGeometry.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts src/components/watchlist/KlineToolbar.test.ts src/components/watchlist/KlineIndicatorWorkbench.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（7 个文件 / 18 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 crosshair 仍然是 overlay 合成层，虽然尺寸刷新和拖拽状态已经补稳，但价格标签仍不是图表库原生价格轴；后续如果继续提升交互保真度，最好把 crosshair 与图表库自身坐标体系更深地对齐
+
+## 2026-03-28 00:06
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线十字光标与基础画线编辑
+- 变更内容：继续在专业终端化布局基础上补齐主图交互。为 K 线 overlay 新增了合成十字光标层，支持在主图内显示横纵参考线、时间标签和价格标签，并继续复用 hover anchor 驱动 HUD 读数；同时为基础画线编辑补入了 geometry 工具函数和 overlay 事件链路，支持已选中 `趋势线 / 水平线 / 矩形区间` 的锚点拖拽或对象整体移动，锁定对象仍可选中但不会进入拖拽。`KlineChart` 现在会消费 `drawing-anchor-commit / drawing-move-commit` 并写回现有 `watchlistChartStore`。这一轮还新增了 `klineOverlayGeometry.test.ts`，并扩展 overlay/chart 测试覆盖 crosshair 标签和编辑提交路径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineOverlayGeometry.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineOverlayGeometry.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-kline-crosshair-drawing-edit-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-crosshair-drawing-edit-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增后端接口或持久化结构；前端 overlay 事件扩展为 `drawing-anchor-commit / drawing-move-commit`，仍只在本地工作台层消费
+- 验证情况：`npm --prefix frontend run test -- --run src/utils/klineOverlayGeometry.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 先失败后通过（3 个文件 / 9 个用例）；`npm --prefix frontend run test -- --run src/utils/klineOverlayGeometry.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts src/components/watchlist/KlineToolbar.test.ts src/components/watchlist/KlineIndicatorWorkbench.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（7 个文件 / 17 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前十字光标仍是 overlay 合成层，价格和时间标签依赖前端 high/low 映射，不是图表库原生坐标轴；`fibonacci_retracement` 与 `price_note` 仍保持只读，后续若继续提升编辑能力，应优先补这些工具的拖拽策略以及真正的 crosshair/轴联动
+
 ## 2026-03-27 23:42
 
 - 修改人：Codex

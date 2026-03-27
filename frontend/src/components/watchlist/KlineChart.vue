@@ -345,6 +345,20 @@ function handleHoverAnchorChange(anchor: { time: string; price: number } | null)
   hoveredAnchor.value = anchor;
 }
 
+function handleDrawingAnchorCommit(drawingId: string, anchors: { time: string; price: number }[]) {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.updateDrawingAnchors(props.klineData.symbol, drawingId, anchors);
+}
+
+function handleDrawingMoveCommit(drawingId: string, anchors: { time: string; price: number }[]) {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.moveDrawing(props.klineData.symbol, drawingId, anchors);
+}
+
 function currentRangeRatio() {
   if (!candles.value.length) {
     return null;
@@ -496,6 +510,8 @@ onBeforeUnmount(() => {
                 @draft-cancel="chartStore.cancelDraft()"
                 @drawing-select="chartStore.selectDrawing($event)"
                 @hover-anchor-change="handleHoverAnchorChange"
+                @drawing-anchor-commit="handleDrawingAnchorCommit"
+                @drawing-move-commit="handleDrawingMoveCommit"
               />
               <KlineDrawingSelectionPopover
                 :drawing="selectedDrawing"
