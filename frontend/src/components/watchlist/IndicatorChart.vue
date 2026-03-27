@@ -109,17 +109,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="grid gap-3 rounded-[22px] border border-border bg-[rgba(8,14,23,0.94)] p-4">
-    <div class="flex flex-wrap gap-2">
+  <section class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.12)] bg-[linear-gradient(180deg,rgba(9,15,24,0.96),rgba(7,12,21,0.98))] p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.22em] text-[#ffb77d]">Secondary Panel</p>
+        <strong class="text-sm text-text">Indicator Desk</strong>
+      </div>
+      <div class="flex flex-wrap gap-2 rounded-[12px] border border-[rgba(148,163,184,0.12)] bg-[rgba(255,255,255,0.03)] p-1">
       <button
         v-for="indicator in ['MACD', 'KDJ', 'BOLL']"
         :key="indicator"
         type="button"
-        class="rounded-full border px-3 py-1 text-xs uppercase tracking-[0.14em]"
+        class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.14em] transition"
         :class="
           activeIndicator === indicator
-            ? 'border-[#ffb66d] text-[#ffca97]'
-            : 'border-border text-text-faint'
+            ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
+            : 'border-transparent text-text-faint'
         "
         :data-role="`indicator-${indicator}`"
         :disabled="!indicatorState[indicator as 'MACD' | 'KDJ' | 'BOLL']"
@@ -127,6 +132,7 @@ onBeforeUnmount(() => {
       >
         {{ indicator }}
       </button>
+      </div>
     </div>
     <div ref="chartRef" class="h-[180px] w-full rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)]" />
   </section>

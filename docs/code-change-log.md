@@ -29,6 +29,25 @@
 - 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -k 'x_accounts or import_accounts_from_file or export_accounts_to_file or prioritizes_core or implicit_file_sync' -q` 先失败后通过（8 个用例）；`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q` 通过（24 个用例）；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 先失败后通过（5 个用例）；`conda run -n news-caught pytest backend/tests/test_x_monitor.py backend/tests/test_health.py -q` 通过（26 个用例）；`npm --prefix frontend run build` 通过
 - 风险/后续事项：当前页面支持新增、启停、删除和导入导出，但还没有做“编辑已有账号的 display name / priority / tier / notes”独立 UI，当前只先暴露了最常用的新增与状态动作；现有数据库兼容通过初始化补列处理，生产环境仍需要确认服务启动时一定会执行该初始化流程；导入语义目前是 merge-only，不会删除数据库里独有账号，后续如果要支持“按文件完整替换”应单独加预览和确认
 
+## 2026-03-27 00:43
+
+- 修改人：Codex
+- 修改范围：watchlist 看 K 线交易台式界面重构
+- 变更内容：围绕“看 K 线更像东方财富类交易台”的目标重做了 `watchlist` 详情区。`StockDetailPanel.vue` 从原来的卡片堆叠改成三段式交易台结构：顶部固定展示股票名/代码、最新价、涨跌额、涨跌幅、开盘、昨收、日内高低、成交量、更新时间和周期切换；中部把 `KlineChart.vue` 升级成主图交易面板，新增主图摘要、`MA5/10/20/60` 图例、BOLL 可用标识、空态骨架和事件筹码条；底部把副图和新闻区改成辅助分析层，`IndicatorChart.vue` 调整成更接近终端页签的切换样式，`RelatedNewsSidebar.vue` 改造成新闻时间流，并补上事件筹码与新闻条目的双向高亮联动。同步补写了 design/plan 文档，并扩充前端测试以锁定交易台结构、摘要信息和图表/新闻联动行为。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/frontend/src/components/watchlist/IndicatorChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/frontend/src/components/watchlist/RelatedNewsSidebar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/docs/superpowers/specs/2026-03-27-watchlist-kline-trading-desk-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/docs/superpowers/plans/2026-03-27-watchlist-kline-trading-desk-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-kline-trading-desk/docs/code-change-log.md`
+- 接口/数据结构变化：无后端接口或前端 API 类型变更；仅重组现有 watchlist 详情区展示层和组件交互
+- 验证情况：`npm --prefix frontend run test -- --run src/views/WatchlistView.test.ts` 通过（10 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 通过（1 个用例）；`npm --prefix frontend run test -- --run src/views/WatchlistView.test.ts src/components/watchlist/KlineChart.test.ts src/stores/watchlistStore.test.ts` 通过（3 个文件 / 22 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮仍未接入更深的交易软件能力，例如盘口、区间画线和更多主图叠加开关；当前主图仍基于 `lightweight-charts` 默认能力实现，后续若继续向专业行情终端靠拢，可再补十字游标信息栏、主图副图同步 hover 和更多快捷周期
+
 ## 2026-03-27 00:18
 
 - 修改人：Codex
