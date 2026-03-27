@@ -2,6 +2,39 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-27 19:18
+
+- 修改人：Codex
+- 修改范围：Watchlist 终端式高密度改版
+- 变更内容：按更接近同花顺的方向重做了自选股列表与详情页的交易终端样式。列表侧将 `StockCard` 压成更紧凑的横向卡片：右侧指标区收窄、市场/状态信息合并、价格与成交量聚拢、sparkline 保留但整体高度更低，`WatchlistSidebar` 列表间距也同步收紧。详情侧把原来的大留白行情头改成“左侧报价条 + 中部紧凑指标矩阵 + 右上设置”结构，并将主图区升级成更大的终端式 K 线面板：主图保留蜡烛、MA 和 BOLL，新增下方副图区和 `VOL / MACD / KDJ` 切换，右侧新增技术仪表栏，展示 `Session Range`、`6M Range`、`Bias vs MA20` 及最新 MA/BOLL/成交量等读数。所有右栏指标均基于现有 `quote` 与 `klineData` 推导，不引入新的后端字段。另补写了本轮 design / plan 文档，并更新了 `StockDetailPanel`、`KlineChart` 测试覆盖。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/WatchlistSidebar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockDetailPanel.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-watchlist-terminal-redesign-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-watchlist-terminal-redesign-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增前后端接口或类型字段；右侧仪表盘和区间指标均由现有 `WatchlistQuoteSummary` 与 `StockKlineResponse` 在前端计算得出
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/StockDetailPanel.test.ts src/components/watchlist/KlineChart.test.ts` 先失败后通过（2 个文件 / 2 个用例）；`npm --prefix frontend run test -- --run src/views/WatchlistView.test.ts src/views/WatchlistDetailView.test.ts src/components/watchlist/StockDetailPanel.test.ts src/components/watchlist/KlineChart.test.ts` 通过（4 个文件 / 14 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前右侧“高端仪表盘”仍然是基于现有行情/K 线数据的技术面展示，没有接入总市值、PE、换手率、五档盘口等更像券商终端的深度字段；若后续要继续贴近同花顺/东方财富，需要先扩充后端行情字段，再把右栏从技术仪表扩展为基本面 + 盘口混合面板
+
+## 2026-03-27 18:56
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线加载修复
+- 变更内容：定位并修复了自选股详情页 K 线一直无数据的问题。根因不是缺少外部 API key，而是当前环境的 `yfinance==1.2.0` 在 `download()` 时返回了带 ticker 层级的 `MultiIndex` 列，后端 `market_chart_service` 仍按旧版单层 `Open/High/Low/Close/Volume` 列读取，导致 K 线序列化阶段抛出 `TypeError` 并使前端落入通用失败空态。本轮在历史行情下载后统一把多层列压平成单层 OHLCV 列，并补了一条回归测试覆盖该返回形状，确保现有 K 线 payload、指标计算和新闻事件对齐逻辑保持不变。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/market_chart_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-yfinance-multiindex-fix-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无 API 契约变化；仍返回原有 `MarketKlineView` 结构，仅修正后端对 Yahoo Finance 历史数据列结构的兼容逻辑
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market.py -k multiindex -q` 先失败后通过；`conda run -n news-caught pytest backend/tests/test_market.py -q` 通过（17 个用例）；`conda run -n news-caught python -c "from app.services.market_chart_service import MarketChartService; from app.db.session import SessionLocal; session=SessionLocal(); payload=MarketChartService().get_kline('HK0700','1d','6mo',session); session.close(); print(payload['symbol'], len(payload['candles']), payload['candles'][0]['time'], payload['candles'][-1]['time'])"` 通过，返回 `HK0700 121 2025-09-29 2026-03-27`
+- 风险/后续事项：本轮只修了后端根因，前端仍会把 K 线请求失败统一显示成固定文案，无法直接暴露后端错误详情；若后续还要提高可诊断性，可以再补 `watchlistStore` 的错误透传与图表错误态展示
+
 ## 2026-03-27 16:02
 
 - 修改人：Codex

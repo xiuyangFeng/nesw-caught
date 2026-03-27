@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pandas as pd
 from unittest.mock import MagicMock, patch
 
 from app.api.routes import market as market_routes
@@ -664,6 +665,45 @@ def test_market_chart_service_falls_back_to_memory_cache_when_redis_unavailable(
 
     assert cached is not None
     assert cached["symbol"] == "HK0100"
+
+
+def test_market_chart_service_flattens_yfinance_multiindex_history() -> None:
+    service = MarketChartService()
+    history = pd.DataFrame(
+        {
+            ("Open", "0700.HK"): [649.5, 658.0],
+            ("High", "0700.HK"): [664.5, 666.5],
+            ("Low", "0700.HK"): [647.5, 657.5],
+            ("Close", "0700.HK"): [660.0, 663.0],
+            ("Volume", "0700.HK"): [20489556, 20610633],
+        },
+        index=pd.to_datetime(["2025-09-29", "2025-09-30"]),
+    )
+
+    with patch("yfinance.download", return_value=history):
+        normalized = service._download_history("0700.HK", period="6mo", interval="1d")
+
+    candles = service._serialize_candles(normalized)
+
+    assert normalized.columns.tolist() == ["Open", "High", "Low", "Close", "Volume"]
+    assert candles == [
+        {
+            "time": "2025-09-29",
+            "open": 649.5,
+            "high": 664.5,
+            "low": 647.5,
+            "close": 660.0,
+            "volume": 20489556,
+        },
+        {
+            "time": "2025-09-30",
+            "open": 658.0,
+            "high": 666.5,
+            "low": 657.5,
+            "close": 663.0,
+            "volume": 20610633,
+        },
+    ]
 
 
 def test_market_chart_service_skips_failed_symbols_when_building_sparklines() -> None:

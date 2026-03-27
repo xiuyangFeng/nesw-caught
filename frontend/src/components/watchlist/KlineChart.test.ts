@@ -58,7 +58,7 @@ describe('KlineChart', () => {
       attachTo: document.body,
     });
 
-    expect(chartMock).toHaveBeenCalledTimes(1);
+    expect(chartMock).toHaveBeenCalledTimes(2);
     expect(addSeriesMock).toHaveBeenCalled();
     expect(wrapper.find('[data-role="kline-chart-legend"]').text()).toContain('MA5');
     expect(wrapper.find('[data-role="kline-chart-legend"]').text()).toContain('MA10');
@@ -68,7 +68,19 @@ describe('KlineChart', () => {
     expect(wrapper.find('[data-role="kline-chart-summary"]').text()).toContain('0700.HK');
     expect(wrapper.find('[data-role="kline-chart-summary"]').text()).toContain('1d');
     expect(wrapper.find('[data-role="kline-chart-summary"]').text()).toContain('6mo');
+    expect(wrapper.find('[data-role="kline-chart-dashboard"]').text()).toContain('Session Range');
+    expect(wrapper.find('[data-role="kline-chart-dashboard"]').text()).toContain('6M Range');
+    expect(wrapper.find('[data-role="indicator-switch-vol"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="indicator-switch-macd"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="indicator-switch-kdj"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('Volume');
     expect(wrapper.find('[data-role="kline-event-chip-2026-03-19"]').exists()).toBe(true);
+
+    await wrapper.find('[data-role="indicator-switch-macd"]').trigger('click');
+    expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('DIF');
+
+    await wrapper.find('[data-role="indicator-switch-kdj"]').trigger('click');
+    expect(wrapper.find('[data-role="kline-subindicator-panel"]').text()).toContain('K');
 
     await wrapper.find('[data-role="kline-event-chip-2026-03-19"]').trigger('click');
     expect(wrapper.emitted('focusNews')?.[0]?.[0]).toEqual(event);

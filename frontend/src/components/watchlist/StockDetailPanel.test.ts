@@ -99,6 +99,11 @@ describe('StockDetailPanel', () => {
       },
     });
 
+    expect(wrapper.get('[data-role="trading-desk-price-strip"]').text()).toContain('200.10');
+    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('Open');
+    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('Prev Close');
+    expect(wrapper.get('[data-role="terminal-quote-matrix"]').text()).toContain('Volume');
+
     await wrapper.get('[data-role="watchlist-settings-trigger"]').trigger('click');
 
     expect(wrapper.get('[data-role="watchlist-settings-popover"]').exists()).toBe(true);

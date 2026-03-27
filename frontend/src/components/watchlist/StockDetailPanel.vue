@@ -46,6 +46,73 @@ const updatedAt = computed(() => {
   }
   return formatMarketTime(props.quote.fetched_at, props.quote.market);
 });
+
+const candles = computed(() => props.klineData?.candles ?? []);
+
+function clampRatio(value: number | null): number | null {
+  if (value === null || Number.isNaN(value)) {
+    return null;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+function formatRatio(value: number | null): string {
+  if (value === null) {
+    return '--';
+  }
+  return `${Math.round(value * 100)}%`;
+}
+
+const amplitude = computed(() => {
+  if (!props.quote?.previous_close || props.quote.day_high === null || props.quote.day_low === null) {
+    return null;
+  }
+  return ((props.quote.day_high - props.quote.day_low) / props.quote.previous_close) * 100;
+});
+
+const sessionPosition = computed(() => {
+  const price = props.quote?.price ?? candles.value.at(-1)?.close ?? null;
+  const low = props.quote?.day_low ?? null;
+  const high = props.quote?.day_high ?? null;
+  if (price === null || low === null || high === null || high <= low) {
+    return null;
+  }
+  return clampRatio((price - low) / (high - low));
+});
+
+const sixMonthPosition = computed(() => {
+  if (!candles.value.length) {
+    return null;
+  }
+  const latest = candles.value.at(-1)?.close ?? null;
+  const low = Math.min(...candles.value.map((item) => item.low));
+  const high = Math.max(...candles.value.map((item) => item.high));
+  if (latest === null || high <= low) {
+    return null;
+  }
+  return clampRatio((latest - low) / (high - low));
+});
+
+const averageVolume20 = computed(() => {
+  const volumes = candles.value.slice(-20).map((item) => item.volume).filter((item): item is number => item !== null);
+  if (!volumes.length) {
+    return null;
+  }
+  return volumes.reduce((sum, value) => sum + value, 0) / volumes.length;
+});
+
+const quoteMetrics = computed(() => [
+  ['Open', formatNumber(props.quote?.open_price)],
+  ['Prev Close', formatNumber(props.quote?.previous_close)],
+  ['High', formatNumber(props.quote?.day_high)],
+  ['Low', formatNumber(props.quote?.day_low)],
+  ['Volume', formatNumber(props.quote?.volume, 0)],
+  ['Amplitude', formatPercent(amplitude.value)],
+  ['Session Pos', formatRatio(sessionPosition.value)],
+  ['Avg Vol 20', formatNumber(averageVolume20.value, 0)],
+  ['6M Pos', formatRatio(sixMonthPosition.value)],
+]);
+
 function focusNewsEvent(event: NewsEventMarker) {
   highlightedEventTime.value = event.time;
 }
@@ -58,28 +125,39 @@ function focusNewsItem(item: NewsItem) {
 <template>
   <section class="grid gap-4" data-role="stock-detail-panel">
     <header
-      class="grid gap-4 rounded-[20px] border border-[rgba(148,163,184,0.16)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] p-5 shadow-[0_18px_46px_rgba(2,6,12,0.34)]"
+      class="grid gap-3 rounded-[20px] border border-[rgba(148,163,184,0.16)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] p-4 shadow-[0_18px_46px_rgba(2,6,12,0.34)]"
       data-role="trading-desk-summary"
     >
-      <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div class="grid gap-2">
-          <div>
+      <div class="grid gap-3 xl:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.15fr)_auto] xl:items-start">
+        <div class="grid gap-2" data-role="trading-desk-price-strip">
+          <div class="grid gap-1">
             <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Trading Desk</p>
-            <div class="mt-2 flex flex-wrap items-end gap-x-3 gap-y-2">
-              <h2 class="text-[30px] font-semibold leading-none text-text">{{ headline }}</h2>
-              <span class="text-[12px] uppercase tracking-[0.22em] text-text-faint">{{ symbolLabel }}</span>
+            <div class="flex flex-wrap items-end gap-x-2 gap-y-1">
+              <h2 class="text-[28px] font-semibold leading-none text-text">{{ headline }}</h2>
+              <span class="text-[11px] uppercase tracking-[0.22em] text-text-faint">{{ symbolLabel }}</span>
             </div>
           </div>
-          <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
-            <strong class="text-[42px] font-semibold leading-none text-text">{{ lastPrice }}</strong>
-            <div class="grid gap-1">
-              <span class="text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+          <div class="flex flex-wrap items-end gap-x-3 gap-y-1">
+            <strong class="text-[40px] font-semibold leading-none text-text">{{ lastPrice }}</strong>
+            <div class="grid gap-0.5">
+              <span class="text-base font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
                 {{ changeAmount }}
               </span>
-              <span class="text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+              <span class="text-base font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
                 {{ formatPercent(quote?.change_percent) }}
               </span>
             </div>
+          </div>
+        </div>
+        <div
+          class="grid gap-2 rounded-[16px] border border-[rgba(148,163,184,0.12)] bg-[rgba(255,255,255,0.03)] px-3 py-3"
+          data-role="terminal-quote-matrix"
+        >
+          <div class="grid grid-cols-2 gap-x-4 gap-y-2 md:grid-cols-3 xl:grid-cols-3">
+            <article v-for="[label, value] in quoteMetrics" :key="label" class="grid gap-0.5">
+              <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ label }}</span>
+              <strong class="text-sm text-text">{{ value }}</strong>
+            </article>
           </div>
         </div>
         <div class="relative self-start">
@@ -136,25 +214,9 @@ function focusNewsItem(item: NewsItem) {
           </div>
         </div>
       </div>
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <article
-          v-for="[label, value] in [
-            ['Open', formatNumber(quote?.open_price)],
-            ['Prev Close', formatNumber(quote?.previous_close)],
-            ['High', formatNumber(quote?.day_high)],
-            ['Low', formatNumber(quote?.day_low)],
-            ['Volume', formatNumber(quote?.volume, 0)],
-          ]"
-          :key="label"
-          class="rounded-[14px] border border-[rgba(148,163,184,0.12)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5"
-        >
-          <span class="block text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ label }}</span>
-          <strong class="mt-1 block text-base text-text">{{ value }}</strong>
-        </article>
-      </div>
       <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-text-soft">
         <p>
-          {{ klineLoading ? '正在加载最新 K 线...' : klineError ? klineError : '主图优先展示价格行为，新闻事件作为辅助证据层。' }}
+          {{ klineLoading ? '正在加载最新终端行情图...' : klineError ? klineError : '主图主导，右侧仪表盘用于快速判断强弱、区间位置与技术状态。' }}
         </p>
         <span class="text-[11px] uppercase tracking-[0.16em] text-text-faint">Updated {{ updatedAt }}</span>
       </div>
