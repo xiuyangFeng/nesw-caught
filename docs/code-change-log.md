@@ -2,6 +2,59 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-27 21:12
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线右侧指标栏折叠
+- 变更内容：继续朝“图优先”布局优化，在 `KlineChart` 中为右侧指标栏增加了一键折叠能力。默认仍展示右侧指标面板，但现在可以通过图表内的 `收起面板 / 展开面板` 按钮切换；收起后右侧指标栏完全隐藏，`xl` 布局自动退回单列，把原本留给侧栏的横向空间让回主图。该状态仅保存在组件本地，不影响现有周期切换、指标计算、副图切换和新闻事件联动。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-kline-collapsible-sidebar-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-collapsible-sidebar-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无接口或类型变化；折叠状态为前端组件本地 UI 状态，不进入 store
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 先失败后通过（1 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts src/views/WatchlistDetailView.test.ts` 通过（2 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前折叠状态不会记忆到下一次进入详情页；如果后续希望不同股票详情页都记住“默认展开还是收起”，可以再把该偏好提升到 store 或本地存储
+
+## 2026-03-27 19:53
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线常驻周期条与紧凑头部布局
+- 变更内容：根据新反馈继续优化了自选股详情页的 K 线区域交互和占位。把原先藏在齿轮弹层里的 `日K / 周K / 月K / 年K` 周期切换挪到了 `KlineChart` 顶部，改成常驻快捷条，支持直接切换周期；同时移除了已失去主要价值的齿轮设置入口和弹层。顶部行情摘要卡片则整体压缩成更紧凑的条形结构：减小了标题、价格和容器内边距，收窄了头部布局列宽，缩短说明文案，把更多纵向空间还给 K 线主图。保留上一轮中文化与周期语义映射不变。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockDetailPanel.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/WatchlistDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-kline-toolbar-compact-header-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-toolbar-compact-header-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或类型变化；周期切换仍复用现有 `switchPeriod` 和前端 `interval/range` 映射
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/StockDetailPanel.test.ts` 先失败后通过（2 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 先失败后通过（1 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/StockDetailPanel.test.ts src/components/watchlist/KlineChart.test.ts src/views/WatchlistDetailView.test.ts` 先因旧齿轮断言失败后通过（3 个文件 / 7 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：这轮主要压缩了头部高度和移除了重复入口，但还没有继续缩减右侧指标面板或主图下方副图区的整体高度；如果后续你还想把视图做得更像同花顺的“图优先”模式，下一步可以再把右栏进一步折叠或改成可收起
+
+## 2026-03-27 19:41
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线指标页中文化与券商式周期切换
+- 变更内容：将自选股详情页 K 线区域的用户可见英文文案统一替换为中文，同时保留 `MACD / KDJ / BOLL / MA / DIF / DEA / K / D / J` 等技术指标缩写不变。顶部摘要区、设置弹层、K 线图摘要、右侧指标面板、副图区读数、新闻事件计数和更新时间文案均已中文化；周期入口从旧的 `1D / 1W / 1M / 3M / 1Y` 混合语义调整为更接近同花顺/东方财富习惯的 `日K / 周K / 月K / 年K`。对应前端请求映射也同步重构为 `1d+1y / 1wk+5y / 1mo+10y / 1mo+max`，其中 `年K` 第一版按长期年线视图处理，不引入后端 year-level 聚合。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/StockDetailPanel.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-kline-chinese-timeframes-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-chinese-timeframes-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：前端 `WatchlistDashboardPeriod` 类型移除了未再使用的 `3M`；后端 API 契约与 `StockKlineResponse` 结构无变化，仍复用既有 `interval/range` 查询方式
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts` 先失败后通过（13 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/StockDetailPanel.test.ts` 先失败后通过（2 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 先失败后通过（1 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistStore.test.ts src/components/watchlist/StockDetailPanel.test.ts src/components/watchlist/KlineChart.test.ts src/views/WatchlistDetailView.test.ts` 通过（4 个文件 / 20 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本轮 `年K` 仍是基于 `1mo + max` 的长期视图近似实现，视觉和操作习惯已接近券商软件，但并不是真正“每年一根 K 线”的后端聚合；若后续需要完全对齐同花顺/东方财富的年线定义，需要在后端补 yearly candle 聚合后再细化展示
+
 ## 2026-03-27 19:18
 
 - 修改人：Codex

@@ -245,7 +245,7 @@ export interface MarketRefreshResult {
   triggered_at: string;
 }
 
-export type WatchlistDashboardPeriod = '1D' | '1W' | '1M' | '3M' | '1Y';
+export type WatchlistDashboardPeriod = '1D' | '1W' | '1M' | '1Y';
 
 export interface KlineCandle {
   time: string;
