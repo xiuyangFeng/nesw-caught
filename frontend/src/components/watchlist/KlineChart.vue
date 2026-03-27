@@ -9,8 +9,20 @@ import {
 } from 'lightweight-charts';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import type { NewsEventMarker, StockKlineResponse, WatchlistDashboardPeriod } from '../../types/api';
+import type {
+  KlineDrawingStyle,
+  KlineSubIndicator,
+  NewsEventMarker,
+  StockKlineResponse,
+  WatchlistDashboardPeriod,
+} from '../../types/api';
+import { useWatchlistChartStore } from '../../stores/watchlistChartStore';
+import { buildOverlayLines, calculateRsi } from '../../utils/klineIndicators';
 import { formatNumber, formatPercent } from '../../utils/format';
+import KlineDrawingOverlay from './KlineDrawingOverlay.vue';
+import KlineDrawingSelectionPopover from './KlineDrawingSelectionPopover.vue';
+import KlineIndicatorWorkbench from './KlineIndicatorWorkbench.vue';
+import KlineToolbar from './KlineToolbar.vue';
 
 const props = defineProps<{
   klineData: StockKlineResponse | null;
@@ -23,15 +35,14 @@ const emit = defineEmits<{
   switchPeriod: [period: WatchlistDashboardPeriod];
 }>();
 
+const chartStore = useWatchlistChartStore();
 const mainChartRef = ref<HTMLElement | null>(null);
 const subChartRef = ref<HTMLElement | null>(null);
-const activeSubIndicator = ref<'VOL' | 'MACD' | 'KDJ'>('VOL');
 const dashboardCollapsed = ref(false);
 
 let chart: IChartApi | null = null;
 let subChart: IChartApi | null = null;
 let candleSeries: ISeriesApi<'Candlestick'> | null = null;
-const lineSeriesMap = new Map<string, ISeriesApi<'Line'>>();
 let volumeSeries: ISeriesApi<'Histogram'> | null = null;
 let macdHistogramSeries: ISeriesApi<'Histogram'> | null = null;
 let macdDifSeries: ISeriesApi<'Line'> | null = null;
@@ -39,39 +50,82 @@ let macdDeaSeries: ISeriesApi<'Line'> | null = null;
 let kSeries: ISeriesApi<'Line'> | null = null;
 let dSeries: ISeriesApi<'Line'> | null = null;
 let jSeries: ISeriesApi<'Line'> | null = null;
-
-const legendItems = computed(() => {
-  const items = [
-    { key: 'ma5', label: 'MA5', color: '#ffd166' },
-    { key: 'ma10', label: 'MA10', color: '#7dd3fc' },
-    { key: 'ma20', label: 'MA20', color: '#c084fc' },
-    { key: 'ma60', label: 'MA60', color: '#fb7185' },
-  ];
-
-  if ((props.klineData?.indicators.bollinger.length ?? 0) > 0) {
-    items.push({ key: 'boll', label: 'BOLL', color: '#34d399' });
-  }
-
-  return items;
-});
+let rsiSeries: ISeriesApi<'Line'> | null = null;
+const lineSeriesMap = new Map<string, ISeriesApi<'Line'>>();
 
 const candles = computed(() => props.klineData?.candles ?? []);
+const activeTemplate = computed(() => chartStore.activeTemplate);
+const activeLines = computed(() => (activeTemplate.value ? buildOverlayLines(activeTemplate.value, candles.value) : []));
+const activeSubIndicator = computed<KlineSubIndicator>(() => chartStore.subIndicator);
+const drawings = computed(() => {
+  const symbol = props.klineData?.symbol;
+  return symbol ? chartStore.drawingsBySymbol[symbol] ?? [] : [];
+});
+const selectedDrawing = computed(() => {
+  const symbol = props.klineData?.symbol;
+  const id = chartStore.selectedDrawingId;
+  return symbol && id ? chartStore.findDrawing(symbol, id) : null;
+});
+const overlayDisabled = computed(() => !props.klineData || !candles.value.length);
+
+const legendItems = computed(() =>
+  activeLines.value.map((item) => ({
+    key: item.key,
+    label: item.label,
+    color: item.color,
+  })),
+);
+
+const summaryItems = computed(() => [
+  ['代码', props.klineData?.symbol ?? '--'],
+  ['周期', formatKlinePeriod(props.klineData?.interval, props.klineData?.range)],
+  ['范围', formatKlineRange(props.klineData?.interval, props.klineData?.range)],
+]);
+
 const latestCandle = computed(() => candles.value.at(-1) ?? null);
 const latestMacd = computed(() => props.klineData?.indicators.macd.at(-1) ?? null);
 const latestKdj = computed(() => props.klineData?.indicators.kdj.at(-1) ?? null);
+const latestRsi = computed(() => calculateRsi(candles.value, 14).at(-1)?.value ?? null);
 const latestBoll = computed(() => props.klineData?.indicators.bollinger.at(-1) ?? null);
-const subIndicatorLabelMap: Record<'VOL' | 'MACD' | 'KDJ', string> = {
-  VOL: '成交量',
-  MACD: 'MACD',
-  KDJ: 'KDJ',
-};
-const activeSubIndicatorLabel = computed(() => subIndicatorLabelMap[activeSubIndicator.value]);
-const periods: Array<{ value: WatchlistDashboardPeriod; label: string }> = [
-  { value: '1D', label: '日K' },
-  { value: '1W', label: '周K' },
-  { value: '1M', label: '月K' },
-  { value: '1Y', label: '年K' },
-];
+
+function ensureChart() {
+  if (chart || !mainChartRef.value) {
+    return;
+  }
+  chart = createChart(mainChartRef.value, {
+    autoSize: true,
+    height: 420,
+    layout: {
+      background: { color: 'transparent' },
+      textColor: 'rgba(226,232,240,0.72)',
+      attributionLogo: false,
+    },
+    grid: {
+      vertLines: { color: 'rgba(148,163,184,0.08)' },
+      horzLines: { color: 'rgba(148,163,184,0.08)' },
+    },
+    rightPriceScale: { borderVisible: false },
+    timeScale: { borderVisible: false },
+  });
+  candleSeries = chart.addSeries(CandlestickSeries, {
+    upColor: '#f97316',
+    downColor: '#22c55e',
+    borderUpColor: '#f97316',
+    borderDownColor: '#22c55e',
+    wickUpColor: '#f97316',
+    wickDownColor: '#22c55e',
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+}
+
+function currentPeriodLabel(period: WatchlistDashboardPeriod | undefined) {
+  return period === '1W' ? '周K' : period === '1M' ? '月K' : period === '1Y' ? '年K' : '日K';
+}
+
+function currentRangeLabel(period: WatchlistDashboardPeriod | undefined) {
+  return period === '1W' ? '近5年' : period === '1M' ? '近10年' : period === '1Y' ? '长期' : '近1年';
+}
 
 function formatKlinePeriod(interval: string | undefined, range: string | undefined): string {
   if (interval === '1d' && range === '1y') {
@@ -105,234 +159,10 @@ function formatKlineRange(interval: string | undefined, range: string | undefine
   return range ?? '--';
 }
 
-function clampRatio(value: number | null): number | null {
-  if (value === null || Number.isNaN(value)) {
-    return null;
-  }
-  return Math.max(0, Math.min(1, value));
-}
-
-function formatRatio(value: number | null): string {
-  if (value === null) {
-    return '--';
-  }
-  return `${Math.round(value * 100)}%`;
-}
-
-function latestValue(points: Array<{ value: number }> | undefined): number | null {
-  if (!points?.length) {
-    return null;
-  }
-  return points.at(-1)?.value ?? null;
-}
-
-const sessionRangeRatio = computed(() => {
-  const candle = latestCandle.value;
-  if (!candle || candle.high <= candle.low) {
-    return null;
-  }
-  return clampRatio((candle.close - candle.low) / (candle.high - candle.low));
-});
-
-const rangeRatio = computed(() => {
-  if (!candles.value.length) {
-    return null;
-  }
-  const high = Math.max(...candles.value.map((item) => item.high));
-  const low = Math.min(...candles.value.map((item) => item.low));
-  const latest = latestCandle.value?.close ?? null;
-  if (latest === null || high <= low) {
-    return null;
-  }
-  return clampRatio((latest - low) / (high - low));
-});
-
-const averageVolume20 = computed(() => {
-  const volumes = candles.value.slice(-20).map((item) => item.volume).filter((item): item is number => item !== null);
-  if (!volumes.length) {
-    return null;
-  }
-  return volumes.reduce((sum, value) => sum + value, 0) / volumes.length;
-});
-
-const dashboardGauges = computed(() => [
-  {
-    label: '日内区间',
-    value: formatRatio(sessionRangeRatio.value),
-    ratio: sessionRangeRatio.value ?? 0,
-  },
-  {
-    label: '区间位置',
-    value: formatRatio(rangeRatio.value),
-    ratio: rangeRatio.value ?? 0,
-  },
-  {
-    label: '偏离MA20',
-    value:
-      latestCandle.value && latestValue(props.klineData?.indicators.ma20)
-        ? formatPercent(((latestCandle.value.close - (latestValue(props.klineData?.indicators.ma20) ?? 0)) / (latestValue(props.klineData?.indicators.ma20) ?? 1)) * 100)
-        : '--',
-    ratio:
-      latestCandle.value && latestValue(props.klineData?.indicators.ma20)
-        ? clampRatio(0.5 + ((latestCandle.value.close - (latestValue(props.klineData?.indicators.ma20) ?? 0)) / (latestValue(props.klineData?.indicators.ma20) ?? 1)) * 2)
-        : 0,
-  },
-]);
-
-const technicalReadouts = computed(() => [
-  ['MA5', formatNumber(latestValue(props.klineData?.indicators.ma5))],
-  ['MA10', formatNumber(latestValue(props.klineData?.indicators.ma10))],
-  ['MA20', formatNumber(latestValue(props.klineData?.indicators.ma20))],
-  ['MA60', formatNumber(latestValue(props.klineData?.indicators.ma60))],
-  ['BOLL上轨', formatNumber(latestBoll.value?.upper)],
-  ['BOLL中轨', formatNumber(latestBoll.value?.middle)],
-  ['BOLL下轨', formatNumber(latestBoll.value?.lower)],
-  ['20日均量', formatNumber(averageVolume20.value, 0)],
-]);
-
-const subIndicatorRows = computed(() => {
-  if (activeSubIndicator.value === 'MACD') {
-    return [
-      ['DIF', formatNumber(latestMacd.value?.dif)],
-      ['DEA', formatNumber(latestMacd.value?.dea)],
-      ['柱值', formatNumber(latestMacd.value?.histogram)],
-    ];
-  }
-  if (activeSubIndicator.value === 'KDJ') {
-    return [
-      ['K', formatNumber(latestKdj.value?.k)],
-      ['D', formatNumber(latestKdj.value?.d)],
-      ['J', formatNumber(latestKdj.value?.j)],
-    ];
-  }
-  return [
-    ['成交量', formatNumber(latestCandle.value?.volume, 0)],
-    ['20日均量', formatNumber(averageVolume20.value, 0)],
-    ['收盘', formatNumber(latestCandle.value?.close)],
-  ];
-});
-
-const summaryItems = computed(() => {
-  const klineData = props.klineData;
-  return [
-    { label: '代码', value: klineData?.symbol ?? '--' },
-    { label: '周期', value: formatKlinePeriod(klineData?.interval, klineData?.range) },
-    { label: '范围', value: formatKlineRange(klineData?.interval, klineData?.range) },
-    { label: 'K线数', value: klineData?.candles.length.toString() ?? '0' },
-  ];
-});
-
-function ensureChart() {
-  if (chart || !mainChartRef.value) {
-    return;
-  }
-
-  chart = createChart(mainChartRef.value, {
-    autoSize: true,
-    height: 420,
-    layout: {
-      background: { color: 'transparent' },
-      textColor: 'rgba(226,232,240,0.72)',
-      attributionLogo: false,
-    },
-    grid: {
-      vertLines: { color: 'rgba(148,163,184,0.08)' },
-      horzLines: { color: 'rgba(148,163,184,0.08)' },
-    },
-    rightPriceScale: {
-      borderVisible: false,
-    },
-    timeScale: {
-      borderVisible: false,
-    },
-    crosshair: {
-      vertLine: { labelVisible: false },
-      horzLine: { labelVisible: false },
-    },
-  });
-
-  candleSeries = chart.addSeries(CandlestickSeries, {
-    upColor: '#f97316',
-    downColor: '#22c55e',
-    borderUpColor: '#f97316',
-    borderDownColor: '#22c55e',
-    wickUpColor: '#f97316',
-    wickDownColor: '#22c55e',
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-
-  lineSeriesMap.set(
-    'ma5',
-    chart.addSeries(LineSeries, {
-      color: '#ffd166',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-  lineSeriesMap.set(
-    'ma10',
-    chart.addSeries(LineSeries, {
-      color: '#7dd3fc',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-  lineSeriesMap.set(
-    'ma20',
-    chart.addSeries(LineSeries, {
-      color: '#c084fc',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-  lineSeriesMap.set(
-    'ma60',
-    chart.addSeries(LineSeries, {
-      color: '#fb7185',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-  lineSeriesMap.set(
-    'bollUpper',
-    chart.addSeries(LineSeries, {
-      color: 'rgba(52,211,153,0.65)',
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-  lineSeriesMap.set(
-    'bollMiddle',
-    chart.addSeries(LineSeries, {
-      color: 'rgba(52,211,153,0.45)',
-      lineWidth: 1,
-      lineStyle: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-  lineSeriesMap.set(
-    'bollLower',
-    chart.addSeries(LineSeries, {
-      color: 'rgba(52,211,153,0.65)',
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    }),
-  );
-}
-
 function ensureSubChart() {
   if (subChart || !subChartRef.value) {
     return;
   }
-
   subChart = createChart(subChartRef.value, {
     autoSize: true,
     height: 140,
@@ -345,22 +175,9 @@ function ensureSubChart() {
       vertLines: { color: 'rgba(148,163,184,0.06)' },
       horzLines: { color: 'rgba(148,163,184,0.08)' },
     },
-    rightPriceScale: {
-      borderVisible: false,
-      scaleMargins: {
-        top: 0.12,
-        bottom: 0.12,
-      },
-    },
-    timeScale: {
-      borderVisible: false,
-    },
-    crosshair: {
-      vertLine: { labelVisible: false },
-      horzLine: { labelVisible: false },
-    },
+    rightPriceScale: { borderVisible: false },
+    timeScale: { borderVisible: false },
   });
-
   volumeSeries = subChart.addSeries(HistogramSeries, {
     priceFormat: { type: 'volume' },
     priceLineVisible: false,
@@ -402,11 +219,32 @@ function ensureSubChart() {
     priceLineVisible: false,
     lastValueVisible: false,
   });
+  rsiSeries = subChart.addSeries(LineSeries, {
+    color: '#34d399',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
 }
 
-function clearChart() {
-  candleSeries?.setData([]);
-  lineSeriesMap.forEach((series) => series.setData([]));
+function ensureLineSeries(key: string, color: string, lineStyle?: 0 | 2) {
+  ensureChart();
+  if (!chart) {
+    return null;
+  }
+  if (!lineSeriesMap.has(key)) {
+    lineSeriesMap.set(
+      key,
+      chart.addSeries(LineSeries, {
+        color,
+        lineWidth: 2,
+        lineStyle,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }),
+    );
+  }
+  return lineSeriesMap.get(key) ?? null;
 }
 
 function clearSubChart() {
@@ -417,18 +255,16 @@ function clearSubChart() {
   kSeries?.setData([]);
   dSeries?.setData([]);
   jSeries?.setData([]);
+  rsiSeries?.setData([]);
 }
 
 function renderSubChart() {
   ensureSubChart();
-  if (!subChart) {
+  if (!subChart || !props.klineData) {
+    clearSubChart();
     return;
   }
   clearSubChart();
-  if (!props.klineData) {
-    return;
-  }
-
   if (activeSubIndicator.value === 'VOL') {
     volumeSeries?.setData(
       props.klineData.candles.map((candle) => ({
@@ -447,12 +283,13 @@ function renderSubChart() {
     );
     macdDifSeries?.setData(props.klineData.indicators.macd.map((point) => ({ time: point.time, value: point.dif })));
     macdDeaSeries?.setData(props.klineData.indicators.macd.map((point) => ({ time: point.time, value: point.dea })));
-  } else {
+  } else if (activeSubIndicator.value === 'KDJ') {
     kSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.k })));
     dSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.d })));
     jSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.j })));
+  } else {
+    rsiSeries?.setData(calculateRsi(props.klineData.candles, 14).filter((point) => !Number.isNaN(point.value)).map((point) => ({ time: point.time, value: point.value })));
   }
-
   subChart.timeScale().fitContent();
 }
 
@@ -461,14 +298,8 @@ function renderChart() {
   if (!chart || !candleSeries) {
     return;
   }
-  if (!props.klineData) {
-    clearChart();
-    renderSubChart();
-    return;
-  }
-
   candleSeries.setData(
-    props.klineData.candles.map((candle) => ({
+    candles.value.map((candle) => ({
       time: candle.time,
       open: candle.open,
       high: candle.high,
@@ -476,52 +307,115 @@ function renderChart() {
       close: candle.close,
     })),
   );
-
-  (['ma5', 'ma10', 'ma20', 'ma60'] as const).forEach((key) => {
-    lineSeriesMap.get(key)?.setData(props.klineData?.indicators[key] ?? []);
+  const activeKeys = new Set(activeLines.value.map((item) => item.key));
+  activeLines.value.forEach((item) => {
+    ensureLineSeries(item.key, item.color, item.lineStyle)?.setData(item.points.filter((point) => !Number.isNaN(point.value)));
   });
-  lineSeriesMap.get('bollUpper')?.setData(props.klineData.indicators.bollinger.map((point) => ({ time: point.time, value: point.upper })));
-  lineSeriesMap.get('bollMiddle')?.setData(props.klineData.indicators.bollinger.map((point) => ({ time: point.time, value: point.middle })));
-  lineSeriesMap.get('bollLower')?.setData(props.klineData.indicators.bollinger.map((point) => ({ time: point.time, value: point.lower })));
-
+  lineSeriesMap.forEach((series, key) => {
+    if (!activeKeys.has(key)) {
+      series.setData([]);
+    }
+  });
   chart.timeScale().fitContent();
   renderSubChart();
 }
 
-onMounted(() => {
-  renderChart();
+function handleDraftStart(anchor: { time: string; price: number }) {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.startDraft(anchor);
+}
+
+function handleDraftCommit() {
+  if (!props.klineData?.symbol) {
+    return;
+  }
+  chartStore.commitDraft(props.klineData.symbol);
+}
+
+function currentRangeRatio() {
+  if (!candles.value.length) {
+    return null;
+  }
+  const high = Math.max(...candles.value.map((item) => item.high));
+  const low = Math.min(...candles.value.map((item) => item.low));
+  const latest = latestCandle.value?.close ?? null;
+  if (latest === null || high <= low) {
+    return null;
+  }
+  return (latest - low) / (high - low);
+}
+
+const dashboardGauges = computed(() => [
+  { label: '日内区间', value: latestCandle.value ? formatPercent(((latestCandle.value.high - latestCandle.value.low) / Math.max(latestCandle.value.close, 1)) * 100) : '--' },
+  { label: '区间位置', value: currentRangeRatio() === null ? '--' : `${Math.round(currentRangeRatio()! * 100)}%` },
+  {
+    label: '副图',
+    value: activeSubIndicator.value,
+  },
+]);
+
+const technicalReadouts = computed(() => [
+  ['收盘', formatNumber(latestCandle.value?.close)],
+  ['BOLL上轨', formatNumber(latestBoll.value?.upper)],
+  ['DIF', formatNumber(latestMacd.value?.dif)],
+  ['K', formatNumber(latestKdj.value?.k)],
+  ['RSI14', formatNumber(latestRsi.value)],
+]);
+const subIndicatorRows = computed(() => {
+  if (activeSubIndicator.value === 'MACD') {
+    return [
+      ['DIF', formatNumber(latestMacd.value?.dif)],
+      ['DEA', formatNumber(latestMacd.value?.dea)],
+      ['柱值', formatNumber(latestMacd.value?.histogram)],
+    ];
+  }
+  if (activeSubIndicator.value === 'KDJ') {
+    return [
+      ['K', formatNumber(latestKdj.value?.k)],
+      ['D', formatNumber(latestKdj.value?.d)],
+      ['J', formatNumber(latestKdj.value?.j)],
+    ];
+  }
+  if (activeSubIndicator.value === 'RSI') {
+    return [['RSI14', formatNumber(latestRsi.value)]];
+  }
+  return [['成交量', formatNumber(latestCandle.value?.volume, 0)]];
 });
 
 watch(
-  [() => props.klineData, activeSubIndicator],
+  () => [props.klineData?.symbol, props.klineData?.candles.length],
+  () => {
+    if (props.klineData?.symbol) {
+      chartStore.hydrateForSymbol(props.klineData.symbol, props.klineData.candles);
+      renderChart();
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [props.klineData, chartStore.activeTemplateId, chartStore.subIndicator],
   () => {
     renderChart();
   },
   { deep: true },
 );
 
+onMounted(() => {
+  renderChart();
+});
+
 onBeforeUnmount(() => {
   chart?.remove();
   subChart?.remove();
-  chart = null;
-  subChart = null;
-  candleSeries = null;
-  volumeSeries = null;
-  macdHistogramSeries = null;
-  macdDifSeries = null;
-  macdDeaSeries = null;
-  kSeries = null;
-  dSeries = null;
-  jSeries = null;
-  lineSeriesMap.clear();
+  chartStore.flushAll();
 });
 </script>
 
 <template>
-  <section
-    class="grid gap-4 rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.98),rgba(7,12,22,0.98))] p-4"
-    data-role="kline-chart"
-  >
+  <section class="grid gap-4 rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.98),rgba(7,12,22,0.98))] p-4" data-role="kline-chart">
     <header class="flex flex-wrap items-start justify-between gap-3">
       <div class="space-y-1">
         <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">K线图</p>
@@ -531,59 +425,27 @@ onBeforeUnmount(() => {
       <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">更新时间 {{ klineData ? '最新' : '--' }}</span>
     </header>
 
-    <div
-      class="grid gap-3 xl:items-start"
-      :class="dashboardCollapsed ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_292px]'"
-      data-role="kline-layout-shell"
-      :data-sidebar-collapsed="dashboardCollapsed ? 'true' : 'false'"
-    >
-      <div
-        class="grid gap-3"
-      >
-        <div class="flex flex-wrap items-center justify-between gap-2 rounded-[16px] border border-border/70 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-period-toolbar">
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="period in periods"
-              :key="period.value"
-              type="button"
-              class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-              :class="currentPeriod === period.value ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
-              :data-role="`period-chip-${period.value}`"
-              :data-active="currentPeriod === period.value ? 'true' : 'false'"
-              @click="emit('switchPeriod', period.value)"
-            >
-              {{ period.label }}
-            </button>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              data-role="toggle-dashboard"
-              class="rounded-full border border-border/70 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-text-faint"
-              @click="dashboardCollapsed = !dashboardCollapsed"
-            >
-              {{ dashboardCollapsed ? '展开面板' : '收起面板' }}
-            </button>
-            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">快速切换周期</span>
-          </div>
-        </div>
+    <div class="grid gap-3 xl:items-start" :class="dashboardCollapsed ? 'xl:grid-cols-[minmax(0,1fr)]' : 'xl:grid-cols-[minmax(0,1fr)_320px]'" data-role="kline-layout-shell" :data-sidebar-collapsed="dashboardCollapsed ? 'true' : 'false'">
+      <div class="grid gap-3">
+        <KlineToolbar
+          :current-period="currentPeriod ?? '1D'"
+          :active-tool="chartStore.activeTool"
+          :drawing-disabled="overlayDisabled"
+          :collapsed="dashboardCollapsed"
+          @period-change="emit('switchPeriod', $event)"
+          @tool-change="chartStore.selectTool($event)"
+          @clear-drawings="klineData?.symbol && chartStore.clearSymbolDrawings(klineData.symbol)"
+          @toggle-dashboard="dashboardCollapsed = !dashboardCollapsed"
+        />
 
         <div class="grid gap-3 rounded-[16px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-3" data-role="kline-chart-summary">
           <div class="flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
-            <span
-              v-for="item in summaryItems"
-              :key="item.label"
-              class="rounded-full border border-border/70 px-2.5 py-1"
-            >
-              {{ item.label }}: <span class="text-text">{{ item.value }}</span>
+            <span v-for="[label, value] in summaryItems" :key="label" class="rounded-full border border-border/70 px-2.5 py-1">
+              {{ label }}: <span class="text-text">{{ value }}</span>
             </span>
           </div>
           <div class="flex flex-wrap justify-start gap-2" data-role="kline-chart-legend">
-            <span
-              v-for="item in legendItems"
-              :key="item.key"
-              class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-text-faint"
-            >
+            <span v-for="item in legendItems" :key="item.key" class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-[rgba(255,255,255,0.03)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-text-faint">
               <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: item.color }" />
               {{ item.label }}
             </span>
@@ -591,45 +453,43 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="relative overflow-hidden rounded-[18px] border border-border/80 bg-[rgba(255,255,255,0.02)]">
-          <div class="grid gap-0 p-3">
-            <div ref="mainChartRef" class="h-[440px] w-full" />
+          <div class="relative grid gap-0 p-3">
+            <div class="relative">
+              <div ref="mainChartRef" class="h-[440px] w-full" />
+              <KlineDrawingOverlay
+                :symbol="klineData?.symbol ?? null"
+                :candles="candles"
+                :drawings="drawings"
+                :draft-anchors="chartStore.draft?.anchors ?? null"
+                :active-tool="chartStore.activeTool"
+                :selected-drawing-id="chartStore.selectedDrawingId"
+                :disabled="overlayDisabled"
+                @draft-start="handleDraftStart"
+                @draft-update="chartStore.updateDraft($event)"
+                @draft-commit="handleDraftCommit"
+                @draft-cancel="chartStore.cancelDraft()"
+                @drawing-select="chartStore.selectDrawing($event)"
+              />
+              <KlineDrawingSelectionPopover
+                :drawing="selectedDrawing"
+                @style-change="klineData?.symbol && selectedDrawing && chartStore.updateDrawingStyle(klineData.symbol, selectedDrawing.id, $event as Partial<KlineDrawingStyle>)"
+                @drawing-lock-toggle="klineData?.symbol && selectedDrawing && chartStore.toggleDrawingLocked(klineData.symbol, selectedDrawing.id)"
+                @drawing-delete="klineData?.symbol && selectedDrawing && chartStore.deleteDrawing(klineData.symbol, selectedDrawing.id)"
+              />
+            </div>
             <div class="border-t border-border/60 pt-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    data-role="indicator-switch-vol"
-                    class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-                    :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
-                    @click="activeSubIndicator = 'VOL'"
-                  >
-                    成交量
-                  </button>
-                  <button
-                    type="button"
-                    data-role="indicator-switch-macd"
-                    class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-                    :class="activeSubIndicator === 'MACD' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
-                    @click="activeSubIndicator = 'MACD'"
-                  >
-                    MACD
-                  </button>
-                  <button
-                    type="button"
-                    data-role="indicator-switch-kdj"
-                    class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-                    :class="activeSubIndicator === 'KDJ' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
-                    @click="activeSubIndicator = 'KDJ'"
-                  >
-                    KDJ
-                  </button>
-                </div>
-                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">副图 {{ activeSubIndicatorLabel }}</span>
+                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">副图 {{ activeSubIndicator }}</span>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" data-role="indicator-switch-vol" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('VOL')">成交量</button>
+                <button type="button" data-role="indicator-switch-macd" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'MACD' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('MACD')">MACD</button>
+                <button type="button" data-role="indicator-switch-kdj" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'KDJ' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('KDJ')">KDJ</button>
               </div>
               <div ref="subChartRef" class="mt-3 h-[140px] w-full" />
               <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-subindicator-panel">
                 <div class="flex items-center justify-between gap-3">
-                  <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">{{ activeSubIndicatorLabel }}</span>
+                  <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">{{ activeSubIndicator }}</span>
                   <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">最新读数</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
@@ -641,11 +501,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div
-            v-if="!klineData"
-            class="pointer-events-none absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,rgba(9,14,23,0.82),rgba(9,14,23,0.5))] p-6"
-            data-role="kline-chart-empty-state"
-          >
+          <div v-if="!klineData" class="pointer-events-none absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,rgba(9,14,23,0.82),rgba(9,14,23,0.5))] p-6" data-role="kline-chart-empty-state">
             <div class="grid w-full gap-3">
               <div class="h-4 w-32 animate-pulse rounded-full bg-white/10" />
               <div class="h-6 w-2/3 animate-pulse rounded-full bg-white/10" />
@@ -659,14 +515,10 @@ onBeforeUnmount(() => {
             v-for="event in klineData?.news_events ?? []"
             :key="event.time"
             :data-role="`kline-event-chip-${event.time}`"
-            :data-active="props.highlightedEventTime === event.time ? 'true' : 'false'"
+            :data-active="highlightedEventTime === event.time ? 'true' : 'false'"
             type="button"
             class="justify-self-start rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.12em]"
-            :class="
-              props.highlightedEventTime === event.time
-                ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffdfba]'
-                : 'border-[rgba(255,159,47,0.26)] text-[#ffca97]'
-            "
+            :class="highlightedEventTime === event.time ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffdfba]' : 'border-[rgba(255,159,47,0.26)] text-[#ffca97]'"
             @click="emit('focusNews', event)"
           >
             {{ event.time }} · {{ event.items.length }} 条新闻
@@ -674,33 +526,28 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <aside
-        v-if="!dashboardCollapsed"
-        class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(180deg,rgba(15,22,34,0.98),rgba(9,14,22,0.98))] p-3"
-        data-role="kline-chart-dashboard"
-      >
-        <div class="grid gap-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">指标面板</span>
-            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ activeSubIndicatorLabel }}</span>
-          </div>
-          <div class="grid gap-2">
-            <article v-for="item in dashboardGauges" :key="item.label" class="grid gap-1 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-2.5">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ item.label }}</span>
-                <strong class="text-sm text-text">{{ item.value }}</strong>
-              </div>
-              <div class="h-2 overflow-hidden rounded-full bg-[rgba(148,163,184,0.12)]">
-                <div class="h-full rounded-full bg-[linear-gradient(90deg,#ff8f3f,#ffd28a)]" :style="{ width: `${Math.round(item.ratio * 100)}%` }" />
-              </div>
-            </article>
-          </div>
-        </div>
+      <aside v-if="!dashboardCollapsed" class="grid gap-3" data-role="kline-chart-dashboard">
+        <KlineIndicatorWorkbench
+          :templates="chartStore.templates"
+          :active-template-id="chartStore.activeTemplateId"
+          :sub-indicator="activeSubIndicator"
+          :disabled="overlayDisabled"
+          @template-apply="chartStore.applyTemplate($event)"
+          @template-save="chartStore.copyActiveTemplate()"
+          @template-delete="chartStore.deleteCustomTemplate($event)"
+          @subindicator-change="chartStore.setSubIndicator($event)"
+        />
 
         <div class="grid gap-2 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-3">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">技术读数</span>
+            <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">图表读数</span>
             <strong class="text-sm text-text">{{ formatNumber(latestCandle?.close) }}</strong>
+          </div>
+          <div class="grid gap-2">
+            <article v-for="item in dashboardGauges" :key="item.label" class="flex items-center justify-between gap-3">
+              <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ item.label }}</span>
+              <strong class="text-sm text-text">{{ item.value }}</strong>
+            </article>
           </div>
           <div class="grid grid-cols-2 gap-x-3 gap-y-2">
             <article v-for="[label, value] in technicalReadouts" :key="label" class="grid gap-0.5">

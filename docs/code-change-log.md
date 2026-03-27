@@ -2,6 +2,31 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-27 23:15
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线画线工作台基础接入
+- 变更内容：为自选股详情页的 K 线区域补入了第一版“工作台”基础层和界面接入。新增了画线对象、指标模板与前端 EMA/RSI 的类型与工具函数，增加了独立 `watchlistChartStore` 管理当前工具、按股票画线、本地模板与副图状态；同时把原 K 线区域重构为由 `KlineToolbar`、`KlineDrawingOverlay`、`KlineIndicatorWorkbench` 与 `KlineDrawingSelectionPopover` 组合驱动的新结构。当前版本已经恢复并保持原有 `focusNews`、`switchPeriod`、主图/副图渲染与右侧技术面板回归，同时接入了基础的画线工具入口、模板选择、默认模板复制保存路径和选中对象样式/锁定/删除浮层。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineDrawings.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineIndicatorTemplates.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineIndicators.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/klineOverlayGeometry.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineToolbar.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineIndicatorWorkbench.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingSelectionPopover.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-27-kline-drawing-indicator-workbench-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-27-kline-drawing-indicator-workbench-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：仅前端类型与本地持久化结构扩展；后端 K 线 API 与现有路由契约未变
+- 验证情况：`npm --prefix /Users/xiuyang/Desktop/news-caught/frontend run test -- --run src/components/watchlist/KlineChart.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（3 个文件 / 7 个用例）；`npm --prefix /Users/xiuyang/Desktop/news-caught/frontend run build` 通过
+- 风险/后续事项：这版优先把工作台基础骨架和现有回归接通，`KlineDrawingOverlay` 里的命中、拖拽和价格映射仍是第一版轻量实现；后续如果要把画线体验继续逼近同花顺/TradingView，还需要补更精细的锚点拖拽、真正的空白透传/缩放联动，以及更完整的模板编辑测试
+
 ## 2026-03-27 21:12
 
 - 修改人：Codex

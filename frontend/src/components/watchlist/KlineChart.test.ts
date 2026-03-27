@@ -1,6 +1,10 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@vue/devtools-api', () => ({
+  setupDevtoolsPlugin: () => undefined,
+}));
+
 let addSeriesMock: ReturnType<typeof vi.fn>;
 let chartMock: ReturnType<typeof vi.fn>;
 let seriesMocks: Array<{ setData: ReturnType<typeof vi.fn> }>;
@@ -12,10 +16,15 @@ vi.mock('lightweight-charts', () => ({
   LineSeries: Symbol('LineSeries'),
 }));
 
-import KlineChart from './KlineChart.vue';
-
 describe('KlineChart', () => {
   beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: vi.fn(() => null),
+        setItem: vi.fn(),
+      },
+      configurable: true,
+    });
     seriesMocks = [];
     addSeriesMock = vi.fn(() => {
       const series = { setData: vi.fn() };
@@ -34,6 +43,9 @@ describe('KlineChart', () => {
   });
 
   it('renders trading-desk chrome, preserves chart rendering, and emits focus-news from event chips', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    setActivePinia(createPinia());
+    const { default: KlineChart } = await import('./KlineChart.vue');
     const event = { time: '2026-03-19', items: [{ id: 1, title: 'Mainland buyers lift sentiment', sentiment: 'positive' }] };
     const wrapper = mount(KlineChart, {
       props: {

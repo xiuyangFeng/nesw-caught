@@ -313,6 +313,89 @@ export interface StockKlineResponse {
   news_events: NewsEventMarker[];
 }
 
+export type KlineDrawingTool =
+  | 'select'
+  | 'trend_line'
+  | 'horizontal_line'
+  | 'price_range'
+  | 'fibonacci_retracement'
+  | 'price_note';
+
+export interface KlineDrawingAnchor {
+  time: string;
+  price: number;
+}
+
+export interface KlineDrawingStyle {
+  color: string;
+  lineWidth: number;
+  lineStyle: 'solid' | 'dashed';
+  fillOpacity: number;
+}
+
+export interface KlineDrawingPayload {
+  text?: string;
+}
+
+export interface KlineDrawing {
+  id: string;
+  symbol: string;
+  toolType: Exclude<KlineDrawingTool, 'select'>;
+  createdAt: string;
+  updatedAt: string;
+  locked: boolean;
+  visible: boolean;
+  style: KlineDrawingStyle;
+  anchors: KlineDrawingAnchor[];
+  payload: KlineDrawingPayload;
+}
+
+export interface VersionedPersistedValue<T> {
+  version: number;
+  savedAt: string;
+  payload: T;
+}
+
+export type OverlayIndicatorKind = 'MA' | 'EMA' | 'BOLL';
+export type KlineSubIndicator = 'VOL' | 'MACD' | 'KDJ' | 'RSI';
+
+export interface MaOverlayIndicator {
+  kind: 'MA';
+  visible: boolean;
+  params: {
+    periods: number[];
+  };
+}
+
+export interface EmaOverlayIndicator {
+  kind: 'EMA';
+  visible: boolean;
+  params: {
+    periods: number[];
+  };
+}
+
+export interface BollOverlayIndicator {
+  kind: 'BOLL';
+  visible: boolean;
+  params: {
+    period: number;
+    stdDev: number;
+  };
+}
+
+export type KlineOverlayIndicator = MaOverlayIndicator | EmaOverlayIndicator | BollOverlayIndicator;
+
+export interface KlineIndicatorTemplate {
+  id: string;
+  name: string;
+  scope: 'global';
+  source: 'preset' | 'custom';
+  version: number;
+  overlayIndicators: KlineOverlayIndicator[];
+  subIndicator: KlineSubIndicator;
+}
+
 export interface SparklineSeries {
   prices: number[];
 }
