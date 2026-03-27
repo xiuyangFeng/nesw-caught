@@ -122,11 +122,15 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   async function loadQuoteDetail(symbol: string) {
     detailLoading.value = true;
     selectedSymbol.value = symbol;
-    const response = await apiClient.getStockQuoteDetail(symbol);
-    quoteDetail.value = response.data;
-    usingMock.value = usingMock.value || response.degraded;
-    lastLoadedAt.value = new Date().toISOString();
-    detailLoading.value = false;
+    quoteDetail.value = null;
+    try {
+      const response = await apiClient.getStockQuoteDetail(symbol);
+      quoteDetail.value = response.data;
+      usingMock.value = usingMock.value || response.degraded;
+      lastLoadedAt.value = new Date().toISOString();
+    } finally {
+      detailLoading.value = false;
+    }
   }
 
   async function loadRelatedNews(symbol: string) {

@@ -401,6 +401,19 @@ describe('watchlistStore', () => {
     expect((store as any).detailNews).toEqual([]);
   });
 
+  it('clears detail loading when quote detail loading fails', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+    apiClient.getStockQuoteDetail.mockRejectedValue(new Error('timeout'));
+
+    await expect((store as any).loadQuoteDetail('AAPL')).rejects.toThrow('timeout');
+
+    expect(store.detailLoading).toBe(false);
+    expect(store.quoteDetail).toBeNull();
+  });
+
   it('ignores stale detail responses after the user switches symbols quickly', async () => {
     const { createPinia, setActivePinia } = await import('pinia');
     const { useWatchlistStore } = await import('./watchlistStore');

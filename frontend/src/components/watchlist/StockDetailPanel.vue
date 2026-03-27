@@ -20,7 +20,6 @@ const emit = defineEmits<{
   switchPeriod: [period: WatchlistDashboardPeriod];
 }>();
 
-const activeIndicator = ref<'MACD' | 'KDJ' | 'BOLL'>('MACD');
 const highlightedEventTime = ref<string | null>(null);
 const settingsOpen = ref(false);
 
@@ -129,26 +128,6 @@ function focusNewsItem(item: NewsItem) {
                       @click="emit('switchPeriod', period)"
                     >
                       {{ period }}
-                    </button>
-                  </div>
-                </section>
-                <section class="grid gap-2">
-                  <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">指标偏好</span>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="indicator in ['MACD', 'KDJ', 'BOLL']"
-                      :key="indicator"
-                      type="button"
-                      class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.16em]"
-                      :class="
-                        activeIndicator === indicator
-                          ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
-                          : 'border-[rgba(148,163,184,0.18)] text-text-faint'
-                      "
-                      :data-role="`watchlist-indicator-${indicator}`"
-                      @click="activeIndicator = indicator as 'MACD' | 'KDJ' | 'BOLL'"
-                    >
-                      {{ indicator }}
                     </button>
                   </div>
                 </section>

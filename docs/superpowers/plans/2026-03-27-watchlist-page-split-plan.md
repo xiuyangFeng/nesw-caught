@@ -28,7 +28,8 @@
 在 `frontend/src/views/WatchlistView.test.ts` 中新增断言：
 - 列表页不再渲染 `data-role="stock-detail-panel"`
 - 列表页保留自选股列表与工具条
-- 点击股票项后仍跳转 `{ name: 'watchlist-detail', params: { symbol } }`
+- 点击股票项后立即跳转 `{ name: 'watchlist-detail', params: { symbol } }`
+- 点击股票项时不再等待 `selectSymbol()` 预拉详情数据
 
 创建 `frontend/src/views/WatchlistDetailView.test.ts`，至少覆盖：
 - 详情页加载时调用 `loadQuoteDetail(symbol)` 和 `loadRelatedNews(symbol)`
@@ -36,6 +37,7 @@
 - 详情页存在返回按钮
 - 详情页存在 `data-role="watchlist-detail-main"`
 - 无效 symbol 时回退到 `/watchlist`
+- 非 404 加载失败时不回退且不会卡在 loading
 
 - [ ] **Step 2: 运行测试并确认按新职责失败**
 
@@ -149,7 +151,6 @@ Expected: PASS
 
 至少覆盖：
 - 设置 popover 内可见周期切换入口
-- 设置 popover 内可见指标相关入口
 - 设置滚动容器存在 `overflow` 对应类或 `data-role`
 - 点击新闻项后图表高亮联动仍可用
 
@@ -162,7 +163,6 @@ Expected: FAIL，提示 popover 内容或联动结构缺失
 
 要求：
 - 周期切换从 `StockDetailPanel.vue` 现有顶部区迁移到设置 popover 中
-- 指标相关控制由 `IndicatorChart.vue` 与 `StockDetailPanel.vue` 配合迁移到设置 popover 中
 - 继续保留新闻事件与图表高亮联动
 - K 线主图仍保持视觉中心
 

@@ -104,9 +104,6 @@ describe('StockDetailPanel', () => {
     expect(wrapper.get('[data-role="watchlist-settings-popover"]').exists()).toBe(true);
     expect(wrapper.get('[data-role="watchlist-settings-scroll"]').classes()).toContain('overflow-y-auto');
     expect(wrapper.get('[data-role="period-1D"]').exists()).toBe(true);
-    expect(wrapper.get('[data-role="watchlist-indicator-MACD"]').exists()).toBe(true);
-    expect(wrapper.get('[data-role="watchlist-indicator-KDJ"]').exists()).toBe(true);
-    expect(wrapper.get('[data-role="watchlist-indicator-BOLL"]').exists()).toBe(true);
 
     await wrapper.get('[data-role="kline-event-chip-2026-03-19"]').trigger('click');
     expect(wrapper.get('[data-role="trading-desk-news-item-101"]').attributes('data-highlighted')).toBe('true');

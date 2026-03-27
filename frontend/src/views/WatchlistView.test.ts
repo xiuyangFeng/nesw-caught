@@ -206,8 +206,8 @@ describe('WatchlistView', () => {
 
     await wrapper.get('[data-role="stock-card-AAPL"]').trigger('click');
 
-    expect(watchlistStore.selectSymbol).toHaveBeenCalledWith('AAPL');
     expect(push).toHaveBeenCalledWith({ name: 'watchlist-detail', params: { symbol: 'AAPL' } });
+    expect(watchlistStore.selectSymbol).not.toHaveBeenCalled();
   });
 
   it('keeps loading the dashboard when candidate lookup fails', async () => {
@@ -243,7 +243,7 @@ describe('WatchlistView', () => {
       alert_threshold: null,
       alert_mode: 'fixed',
     });
-    expect(watchlistStore.selectSymbol).toHaveBeenCalledWith('BABA');
+    expect(watchlistStore.selectSymbol).not.toHaveBeenCalled();
     expect(wrapper.get('[data-role="watchlist-add-modal"]').attributes('aria-hidden')).toBe('true');
   });
 

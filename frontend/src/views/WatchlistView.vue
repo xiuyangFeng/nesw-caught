@@ -50,9 +50,8 @@ function handleSelectAddCandidate(candidate: WatchlistCandidate) {
   addModalSelectedCandidate.value = candidate;
 }
 
-async function handleSelectSymbol(symbol: string) {
-  await watchlistStore.selectSymbol(symbol);
-  await router.push({ name: 'watchlist-detail', params: { symbol } });
+function handleSelectSymbol(symbol: string) {
+  router.push({ name: 'watchlist-detail', params: { symbol } });
 }
 
 async function handleAddCandidate() {
@@ -69,7 +68,6 @@ async function handleAddCandidate() {
       alert_threshold: addModalAdvancedOpen.value && threshold ? Number(threshold) : null,
       alert_mode: 'fixed',
     });
-    await watchlistStore.selectSymbol(addModalSelectedCandidate.value.symbol);
     await router.push({ name: 'watchlist-detail', params: { symbol: addModalSelectedCandidate.value.symbol } });
     closeAddModal();
   } catch {
@@ -90,9 +88,6 @@ async function handleDeleteSymbol(symbol: string) {
 async function handleManualRefresh() {
   try {
     await watchlistStore.refreshMarketQuotes();
-    if (watchlistStore.selectedSymbol) {
-      await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
-    }
   } catch {
   }
 }
