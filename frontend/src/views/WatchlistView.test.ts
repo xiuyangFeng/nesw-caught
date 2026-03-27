@@ -181,33 +181,23 @@ describe('WatchlistView', () => {
     watchlistStore.klineData.indicators.bollinger = [];
   });
 
-  it('renders the dashboard master-detail layout', async () => {
+  it('renders the standalone watchlist list page without the detail panel', async () => {
     const wrapper = mount(WatchlistView);
     await flushPromises();
 
     expect(watchlistStore.loadCandidates).toHaveBeenCalled();
     expect(wrapper.find('[data-role="watchlist-dashboard"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="watchlist-sidebar"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="stock-detail-panel"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="kline-chart"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="trading-desk-news-feed"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="stock-detail-panel"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="watchlist-toolbar"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-compact-list"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="market-worker-status"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="market-refresh-action"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="trading-desk-summary"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="trading-desk-main"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="trading-desk-secondary"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('Trading Dashboard');
+    expect(wrapper.text()).not.toContain('Trading Dashboard');
+    expect(wrapper.get('[data-role="watchlist-open-add-modal"]').text()).toBe('添加');
+    expect(wrapper.get('[data-role="stock-card-0700.HK"]').attributes('data-density')).toBe('compact');
     expect(wrapper.text()).toContain('Tencent');
     expect(wrapper.text()).toContain('0700.HK');
-    expect(wrapper.text()).toContain('550.50');
-    expect(wrapper.text()).toContain('+5.50');
-    expect(wrapper.text()).toContain('+1.01%');
-    expect(wrapper.text()).toContain('Open');
-    expect(wrapper.text()).toContain('Prev Close');
-    expect(wrapper.text()).toContain('High');
-    expect(wrapper.text()).toContain('Low');
-    expect(wrapper.text()).toContain('Volume');
-    expect(wrapper.text()).toContain('Updated');
   });
 
   it('selects a stock card when the user clicks the sidebar item', async () => {
@@ -218,19 +208,6 @@ describe('WatchlistView', () => {
 
     expect(watchlistStore.selectSymbol).toHaveBeenCalledWith('AAPL');
     expect(push).toHaveBeenCalledWith({ name: 'watchlist-detail', params: { symbol: 'AAPL' } });
-  });
-
-  it('switches periods and disables empty indicators', async () => {
-    const wrapper = mount(WatchlistView);
-    await flushPromises();
-
-    expect(wrapper.get('[data-role="trading-desk-summary"]').get('[data-role="period-1W"]').exists()).toBe(true);
-    await wrapper.get('[data-role="period-1W"]').trigger('click');
-
-    expect(watchlistStore.switchPeriod).toHaveBeenCalledWith('1W');
-    expect(wrapper.get('[data-role="indicator-KDJ"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.get('[data-role="indicator-BOLL"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.get('[data-role="indicator-MACD"]').attributes('disabled')).toBeUndefined();
   });
 
   it('keeps loading the dashboard when candidate lookup fails', async () => {
@@ -248,6 +225,7 @@ describe('WatchlistView', () => {
 
     await wrapper.get('[data-role="watchlist-open-add-modal"]').trigger('click');
     expect(wrapper.get('[data-role="watchlist-add-modal"]').attributes('aria-hidden')).toBe('false');
+    expect(wrapper.text()).toContain('添加自选');
 
     await wrapper.get('[data-role="watchlist-add-search"]').setValue('Alibaba');
     await wrapper.get('[data-role="watchlist-candidate-BABA"]').trigger('click');
@@ -334,23 +312,4 @@ describe('WatchlistView', () => {
     expect(wrapper.text()).toContain('删除自选股失败，请检查后端服务');
   });
 
-  it('links event chips and news timeline highlights in both directions', async () => {
-    watchlistStore.klineData.news_events = [
-      { time: '2026-03-19', items: [{ id: 101, title: 'Tencent update', sentiment: 'positive' }] },
-      { time: '2026-03-20', items: [{ id: 102, title: 'Tencent follow-up', sentiment: 'neutral' }] },
-    ];
-    watchlistStore.detailNews = [
-      { id: 101, title: 'Tencent update', summary: 'AI expansion', source_name: 'Reuters', canonical_url: null, market: 'hk', sentiment_label: 'positive', published_at: '2026-03-19T10:00:00Z', fetched_at: '2026-03-19T10:05:00Z' },
-      { id: 102, title: 'Tencent follow-up', summary: 'New cloud demand', source_name: 'Bloomberg', canonical_url: null, market: 'hk', sentiment_label: 'neutral', published_at: '2026-03-20T03:00:00Z', fetched_at: '2026-03-20T03:05:00Z' },
-    ];
-    const wrapper = mount(WatchlistView);
-    await flushPromises();
-
-    await wrapper.get('[data-role="kline-event-chip-2026-03-19"]').trigger('click');
-    expect(wrapper.get('[data-role="trading-desk-news-item-101"]').attributes('data-highlighted')).toBe('true');
-    expect(wrapper.get('[data-role="trading-desk-news-item-102"]').attributes('data-highlighted')).toBe('false');
-
-    await wrapper.get('[data-role="trading-desk-news-item-102"]').trigger('click');
-    expect(wrapper.get('[data-role="kline-event-chip-2026-03-20"]').attributes('data-active')).toBe('true');
-  });
 });

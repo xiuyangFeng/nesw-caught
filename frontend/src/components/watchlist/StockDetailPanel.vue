@@ -4,7 +4,6 @@ import { computed, ref } from 'vue';
 import type { NewsEventMarker, NewsItem, StockKlineResponse, WatchlistDashboardPeriod, WatchlistQuoteSummary } from '../../types/api';
 import { formatNumber, formatPercent } from '../../utils/format';
 import { formatMarketTime } from '../../utils/time';
-import IndicatorChart from './IndicatorChart.vue';
 import KlineChart from './KlineChart.vue';
 import RelatedNewsSidebar from './RelatedNewsSidebar.vue';
 
@@ -23,6 +22,7 @@ const emit = defineEmits<{
 
 const activeIndicator = ref<'MACD' | 'KDJ' | 'BOLL'>('MACD');
 const highlightedEventTime = ref<string | null>(null);
+const settingsOpen = ref(false);
 
 const periods: WatchlistDashboardPeriod[] = ['1D', '1W', '1M', '3M', '1Y'];
 
@@ -47,12 +47,6 @@ const updatedAt = computed(() => {
   }
   return formatMarketTime(props.quote.fetched_at, props.quote.market);
 });
-const signalNotes = computed(() => [
-  `主图覆盖 ${props.klineData?.candles.length ?? 0} 根 K 线，默认叠加 MA5 / MA10 / MA20 / MA60。`,
-  `副图当前聚焦 ${activeIndicator.value}，事件日期共 ${props.klineData?.news_events.length ?? 0} 个。`,
-  `新闻时间流保持次级展示，只用来补价格与事件语境。`,
-]);
-
 function focusNewsEvent(event: NewsEventMarker) {
   highlightedEventTime.value = event.time;
 }
@@ -89,22 +83,78 @@ function focusNewsItem(item: NewsItem) {
             </div>
           </div>
         </div>
-        <div class="flex flex-wrap gap-2 self-start">
+        <div class="relative self-start">
           <button
-            v-for="period in periods"
-            :key="period"
             type="button"
-            class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.16em]"
-            :class="
-              currentPeriod === period
-                ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
-                : 'border-[rgba(148,163,184,0.18)] text-text-faint'
-            "
-            :data-role="`period-${period}`"
-            @click="emit('switchPeriod', period)"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(148,163,184,0.2)] bg-[rgba(255,255,255,0.04)] text-lg text-text-faint transition hover:border-[#ffb66d] hover:text-[#ffca97]"
+            data-role="watchlist-settings-trigger"
+            @click="settingsOpen = !settingsOpen"
           >
-            {{ period }}
+            ⚙
           </button>
+          <div
+            v-if="settingsOpen"
+            class="absolute right-0 top-12 z-20 w-[280px] rounded-[18px] border border-[rgba(148,163,184,0.16)] bg-[linear-gradient(180deg,rgba(10,17,27,0.98),rgba(7,12,22,0.99))] p-3 shadow-[0_18px_40px_rgba(2,6,12,0.34)]"
+            data-role="watchlist-settings-popover"
+          >
+            <div class="grid gap-3">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">Settings</p>
+                  <strong class="text-sm text-text">图表工具</strong>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-full border border-border px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-text-faint"
+                  @click="settingsOpen = false"
+                >
+                  关闭
+                </button>
+              </div>
+              <div class="grid max-h-[220px] gap-3 overflow-y-auto pr-1" data-role="watchlist-settings-scroll">
+                <section class="grid gap-2">
+                  <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">周期</span>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-for="period in periods"
+                      :key="period"
+                      type="button"
+                      class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.16em]"
+                      :class="
+                        currentPeriod === period
+                          ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
+                          : 'border-[rgba(148,163,184,0.18)] text-text-faint'
+                      "
+                      :data-role="`period-${period}`"
+                      @click="emit('switchPeriod', period)"
+                    >
+                      {{ period }}
+                    </button>
+                  </div>
+                </section>
+                <section class="grid gap-2">
+                  <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">指标偏好</span>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      v-for="indicator in ['MACD', 'KDJ', 'BOLL']"
+                      :key="indicator"
+                      type="button"
+                      class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.16em]"
+                      :class="
+                        activeIndicator === indicator
+                          ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
+                          : 'border-[rgba(148,163,184,0.18)] text-text-faint'
+                      "
+                      :data-role="`watchlist-indicator-${indicator}`"
+                      @click="activeIndicator = indicator as 'MACD' | 'KDJ' | 'BOLL'"
+                    >
+                      {{ indicator }}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -135,19 +185,7 @@ function focusNewsItem(item: NewsItem) {
       <KlineChart :kline-data="klineData" :highlighted-event-time="highlightedEventTime" @focus-news="focusNewsEvent" />
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" data-role="trading-desk-secondary">
-      <div class="grid gap-4">
-        <IndicatorChart :indicators="klineData?.indicators ?? null" :active-indicator="activeIndicator" @switch-indicator="activeIndicator = $event" />
-        <section
-          class="rounded-[18px] border border-[rgba(148,163,184,0.12)] bg-[linear-gradient(180deg,rgba(10,17,27,0.94),rgba(8,13,22,0.98))] p-4"
-          data-role="trading-desk-signal-card"
-        >
-          <p class="text-[11px] uppercase tracking-[0.22em] text-[#ffb77d]">Signal Summary</p>
-          <ul class="mt-3 grid gap-2 text-sm text-text-soft">
-            <li v-for="note in signalNotes" :key="note">{{ note }}</li>
-          </ul>
-        </section>
-      </div>
+    <section class="grid gap-4" data-role="watchlist-detail-news">
       <RelatedNewsSidebar :items="detailNews" :highlighted-event-time="highlightedEventTime" @focus-news="focusNewsItem" />
     </section>
   </section>

@@ -1,18 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import StaleBadge from '../components/common/StaleBadge.vue';
 import WatchlistAddModal from '../components/watchlist/WatchlistAddModal.vue';
-import StockDetailPanel from '../components/watchlist/StockDetailPanel.vue';
 import WatchlistSidebar from '../components/watchlist/WatchlistSidebar.vue';
 import { useRuntimeStatusStore } from '../stores/runtimeStatusStore';
 import { useWatchlistStore } from '../stores/watchlistStore';
-import type { WatchlistCandidate, WatchlistDashboardPeriod } from '../types/api';
+import type { WatchlistCandidate } from '../types/api';
 import { getRuntimeDiagnostic } from '../utils/runtimeDiagnostics';
 import { formatMarketTime } from '../utils/time';
 
-const route = useRoute();
 const router = useRouter();
 const runtimeStatusStore = useRuntimeStatusStore();
 const watchlistStore = useWatchlistStore();
@@ -21,10 +19,6 @@ const addModalQuery = ref('');
 const addModalSelectedCandidate = ref<WatchlistCandidate | null>(null);
 const addModalAdvancedOpen = ref(false);
 const addModalAlertThreshold = ref('');
-
-const selectedQuote = computed(() => {
-  return watchlistStore.quotes.find((quote) => quote.symbol === watchlistStore.selectedSymbol) ?? null;
-});
 
 const addModalMatches = computed(() => {
   const keyword = addModalQuery.value.trim().toLowerCase();
@@ -61,10 +55,6 @@ async function handleSelectSymbol(symbol: string) {
   await router.push({ name: 'watchlist-detail', params: { symbol } });
 }
 
-async function handleSwitchPeriod(period: WatchlistDashboardPeriod) {
-  await watchlistStore.switchPeriod(period);
-}
-
 async function handleAddCandidate() {
   if (!addModalSelectedCandidate.value) {
     return;
@@ -93,14 +83,6 @@ async function handleDeleteSymbol(symbol: string) {
   }
   try {
     await watchlistStore.deleteWatchlist(symbol);
-    if (watchlistStore.selectedSymbol) {
-      await watchlistStore.selectSymbol(watchlistStore.selectedSymbol);
-      await router.push({ name: 'watchlist-detail', params: { symbol: watchlistStore.selectedSymbol } });
-      return;
-    }
-    if (route.name === 'watchlist-detail') {
-      await router.push({ name: 'watchlist' });
-    }
   } catch {
   }
 }
@@ -131,33 +113,18 @@ onMounted(async () => {
     // Candidate lookup is optional; keep the dashboard loading.
   }
   await watchlistStore.loadWatchlist();
-  const routeSymbol = String(route.params.symbol ?? '').toUpperCase();
-  const initialSymbol = routeSymbol || watchlistStore.selectedSymbol;
-  if (initialSymbol && !watchlistStore.klineData) {
-    await watchlistStore.selectSymbol(initialSymbol);
-  }
 });
-
-watch(
-  () => String(route.params.symbol ?? '').toUpperCase(),
-  async (nextSymbol, previousSymbol) => {
-    if (!nextSymbol || nextSymbol === previousSymbol || nextSymbol === watchlistStore.selectedSymbol) {
-      return;
-    }
-    await watchlistStore.selectSymbol(nextSymbol);
-  },
-);
 </script>
 
 <template>
   <div class="grid gap-4" data-role="watchlist-dashboard">
     <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist Dashboard</p>
-        <h1 class="page-title mb-2">Trading Dashboard</h1>
-        <p class="page-subtitle">左栏盯盘，右侧查看 K 线、指标和关联新闻。</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist</p>
+        <h1 class="page-title mb-2">自选股</h1>
+        <p class="page-subtitle">搜索、添加并快速切换到单股 K 线详情。</p>
       </div>
-      <StaleBadge :stale="watchlistStore.stale" label="行情与图表" />
+      <StaleBadge :stale="watchlistStore.stale" label="行情列表" />
     </header>
 
     <section
@@ -187,7 +154,7 @@ watch(
       <p v-if="watchlistStore.refreshError" class="m-0 text-negative">{{ watchlistStore.refreshError }}</p>
     </section>
 
-    <section class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <section>
       <WatchlistSidebar
         :items="watchlistStore.items"
         :quotes="watchlistStore.quotes"
@@ -199,15 +166,6 @@ watch(
         @open-add-modal="openAddModal"
         @delete="handleDeleteSymbol"
         @refresh="handleManualRefresh"
-      />
-      <StockDetailPanel
-        :quote="selectedQuote"
-        :kline-data="watchlistStore.klineData"
-        :detail-news="watchlistStore.detailNews"
-        :current-period="watchlistStore.currentPeriod"
-        :kline-loading="watchlistStore.klineLoading"
-        :kline-error="watchlistStore.klineError"
-        @switch-period="handleSwitchPeriod"
       />
     </section>
 

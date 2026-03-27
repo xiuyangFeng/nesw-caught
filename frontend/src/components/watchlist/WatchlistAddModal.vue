@@ -32,12 +32,12 @@ const emit = defineEmits<{
     role="dialog"
     @click.self="emit('close')"
   >
-    <div class="w-full max-w-4xl rounded-[28px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-5 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
+    <div class="w-full max-w-4xl rounded-[24px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-4 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Add Watchlist</p>
-          <h2 class="mt-2 text-2xl text-text">搜索并添加自选股</h2>
-          <p class="mt-2 text-sm text-text-soft">默认可直接加入，自定义阈值时再展开高级设置。</p>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Add</p>
+          <h2 class="mt-1 text-xl text-text">添加自选</h2>
+          <p class="mt-1 text-sm text-text-soft">选中候选后直接加入，需要时再展开高级设置。</p>
         </div>
         <button
           type="button"
@@ -50,14 +50,14 @@ const emit = defineEmits<{
       </div>
 
       <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <section class="rounded-[22px] border border-border/80 bg-black/10 p-4">
-          <label class="block text-[11px] uppercase tracking-[0.18em] text-text-faint" for="watchlist-add-search">
+        <section class="rounded-[20px] border border-border/80 bg-black/10 p-4">
+          <label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search">
             搜索候选
           </label>
           <input
             id="watchlist-add-search"
             :value="query"
-            class="mt-2 w-full rounded-2xl border border-border bg-field px-3 py-2.5 text-sm text-text"
+            class="mt-2 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text"
             data-role="watchlist-add-search"
             placeholder="输入股票代码、名称或别名"
             @input="emit('updateQuery', ($event.target as HTMLInputElement).value)"
@@ -67,7 +67,7 @@ const emit = defineEmits<{
               v-for="candidate in matches"
               :key="candidate.symbol"
               type="button"
-              class="rounded-[18px] border px-3 py-3 text-left transition"
+              class="rounded-[14px] border px-3 py-2.5 text-left transition"
               :class="
                 selectedCandidate?.symbol === candidate.symbol
                   ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.14)]'
@@ -87,8 +87,8 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <section class="rounded-[22px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
-          <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Selection</p>
+        <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Selection</p>
           <div v-if="selectedCandidate" class="mt-3 grid gap-3">
             <div class="rounded-[20px] border border-[#ff9f2f40] bg-[rgba(255,159,47,0.08)] p-4">
               <strong class="block text-lg text-text">{{ selectedCandidate.display_name }}</strong>

@@ -35,34 +35,40 @@ const filteredRows = computed(() => {
 
 <template>
   <aside class="grid gap-4" data-role="watchlist-sidebar">
-    <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4">
-      <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist Radar</p>
-      <h2 class="mt-2 text-lg text-text">Trading Dashboard</h2>
-      <button
-        type="button"
-        class="mt-4 w-full rounded-2xl border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-4 py-3 text-sm font-semibold text-[#2f1500] transition hover:brightness-105"
-        data-role="watchlist-open-add-modal"
-        @click="emit('openAddModal')"
-      >
-        搜索 / 添加自选股
-      </button>
-      <input
-        v-model.trim="query"
-        class="mt-3 w-full rounded-2xl border border-border bg-field px-3 py-2.5 text-sm text-text"
-        placeholder="筛选已添加股票"
-      />
-      <button
-        type="button"
-        class="mt-3 rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-4 py-2 text-sm font-semibold text-[#2f1500] disabled:opacity-60"
-        data-role="watchlist-refresh-action"
-        @click="emit('refresh')"
-      >
-        立即刷新一轮
-      </button>
+    <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4" data-role="watchlist-toolbar">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.22em] text-[#ffb77d]">Watchlist</p>
+          <h2 class="mt-1 text-base text-text">列表</h2>
+        </div>
+        <button
+          type="button"
+          class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-3 py-1.5 text-xs font-semibold text-[#2f1500] transition hover:brightness-105"
+          data-role="watchlist-open-add-modal"
+          @click="emit('openAddModal')"
+        >
+          添加
+        </button>
+      </div>
+      <div class="mt-3 flex items-center gap-2">
+        <input
+          v-model.trim="query"
+          class="min-w-0 flex-1 rounded-xl border border-border bg-field px-3 py-2 text-sm text-text"
+          placeholder="搜索已添加股票"
+        />
+        <button
+          type="button"
+          class="shrink-0 rounded-full border border-[#ff9f2f4f] bg-[rgba(255,159,47,0.08)] px-3 py-2 text-[11px] font-semibold text-[#ffca97] disabled:opacity-60"
+          data-role="watchlist-refresh-action"
+          @click="emit('refresh')"
+        >
+          刷新
+        </button>
+      </div>
       <p v-if="deleteError" class="mt-2 text-sm text-negative">{{ deleteError }}</p>
     </div>
 
-    <div class="grid gap-3">
+    <div class="grid gap-3" data-role="watchlist-compact-list">
       <StockCard
         v-for="row in filteredRows"
         :key="row.symbol"

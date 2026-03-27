@@ -67,23 +67,24 @@
 - 顶部行情条
 - K 线主图
 - K 线下方相关新闻 / 事件流
-- 顶部右上角设置按钮与设置弹层
+- 顶部右上角设置按钮与设置 popover
 
 具体布局：
 
 - 顶部行情条展示股票名、代码、价格、涨跌、开高低收、成交量、更新时间
-- 右上角提供螺丝按钮，点击后打开设置弹层
+- 右上角提供螺丝按钮，点击后打开设置 popover
 - K 线作为页面最大视觉区域
 - K 线下方只放相关新闻 / 事件时间流，不再追加第二块摘要面板
 
-### 3. 设置改为弹层，而不是常驻侧栏
+### 3. 设置改为 popover，而不是常驻侧栏
 
-用户明确要求取消右侧工具带，因此设置采用弹层：
+用户明确要求取消右侧工具带，因此设置采用 popover：
 
 - 触发方式：顶部行情条右上角螺丝按钮
 - 内容：周期、指标开关、提醒阈值、必要的轻量设置
-- 滚动：弹层内部 `max-height + overflow-y-auto`
-- 关闭方式：点击关闭按钮、弹层外部区域或完成操作后保留当前状态
+- 容器形态：锚定在顶部行情条右上角按钮附近的轻量 popover，而不是抽屉、侧栏或整页下沉区
+- 滚动：popover 内部 `max-height + overflow-y-auto`
+- 关闭方式：点击关闭按钮、popover 外部区域或完成操作后保留当前状态
 
 这样能同时满足：
 
@@ -108,8 +109,9 @@
 
 - 加载单股 quote / related news
 - 复用或承接现有 `watchlistStore.selectSymbol()` 产生的 K 线数据
-- 负责 symbol 路由切换和页面级骨架
-- 渲染新的详情组件组合
+- 负责 symbol 路由切换、无效 symbol 回退和页面级骨架
+- 负责返回 `/watchlist` 的页面级导航
+- 只负责装载数据并向详情组件传递状态，不负责详情内部设置项编排
 
 ### `frontend/src/components/watchlist/WatchlistSidebar.vue`
 
@@ -137,9 +139,10 @@
 - 顶部行情条
 - 主图
 - 下方新闻时间流
-- 顶部设置按钮 + 弹层
+- 顶部设置按钮 + popover
 
 不再在 K 线下方放 `signal summary` 卡片，也不再保留常驻设置区。
+`StockDetailPanel.vue` 只负责详情内容编排、设置 popover 开关和图表/新闻联动，不承接路由跳转、无效 symbol 判断或页面级回退逻辑。
 
 ### `frontend/src/components/watchlist/RelatedNewsSidebar.vue`
 
@@ -172,11 +175,13 @@
 
 1. 列表页点击整行股票，跳转详情页。
 2. 列表页搜索只过滤已添加股票；添加入口仍可搜索候选股票。
-3. 详情页右上角螺丝按钮打开设置弹层。
-4. 设置弹层内部使用固定高度滚动。
-5. 周期切换和指标开关都放进弹层，不再常驻占据版面。
-6. 相关新闻位于 K 线下方，点击新闻仍可高亮相关事件日期。
-7. 详情页返回按钮回到 `/watchlist`。
+2. 若 `/watchlist/:symbol` 中的 `symbol` 缺失或无效，详情页立即回退到 `/watchlist`。
+3. 列表页搜索只过滤已添加股票；添加入口仍可搜索候选股票。
+4. 详情页右上角螺丝按钮打开设置 popover。
+5. 设置 popover 内部使用固定高度滚动。
+6. 周期切换和指标开关都放进设置 popover，不再常驻占据版面。
+7. 相关新闻位于 K 线下方，点击新闻仍可高亮相关事件日期。
+8. 详情页返回按钮固定回到 `/watchlist`。
 
 ## 响应式策略
 
@@ -196,7 +201,7 @@
 遵循 TDD：
 
 1. 先写 `WatchlistView.test.ts` 的失败测试，锁定“列表页不再渲染详情区”以及新的紧凑入口结构。
-2. 再写 `WatchlistDetailView.test.ts` 或扩充现有详情测试，锁定“详情页主图 + 下方新闻 + 右上角设置按钮/弹层”。
+2. 再写 `WatchlistDetailView.test.ts` 或扩充现有详情测试，锁定“详情页主图 + 下方新闻 + 右上角设置按钮/设置 popover”。
 3. 对 `StockDetailPanel.vue` / `WatchlistSidebar.vue` / `WatchlistAddModal.vue` 需要的关键结构补单测。
 4. 最终至少执行：
    - `npm --prefix frontend run test -- --run src/views/WatchlistView.test.ts src/views/WatchlistDetailView.test.ts`
@@ -208,8 +213,8 @@
 1. 当前 `watchlist` store 同时服务列表页和详情页，拆页后更容易出现重复加载。
    - 缓解：优先复用已有 action，避免引入第二套状态。
 
-2. 现有详情逻辑分散在 `WatchlistView.vue` 与 `WatchlistDetailView.vue` 两边。
-   - 缓解：把详情职责尽量收口到 `WatchlistDetailView.vue`。
+2. 详情页容器与详情组件的职责若不切清，容易重新出现重复路由/状态控制。
+   - 缓解：由 `WatchlistDetailView.vue` 负责页面级装载与回退，由 `StockDetailPanel.vue` 负责内容编排与 popover 交互。
 
 3. 设置从常驻按钮改到弹层后，可能导致测试选择器失效。
    - 缓解：新增稳定 `data-role`，锁定弹层打开/关闭和内部滚动容器。

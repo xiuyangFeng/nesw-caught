@@ -32,8 +32,10 @@
 
 创建 `frontend/src/views/WatchlistDetailView.test.ts`，至少覆盖：
 - 详情页加载时调用 `loadQuoteDetail(symbol)` 和 `loadRelatedNews(symbol)`
+- 详情页加载时调用 `selectSymbol(symbol)` 以装载 K 线
 - 详情页存在返回按钮
 - 详情页存在 `data-role="watchlist-detail-main"`
+- 无效 symbol 时回退到 `/watchlist`
 
 - [ ] **Step 2: 运行测试并确认按新职责失败**
 
@@ -45,7 +47,7 @@ Expected: FAIL，提示列表页仍渲染旧详情结构或详情页结构缺失
 要求：
 - `router/index.ts` 中 `/watchlist/:symbol` 改为 `WatchlistDetailView.vue`
 - `WatchlistView.vue` 只保留列表页职责
-- `WatchlistDetailView.vue` 收口为详情页容器并保留数据加载逻辑
+- `WatchlistDetailView.vue` 收口为详情页容器并保留数据加载逻辑、无效 symbol 回退与返回导航
 
 - [ ] **Step 4: 重新运行测试确认通过**
 
@@ -58,6 +60,7 @@ Expected: PASS
 
 **Files:**
 - Modify: `frontend/src/views/WatchlistView.test.ts`
+- Modify: `frontend/src/views/WatchlistView.vue`
 - Modify: `frontend/src/components/watchlist/WatchlistSidebar.vue`
 - Modify: `frontend/src/components/watchlist/WatchlistAddModal.vue`
 - Test: `frontend/src/views/WatchlistView.test.ts`
@@ -69,6 +72,7 @@ Expected: PASS
 - 工具条存在搜索输入和添加按钮
 - 列表区存在紧凑行项容器，例如 `data-role="watchlist-compact-list"`
 - 列表页不再出现大而显眼的 “Trading Dashboard” 标题
+- 列表页不再出现旧的详情区容器和厚重的 dashboard 式标题层级
 
 - [ ] **Step 2: 运行测试并确认失败**
 
@@ -78,6 +82,7 @@ Expected: FAIL，提示新工具条或紧凑列表结构不存在
 - [ ] **Step 3: 写最小实现完成列表页紧凑化**
 
 要求：
+- `WatchlistView.vue` 头部和状态区同步收紧，形成真正独立的列表页
 - `WatchlistSidebar.vue` 改成超紧凑 `A1` 密度
 - 搜索框和添加按钮尺寸缩小
 - 股票行项高度明显低于当前卡片
@@ -94,6 +99,7 @@ Expected: PASS
 
 **Files:**
 - Modify: `frontend/src/views/WatchlistDetailView.test.ts`
+- Modify: `frontend/src/views/WatchlistDetailView.vue`
 - Modify: `frontend/src/components/watchlist/StockDetailPanel.vue`
 - Modify: `frontend/src/components/watchlist/RelatedNewsSidebar.vue`
 - Test: `frontend/src/views/WatchlistDetailView.test.ts`
@@ -105,7 +111,8 @@ Expected: PASS
 - K 线主图区存在
 - K 线下方新闻区存在，例如 `data-role="watchlist-detail-news"`
 - 页面中不再出现常驻右侧工具带
-- 点击设置按钮后出现弹层，例如 `data-role="watchlist-settings-popover"`
+- 点击设置按钮后出现 popover，例如 `data-role="watchlist-settings-popover"`
+- `WatchlistDetailView.vue` 负责把 quote / kline / news 状态传给详情组件
 
 - [ ] **Step 2: 运行测试并确认失败**
 
@@ -115,9 +122,10 @@ Expected: FAIL，提示设置弹层或新闻下沉结构缺失
 - [ ] **Step 3: 写最小实现完成详情页改造**
 
 要求：
+- `WatchlistDetailView.vue` 组装 dedicated detail page，而不是继续沿用列表页骨架
 - `StockDetailPanel.vue` 改成顶部行情条 + 主图 + 下方新闻
 - 顶部右上角新增螺丝设置按钮
-- 设置内容进入弹层，并提供内部滚动容器
+- 设置内容进入 popover，并提供内部滚动容器
 - `RelatedNewsSidebar.vue` 适配详情页下方全宽场景
 - 不再渲染旧的副图区常驻工具布局
 
@@ -131,37 +139,36 @@ Expected: PASS
 ### Task 4: 锁定弹层内容和图表联动不回退
 
 **Files:**
-- Modify: `frontend/src/components/watchlist/KlineChart.test.ts`
 - Modify: `frontend/src/views/WatchlistDetailView.test.ts`
 - Modify: `frontend/src/components/watchlist/StockDetailPanel.vue`
+- Modify: `frontend/src/components/watchlist/IndicatorChart.vue`
 - Modify: `frontend/src/components/watchlist/KlineChart.vue`
-- Test: `frontend/src/components/watchlist/KlineChart.test.ts`
 - Test: `frontend/src/views/WatchlistDetailView.test.ts`
 
 - [ ] **Step 1: 写失败测试，锁定设置弹层内容和联动存活**
 
 至少覆盖：
-- 设置弹层内可见周期切换入口
-- 设置弹层内可见指标相关入口
+- 设置 popover 内可见周期切换入口
+- 设置 popover 内可见指标相关入口
 - 设置滚动容器存在 `overflow` 对应类或 `data-role`
 - 点击新闻项后图表高亮联动仍可用
 
 - [ ] **Step 2: 运行测试并确认失败**
 
-Run: `npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts src/views/WatchlistDetailView.test.ts`
-Expected: FAIL，提示弹层内容或联动结构缺失
+Run: `npm --prefix frontend run test -- --run src/views/WatchlistDetailView.test.ts`
+Expected: FAIL，提示 popover 内容或联动结构缺失
 
 - [ ] **Step 3: 写最小实现保持功能完整**
 
 要求：
-- 周期切换迁移到设置弹层中
-- 指标相关控制迁移到设置弹层中
+- 周期切换从 `StockDetailPanel.vue` 现有顶部区迁移到设置 popover 中
+- 指标相关控制由 `IndicatorChart.vue` 与 `StockDetailPanel.vue` 配合迁移到设置 popover 中
 - 继续保留新闻事件与图表高亮联动
 - K 线主图仍保持视觉中心
 
 - [ ] **Step 4: 重新运行测试确认通过**
 
-Run: `npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts src/views/WatchlistDetailView.test.ts`
+Run: `npm --prefix frontend run test -- --run src/views/WatchlistDetailView.test.ts`
 Expected: PASS
 
 ## Chunk 5: 集成验证、记录、评审和集成
@@ -201,6 +208,6 @@ Expected: PASS
 - [ ] **Step 5: 合并与推送**
 
 要求：
-- 先把工作分支合并回本地 `main`
+- 先把工作分支合并回本地 `main`（按用户明确要求执行）
 - 在 `main` 上重跑最小验证
 - 再推送到远程 `origin/main`
