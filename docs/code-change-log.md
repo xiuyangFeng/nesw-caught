@@ -6,7 +6,7 @@
 
 - 修改人：Codex
 - 修改范围：Watchlist K 线触摸手势让渡与页面滚动穿透修复
-- 变更内容：补齐 `KlineDrawingOverlay` 的触摸手势链路。空白区域在 `select` 模式下会把 `touchstart / touchmove / touchend / touchcancel` 完整转发到底层 chart，并仅在该让渡会话中通过非被动触摸处理阻止浏览器默认页面滚动，避免在 K 线区域滑动时整个窗口一起滚动；同时为 drawing body / anchor / price note 标签补上显式 `touchstart.stop`，确保对象区域仍由 overlay 持有，不误触发空白区手势让渡。同步新增回归测试，覆盖完整触摸序列转发、默认滚动抑制、对象命中不转发以及非 `select` 模式不让渡。
+- 变更内容：补齐 `KlineDrawingOverlay` 的触摸手势链路。空白区域在 `select` 模式下会把 `touchstart / touchmove / touchend / touchcancel` 完整转发到底层 chart，并仅在该让渡会话中通过非被动触摸处理阻止浏览器默认页面滚动，避免在 K 线区域滑动时整个窗口一起滚动；转发时保留完整 `touches` 数组，避免双指 pinch 被错误降级成单指手势。与此同时，为 drawing body / anchor / price note 标签补上显式 `touchstart.stop`，确保对象区域仍由 overlay 持有，不误触发空白区手势让渡。同步新增回归测试，覆盖完整触摸序列转发、默认滚动抑制、对象命中不转发、非 `select` 模式不让渡以及双指触摸保持透传。
 - 影响文件：
   - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
   - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`

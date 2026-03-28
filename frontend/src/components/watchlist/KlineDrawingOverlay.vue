@@ -71,8 +71,30 @@ function refreshSize() {
   };
 }
 
+function normalizeTouchPoint(touch: {
+  clientX: number;
+  clientY: number;
+  pageX?: number;
+  pageY?: number;
+  screenX?: number;
+  screenY?: number;
+}) {
+  return {
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+    pageX: touch.pageX ?? touch.clientX,
+    pageY: touch.pageY ?? touch.clientY,
+    screenX: touch.screenX ?? touch.clientX,
+    screenY: touch.screenY ?? touch.clientY,
+  };
+}
+
+function touchPointsFromEvent(event: TouchEvent) {
+  return Array.from(event.touches.length ? event.touches : event.changedTouches).map((touch) => normalizeTouchPoint(touch));
+}
+
 function touchPointFromEvent(event: TouchEvent) {
-  return event.touches[0] ?? event.changedTouches[0] ?? null;
+  return touchPointsFromEvent(event)[0] ?? null;
 }
 
 function eventClientPoint(event: MouseEvent | WheelEvent | TouchEvent) {
@@ -303,25 +325,16 @@ function forwardWheelToChart(event: WheelEvent) {
 }
 
 function createForwardedTouchEvent(type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel', source: TouchEvent) {
-  const touch = touchPointFromEvent(source);
-  const touchPoint = touch
-    ? {
-        clientX: touch.clientX,
-        clientY: touch.clientY,
-        pageX: touch.pageX,
-        pageY: touch.pageY,
-        screenX: touch.screenX,
-        screenY: touch.screenY,
-      }
-    : null;
+  const touchPoints = touchPointsFromEvent(source);
+  const activeTouches = type === 'touchend' || type === 'touchcancel' ? [] : touchPoints;
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
     touches: {
-      value: type === 'touchend' || type === 'touchcancel' || !touchPoint ? [] : [touchPoint],
+      value: activeTouches,
       configurable: true,
     },
     changedTouches: {
-      value: touchPoint ? [touchPoint] : [],
+      value: touchPoints,
       configurable: true,
     },
     __klineForwardedTouch: {

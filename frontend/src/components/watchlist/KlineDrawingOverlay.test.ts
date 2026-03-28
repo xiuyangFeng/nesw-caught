@@ -8,24 +8,33 @@ let resizeObserverCallback: ResizeObserverCallback | null = null;
 function dispatchTouchEvent(
   target: Element,
   type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel',
-  options: { clientX: number; clientY: number },
+  options:
+    | { clientX: number; clientY: number }
+    | {
+        touches: Array<{ clientX: number; clientY: number }>;
+        changedTouches?: Array<{ clientX: number; clientY: number }>;
+      },
 ) {
-  const touchPoint = {
-    clientX: options.clientX,
-    clientY: options.clientY,
-    pageX: options.clientX,
-    pageY: options.clientY,
-    screenX: options.clientX,
-    screenY: options.clientY,
-  };
+  const inputTouches = 'touches' in options ? options.touches : [options];
+  const inputChangedTouches = 'changedTouches' in options ? (options.changedTouches ?? options.touches) : [options];
+  const buildTouchPoint = (touch: { clientX: number; clientY: number }) => ({
+    clientX: touch.clientX,
+    clientY: touch.clientY,
+    pageX: touch.clientX,
+    pageY: touch.clientY,
+    screenX: touch.clientX,
+    screenY: touch.clientY,
+  });
+  const touches = inputTouches.map(buildTouchPoint);
+  const changedTouches = inputChangedTouches.map(buildTouchPoint);
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
     touches: {
-      value: type === 'touchend' || type === 'touchcancel' ? [] : [touchPoint],
+      value: type === 'touchend' || type === 'touchcancel' ? [] : touches,
       configurable: true,
     },
     changedTouches: {
-      value: [touchPoint],
+      value: changedTouches,
       configurable: true,
     },
   });
@@ -859,6 +868,69 @@ describe('KlineDrawingOverlay', () => {
     const startEvent = dispatchTouchEvent(overlay.element, 'touchstart', { clientX: 200, clientY: 60 });
     expect(touchStartSpy).not.toHaveBeenCalled();
     expect(startEvent.defaultPrevented).toBe(false);
+
+    elementFromPointSpy.mockRestore();
+    underlying.remove();
+  });
+
+  it('preserves multi-touch sequences for the underlying chart', async () => {
+    const underlying = document.createElement('div');
+    const touchStartSpy = vi.fn();
+    const touchMoveSpy = vi.fn();
+    underlying.addEventListener('touchstart', touchStartSpy);
+    underlying.addEventListener('touchmove', touchMoveSpy);
+    document.body.appendChild(underlying);
+
+    const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint').mockImplementation(() => underlying);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: null,
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    dispatchTouchEvent(overlay.element, 'touchstart', {
+      touches: [
+        { clientX: 120, clientY: 60 },
+        { clientX: 180, clientY: 60 },
+      ],
+    });
+    expect(touchStartSpy).toHaveBeenCalledTimes(1);
+    expect((touchStartSpy.mock.calls[0]?.[0] as Event & { touches: Array<unknown> }).touches).toHaveLength(2);
+
+    dispatchTouchEvent(window.document, 'touchmove', {
+      touches: [
+        { clientX: 100, clientY: 60 },
+        { clientX: 200, clientY: 60 },
+      ],
+    });
+    expect(touchMoveSpy).toHaveBeenCalledTimes(1);
+    expect((touchMoveSpy.mock.calls[0]?.[0] as Event & { touches: Array<unknown> }).touches).toHaveLength(2);
 
     elementFromPointSpy.mockRestore();
     underlying.remove();
