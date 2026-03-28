@@ -45,6 +45,7 @@ const hoverAnchor = ref<KlineDrawingAnchor | null>(null);
 const editingLabel = ref<{ drawingId: string; text: string } | null>(null);
 const editorInputRef = ref<HTMLInputElement | null>(null);
 const pointerPassthroughActive = ref(false);
+const touchPassthroughTarget = ref<EventTarget | null>(null);
 const dragState = ref<
   | {
       mode: 'anchor' | 'object';
@@ -70,7 +71,28 @@ function refreshSize() {
   };
 }
 
-function buildAnchor(event: MouseEvent): KlineDrawingAnchor | null {
+function touchPointFromEvent(event: TouchEvent) {
+  return event.touches[0] ?? event.changedTouches[0] ?? null;
+}
+
+function eventClientPoint(event: MouseEvent | WheelEvent | TouchEvent) {
+  if ('touches' in event || 'changedTouches' in event) {
+    const touch = touchPointFromEvent(event);
+    if (!touch) {
+      return null;
+    }
+    return {
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    };
+  }
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+  };
+}
+
+function buildAnchor(event: MouseEvent | TouchEvent): KlineDrawingAnchor | null {
   if (!props.candles.length) {
     return null;
   }
@@ -78,13 +100,17 @@ function buildAnchor(event: MouseEvent): KlineDrawingAnchor | null {
   if (!rect) {
     return null;
   }
-  const index = findNearestCandleIndex(event.clientX - rect.left, rect.width, props.candles.length);
+  const point = eventClientPoint(event);
+  if (!point) {
+    return null;
+  }
+  const index = findNearestCandleIndex(point.clientX - rect.left, rect.width, props.candles.length);
   const candle = props.candles[index];
   const high = Math.max(...props.candles.map((item) => item.high));
   const low = Math.min(...props.candles.map((item) => item.low));
-  const ratio = 1 - (event.clientY - rect.top) / Math.max(rect.height, 1);
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const ratio = 1 - (point.clientY - rect.top) / Math.max(rect.height, 1);
+  const x = point.clientX - rect.left;
+  const y = point.clientY - rect.top;
   const mappedTime = props.chartProjector?.getTimeForX?.(x);
   const projectedPrice = props.chartProjector?.getPriceForY?.(y);
   return {
@@ -119,20 +145,27 @@ function drawingPoints(drawing: KlineDrawing) {
     .filter((item): item is ProjectedPoint => item !== null);
 }
 
-function pointFromEvent(event: MouseEvent | WheelEvent, target: HTMLElement) {
+function pointFromEvent(event: MouseEvent | WheelEvent | TouchEvent, target: HTMLElement) {
   const rect = target.getBoundingClientRect();
+  const point = eventClientPoint(event);
+  if (!point) {
+    return null;
+  }
   return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
+    x: point.clientX - rect.left,
+    y: point.clientY - rect.top,
   };
 }
 
-function hitDrawingAtEvent(event: MouseEvent | WheelEvent) {
+function hitDrawingAtEvent(event: MouseEvent | WheelEvent | TouchEvent) {
   const target = overlayRef.value;
   if (!target) {
     return null;
   }
   const point = pointFromEvent(event, target);
+  if (!point) {
+    return null;
+  }
   return [...props.drawings]
     .reverse()
     .find((drawing) => drawing.visible && hitTestDrawing(drawing, point, (drawingAnchor) => projectAnchor(drawingAnchor, target))) ?? null;
@@ -269,6 +302,71 @@ function forwardWheelToChart(event: WheelEvent) {
   );
 }
 
+function createForwardedTouchEvent(type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel', source: TouchEvent) {
+  const touch = touchPointFromEvent(source);
+  const touchPoint = touch
+    ? {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        pageX: touch.pageX,
+        pageY: touch.pageY,
+        screenX: touch.screenX,
+        screenY: touch.screenY,
+      }
+    : null;
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    touches: {
+      value: type === 'touchend' || type === 'touchcancel' || !touchPoint ? [] : [touchPoint],
+      configurable: true,
+    },
+    changedTouches: {
+      value: touchPoint ? [touchPoint] : [],
+      configurable: true,
+    },
+    __klineForwardedTouch: {
+      value: true,
+      configurable: true,
+    },
+  });
+  return event;
+}
+
+function cleanupTouchPassthrough() {
+  touchPassthroughTarget.value = null;
+  pointerPassthroughActive.value = false;
+  if (overlayRef.value) {
+    overlayRef.value.style.pointerEvents = '';
+  }
+}
+
+function forwardTouchEventToChart(type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel', event: TouchEvent) {
+  if (!overlayRef.value) {
+    return;
+  }
+  if (type === 'touchstart') {
+    overlayRef.value.style.pointerEvents = 'none';
+    const point = eventClientPoint(event);
+    const target = point ? document.elementFromPoint(point.clientX, point.clientY) : null;
+    overlayRef.value.style.pointerEvents = 'none';
+    if (!target) {
+      cleanupTouchPassthrough();
+      return;
+    }
+    touchPassthroughTarget.value = target;
+    pointerPassthroughActive.value = true;
+  }
+  const target = touchPassthroughTarget.value;
+  if (!target || !(target instanceof EventTarget)) {
+    cleanupTouchPassthrough();
+    return;
+  }
+  target.dispatchEvent(createForwardedTouchEvent(type, event));
+  if (type === 'touchend' || type === 'touchcancel') {
+    cleanupTouchPassthrough();
+  }
+}
+
 function onMousedown(event: MouseEvent) {
   if (
     overlayDisabled.value ||
@@ -287,6 +385,44 @@ function onWheel(event: WheelEvent) {
     return;
   }
   forwardWheelToChart(event);
+}
+
+function onTouchstart(event: TouchEvent) {
+  if (
+    overlayDisabled.value ||
+    props.activeTool !== 'select' ||
+    dragState.value ||
+    editingLabel.value ||
+    hitDrawingAtEvent(event)
+  ) {
+    return;
+  }
+  event.preventDefault();
+  forwardTouchEventToChart('touchstart', event);
+}
+
+function onWindowTouchmove(event: TouchEvent) {
+  if ((event as TouchEvent & { __klineForwardedTouch?: boolean }).__klineForwardedTouch || !touchPassthroughTarget.value) {
+    return;
+  }
+  event.preventDefault();
+  forwardTouchEventToChart('touchmove', event);
+}
+
+function onWindowTouchend(event: TouchEvent) {
+  if ((event as TouchEvent & { __klineForwardedTouch?: boolean }).__klineForwardedTouch || !touchPassthroughTarget.value) {
+    return;
+  }
+  event.preventDefault();
+  forwardTouchEventToChart('touchend', event);
+}
+
+function onWindowTouchcancel(event: TouchEvent) {
+  if ((event as TouchEvent & { __klineForwardedTouch?: boolean }).__klineForwardedTouch || !touchPassthroughTarget.value) {
+    return;
+  }
+  event.preventDefault();
+  forwardTouchEventToChart('touchcancel', event);
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -405,6 +541,9 @@ onMounted(() => {
   refreshSize();
   window.addEventListener('resize', refreshSize);
   window.addEventListener('mouseup', handleWindowMouseup);
+  window.addEventListener('touchmove', onWindowTouchmove, { passive: false });
+  window.addEventListener('touchend', onWindowTouchend, { passive: false });
+  window.addEventListener('touchcancel', onWindowTouchcancel, { passive: false });
   if (typeof ResizeObserver !== 'undefined' && overlayRef.value) {
     resizeObserver = new ResizeObserver(() => refreshSize());
     resizeObserver.observe(overlayRef.value);
@@ -414,6 +553,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', refreshSize);
   window.removeEventListener('mouseup', handleWindowMouseup);
+  window.removeEventListener('touchmove', onWindowTouchmove);
+  window.removeEventListener('touchend', onWindowTouchend);
+  window.removeEventListener('touchcancel', onWindowTouchcancel);
+  cleanupTouchPassthrough();
   resizeObserver?.disconnect();
   resizeObserver = null;
 });
@@ -431,6 +574,7 @@ onBeforeUnmount(() => {
     @mouseleave="onMouseleave"
     @mouseup="onMouseup"
     @wheel="onWheel"
+    @touchstart="onTouchstart"
     @keydown="onKeydown"
   >
     <svg class="h-full w-full">
@@ -447,6 +591,7 @@ onBeforeUnmount(() => {
           :stroke-dasharray="drawing.style.lineStyle === 'dashed' ? '6 4' : undefined"
           :opacity="selectedDrawingId === drawing.id ? 1 : 0.78"
           @mousedown.stop="beginBodyDrag(drawing.id, $event)"
+          @touchstart.stop
         />
         <line
           v-else-if="(drawing.toolType === 'horizontal_line' || drawing.toolType === 'price_note') && drawingPoints(drawing).length >= 1"
@@ -459,6 +604,7 @@ onBeforeUnmount(() => {
           :stroke-width="drawing.style.lineWidth"
           :stroke-dasharray="drawing.style.lineStyle === 'dashed' ? '6 4' : undefined"
           @mousedown.stop="beginBodyDrag(drawing.id, $event)"
+          @touchstart.stop
         />
         <rect
           v-else-if="drawing.toolType === 'price_range' && drawingPoints(drawing).length >= 2"
@@ -472,11 +618,13 @@ onBeforeUnmount(() => {
           :fill="drawing.style.color"
           :fill-opacity="drawing.style.fillOpacity"
           @mousedown.stop="beginBodyDrag(drawing.id, $event)"
+          @touchstart.stop
         />
         <g
           v-else-if="drawing.toolType === 'fibonacci_retracement' && drawingPoints(drawing).length >= 2"
           :data-role="`drawing-body-${drawing.id}`"
           @mousedown.stop="beginBodyDrag(drawing.id, $event)"
+          @touchstart.stop
         >
           <line
             v-for="level in fibLevels(drawingPoints(drawing))"
@@ -507,6 +655,7 @@ onBeforeUnmount(() => {
           fill="#f8fafc"
           font-size="12"
           @dblclick.stop="openLabelEditor(drawing)"
+          @touchstart.stop
         >
           {{ drawing.payload.text }}
         </text>
@@ -521,6 +670,7 @@ onBeforeUnmount(() => {
           stroke="#0f172a"
           stroke-width="1.5"
           @mousedown.stop="beginAnchorDrag(drawing.id, index, $event)"
+          @touchstart.stop
         />
       </g>
       <g v-if="crosshair">

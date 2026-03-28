@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 19:14
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线触摸手势让渡与页面滚动穿透修复
+- 变更内容：补齐 `KlineDrawingOverlay` 的触摸手势链路。空白区域在 `select` 模式下会把 `touchstart / touchmove / touchend / touchcancel` 完整转发到底层 chart，并仅在该让渡会话中通过非被动触摸处理阻止浏览器默认页面滚动，避免在 K 线区域滑动时整个窗口一起滚动；同时为 drawing body / anchor / price note 标签补上显式 `touchstart.stop`，确保对象区域仍由 overlay 持有，不误触发空白区手势让渡。同步新增回归测试，覆盖完整触摸序列转发、默认滚动抑制、对象命中不转发以及非 `select` 模式不让渡。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-kline-touch-gesture-scroll-lock-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-kline-touch-gesture-scroll-lock-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或数据结构变化；仅前端 overlay 内部手势处理行为调整
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts` 通过（1 个文件 / 14 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（2 个文件 / 16 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前修复聚焦单指触摸滑动与手势让渡，不额外扩展双指缩放或对象触摸编辑；如果后续要继续提升移动端交互保真度，可以再评估是否将 overlay 的整套输入统一到 Pointer Events
+
 ## 2026-03-28 17:07
 
 - 修改人：Codex

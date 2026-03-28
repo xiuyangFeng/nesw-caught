@@ -5,6 +5,34 @@ import KlineDrawingOverlay from './KlineDrawingOverlay.vue';
 
 let resizeObserverCallback: ResizeObserverCallback | null = null;
 
+function dispatchTouchEvent(
+  target: Element,
+  type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel',
+  options: { clientX: number; clientY: number },
+) {
+  const touchPoint = {
+    clientX: options.clientX,
+    clientY: options.clientY,
+    pageX: options.clientX,
+    pageY: options.clientY,
+    screenX: options.clientX,
+    screenY: options.clientY,
+  };
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    touches: {
+      value: type === 'touchend' || type === 'touchcancel' ? [] : [touchPoint],
+      configurable: true,
+    },
+    changedTouches: {
+      value: [touchPoint],
+      configurable: true,
+    },
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 beforeEach(() => {
   resizeObserverCallback = null;
   Object.defineProperty(document, 'elementFromPoint', {
@@ -665,5 +693,174 @@ describe('KlineDrawingOverlay', () => {
 
     await overlay.trigger('click', { clientX: 280, clientY: 100 });
     expect(wrapper.emitted('drawingSelect')?.[1]?.[0]).toEqual({ id: null, append: false });
+  });
+
+  it('hands empty-space touch gestures back to the underlying chart element and suppresses default scroll', async () => {
+    const underlying = document.createElement('div');
+    const touchStartSpy = vi.fn();
+    const touchMoveSpy = vi.fn();
+    const touchEndSpy = vi.fn();
+    underlying.addEventListener('touchstart', touchStartSpy);
+    underlying.addEventListener('touchmove', touchMoveSpy);
+    underlying.addEventListener('touchend', touchEndSpy);
+    document.body.appendChild(underlying);
+
+    const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint').mockImplementation(() => underlying);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: null,
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    const startEvent = dispatchTouchEvent(overlay.element, 'touchstart', { clientX: 200, clientY: 60 });
+    expect(touchStartSpy).toHaveBeenCalledTimes(1);
+    expect(startEvent.defaultPrevented).toBe(true);
+
+    const moveEvent = dispatchTouchEvent(window.document, 'touchmove', { clientX: 180, clientY: 60 });
+    expect(touchMoveSpy).toHaveBeenCalledTimes(1);
+    expect(moveEvent.defaultPrevented).toBe(true);
+
+    const endEvent = dispatchTouchEvent(window.document, 'touchend', { clientX: 180, clientY: 60 });
+    expect(touchEndSpy).toHaveBeenCalledTimes(1);
+    expect(endEvent.defaultPrevented).toBe(true);
+    expect((overlay.element as HTMLElement).style.pointerEvents).toBe('');
+
+    elementFromPointSpy.mockRestore();
+    underlying.remove();
+  });
+
+  it('keeps touch gesture ownership when pressing on a drawing body', async () => {
+    const underlying = document.createElement('div');
+    const touchStartSpy = vi.fn();
+    underlying.addEventListener('touchstart', touchStartSpy);
+    document.body.appendChild(underlying);
+
+    const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint').mockImplementation(() => underlying);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [
+          {
+            id: 'horizontal-1',
+            symbol: '0700.HK',
+            toolType: 'horizontal_line',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#7dd3fc', lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
+            anchors: [{ time: '2026-03-18', price: 540 }],
+            payload: {},
+          },
+        ],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: 'horizontal-1',
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    await overlay.trigger('mousemove', { clientX: 120, clientY: 45 });
+    const drawingBody = wrapper.get('[data-role="drawing-body-horizontal-1"]');
+    const startEvent = dispatchTouchEvent(drawingBody.element, 'touchstart', { clientX: 120, clientY: 45 });
+    expect(touchStartSpy).not.toHaveBeenCalled();
+    expect(startEvent.defaultPrevented).toBe(false);
+
+    elementFromPointSpy.mockRestore();
+    underlying.remove();
+  });
+
+  it('does not hand touch gestures to the chart outside select mode', async () => {
+    const underlying = document.createElement('div');
+    const touchStartSpy = vi.fn();
+    underlying.addEventListener('touchstart', touchStartSpy);
+    document.body.appendChild(underlying);
+
+    const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint').mockImplementation(() => underlying);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [],
+        draftAnchors: [{ time: '2026-03-18', price: 533.2 }],
+        activeTool: 'trend_line',
+        selectedDrawingId: null,
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    const startEvent = dispatchTouchEvent(overlay.element, 'touchstart', { clientX: 200, clientY: 60 });
+    expect(touchStartSpy).not.toHaveBeenCalled();
+    expect(startEvent.defaultPrevented).toBe(false);
+
+    elementFromPointSpy.mockRestore();
+    underlying.remove();
   });
 });
