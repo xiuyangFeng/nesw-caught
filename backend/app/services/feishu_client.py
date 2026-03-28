@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,28 +22,51 @@ class FeishuToken:
     expires_at: float
 
 
+@dataclass(frozen=True)
+class FeishuErrorClassification:
+    retryable: bool
+    refresh_token: bool = False
+    reason: str = ""
+
+
 @dataclass
 class FeishuClient:
     app_id: str
     app_secret: str
     timeout: float = 10.0
     _token: FeishuToken | None = field(default=None, init=False, repr=False)
+    _client: httpx.Client | None = field(default=None, init=False, repr=False)
 
-    def _get_tenant_access_token(self) -> str:
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    def _get_http_client(self) -> httpx.Client:
+        if self._client is None:
+            self._client = httpx.Client(timeout=self.timeout)
+        return self._client
+
+    def _get_tenant_access_token(self, *, force_refresh: bool = False) -> str:
         now = time.time()
-        if self._token and now < self._token.expires_at - TOKEN_REFRESH_BUFFER_SECONDS:
+        if not force_refresh and self._token and now < self._token.expires_at - TOKEN_REFRESH_BUFFER_SECONDS:
             return self._token.access_token
 
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(
-                FEISHU_TOKEN_URL,
-                json={"app_id": self.app_id, "app_secret": self.app_secret},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        client = self._get_http_client()
+        resp = client.post(
+            FEISHU_TOKEN_URL,
+            json={"app_id": self.app_id, "app_secret": self.app_secret},
+        )
+        resp.raise_for_status()
+        data = resp.json()
 
         if data.get("code") != 0:
-            raise FeishuClientError(f"get token failed: {data.get('msg', 'unknown')}")
+            classification = classify_feishu_error(data)
+            raise FeishuClientError(
+                f"get token failed: {data.get('msg', 'unknown')}",
+                retryable=classification.retryable,
+                refresh_token=classification.refresh_token,
+            )
 
         expire_seconds = data.get("expire", 7200)
         self._token = FeishuToken(
@@ -51,34 +75,58 @@ class FeishuClient:
         )
         return self._token.access_token
 
+    def _send_card_once(
+        self,
+        *,
+        target_type: str,
+        target_id: str,
+        card: dict[str, Any],
+        token: str,
+    ) -> dict[str, Any]:
+        receive_id_type = "chat_id" if target_type == "chat" else "open_id"
+        client = self._get_http_client()
+        resp = client.post(
+            FEISHU_MESSAGE_URL,
+            params={"receive_id_type": receive_id_type},
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "receive_id": target_id,
+                "msg_type": "interactive",
+                "content": json.dumps(card, ensure_ascii=False),
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     def send_card(
         self,
         target_type: str,
         target_id: str,
         card: dict[str, Any],
     ) -> dict[str, Any]:
-        token = self._get_tenant_access_token()
-        receive_id_type = "chat_id" if target_type == "chat" else "open_id"
-
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(
-                FEISHU_MESSAGE_URL,
-                params={"receive_id_type": receive_id_type},
-                headers={"Authorization": f"Bearer {token}"},
-                json={
-                    "receive_id": target_id,
-                    "msg_type": "interactive",
-                    "content": json.dumps(card, ensure_ascii=False),
-                },
+        attempts = 0
+        force_refresh = False
+        while True:
+            token = self._get_tenant_access_token(force_refresh=force_refresh)
+            result = self._send_card_once(
+                target_type=target_type,
+                target_id=target_id,
+                card=card,
+                token=token,
             )
-            resp.raise_for_status()
-            result = resp.json()
-
-        if result.get("code") != 0:
-            raise FeishuClientError(f"send message failed: {result.get('msg', 'unknown')}")
-
-        logger.info("feishu message sent to %s:%s", target_type, target_id)
-        return result
+            classification = classify_feishu_error(result)
+            if classification.refresh_token and attempts == 0:
+                attempts += 1
+                force_refresh = True
+                continue
+            if result.get("code") != 0:
+                raise FeishuClientError(
+                    f"send message failed: {result.get('msg', 'unknown')}",
+                    retryable=classification.retryable,
+                    refresh_token=classification.refresh_token,
+                )
+            logger.info("feishu message sent to %s:%s", target_type, target_id)
+            return result
 
     def send_test(self, target_type: str, target_id: str) -> dict[str, Any]:
         card = build_test_card()
@@ -86,7 +134,62 @@ class FeishuClient:
 
 
 class FeishuClientError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, retryable: bool = False, refresh_token: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.refresh_token = refresh_token
+
+
+def classify_feishu_error(error: Any) -> FeishuErrorClassification:
+    code: int | None = None
+    message = ""
+
+    if isinstance(error, dict):
+        raw_code = error.get("code")
+        if isinstance(raw_code, int):
+            code = raw_code
+        elif isinstance(raw_code, str) and raw_code.isdigit():
+            code = int(raw_code)
+        raw_message = error.get("msg") or error.get("message")
+        if isinstance(raw_message, str):
+            message = raw_message.strip()
+    elif isinstance(error, BaseException):
+        message = str(error).strip()
+    elif error is not None:
+        message = str(error).strip()
+
+    message_lower = message.lower()
+    if code in {99991663, 99991664}:
+        return FeishuErrorClassification(retryable=True, refresh_token=True, reason=message or f"code {code}")
+    if "tenant_access_token" in message_lower and ("invalid" in message_lower or "expired" in message_lower):
+        return FeishuErrorClassification(retryable=True, refresh_token=True, reason=message or "invalid token")
+    if "access token" in message_lower and "invalid" in message_lower:
+        return FeishuErrorClassification(retryable=True, refresh_token=True, reason=message or "invalid token")
+
+    if code is not None and 50000 <= code < 60000:
+        return FeishuErrorClassification(retryable=True, refresh_token=False, reason=message or f"code {code}")
+
+    config_error_markers = (
+        "app_id",
+        "app secret",
+        "app_secret",
+        "permission",
+        "forbidden",
+        "unauthorized",
+        "target_id",
+    )
+    if any(marker in message_lower for marker in config_error_markers):
+        return FeishuErrorClassification(retryable=False, refresh_token=False, reason=message or "config error")
+
+    if code in {40003, 40004, 40005, 40006}:
+        return FeishuErrorClassification(retryable=False, refresh_token=False, reason=message or f"code {code}")
+
+    return FeishuErrorClassification(retryable=False, refresh_token=False, reason=message or (f"code {code}" if code is not None else "unknown"))
+
+
+@lru_cache(maxsize=32)
+def get_shared_feishu_sender(app_id: str, app_secret: str, timeout: float = 10.0) -> FeishuClient:
+    return FeishuClient(app_id=app_id, app_secret=app_secret, timeout=timeout)
 
 
 def build_test_card() -> dict[str, Any]:

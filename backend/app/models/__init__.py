@@ -3,6 +3,7 @@ from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
+from app.models.notification_job import NotificationJob
 from app.models.news_signal_result import NewsSignalResult
 from app.models.news_stock_mention import NewsStockMention
 from app.models.price_snapshot import PriceSnapshot
@@ -25,6 +26,7 @@ __all__ = [
     "LLMProviderConfig",
     "NewsAnalysisResult",
     "NewsItem",
+    "NotificationJob",
     "NewsSignalResult",
     "NewsStockMention",
     "PriceSnapshot",
