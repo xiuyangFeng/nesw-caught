@@ -322,6 +322,7 @@ export interface NewsEventMarkerItem {
   id: number;
   title: string;
   sentiment: SentimentLabel | string;
+  summary: string;
 }
 
 export interface NewsEventMarker {
