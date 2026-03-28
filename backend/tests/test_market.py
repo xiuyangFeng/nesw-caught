@@ -609,11 +609,11 @@ def test_market_chart_service_aligns_news_to_previous_trading_day() -> None:
     assert aligned == [
         {
             "time": "2026-03-20",
-            "items": [{"id": 1, "title": "Weekend note", "sentiment": "neutral"}],
+            "items": [{"id": 1, "title": "Weekend note", "sentiment": "neutral", "summary": ""}],
         },
         {
             "time": "2026-03-23",
-            "items": [{"id": 2, "title": "Monday open", "sentiment": "positive"}],
+            "items": [{"id": 2, "title": "Monday open", "sentiment": "positive", "summary": ""}],
         },
     ]
 

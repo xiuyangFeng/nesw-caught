@@ -82,6 +82,7 @@ class NewsEventItemView(BaseModel):
     id: int
     title: str
     sentiment: str
+    summary: str = ""
 
 
 class NewsEventGroupView(BaseModel):

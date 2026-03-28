@@ -220,6 +220,7 @@ class MarketChartService:
                     "sentiment": str(
                         getattr(item, "sentiment_label", "unknown") if not isinstance(item, dict) else item.get("sentiment_label", "unknown")
                     ),
+                    "summary": str(getattr(item, "summary", "") or "" if not isinstance(item, dict) else (item.get("summary") or "")),
                 }
             )
 
