@@ -2,6 +2,19 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 19:33
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线触摸滚动 second follow-up 修正
+- 变更内容：将 K 线 overlay 的触摸会话从“`touchstart` 后依赖全局监听兜底”改成“overlay 自己持续接收 `touchmove / touchend / touchcancel` 并同步转发到底层 chart”。这样浏览器不会在触摸序列中途先把页面滚动接管，图表区域的单指滑动和多指手势都由 overlay 持续拦截并复制给底层图表；同时保留现有鼠标 handoff 路径不变。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（2 个文件 / 18 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前修复仍基于 overlay 手动转发触摸事件；如果后续还要继续贴近移动端券商终端手感，建议下一步把整套输入模型统一到 Pointer Events，减少鼠标/触摸两套逻辑并存的维护成本
+
 ## 2026-03-28 19:23
 
 - 修改人：Codex

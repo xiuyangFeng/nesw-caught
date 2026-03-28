@@ -349,10 +349,6 @@ function createForwardedTouchEvent(type: 'touchstart' | 'touchmove' | 'touchend'
 
 function cleanupTouchPassthrough() {
   touchPassthroughTarget.value = null;
-  pointerPassthroughActive.value = false;
-  if (overlayRef.value) {
-    overlayRef.value.style.pointerEvents = '';
-  }
 }
 
 function forwardTouchEventToChart(type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel', event: TouchEvent) {
@@ -363,13 +359,12 @@ function forwardTouchEventToChart(type: 'touchstart' | 'touchmove' | 'touchend' 
     overlayRef.value.style.pointerEvents = 'none';
     const point = eventClientPoint(event);
     const target = point ? document.elementFromPoint(point.clientX, point.clientY) : null;
-    overlayRef.value.style.pointerEvents = 'none';
+    overlayRef.value.style.pointerEvents = '';
     if (!target) {
       cleanupTouchPassthrough();
       return;
     }
     touchPassthroughTarget.value = target;
-    pointerPassthroughActive.value = true;
   }
   const target = touchPassthroughTarget.value;
   if (!target || !(target instanceof EventTarget)) {
@@ -416,7 +411,7 @@ function onTouchstart(event: TouchEvent) {
   forwardTouchEventToChart('touchstart', event);
 }
 
-function onWindowTouchmove(event: TouchEvent) {
+function onTouchmove(event: TouchEvent) {
   if ((event as TouchEvent & { __klineForwardedTouch?: boolean }).__klineForwardedTouch || !touchPassthroughTarget.value) {
     return;
   }
@@ -424,7 +419,7 @@ function onWindowTouchmove(event: TouchEvent) {
   forwardTouchEventToChart('touchmove', event);
 }
 
-function onWindowTouchend(event: TouchEvent) {
+function onTouchend(event: TouchEvent) {
   if ((event as TouchEvent & { __klineForwardedTouch?: boolean }).__klineForwardedTouch || !touchPassthroughTarget.value) {
     return;
   }
@@ -432,7 +427,7 @@ function onWindowTouchend(event: TouchEvent) {
   forwardTouchEventToChart('touchend', event);
 }
 
-function onWindowTouchcancel(event: TouchEvent) {
+function onTouchcancel(event: TouchEvent) {
   if ((event as TouchEvent & { __klineForwardedTouch?: boolean }).__klineForwardedTouch || !touchPassthroughTarget.value) {
     return;
   }
@@ -513,7 +508,6 @@ function beginBodyDrag(drawingId: string, event: MouseEvent) {
 
 function handleWindowMouseup() {
   dragState.value = null;
-  pointerPassthroughActive.value = false;
   if (overlayRef.value) {
     overlayRef.value.style.pointerEvents = '';
   }
@@ -556,9 +550,6 @@ onMounted(() => {
   refreshSize();
   window.addEventListener('resize', refreshSize);
   window.addEventListener('mouseup', handleWindowMouseup);
-  window.addEventListener('touchmove', onWindowTouchmove, { passive: false });
-  window.addEventListener('touchend', onWindowTouchend, { passive: false });
-  window.addEventListener('touchcancel', onWindowTouchcancel, { passive: false });
   if (typeof ResizeObserver !== 'undefined' && overlayRef.value) {
     resizeObserver = new ResizeObserver(() => refreshSize());
     resizeObserver.observe(overlayRef.value);
@@ -568,9 +559,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', refreshSize);
   window.removeEventListener('mouseup', handleWindowMouseup);
-  window.removeEventListener('touchmove', onWindowTouchmove);
-  window.removeEventListener('touchend', onWindowTouchend);
-  window.removeEventListener('touchcancel', onWindowTouchcancel);
   cleanupTouchPassthrough();
   resizeObserver?.disconnect();
   resizeObserver = null;
@@ -591,6 +579,9 @@ onBeforeUnmount(() => {
     @mouseup="onMouseup"
     @wheel="onWheel"
     @touchstart="onTouchstart"
+    @touchmove="onTouchmove"
+    @touchend="onTouchend"
+    @touchcancel="onTouchcancel"
     @keydown="onKeydown"
   >
     <svg class="h-full w-full">

@@ -753,11 +753,11 @@ describe('KlineDrawingOverlay', () => {
     expect(touchStartSpy).toHaveBeenCalledTimes(1);
     expect(startEvent.defaultPrevented).toBe(true);
 
-    const moveEvent = dispatchTouchEvent(window.document, 'touchmove', { clientX: 180, clientY: 60 });
+    const moveEvent = dispatchTouchEvent(overlay.element, 'touchmove', { clientX: 180, clientY: 60 });
     expect(touchMoveSpy).toHaveBeenCalledTimes(1);
     expect(moveEvent.defaultPrevented).toBe(true);
 
-    const endEvent = dispatchTouchEvent(window.document, 'touchend', { clientX: 180, clientY: 60 });
+    const endEvent = dispatchTouchEvent(overlay.element, 'touchend', { clientX: 180, clientY: 60 });
     expect(touchEndSpy).toHaveBeenCalledTimes(1);
     expect(endEvent.defaultPrevented).toBe(true);
     expect((overlay.element as HTMLElement).style.pointerEvents).toBe('');
@@ -943,7 +943,7 @@ describe('KlineDrawingOverlay', () => {
     expect(touchStartSpy).toHaveBeenCalledTimes(1);
     expect((touchStartSpy.mock.calls[0]?.[0] as Event & { touches: Array<unknown> }).touches).toHaveLength(2);
 
-    dispatchTouchEvent(window.document, 'touchmove', {
+    dispatchTouchEvent(overlay.element, 'touchmove', {
       touches: [
         { clientX: 100, clientY: 60 },
         { clientX: 200, clientY: 60 },
