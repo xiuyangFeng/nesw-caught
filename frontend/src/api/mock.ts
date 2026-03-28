@@ -7,6 +7,7 @@ import type {
   MarketSnapshot,
   NewsAnalysis,
   NewsDetail,
+  NewsFeedLayout,
   NewsEventMarker,
   NewsItem,
   NewsRuntimeStatus,
@@ -456,6 +457,43 @@ export const mockTopicDetails: Record<number, TopicDetail> = {
     ...mockTopics[2],
     sources: [mockNews[1]],
   },
+};
+
+export const mockNewsFeedLayout: NewsFeedLayout = {
+  events: [
+    {
+      event_key: 'topic-504',
+      event_title: 'AI infrastructure capex theme',
+      event_summary: 'AI 基础设施支出与供应链紧张度继续强化，首页优先显示为事件主卡。',
+      event_type: 'product',
+      market: 'us',
+      sentiment_label: 'positive',
+      importance_score: 0.94,
+      last_seen_at: mockTopics[1].last_seen_at,
+      primary_symbol: 'NVDA',
+      related_symbols: ['NVDA', 'TSM'],
+      source_count: 2,
+      news_count: 2,
+      news_items: [mockNews[3], mockNews[1]],
+    },
+    {
+      event_key: 'topic-501',
+      event_title: 'China internet AI monetization',
+      event_summary: '中国互联网平台围绕企业 AI 商业化展开新一轮叙事。',
+      event_type: 'product',
+      market: 'hk',
+      sentiment_label: 'positive',
+      importance_score: 0.83,
+      last_seen_at: mockTopics[0].last_seen_at,
+      primary_symbol: '0700.HK',
+      related_symbols: ['0700.HK', '9988.HK'],
+      source_count: 2,
+      news_count: 2,
+      news_items: [mockNews[0], mockNews[2]],
+    },
+  ],
+  topics: mockTopics.slice(0, 3),
+  stream: mockNews,
 };
 
 export const mockRelatedNews: Record<string, NewsItem[]> = {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiClient = {
   getNews: vi.fn(),
+  getNewsFeedLayout: vi.fn(),
   getNewsDetail: vi.fn(),
   getNewsAnalysis: vi.fn(),
   getNewsRuntime: vi.fn(),
@@ -160,5 +161,220 @@ describe('newsStore', () => {
     expect((store as any).newsRuntimeStatus?.feed_status).toBe('live');
     expect((store as any).sourceHealth).toHaveLength(1);
     expect((store as any).lastIncrementalAt).toBe('2026-03-25T02:39:55Z');
+  });
+
+  it('keeps feed layout stream in sync with incremental updates', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    (store as any).feedQuery = { limit: 10 };
+    (store as any).feedLayout = {
+      events: [],
+      topics: [],
+      stream: [
+        {
+          id: 9,
+          title: 'Initial item',
+          summary: 'First summary',
+          source_name: 'Reuters',
+          canonical_url: 'https://example.com/initial',
+          market: 'us',
+          sentiment_label: 'positive',
+          published_at: '2026-03-25T02:30:00Z',
+          fetched_at: '2026-03-25T02:31:00Z',
+        },
+      ],
+    };
+    (store as any).feedItems = [...(store as any).feedLayout.stream];
+
+    (store as any).upsertNews({
+      id: 10,
+      title: 'Incremental item',
+      summary: 'Fresh summary',
+      source_name: 'Bloomberg',
+      canonical_url: 'https://example.com/incremental',
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-25T02:40:00Z',
+      fetched_at: '2026-03-25T02:41:00Z',
+    });
+
+    expect((store as any).feedItems[0].id).toBe(10);
+    expect((store as any).feedLayout.stream[0].id).toBe(10);
+
+    (store as any).upsertNewsUpdate({
+      id: 10,
+      title: 'Incremental item',
+      summary: 'Updated summary',
+      source_name: 'Bloomberg',
+      canonical_url: 'https://example.com/incremental',
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-25T02:40:00Z',
+      fetched_at: '2026-03-25T02:41:00Z',
+      updated_fields: ['summary'],
+    });
+
+    expect((store as any).feedLayout.stream[0].summary).toBe('Updated summary');
+  });
+
+  it('keeps feed loading true until concurrent layout and stream requests both settle', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    let resolveLayout: ((value: any) => void) | null = null;
+    let resolveNews: ((value: any) => void) | null = null;
+
+    apiClient.getNewsFeedLayout.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveLayout = resolve;
+        }),
+    );
+    apiClient.getNews.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveNews = resolve;
+        }),
+    );
+
+    const layoutPromise = (store as any).loadFeedLayout({ limit_stream: 5 });
+    const newsPromise = (store as any).loadFeedNews({ limit: 5 });
+
+    expect((store as any).feedLoading).toBe(true);
+
+    resolveLayout?.({
+      data: { events: [], topics: [], stream: [] },
+      degraded: false,
+    });
+    await layoutPromise;
+
+    expect((store as any).feedLoading).toBe(true);
+
+    resolveNews?.({
+      data: [],
+      degraded: false,
+    });
+    await newsPromise;
+
+    expect((store as any).feedLoading).toBe(false);
+  });
+
+  it('keeps only the latest feed layout response when requests resolve out of order', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    let resolveFirst: ((value: any) => void) | null = null;
+    let resolveSecond: ((value: any) => void) | null = null;
+
+    apiClient.getNewsFeedLayout
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+
+    const firstPromise = (store as any).loadFeedLayout({ limit_stream: 5 });
+    const secondPromise = (store as any).loadFeedLayout({ limit_stream: 5 });
+
+    resolveSecond?.({
+      data: {
+        events: [{ event_key: 'second', event_title: 'Second', event_summary: null, event_type: 'general', market: 'us', sentiment_label: 'neutral', importance_score: 0.5, last_seen_at: null, primary_symbol: null, related_symbols: [], source_count: 1, news_count: 1, news_items: [] }],
+        topics: [],
+        stream: [],
+      },
+      degraded: false,
+    });
+    await secondPromise;
+
+    resolveFirst?.({
+      data: {
+        events: [{ event_key: 'first', event_title: 'First', event_summary: null, event_type: 'general', market: 'us', sentiment_label: 'neutral', importance_score: 0.4, last_seen_at: null, primary_symbol: null, related_symbols: [], source_count: 1, news_count: 1, news_items: [] }],
+        topics: [],
+        stream: [],
+      },
+      degraded: false,
+    });
+    await firstPromise;
+
+    expect((store as any).feedLayout.events[0].event_key).toBe('second');
+  });
+
+  it('keeps only the latest raw feed response when requests resolve out of order', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    let resolveFirst: ((value: any) => void) | null = null;
+    let resolveSecond: ((value: any) => void) | null = null;
+
+    apiClient.getNews
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+
+    const firstPromise = (store as any).loadFeedNews({ limit: 5, q: 'first' });
+    const secondPromise = (store as any).loadFeedNews({ limit: 5, q: 'second' });
+
+    resolveSecond?.({
+      data: [
+        {
+          id: 2,
+          title: 'Second response',
+          summary: 'second',
+          source_name: 'Reuters',
+          canonical_url: 'https://example.com/second',
+          market: 'us',
+          sentiment_label: 'neutral',
+          published_at: '2026-03-25T02:40:00Z',
+          fetched_at: '2026-03-25T02:41:00Z',
+        },
+      ],
+      degraded: false,
+    });
+    await secondPromise;
+
+    resolveFirst?.({
+      data: [
+        {
+          id: 1,
+          title: 'First response',
+          summary: 'first',
+          source_name: 'Bloomberg',
+          canonical_url: 'https://example.com/first',
+          market: 'us',
+          sentiment_label: 'neutral',
+          published_at: '2026-03-25T02:30:00Z',
+          fetched_at: '2026-03-25T02:31:00Z',
+        },
+      ],
+      degraded: false,
+    });
+    await firstPromise;
+
+    expect((store as any).feedItems[0].id).toBe(2);
   });
 });

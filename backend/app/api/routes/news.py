@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
-from app.schemas.news import NewsArticleView, NewsDetailView, NewsItemSummary, NewsMentionView, NewsTopicRefView
+from app.schemas.news import NewsArticleView, NewsDetailView, NewsFeedLayoutView, NewsItemSummary, NewsMentionView, NewsTopicRefView
 from app.schemas.llm import NewsAnalysisView
 from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView, NewsRuntimeView
 from app.services.event_bus import get_event_bus
 from app.services.news_analysis import NewsAnalysisError, NewsAnalysisService
+from app.services.news_feed_layout import NewsFeedLayoutService
 from app.services.news_ingestion import NewsIngestionService
 from app.services.news_runtime import NewsRuntimeService
 
@@ -65,6 +66,22 @@ def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefr
 @router.get("/runtime", response_model=NewsRuntimeView)
 def get_news_runtime(session: Session = Depends(get_db_session)) -> NewsRuntimeView:
     return NewsRuntimeService(session).build()
+
+
+@router.get("/feed-layout", response_model=NewsFeedLayoutView)
+def get_news_feed_layout(
+    market: str | None = Query(default=None),
+    limit_events: int = Query(default=6, ge=1, le=20),
+    limit_topics: int = Query(default=6, ge=1, le=20),
+    limit_stream: int = Query(default=24, ge=1, le=100),
+    session: Session = Depends(get_db_session),
+) -> NewsFeedLayoutView:
+    return NewsFeedLayoutService(session).build(
+        market=market,
+        limit_events=limit_events,
+        limit_topics=limit_topics,
+        limit_stream=limit_stream,
+    )
 
 
 @router.get("/{news_id}/analysis", response_model=NewsAnalysisView | None)

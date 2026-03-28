@@ -2,6 +2,34 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 10:50
+
+- 修改人：Codex
+- 修改范围：News Feed 事件主卡化与首页结构化数据编排
+- 变更内容：围绕“主新闻流优先展示市场事件而不是原始文章”完成了一轮最小闭环改造。后端新增 `news_feed_layout` 派生服务和 `GET /api/news/feed-layout`，基于现有 `topic_cluster`、`news_item`、`news_stock_mention` 动态生成 `events + topics + stream` 三层首页数据，不引入新的持久化事件表；首版事件类型使用规则推断，支持 `product / macro / supply_chain / regulation / earnings / mna / market_move / general`，并输出主股票、相关股票、来源数和挂载新闻。审查阶段又补了十处收口：`market` 过滤下的 related symbols 现在按 market 范围收敛，避免跨市场 symbol 泄漏；前端 `newsStore.upsertNews/upsertNewsUpdate` 会同步更新 `feedLayout.stream`，避免 SSE 增量被首页结构层吃掉；`LoadingBlock` 空态改为按事件层 / 主题层 / 原始流三者联合判断，避免 stream 被筛空时把上层结构一起隐藏；`NewsFeedView` 挂载和筛选时会并行请求 `feed-layout` 与原始 `/api/news`，确保首页 raw stream fallback 是独立数据路径；`feedLayoutDegraded` 让降级 layout 不再压过真实原始流；`feedLoading` 改为基于并发请求计数收口，避免并行加载时过早结束 loading；`AppShell` 在新闻/主题增量事件下会刷新首页 layout，避免 `Event Radar / Topic Watch` 长时间停留在旧快照；`News Stream` 和 source 下拉现在只基于独立 raw `/api/news` 结果，不再被 layout 的 100 条上限截断；layout 请求新增 latest-response 保护，避免 SSE 高频刷新时旧响应覆盖新响应；raw `/api/news` 请求也新增同样的 latest-response 保护，避免快速切换筛选条件时旧结果覆盖新结果。前端新增 `feedLayout` 状态与 `EventFeedCard`，`NewsFeedView` 现在改为 `Event Radar -> Topic Watch -> News Stream` 三段结构，保留原始新闻流作为证据层，同时兼容原有市场/情绪/来源/关键词过滤。同步补写本轮 spec / plan 文档，并新增后端聚合测试、market 过滤测试、store 增量同步测试与首页渲染测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/topic_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/EventFeedCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/newsStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-news-feed-event-led-structure-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-news-feed-event-led-structure-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增后端接口 `GET /api/news/feed-layout`；前端新增 `NewsFeedLayout / NewsFeedEventCard / NewsFeedTopic` 类型与 `newsStore.feedLayout` 状态；未修改既有 `GET /api/news` 契约
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_feed_layout.py backend/tests/test_news_signal_pipeline.py` 通过（14 个用例）；`npm --prefix frontend run test -- --run src/views/NewsFeedView.test.ts src/stores/newsStore.test.ts` 通过（2 个文件 / 16 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前事件层仍是基于 topic 的派生视图，跨 topic 的同题新闻尚未进一步融合；`event_type` 仍是规则推断，后续若要继续提升首页“交易终端感”，需要把官方源权重、突发性和更强的 symbol mention 质量纳入排序
+
 ## 2026-03-28 09:49
 
 - 修改人：Codex

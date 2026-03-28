@@ -61,7 +61,44 @@ const detailMap: Record<number, NewsDetail> = {
   },
 };
 
+const feedLayout = {
+  events: [
+    {
+      event_key: 'topic-1',
+      event_title: 'AI Chip Launch',
+      event_summary: 'NVIDIA 新一轮 AI 芯片发布带动供应链关注度上升。',
+      event_type: 'product',
+      market: 'us',
+      sentiment_label: 'positive',
+      importance_score: 0.93,
+      last_seen_at: '2026-03-18T08:00:00Z',
+      primary_symbol: 'NVDA',
+      related_symbols: ['NVDA', 'SMCI'],
+      source_count: 2,
+      news_count: 2,
+      news_items: items,
+    },
+  ],
+  topics: [
+    {
+      id: 1,
+      topic_title: 'AI Infra',
+      topic_summary: '算力与供应链持续走强。',
+      keywords: ['ai', 'infra'],
+      market: 'us',
+      sentiment_label: 'positive',
+      importance_score: 0.93,
+      news_count: 2,
+      last_seen_at: '2026-03-18T08:00:00Z',
+      related_symbols: ['NVDA', 'SMCI'],
+    },
+  ],
+  stream: items,
+};
+
 const newsStore = {
+  feedLayout,
+  feedLayoutDegraded: false,
   feedItems: items,
   detailMap,
   feedLoading: false,
@@ -107,6 +144,7 @@ const newsStore = {
   ],
   lastIncrementalAt: '2026-03-25T02:39:55Z',
   loadFeedNews: vi.fn(async () => undefined),
+  loadFeedLayout: vi.fn(async () => undefined),
   loadDetail: vi.fn(async () => undefined),
 };
 
@@ -129,19 +167,26 @@ describe('NewsFeedView', () => {
     mockPush.mockReset();
     connectionStore.state = 'live';
     newsStore.loadFeedNews.mockClear();
+    newsStore.loadFeedLayout.mockClear();
     newsStore.loadDetail.mockClear();
+    newsStore.feedLayoutDegraded = false;
   });
 
-  it('renders a unified list in original order without Primary Signal', () => {
+  it('renders event radar first, then topic watch, then raw stream', () => {
     const wrapper = mount(NewsFeedView);
 
-    expect(wrapper.text()).toContain('Signal Desk');
+    expect(wrapper.text()).toContain('Event Radar');
+    expect(wrapper.text()).toContain('Topic Watch');
     expect(wrapper.text()).toContain('Control Station');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="filter-bar"]').classes()).toContain('rounded-[16px]');
     expect(wrapper.find('[data-role="news-feed-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-stream-shell"]').exists()).toBe(true);
-    expect(wrapper.text()).not.toContain('Primary Signal');
+    expect(wrapper.text()).toContain('AI Chip Launch');
+    expect(wrapper.text()).toContain('NVDA');
+    expect(wrapper.text()).toContain('SMCI');
 
     const titles = wrapper.findAll('[data-role="news-card-title"]').map((node) => node.text());
     expect(titles).toEqual([
@@ -150,10 +195,11 @@ describe('NewsFeedView', () => {
     ]);
   });
 
-  it('loads the feed slot instead of the shared list api', () => {
+  it('loads the event layout and the raw stream in parallel', () => {
     mount(NewsFeedView);
 
-    expect(newsStore.loadFeedNews).not.toHaveBeenCalledWith({ sentiment_label: 'positive', limit: 300 });
+    expect(newsStore.loadFeedLayout).toHaveBeenCalled();
+    expect(newsStore.loadFeedNews).toHaveBeenCalled();
   });
 
   it('routes feed cards to the news detail page on click', async () => {
@@ -178,5 +224,78 @@ describe('NewsFeedView', () => {
     const wrapper = mount(NewsFeedView);
 
     expect(wrapper.text()).toContain('实时连接异常');
+  });
+
+  it('keeps rendering the raw stream when there are no derived events', () => {
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: items,
+    };
+
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.text()).toContain('Event Radar 暂无聚合事件');
+    expect(wrapper.find('[data-role="news-stream-shell"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('NVIDIA rallies as AI capex estimates move higher');
+
+    newsStore.feedLayout = feedLayout;
+  });
+
+  it('keeps derived sections visible when stream filters to empty', () => {
+    newsStore.feedLayout = {
+      events: feedLayout.events,
+      topics: feedLayout.topics,
+      stream: [],
+    };
+    newsStore.feedItems = [];
+
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.text()).toContain('Event Radar');
+    expect(wrapper.text()).toContain('Topic Watch');
+    expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(true);
+
+    newsStore.feedLayout = feedLayout;
+    newsStore.feedItems = items;
+  });
+
+  it('applies active feed filters to topic watch as well', async () => {
+    const wrapper = mount(NewsFeedView);
+
+    await wrapper.findAll('select')[1].setValue('negative');
+
+    expect(wrapper.text()).not.toContain('AI Infra');
+  });
+
+  it('falls back to the raw feed when the layout response is degraded', () => {
+    newsStore.feedLayoutDegraded = true;
+    newsStore.feedLayout = {
+      ...feedLayout,
+      stream: [
+        {
+          id: 99,
+          title: 'Layout fallback should not win',
+          summary: 'Degraded layout stream entry',
+          source_name: 'Mock Source',
+          canonical_url: null,
+          market: 'us',
+          sentiment_label: 'neutral',
+          published_at: '2026-03-18T09:00:00Z',
+          fetched_at: '2026-03-18T09:01:00Z',
+        },
+      ],
+    };
+    newsStore.feedItems = items;
+
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.text()).toContain('NVIDIA rallies as AI capex estimates move higher');
+    expect(wrapper.text()).not.toContain('Layout fallback should not win');
+
+    newsStore.feedLayoutDegraded = false;
+    newsStore.feedLayout = feedLayout;
+    newsStore.feedItems = items;
   });
 });

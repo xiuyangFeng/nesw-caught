@@ -13,6 +13,7 @@ import type {
   MarketRefreshResult,
   NewsAnalysis,
   NewsDetail,
+  NewsFeedLayout,
   NewsItem,
   NewsQuery,
   NewsRuntimeStatus,
@@ -46,6 +47,7 @@ import {
   mockNewsAnalyses,
   mockNews,
   mockNewsDetails,
+  mockNewsFeedLayout,
   mockNewsRefreshResult,
   mockNewsRuntimeStatus,
   mockRelatedNews,
@@ -107,6 +109,12 @@ export const apiClient = {
         });
         return filtered.slice(0, query.limit ?? filtered.length);
       },
+    );
+  },
+  getNewsFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}) {
+    return withMockFallback<NewsFeedLayout>(
+      () => getJson(withQuery('/api/news/feed-layout', query)),
+      () => mockNewsFeedLayout,
     );
   },
   getNewsDetail(id: number) {

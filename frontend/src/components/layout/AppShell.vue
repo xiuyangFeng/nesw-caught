@@ -20,6 +20,7 @@ const topicStore = useTopicStore();
 const watchlistStore = useWatchlistStore();
 const runtimePollIntervalMs = 60_000;
 const runtimePollFreshnessSeconds = 45;
+const newsFeedLayoutStreamLimit = 100;
 let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
 let shellDisposed = false;
 
@@ -168,6 +169,18 @@ function stopRuntimeStatusPolling() {
   runtimeStatusPollHandle = null;
 }
 
+function refreshNewsFeedLayoutIfVisible() {
+  if (!route.path.startsWith('/news')) {
+    return;
+  }
+  void newsStore.loadFeedLayout({
+    market: newsStore.feedQuery.market || undefined,
+    limit_events: 6,
+    limit_topics: 6,
+    limit_stream: newsFeedLayoutStreamLimit,
+  });
+}
+
 function startRuntimeStatusPolling() {
   stopRuntimeStatusPolling();
   runtimeStatusPollHandle = setInterval(() => {
@@ -198,10 +211,12 @@ async function bootstrap() {
   connectionStore.connect((event) => {
     if (event.type === 'news.created') {
       newsStore.upsertNews(event.payload);
+      refreshNewsFeedLayoutIfVisible();
       return;
     }
     if (event.type === 'news.updated') {
       newsStore.upsertNewsUpdate(event.payload);
+      refreshNewsFeedLayoutIfVisible();
       return;
     }
     if (event.type === 'topic.updated') {
@@ -212,6 +227,7 @@ async function bootstrap() {
         sentiment_label: 'unknown',
         related_symbols: [],
       });
+      refreshNewsFeedLayoutIfVisible();
       return;
     }
     if (event.type === 'watchlist.movement') {

@@ -28,12 +28,17 @@ class TopicRepository:
         )
         return list(self.session.scalars(stmt))
 
-    def list_related_symbols(self, topic_id: int) -> list[str]:
+    def list_related_symbols(self, topic_id: int, market: str | None = None) -> list[str]:
         stmt = (
             select(NewsStockMention.symbol)
             .join(TopicNewsLink, TopicNewsLink.news_id == NewsStockMention.news_id)
+            .join(NewsItem, NewsItem.id == NewsStockMention.news_id)
             .where(TopicNewsLink.topic_cluster_id == topic_id)
-            .group_by(NewsStockMention.symbol)
-            .order_by(func.count(NewsStockMention.symbol).desc(), NewsStockMention.symbol.asc())
+        )
+        if market:
+            stmt = stmt.where(NewsItem.market == market, NewsStockMention.market == market)
+        stmt = stmt.group_by(NewsStockMention.symbol).order_by(
+            func.count(NewsStockMention.symbol).desc(),
+            NewsStockMention.symbol.asc(),
         )
         return list(self.session.scalars(stmt))
