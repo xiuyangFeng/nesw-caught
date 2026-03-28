@@ -14,6 +14,7 @@ import type {
   KlineDrawingStyle,
   KlineSubIndicator,
   NewsEventMarker,
+  NewsEventMarkerItem,
   StockKlineResponse,
   WatchlistDashboardPeriod,
 } from '../../types/api';
@@ -24,6 +25,8 @@ import KlineDrawingOverlay from './KlineDrawingOverlay.vue';
 import KlineDrawingSelectionPopover from './KlineDrawingSelectionPopover.vue';
 import KlineIndicatorWorkbench from './KlineIndicatorWorkbench.vue';
 import KlineToolbar from './KlineToolbar.vue';
+import KlineNewsTooltip from './KlineNewsTooltip.vue';
+import KlineNewsPopup from './KlineNewsPopup.vue';
 
 const props = defineProps<{
   klineData: StockKlineResponse | null;
@@ -77,6 +80,36 @@ const selectedDrawings = computed(() => {
 });
 const overlayDisabled = computed(() => !props.klineData || !candles.value.length);
 const labelEditingActive = ref(false);
+
+const newsEventsByTime = computed(() => {
+  const map: Record<string, NewsEventMarker> = {};
+  for (const event of props.klineData?.news_events ?? []) {
+    map[event.time] = event;
+  }
+  return map;
+});
+
+const tooltipState = ref<{ visible: boolean; x: number; y: number; event: NewsEventMarker | null }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  event: null,
+});
+
+const popupState = ref<{ visible: boolean; x: number; y: number; event: NewsEventMarker | null }>({
+  visible: false,
+  x: 0,
+  y: 0,
+  event: null,
+});
+
+const SENTIMENT_COLORS: Record<string, string> = {
+  positive: '#22c55e',
+  negative: '#ef4444',
+  neutral: '#3b82f6',
+  mixed: '#a855f7',
+  unknown: '#94a3b8',
+};
 const chartProjector = computed(() => ({
   getXForTime(time: string) {
     return (chart?.timeScale() as { timeToCoordinate?: (value: string) => number | null } | undefined)?.timeToCoordinate?.(time) ?? null;
@@ -360,6 +393,36 @@ function renderChart() {
   });
   chart.timeScale().fitContent();
   renderSubChart();
+
+  // News markers
+  const newsEvents = props.klineData?.news_events ?? [];
+  if (newsEvents.length && candleSeries) {
+    const markers = buildMarkers(newsEvents);
+    markers.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    (candleSeries as any).setMarkers(markers);
+  }
+}
+
+function getDominantSentiment(items: NewsEventMarkerItem[]): string {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    counts[item.sentiment] = (counts[item.sentiment] ?? 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
+}
+
+function buildMarkers(events: NewsEventMarker[]): Array<{ time: string; position: 'belowBar'; color: string; shape: 'circle'; text: string; size: number }> {
+  return events.map((event) => {
+    const dominant = getDominantSentiment(event.items);
+    return {
+      time: event.time,
+      position: 'belowBar' as const,
+      color: SENTIMENT_COLORS[dominant] ?? '#94a3b8',
+      shape: 'circle' as const,
+      text: `${event.items.length}`,
+      size: Math.min(2 + event.items.length, 6),
+    };
+  });
 }
 
 function handleDraftStart(anchor: { time: string; price: number }) {
@@ -559,6 +622,55 @@ const subIndicatorRows = computed(() => {
   return [['成交量', formatNumber(activeHudCandle.value?.volume, 0)]];
 });
 
+function setupChartInteractions() {
+  if (!chart) return;
+
+  // Guard against duplicate subscriptions
+  if ((chart as any).__newsInteractionsAttached) return;
+  (chart as any).__newsInteractionsAttached = true;
+
+  chart.subscribeCrosshairMove((param: any) => {
+    if (!param.time || !param.point) {
+      tooltipState.value.visible = false;
+      return;
+    }
+    const event = newsEventsByTime.value[param.time as string];
+    if (!event) {
+      tooltipState.value.visible = false;
+      return;
+    }
+    const rect = mainChartRef.value?.getBoundingClientRect();
+    if (!rect) return;
+    tooltipState.value = {
+      visible: true,
+      x: rect.left + (param.point.x ?? 0) + 12,
+      y: rect.top + (param.point.y ?? 0) - 10,
+      event,
+    };
+  });
+
+  chart.subscribeClick((param: any) => {
+    tooltipState.value.visible = false;
+    if (!param.time || !param.point) {
+      popupState.value.visible = false;
+      return;
+    }
+    const event = newsEventsByTime.value[param.time as string];
+    if (!event) {
+      popupState.value.visible = false;
+      return;
+    }
+    const rect = mainChartRef.value?.getBoundingClientRect();
+    if (!rect) return;
+    popupState.value = {
+      visible: true,
+      x: rect.left + (param.point.x ?? 0) + 12,
+      y: rect.top + (param.point.y ?? 0) + 20,
+      event,
+    };
+  });
+}
+
 watch(
   () => [props.klineData?.symbol, props.klineData?.candles.length],
   () => {
@@ -569,6 +681,7 @@ watch(
     if (props.klineData?.symbol) {
       chartStore.hydrateForSymbol(props.klineData.symbol, props.klineData.candles);
       renderChart();
+      setupChartInteractions();
     }
   },
   { immediate: true },
@@ -687,6 +800,19 @@ onBeforeUnmount(() => {
                 @drawing-group-visible-toggle="klineData?.symbol && chartStore.toggleSelectedVisible(klineData.symbol)"
                 @drawing-group-duplicate="klineData?.symbol && chartStore.duplicateSelectedDrawings(klineData.symbol)"
                 @drawing-group-delete="klineData?.symbol && chartStore.deleteSelectedDrawings(klineData.symbol)"
+              />
+              <KlineNewsTooltip
+                :event="tooltipState.event!"
+                :x="tooltipState.x"
+                :y="tooltipState.y"
+                :visible="tooltipState.visible"
+              />
+              <KlineNewsPopup
+                :event="popupState.event!"
+                :x="popupState.x"
+                :y="popupState.y"
+                :visible="popupState.visible"
+                @close="popupState.visible = false"
               />
             </div>
             <div class="border-t border-border/60 pt-3">
