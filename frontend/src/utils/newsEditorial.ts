@@ -54,11 +54,12 @@ function getDetailQualityScore(item: NewsItem, detail: NewsDetail | null): numbe
 
 export function getEditorialScore(item: NewsItem, detail: NewsDetail | null): number {
   const importance = detail?.topic?.importance_score ?? 0;
+  const editorialPrior = item.editorial_score ?? 0;
   const freshness = getFreshnessScore(item);
   const quality = getDetailQualityScore(item, detail);
   const detailPenalty = detail ? 0 : -0.08;
 
-  return importance * 0.58 + freshness * 0.26 + quality + detailPenalty;
+  return Math.max(importance, editorialPrior) * 0.58 + freshness * 0.26 + quality + detailPenalty;
 }
 
 export function rankEditorialStories(

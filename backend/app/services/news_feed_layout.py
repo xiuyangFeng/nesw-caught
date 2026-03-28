@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Iterable
@@ -197,6 +198,96 @@ def _qualifies_as_event(topic: TopicItemView) -> bool:
     return topic.importance_score >= 0.55 or topic.news_count >= 2 or bool(topic.related_symbols)
 
 
+def _title_tokens(title: str) -> set[str]:
+    tokens = re.findall(r"[a-z0-9\u4e00-\u9fff]+", title.lower())
+    return set(tokens) - {"the", "and", "for", "with", "from", "after", "near", "over", "into"}
+
+
+def _title_overlap(title_a: str, title_b: str) -> float:
+    tokens_a = _title_tokens(title_a)
+    tokens_b = _title_tokens(title_b)
+    if not tokens_a or not tokens_b:
+        return 0.0
+    intersection = tokens_a & tokens_b
+    union = tokens_a | tokens_b
+    return len(intersection) / len(union)
+
+
+def _symbol_overlap(symbols_a: list[str], symbols_b: list[str]) -> int:
+    return len(set(symbols_a) & set(symbols_b))
+
+
+def _should_fuse(card_a: NewsFeedEventCardView, card_b: NewsFeedEventCardView) -> bool:
+    if card_a.event_type == "general" or card_b.event_type == "general":
+        return False
+    if card_a.event_type != card_b.event_type:
+        return False
+    if card_a.primary_symbol and card_a.primary_symbol == card_b.primary_symbol:
+        return True
+    if _symbol_overlap(card_a.related_symbols, card_b.related_symbols) >= 2:
+        return True
+    if _title_overlap(card_a.event_title, card_b.event_title) >= 0.5:
+        return True
+    return False
+
+
+def _merge_cards(
+    primary: NewsFeedEventCardView, secondary: NewsFeedEventCardView
+) -> NewsFeedEventCardView:
+    seen_ids: set[int] = {item.id for item in primary.news_items}
+    merged_news = list(primary.news_items)
+    for item in secondary.news_items:
+        if item.id not in seen_ids:
+            merged_news.append(item)
+            seen_ids.add(item.id)
+    merged_news.sort(
+        key=lambda item: (item.published_at is None, item.published_at, item.fetched_at),
+        reverse=True,
+    )
+    merged_symbols = list(dict.fromkeys(primary.related_symbols + secondary.related_symbols))[:5]
+    merged_primary = primary.primary_symbol or secondary.primary_symbol
+    merged_source_count = len({item.source_name for item in merged_news})
+    merged_news_count = len(merged_news)
+    return NewsFeedEventCardView(
+        event_key=f"fused-{primary.event_key}-{secondary.event_key}",
+        event_title=primary.event_title,
+        event_summary=primary.event_summary or secondary.event_summary,
+        event_type=primary.event_type,
+        market=primary.market,
+        sentiment_label=primary.sentiment_label,
+        importance_score=max(primary.importance_score, secondary.importance_score),
+        last_seen_at=max(
+            filter(None, [primary.last_seen_at, secondary.last_seen_at]),
+            default=None,
+            key=lambda ts: ts.timestamp() if ts else 0.0,
+        ),
+        primary_symbol=merged_primary,
+        related_symbols=merged_symbols,
+        source_count=merged_source_count,
+        news_count=merged_news_count,
+        news_items=merged_news[:3],
+    )
+
+
+def fuse_event_cards(cards: list[NewsFeedEventCardView]) -> list[NewsFeedEventCardView]:
+    if len(cards) <= 1:
+        return cards
+    fused_indices: set[int] = set()
+    result: list[NewsFeedEventCardView] = []
+    for i, card in enumerate(cards):
+        if i in fused_indices:
+            continue
+        current = card
+        for j in range(i + 1, len(cards)):
+            if j in fused_indices:
+                continue
+            if _should_fuse(current, cards[j]):
+                current = _merge_cards(current, cards[j])
+                fused_indices.add(j)
+        result.append(current)
+    return result
+
+
 def build_event_cards(
     topics: list[TopicItemView],
     *,
@@ -249,6 +340,8 @@ def build_event_cards(
             )
         )
 
+    event_cards = fuse_event_cards(event_cards)
+
     event_cards.sort(
         key=lambda card: (
             _decayed_importance(card.importance_score, card.last_seen_at),
@@ -278,6 +371,39 @@ class NewsFeedLayoutService:
     def __init__(self, session) -> None:
         self.topic_repository = TopicRepository(session)
         self.news_repository = NewsRepository(session)
+
+    def _stream_editorial_scores(
+        self,
+        stream_items: list[NewsItemSummary],
+        topic_views: list[NewsFeedTopicView],
+        topic_news_map: dict[int, list[NewsItemSummary]],
+        topic_mentions_map: dict[int, list[str]],
+    ) -> list[NewsItemSummary]:
+        weight_map = _source_weight_map()
+        news_to_topic: dict[int, tuple[float, list[str]]] = {}
+        for topic in topic_views:
+            topic_importance = topic.importance_score
+            topic_symbols = topic_mentions_map.get(topic.id, [])
+            for item in topic_news_map.get(topic.id, []):
+                if item.id not in news_to_topic or news_to_topic[item.id][0] < topic_importance:
+                    news_to_topic[item.id] = (topic_importance, topic_symbols)
+
+        for item in stream_items:
+            topic_importance, topic_symbols = news_to_topic.get(item.id, (0.0, []))
+            source_weight = weight_map.get(item.source_name, DEFAULT_SOURCE_WEIGHT)
+            freshness = _decayed_importance(1.0, item.published_at or item.fetched_at)
+            has_mentions = 0.15 if topic_symbols else 0.0
+            editorial_score = round(
+                topic_importance * 0.4
+                + (source_weight / 1.2) * 0.25
+                + freshness * 0.2
+                + has_mentions,
+                4,
+            )
+            item.editorial_score = editorial_score
+
+        stream_items.sort(key=lambda x: x.editorial_score or 0.0, reverse=True)
+        return stream_items
 
     def build(
         self,
@@ -336,8 +462,12 @@ class NewsFeedLayoutService:
             topic_views, topic_news_map=topic_news_map, topic_mentions_map=topic_mentions_map
         )
 
+        scored_stream = self._stream_editorial_scores(
+            stream_items, topic_views, topic_news_map, topic_mentions_map
+        )
+
         return NewsFeedLayoutView(
             events=event_cards[:limit_events],
             topics=topic_views[:limit_topics],
-            stream=stream_items,
+            stream=scored_stream,
         )

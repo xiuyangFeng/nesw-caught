@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
@@ -8,14 +8,17 @@ import EventFeedCard from '../components/news/EventFeedCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import NewsCard from '../components/news/NewsCard.vue';
+import NewsVirtualList from '../components/news/NewsVirtualList.vue';
 import { useConnectionStore } from '../stores/connectionStore';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
 import type { EditorialStoryEntry } from '../utils/newsEditorial';
+import { rankEditorialStories } from '../utils/newsEditorial';
 
 const newsStore = useNewsStore();
 const connectionStore = useConnectionStore();
 const router = useRouter();
+const VIRTUAL_LIST_THRESHOLD = 30;
 const FEED_LAYOUT_STREAM_LIMIT = 100;
 const filters = reactive<{
   market: Market | '';
@@ -115,34 +118,81 @@ const runtimeBannerDetail = computed(() => {
   const recentFlow = newsStore.lastIncrementalAt ?? '无';
   return `最近入流 ${recentFlow} · 异常来源 ${degradedSourceCount.value}`;
 });
-const orderedEntries = computed<EditorialStoryEntry[]>(() =>
-  feedStreamItems.value.map((item) => ({
-    item,
-    detail: newsStore.detailMap[item.id] ?? null,
-    score: 0,
-  })),
+const visibleStreamIds = ref<number[]>([]);
+const hydrationInFlight = ref(false);
+const pendingHydrationPass = ref(false);
+const hasLoadedDetail = (id: number) => Object.prototype.hasOwnProperty.call(newsStore.detailMap, id);
+const layoutStreamScoreMap = computed(() => {
+  if (newsStore.feedLayoutDegraded) {
+    return new Map<number, number | null>();
+  }
+  return new Map(
+    newsStore.feedLayout.stream
+      .filter((item) => item.editorial_score != null)
+      .map((item) => [item.id, item.editorial_score ?? null]),
+  );
+});
+const rankedFeedItems = computed(() =>
+  newsStore.feedItems.map((item) => {
+    const editorialScore = layoutStreamScoreMap.value.get(item.id);
+    if (editorialScore == null) {
+      return item;
+    }
+    return {
+      ...item,
+      editorial_score: editorialScore,
+    };
+  }),
 );
+const orderedEntries = computed<EditorialStoryEntry[]>(() =>
+  rankEditorialStories(
+    rankedFeedItems.value.filter((item) => matchesFilters(item)),
+    newsStore.detailMap,
+  ),
+);
+const useVirtualScrolling = computed(() => orderedEntries.value.length > VIRTUAL_LIST_THRESHOLD);
+const orderedEntryIdSet = computed(() => new Set(orderedEntries.value.map((entry) => entry.item.id)));
+const hydrationCandidateIds = computed(() => {
+  const candidateIds = new Set<number>();
+  orderedEntries.value.slice(0, 8).forEach((entry) => candidateIds.add(entry.item.id));
+  visibleStreamIds.value
+    .filter((id) => orderedEntryIdSet.value.has(id))
+    .forEach((id) => candidateIds.add(id));
+  return [...candidateIds].filter((id) => orderedEntryIdSet.value.has(id) && !hasLoadedDetail(id));
+});
 
 async function hydrateEditorialDetails() {
-  const idsToLoad = feedStreamItems.value
-    .slice(0, 8)
-    .map((item) => item.id)
-    .filter((id) => !newsStore.detailMap[id] && !hydratingIds.has(id));
+  if (hydrationInFlight.value) {
+    pendingHydrationPass.value = true;
+    return;
+  }
+
+  const idsToLoad = hydrationCandidateIds.value.filter((id) => !hydratingIds.has(id));
 
   if (!idsToLoad.length) {
     return;
   }
 
+  hydrationInFlight.value = true;
   idsToLoad.forEach((id) => hydratingIds.add(id));
-  await Promise.all(
-    idsToLoad.map(async (id) => {
-      try {
-        await newsStore.loadDetail(id);
-      } finally {
-        hydratingIds.delete(id);
-      }
-    }),
-  );
+  try {
+    await Promise.all(
+      idsToLoad.map(async (id) => {
+        try {
+          await newsStore.loadDetail(id);
+        } finally {
+          hydratingIds.delete(id);
+        }
+      }),
+    );
+  } finally {
+    hydrationInFlight.value = false;
+    if (pendingHydrationPass.value) {
+      pendingHydrationPass.value = false;
+      await nextTick();
+      await hydrateEditorialDetails();
+    }
+  }
 }
 
 watch(
@@ -173,8 +223,20 @@ onMounted(async () => {
     newsStore.loadFeedLayout({ limit_events: 6, limit_topics: 6, limit_stream: FEED_LAYOUT_STREAM_LIMIT }),
     newsStore.loadFeedNews({ limit: 300 }),
   ]);
-  await hydrateEditorialDetails();
 });
+
+watch(hydrationCandidateIds, async (ids) => {
+  if (!ids.length) {
+    return;
+  }
+  await hydrateEditorialDetails();
+}, { immediate: true });
+
+watch(useVirtualScrolling, (enabled) => {
+  if (!enabled) {
+    visibleStreamIds.value = [];
+  }
+}, { immediate: true });
 </script>
 
 <template>
@@ -292,7 +354,13 @@ onMounted(async () => {
           compact
           data-role="news-stream-shell"
         >
-          <div class="grid grid-cols-1 gap-[14px]" data-role="news-stream-list">
+          <NewsVirtualList
+            v-if="useVirtualScrolling"
+            :entries="orderedEntries"
+            @open="openStory"
+            @visible-ids="visibleStreamIds = $event"
+          />
+          <div v-else class="grid grid-cols-1 gap-[14px]" data-role="news-stream-list">
             <NewsCard
               v-for="entry in orderedEntries"
               :key="entry.item.id"

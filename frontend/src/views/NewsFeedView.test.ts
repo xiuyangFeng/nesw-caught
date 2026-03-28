@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils';
+import { reactive, nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { NewsDetail, NewsItem } from '../types/api';
@@ -96,7 +97,7 @@ const feedLayout = {
   stream: items,
 };
 
-const newsStore = {
+const newsStore = reactive({
   feedLayout,
   feedLayoutDegraded: false,
   feedItems: items,
@@ -146,7 +147,7 @@ const newsStore = {
   loadFeedNews: vi.fn(async () => undefined),
   loadFeedLayout: vi.fn(async () => undefined),
   loadDetail: vi.fn(async () => undefined),
-};
+});
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
@@ -170,6 +171,9 @@ describe('NewsFeedView', () => {
     newsStore.loadFeedLayout.mockClear();
     newsStore.loadDetail.mockClear();
     newsStore.feedLayoutDegraded = false;
+    newsStore.feedItems = items;
+    newsStore.feedLayout = feedLayout;
+    newsStore.detailMap = detailMap;
   });
 
   it('renders event radar first, then topic watch, then raw stream', () => {
@@ -297,5 +301,211 @@ describe('NewsFeedView', () => {
     newsStore.feedLayoutDegraded = false;
     newsStore.feedLayout = feedLayout;
     newsStore.feedItems = items;
+  });
+
+  it('does not let degraded layout scores reorder the raw stream', () => {
+    newsStore.feedLayoutDegraded = true;
+    newsStore.feedItems = [
+      {
+        id: 10,
+        title: 'Raw first story',
+        summary: 'raw 1',
+        source_name: 'Reuters',
+        canonical_url: null,
+        market: 'us',
+        sentiment_label: 'neutral',
+        published_at: '2026-03-18T10:00:00Z',
+        fetched_at: '2026-03-18T10:01:00Z',
+      },
+      {
+        id: 11,
+        title: 'Raw second story',
+        summary: 'raw 2',
+        source_name: 'Bloomberg',
+        canonical_url: null,
+        market: 'us',
+        sentiment_label: 'neutral',
+        published_at: '2026-03-18T09:00:00Z',
+        fetched_at: '2026-03-18T09:01:00Z',
+      },
+    ];
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: [
+        { ...newsStore.feedItems[1], editorial_score: 0.99 },
+        { ...newsStore.feedItems[0], editorial_score: 0.01 },
+      ],
+    };
+    newsStore.detailMap = {};
+
+    const wrapper = mount(NewsFeedView);
+    const titles = wrapper.findAll('[data-role="news-card-title"]').map((node) => node.text());
+
+    expect(titles).toEqual(['Raw first story', 'Raw second story']);
+  });
+
+  it('hydrates details for stories promoted by ranked stream order instead of raw feed order', async () => {
+    const promotedItems: NewsItem[] = Array.from({ length: 9 }, (_, index) => ({
+      id: index + 1,
+      title: `Story ${index + 1}`,
+      summary: `Summary ${index + 1}`,
+      source_name: 'Reuters',
+      canonical_url: null,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: `2026-03-18T0${Math.min(index, 8)}:00:00Z`,
+      fetched_at: `2026-03-18T0${Math.min(index, 8)}:02:00Z`,
+    }));
+
+    newsStore.feedItems = promotedItems;
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: promotedItems.map((item) => ({
+        ...item,
+        editorial_score: item.id === 9 ? 0.99 : 0.1,
+      })),
+    };
+    newsStore.detailMap = {};
+
+    mount(NewsFeedView);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(newsStore.loadDetail).toHaveBeenCalledWith(9);
+
+    newsStore.feedItems = items;
+    newsStore.feedLayout = feedLayout;
+    newsStore.detailMap = detailMap;
+  });
+
+  it('hydrates newly promoted ranked stories after earlier detail loads settle', async () => {
+    const promotedItems: NewsItem[] = Array.from({ length: 9 }, (_, index) => ({
+      id: index + 1,
+      title: `Story ${index + 1}`,
+      summary: `Summary ${index + 1}`,
+      source_name: 'Reuters',
+      canonical_url: null,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: `2026-03-18T0${Math.min(index, 8)}:00:00Z`,
+      fetched_at: `2026-03-18T0${Math.min(index, 8)}:02:00Z`,
+      editorial_score: index === 8 ? 0.4 : 0.5,
+    }));
+
+    newsStore.feedItems = promotedItems;
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: promotedItems,
+    };
+    newsStore.detailMap = {};
+
+    newsStore.loadDetail.mockImplementation(async (id: number) => {
+      newsStore.detailMap = {
+        ...newsStore.detailMap,
+        [id]: {
+          ...promotedItems[id - 1],
+          sentiment_score: null,
+          article: null,
+          mentions: [],
+          topic: {
+            id,
+            topic_title: `Topic ${id}`,
+            importance_score: 0,
+            last_seen_at: promotedItems[id - 1].published_at ?? promotedItems[id - 1].fetched_at,
+          },
+        },
+      };
+      if (id === 8) {
+        newsStore.feedLayout = {
+          ...newsStore.feedLayout,
+          stream: promotedItems.map((item) => ({
+            ...item,
+            editorial_score: item.id === 9 ? 0.99 : 0.01,
+          })),
+        };
+      }
+    });
+
+    mount(NewsFeedView);
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+    await Promise.resolve();
+
+    expect(newsStore.loadDetail).toHaveBeenCalledWith(9);
+
+    newsStore.loadDetail.mockImplementation(async () => undefined);
+    newsStore.feedItems = items;
+    newsStore.feedLayout = feedLayout;
+    newsStore.detailMap = detailMap;
+  });
+
+  it('does not keep stale virtual visible ids when the stream stops using virtualization', async () => {
+    const manyItems: NewsItem[] = Array.from({ length: 31 }, (_, index) => ({
+      id: index + 1,
+      title: `Story ${index + 1}`,
+      summary: `Summary ${index + 1}`,
+      source_name: 'Reuters',
+      canonical_url: null,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-18T10:00:00Z',
+      fetched_at: '2026-03-18T10:01:00Z',
+      editorial_score: 0.5,
+    }));
+
+    newsStore.feedItems = manyItems;
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: manyItems,
+    };
+    newsStore.detailMap = {};
+
+    const wrapper = mount(NewsFeedView);
+    await nextTick();
+
+    const virtualList = wrapper.findComponent({ name: 'NewsVirtualList' });
+    expect(virtualList.exists()).toBe(true);
+    await virtualList.vm.$emit('visible-ids', [3, 4, 5]);
+    await nextTick();
+    newsStore.loadDetail.mockClear();
+
+    newsStore.feedItems = manyItems.slice(0, 2);
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: manyItems.slice(0, 2),
+    };
+    newsStore.detailMap = {
+      1: {
+        ...manyItems[0],
+        sentiment_score: null,
+        article: null,
+        mentions: [],
+        topic: null,
+      },
+      2: {
+        ...manyItems[1],
+        sentiment_score: null,
+        article: null,
+        mentions: [],
+        topic: null,
+      },
+    };
+    newsStore.loadDetail.mockClear();
+
+    await nextTick();
+    await Promise.resolve();
+
+    expect(wrapper.findComponent({ name: 'NewsVirtualList' }).exists()).toBe(false);
+    expect(newsStore.loadDetail).not.toHaveBeenCalled();
+
+    newsStore.feedItems = items;
+    newsStore.feedLayout = feedLayout;
+    newsStore.detailMap = detailMap;
   });
 });

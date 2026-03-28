@@ -13,6 +13,7 @@ class NewsItemSummary(BaseModel):
     sentiment_label: str | None = None
     published_at: UTCDateTime | None = None
     fetched_at: UTCDateTime
+    editorial_score: float | None = None
 
 
 class NewsMentionView(BaseModel):

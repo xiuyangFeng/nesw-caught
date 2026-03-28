@@ -4,7 +4,15 @@ import math
 
 from app.schemas.news import NewsItemSummary
 from app.schemas.topic import TopicItemView
-from app.services.news_feed_layout import build_event_cards, _event_type_from_texts
+from app.services.news_feed_layout import (
+    build_event_cards,
+    fuse_event_cards,
+    _event_type_from_texts,
+    _title_overlap,
+    _should_fuse,
+    _merge_cards,
+    NewsFeedEventCardView,
+)
 
 
 def _news_item(
@@ -215,7 +223,7 @@ def test_source_weighting_adjusts_importance_by_tier() -> None:
     topics = [
         _topic(
             1,
-            title="Primary Source Event",
+            title="NVIDIA Chip Announcement",
             summary="Event from primary tier source.",
             keywords=["nvidia", "chip"],
             importance_score=0.8,
@@ -225,7 +233,7 @@ def test_source_weighting_adjusts_importance_by_tier() -> None:
         ),
         _topic(
             2,
-            title="Unknown Source Event",
+            title="Apple Product Update",
             summary="Event from unknown source.",
             keywords=["apple", "product"],
             importance_score=0.8,
@@ -269,8 +277,8 @@ def test_source_weighting_adjusts_importance_by_tier() -> None:
             topics, topic_news_map=topic_news_map, topic_mentions_map=topic_mentions_map
         )
 
-    primary_card = next(c for c in cards if c.event_title == "Primary Source Event")
-    unknown_card = next(c for c in cards if c.event_title == "Unknown Source Event")
+    primary_card = next(c for c in cards if c.event_title == "NVIDIA Chip Announcement")
+    unknown_card = next(c for c in cards if c.event_title == "Apple Product Update")
     assert primary_card.importance_score > unknown_card.importance_score
 
 
@@ -339,3 +347,178 @@ def test_time_decay_sorts_recent_events_before_older_ones() -> None:
     one_hour_decay = math.exp(-0.03 * 1)
     two_day_decay = math.exp(-0.03 * 48)
     assert cards[0].importance_score * one_hour_decay > cards[1].importance_score * two_day_decay
+
+
+def _event_card(
+    *,
+    event_key: str,
+    event_title: str,
+    event_type: str = "product",
+    primary_symbol: str | None = None,
+    related_symbols: list[str] | None = None,
+    importance_score: float = 0.8,
+    last_seen_at: datetime | None = None,
+    news_items: list[NewsItemSummary] | None = None,
+) -> NewsFeedEventCardView:
+    now = last_seen_at or datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    return NewsFeedEventCardView(
+        event_key=event_key,
+        event_title=event_title,
+        event_summary="Test summary",
+        event_type=event_type,
+        market="us",
+        sentiment_label="neutral",
+        importance_score=importance_score,
+        last_seen_at=now,
+        primary_symbol=primary_symbol,
+        related_symbols=related_symbols or [],
+        source_count=1,
+        news_count=len(news_items) if news_items else 0,
+        news_items=news_items or [],
+    )
+
+
+def test_title_overlap_detects_similar_titles() -> None:
+    assert _title_overlap("NVIDIA AI chip launch", "NVIDIA AI chip release") >= 0.5
+    assert _title_overlap("Apple earnings beat", "Fed rate decision") < 0.3
+
+
+def test_should_fuse_same_primary_symbol() -> None:
+    a = _event_card(event_key="t-1", event_title="NVIDIA chip launch", primary_symbol="NVDA")
+    b = _event_card(event_key="t-2", event_title="NVIDIA supply update", primary_symbol="NVDA")
+    assert _should_fuse(a, b) is True
+
+
+def test_should_fuse_symbol_overlap() -> None:
+    a = _event_card(
+        event_key="t-1", event_title="Chip supply", related_symbols=["NVDA", "AMD", "TSMC"]
+    )
+    b = _event_card(
+        event_key="t-2", event_title="Chip demand", related_symbols=["NVDA", "AMD", "INTC"]
+    )
+    assert _should_fuse(a, b) is True
+
+
+def test_should_not_fuse_different_event_types() -> None:
+    a = _event_card(
+        event_key="t-1", event_title="Rate decision", event_type="macro", primary_symbol="NVDA"
+    )
+    b = _event_card(
+        event_key="t-2", event_title="NVIDIA launch", event_type="product", primary_symbol="NVDA"
+    )
+    assert _should_fuse(a, b) is False
+
+
+def test_should_not_fuse_general_events() -> None:
+    a = _event_card(event_key="t-1", event_title="Company update", event_type="general")
+    b = _event_card(event_key="t-2", event_title="Company update", event_type="general")
+    assert _should_fuse(a, b) is False
+
+
+def test_fuse_event_cards_merges_duplicate_events() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    news_a = [
+        _news_item(1, title="NVIDIA chip story A", summary="s", source_name="WSJ", published_at=now)
+    ]
+    news_b = [
+        _news_item(
+            2, title="NVIDIA chip story B", summary="s", source_name="Reuters", published_at=now
+        )
+    ]
+    a = _event_card(
+        event_key="t-1",
+        event_title="NVIDIA AI Chip Launch",
+        event_type="product",
+        primary_symbol="NVDA",
+        related_symbols=["NVDA", "SMCI"],
+        importance_score=0.9,
+        news_items=news_a,
+    )
+    b = _event_card(
+        event_key="t-2",
+        event_title="NVIDIA AI Platform Release",
+        event_type="product",
+        primary_symbol="NVDA",
+        related_symbols=["NVDA", "AMD"],
+        importance_score=0.7,
+        news_items=news_b,
+    )
+    result = fuse_event_cards([a, b])
+    assert len(result) == 1
+    assert result[0].primary_symbol == "NVDA"
+    assert "NVDA" in result[0].related_symbols
+    assert "SMCI" in result[0].related_symbols
+    assert result[0].news_count == 2
+    assert len(result[0].news_items) == 2
+    assert result[0].importance_score == 0.9
+
+
+def test_fuse_event_cards_keeps_independent_events() -> None:
+    a = _event_card(
+        event_key="t-1",
+        event_title="Apple earnings beat",
+        event_type="earnings",
+        primary_symbol="AAPL",
+    )
+    b = _event_card(
+        event_key="t-2", event_title="Fed rate decision", event_type="macro", primary_symbol=None
+    )
+    result = fuse_event_cards([a, b])
+    assert len(result) == 2
+
+
+def test_merge_cards_preserves_higher_importance() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    a = _event_card(
+        event_key="t-1",
+        event_title="High",
+        importance_score=0.95,
+        last_seen_at=now,
+        primary_symbol="NVDA",
+    )
+    b = _event_card(
+        event_key="t-2",
+        event_title="Low",
+        importance_score=0.6,
+        last_seen_at=now,
+        primary_symbol="NVDA",
+    )
+    merged = _merge_cards(a, b)
+    assert merged.importance_score == 0.95
+    assert "fused-" in merged.event_key
+
+
+def test_merge_cards_recomputes_unique_story_and_source_counts() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    shared_story = _news_item(
+        101,
+        title="Shared NVIDIA story",
+        summary="s",
+        source_name="Reuters",
+        published_at=now,
+    )
+    exclusive_story = _news_item(
+        102,
+        title="Exclusive follow-up",
+        summary="s",
+        source_name="Bloomberg",
+        published_at=now,
+    )
+    a = _event_card(
+        event_key="t-1",
+        event_title="NVIDIA launch",
+        primary_symbol="NVDA",
+        news_items=[shared_story],
+    )
+    b = _event_card(
+        event_key="t-2",
+        event_title="NVIDIA platform release",
+        primary_symbol="NVDA",
+        news_items=[shared_story, exclusive_story],
+    )
+
+    merged = _merge_cards(a, b)
+
+    assert merged.news_count == 2
+    assert merged.source_count == 2
+    assert len(merged.news_items) == 2

@@ -9,7 +9,7 @@ import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } fro
 const props = withDefaults(
   defineProps<{
     entry: EditorialStoryEntry;
-    variant?: 'supporting' | 'stream';
+    variant?: 'supporting' | 'stream' | 'stream-compact';
   }>(),
   {
     variant: 'stream',
@@ -34,12 +34,12 @@ const emit = defineEmits<{
       <span class="market-tag">{{ entry.item.market.toUpperCase() }}</span>
       <span class="source">{{ entry.item.source_name }}</span>
     </div>
-    <div class="news-card__body" :class="{ 'news-card__supporting-body': variant === 'supporting' }">
-      <div class="news-card__copy" :class="{ 'news-card__supporting-copy': variant === 'supporting' }">
+    <div class="news-card__body" :class="{ 'news-card__supporting-body': variant === 'supporting', 'news-card__compact-body': variant === 'stream-compact' }">
+      <div class="news-card__copy" :class="{ 'news-card__supporting-copy': variant === 'supporting', 'news-card__compact-copy': variant === 'stream-compact' }">
         <h3 data-role="news-card-title">{{ entry.item.title }}</h3>
         <p class="summary">{{ summary }}</p>
       </div>
-      <div class="news-card__meta" :class="{ 'news-card__supporting-meta': variant === 'supporting' }">
+      <div class="news-card__meta" :class="{ 'news-card__supporting-meta': variant === 'supporting', 'news-card__compact-meta': variant === 'stream-compact' }">
         <span>{{ publishedLabel }}</span>
         <span>{{ topicLabel }}</span>
       </div>
@@ -63,6 +63,13 @@ const emit = defineEmits<{
   transform: translateY(-2px);
   border-color: rgba(255, 159, 47, 0.28);
   box-shadow: 0 16px 36px rgba(2, 6, 12, 0.28);
+}
+
+.news-card--stream-compact {
+  height: 144px;
+  padding: 12px 14px;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .card-head {
@@ -115,6 +122,30 @@ h3 {
   -webkit-line-clamp: 2;
 }
 
+.news-card__compact-body {
+  grid-template-columns: minmax(0, 1.7fr) minmax(132px, 0.48fr);
+  gap: 14px;
+}
+
+.news-card__compact-copy {
+  gap: 6px;
+}
+
+.news-card--stream-compact h3 {
+  font-size: 15px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+}
+
+.news-card__compact-meta {
+  gap: 6px;
+  padding-left: 12px;
+  font-size: 11px;
+}
+
 .summary {
   margin: 0;
   color: var(--text-soft);
@@ -124,6 +155,11 @@ h3 {
   -webkit-box-orient: vertical;
   overflow: hidden;
   -webkit-line-clamp: 2;
+}
+
+.news-card--stream-compact .summary {
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 @media (max-width: 860px) {
@@ -136,6 +172,15 @@ h3 {
     border-left: none;
     padding-top: 10px;
     border-top: 1px solid var(--border);
+  }
+
+  .news-card__compact-body {
+    grid-template-columns: minmax(0, 1.65fr) minmax(108px, 0.5fr);
+  }
+
+  .news-card--stream-compact .news-card__meta {
+    padding-top: 0;
+    border-top: none;
   }
 }
 </style>

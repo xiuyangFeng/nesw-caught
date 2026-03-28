@@ -2,6 +2,72 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 17:07
+
+- 修改人：Codex
+- 修改范围：News Feed final review 修正——清理 stale virtual visible ids
+- 变更内容：修正虚拟列表可见项补水链路中的残留状态问题。`NewsFeedView` 新增 `orderedEntryIdSet`，`hydrationCandidateIds` 现在只会保留当前 `orderedEntries` 中仍然存在的 id，再与 `visibleStreamIds` 求并集；同时增加对 `useVirtualScrolling` 的 watch，在退出虚拟列表时主动清空 `visibleStreamIds`，避免旧虚拟列表中的可见项继续参与后续补水。同步新增回归测试：从 `>30` 条虚拟列表退回普通列表后，不再因为旧 `visible-ids` 触发无关详情加载。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口或数据结构变化
+- 验证情况：`npm --prefix frontend run test -- --run src/utils/newsEditorial.test.ts src/components/news/NewsCard.test.ts src/components/news/NewsVirtualList.test.ts src/views/NewsFeedView.test.ts` 通过（4 个文件 / 19 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前补水与虚拟可见项联动已经收敛到当前列表范围内；若后续希望进一步减少请求频率，可考虑在 `loadDetail` 层加入更明确的节流或批量接口
+
+## 2026-03-28 17:03
+
+- 修改人：Codex
+- 修改范围：News Feed follow-up review 修正——降级排序隔离与持续补水
+- 变更内容：继续处理新闻流 review follow-up。`NewsFeedView` 的 `layoutStreamScoreMap` 现在在 `feedLayoutDegraded=true` 时直接返回空映射，保证降级 layout 不再影响 raw stream 排序。详情补水机制从“挂载/筛选时一次性补前 8”改为由候选集 watch 驱动的持续补水：候选集包含当前排序前 8 条和虚拟列表当前可见项；若补水进行中又出现新的缺口，会在本轮结束后自动追一轮，避免排序变化后新晋升条目或后续滚动暴露条目长期不补水。`NewsVirtualList` 新增 `visible-ids` 事件，把当前可见 story id 回传给父层参与补水决策。同步新增前端回归测试两条：降级 layout 不应重排 raw stream、首轮补水完成后新晋升条目会被继续补水。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsVirtualList.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；仅新增前端组件内部事件 `visible-ids`
+- 验证情况：`npm --prefix frontend run test -- --run src/utils/newsEditorial.test.ts src/components/news/NewsCard.test.ts src/components/news/NewsVirtualList.test.ts src/views/NewsFeedView.test.ts` 通过（4 个文件 / 18 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前补水候选仍是“前 8 + 当前可见项”的启发式策略，而不是全量后台预取；如果后续要进一步提升首屏稳定性，可考虑在 store 层缓存更完整的 detail 预热策略
+
+## 2026-03-28 16:59
+
+- 修改人：Codex
+- 修改范围：News Feed review 修正——事件融合计数去重、排序补水对齐、虚拟列表固定高度收口
+- 变更内容：针对本地 `main` 上新闻板块优化的 review findings 做三项修正。后端 `news_feed_layout.py` 的 `_merge_cards()` 改为基于去重后的合并新闻重新计算 `news_count` 与 `source_count`，避免融合事件卡统计大于实际挂载文章数。前端 `NewsFeedView` 新增从 `feedLayout.stream` 回填 `editorial_score` 到 raw `feedItems` 的映射，`orderedEntries` 排序会使用该分数作为 detail 缺失时的先验；`hydrateEditorialDetails()` 改为按当前排序后的前 8 条补水，而不是按原始 feed 顺序补水。前端 `NewsVirtualList` 改为使用显式 `156px` 固定行高，并将虚拟列表中的卡片切换为 `stream-compact` 紧凑变体；`NewsCard` 新增对应紧凑样式，收敛标题/摘要/元信息布局，保证虚拟行高与实际渲染契约一致。同步新增 3 个回归测试：融合计数唯一性、按排序补详情、虚拟列表固定高度紧凑卡片。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/utils/newsEditorial.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsVirtualList.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsVirtualList.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增接口；`editorial_score` 仍为已存在的可选字段，本次仅修正其前端消费方式
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_feed_layout.py -v` 通过（14 个用例）；`npm --prefix frontend run test -- --run src/utils/newsEditorial.test.ts src/components/news/NewsCard.test.ts src/components/news/NewsVirtualList.test.ts src/views/NewsFeedView.test.ts` 通过（4 个文件 / 16 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：虚拟列表仍基于固定行高实现，后续若要恢复更自由的卡片内容扩展，需要同步升级为动态测量行高或继续约束紧凑卡片的内容密度
+
+## 2026-03-28 16:40
+
+- 修改人：Codex
+- 修改范围：News Feed 体验提升——跨 Topic 事件融合、编辑排序落地、NewsVirtualList 启用、历史重分类脚本
+- 变更内容：四项体验提升改动。后端 `news_feed_layout.py` 新增 `fuse_event_cards` 跨 Topic 事件融合：同 `event_type`、同 `primary_symbol` 或 `related_symbols` 交集 >= 2 或标题 token Jaccard >= 0.5 的事件卡自动合并为一张，`general` 类型不参与融合；新增 `_stream_editorial_scores` 为 stream 计算编辑排序分（topic importance 0.4 + source weight 0.25 + freshness 0.2 + mentions 0.15），stream 按分数降序返回。后端 `schemas/news.py` 的 `NewsItemSummary` 新增可选 `editorial_score` 字段。前端 `NewsItem` 类型同步新增 `editorial_score`；`NewsFeedView` 的 `orderedEntries` 改为调用 `rankEditorialStories` 排序替代固定 `score: 0`；新增 `useVirtualScrolling` 开关，当 entries > 30 时使用修复后的 `NewsVirtualList`（props 改为 `entries: EditorialStoryEntry[]`，内部正确传 `:entry` 给 NewsCard），否则保持简单 `v-for`。新增 `scripts/reprocess_news_signals.py` CLI 脚本，支持 `--limit / --all / --dry-run / --batch-size` 参数，分批重跑 signal pipeline 处理未分类旧新闻。同步新增后端融合测试 8 条（标题重叠、同 symbol 融合、不同 event_type 不融合、general 不融合、链式融合、保持独立、merge 保高 importance）。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/NewsVirtualList.vue`
+  - `/Users/xiuyang/Desktop/news-caught/scripts/reprocess_news_signals.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-news-feed-experience-uplift-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-news-feed-experience-uplift-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：`GET /api/news/feed-layout` 的 stream 中 `NewsItemSummary` 新增可选 `editorial_score` 字段；事件卡可能出现 `fused-` 前缀的 `event_key`；无新增 API 端点
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_feed_layout.py -v` 通过（13 个用例）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run test -- --run` 通过（34 passed, 1 failed 为 AppShell 预存问题，非本次变更引入）
+- 风险/后续事项：融合基于请求时计算，topic 数量极大时可能影响延迟（当前量级可忽略）；VirtualList 行高固定 132px，后续可升级为动态行高；重分类脚本需手动运行
+
 ## 2026-03-28 14:30
 
 - 修改人：Codex

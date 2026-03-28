@@ -24,6 +24,7 @@ export interface NewsItem {
   sentiment_label: SentimentLabel;
   published_at: string | null;
   fetched_at: string;
+  editorial_score?: number | null;
 }
 
 export interface NewsMention {

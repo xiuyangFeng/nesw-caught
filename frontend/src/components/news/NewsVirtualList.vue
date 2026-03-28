@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import type { NewsDetail, NewsItem } from '../../types/api';
+import type { EditorialStoryEntry } from '../../utils/newsEditorial';
 import { useVirtualList } from '../../composables/useVirtualList';
 import NewsCard from './NewsCard.vue';
 
 const props = defineProps<{
-  items: NewsItem[];
-  detailMap: Record<number, NewsDetail | null>;
-  activeId: number | null;
+  entries: EditorialStoryEntry[];
 }>();
 
 const emit = defineEmits<{
-  select: [id: number];
+  open: [id: number];
+  'visible-ids': [ids: number[]];
 }>();
 
+const ROW_HEIGHT = 156;
 const containerRef = ref<HTMLElement | null>(null);
-const virtualItems = computed(() => props.items);
+
 const { totalHeight, visibleItems, offsetY, updateScrollTop, updateViewportHeight } = useVirtualList(
-  () => virtualItems.value,
-  184,
+  () => props.entries,
+  ROW_HEIGHT,
 );
 
 function syncViewport() {
@@ -38,6 +38,14 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncViewport);
 });
+
+watch(
+  visibleItems,
+  (items) => {
+    emit('visible-ids', items.map((item) => item.item.item.id));
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -45,16 +53,12 @@ onBeforeUnmount(() => {
     <div :style="{ height: `${totalHeight}px` }" class="virtual-spacer">
       <div class="virtual-inner" :style="{ transform: `translateY(${offsetY}px)` }">
         <div
-          v-for="entry in visibleItems"
-          :key="entry.item.id"
+          v-for="vis in visibleItems"
+          :key="vis.item.item.id"
           class="virtual-row"
+          :style="{ height: `${ROW_HEIGHT}px` }"
         >
-          <NewsCard
-            :item="entry.item"
-            :detail="detailMap[entry.item.id]"
-            :active="activeId === entry.item.id"
-            @select="emit('select', $event)"
-          />
+          <NewsCard :entry="vis.item" variant="stream-compact" @open="emit('open', $event)" />
         </div>
       </div>
     </div>
@@ -78,7 +82,6 @@ onBeforeUnmount(() => {
 }
 
 .virtual-row {
-  height: 184px;
   padding-bottom: 12px;
 }
 </style>
