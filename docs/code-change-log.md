@@ -2931,3 +2931,13 @@
 - 接口/数据结构变化：无
 - 验证情况：文档已创建，内容已落盘
 - 风险/后续事项：后续每次代码、配置、文档、脚本修改都需要同步更新本文件，否则记录机制会失效
+
+## 2026-03-28 — K-line News Markers
+
+### Changed
+- `backend/app/schemas/market.py`: Added `summary` field to `NewsEventItemView`
+- `backend/app/services/market_chart_service.py`: Extract `summary` in `_align_news_events()`
+- `frontend/src/types/api.ts`: Added `summary` to `NewsEventMarkerItem`
+- `frontend/src/components/watchlist/KlineChart.vue`: Added sentiment-colored markers on candlestick chart via `setMarkers()`, crosshair hover tooltip, and click popup for news details
+- `frontend/src/components/watchlist/KlineNewsTooltip.vue`: New hover tooltip showing news titles + sentiment
+- `frontend/src/components/watchlist/KlineNewsPopup.vue`: New click popup showing news titles + summaries
