@@ -2,6 +2,44 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 21:14
+
+- 修改人：Codex
+- 修改范围：飞书通知持久化队列、共享 sender、通知服务投递 worker 与回归测试
+- 变更内容：将飞书通知链路从“进程内 buffer + 直接发送”改造成“持久化任务入队 + delivery worker 投递”。新增 `notification_job` 表和仓储，统一承载 `news_source_event`、`news_batch`、`watchlist_alert`、`analysis_result` 四类通知任务/事件，并支持弱去重、CAS claim、`lease_token` 保护的 finalize、过期 `sending` 回收、重试回写、sent/failed 终态。`NotificationService` 现在在新闻/自选股/分析入口只做配置判断和入队；新闻通知改为先持久化 source-event，再在 worker tick 中按窗口幂等合成 `news_batch` 任务；news toggle 关闭时会主动丢弃待发 backlog，避免后续重新打开时补发旧消息；自选股告警保留边沿状态机，但永久发送失败后会释放锁存，避免同一 symbol 在阈值上方时被永久压住。`feishu_client.py` 同步改为共享 sender 路径：引入 `get_shared_feishu_sender()` 复用同凭据下的长生命周期 `httpx.Client` 和 token 缓存，并支持 invalid token 单次强制刷新重试与错误分类。`/api/notify/feishu/test` 改走共享 sender；相关测试从原先的内存 `_news_buffer` / 同步 `_send` 断言迁移到持久化 job 断言，并补充新闻 batch、可重试失败、sender 复用、lease token finalize、永久失败释放锁存等回归。顺手修正两条相邻回归测试：`test_market_watchlist_quotes_only_alert_on_threshold_entry` 适配异步入队语义，`test_refresh_all_publishes_news_created_for_each_insert` 补齐当前 payload 中已存在的 `editorial_score` 字段断言。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/notify.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/__init__.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/notification_job.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/notification_job_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/feishu_client.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/notification_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_feishu_notify.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_feishu_sender.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_notification_jobs.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-feishu-stability-performance-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-feishu-stability-performance-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增 `notification_job` 数据表；新增进程内 helper `get_shared_feishu_sender()` 与错误分类结构 `FeishuErrorClassification`；`notification_job` 新增 `lease_token` 字段用于 claim/finalize 所有权约束；对外 HTTP API 不变
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_feishu_notify.py backend/tests/test_notification_jobs.py backend/tests/test_feishu_sender.py -q` 通过（25 个用例）；`conda run -n news-caught pytest backend/tests/test_news_ingestion.py backend/tests/test_market.py -q` 通过（48 个用例）
+- 风险/后续事项：当前通知任务 claim/finalize 已补到单进程内较稳的 lease-token 语义，但底层仍基于 SQLite 和轮询 worker；如果未来要在多进程或多实例同时高频投递，仍建议进一步评估数据库级锁、单独队列或更强的 worker 协调机制。`get_shared_feishu_sender()` 的连接复用也仅限单进程内缓存，多进程部署时仍是各自进程独立缓存
+
+## 2026-03-28 21:10
+
+- 修改人：Codex
+- 修改范围：飞书 sender 复用、token 缓存与错误分类
+- 变更内容：重构 `feishu_client.py` 为可复用的 sender 路径：新增进程级 `get_shared_feishu_sender(app_id, app_secret, timeout)` 缓存，同一组凭据会复用同一个长生命周期 sender 实例；sender 内部改为懒加载并复用单个 `httpx.Client`，避免每次发送重复建连；`send_card` 增加单次强制 token 刷新重试，当消息返回 token 失效类错误时会刷新一次 token 后重发；补充 `classify_feishu_error()` 与 `FeishuErrorClassification`，把飞书错误按“是否可重试 / 是否需要刷新 token”拆分出来，并让配置类错误保持非重试。同步新增 `backend/tests/test_feishu_sender.py`，覆盖共享 sender 复用、长连接复用、invalid token 单次刷新重试和分类器行为。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/feishu_client.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_feishu_sender.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增进程内 helper `get_shared_feishu_sender()` 与分类结果结构 `FeishuErrorClassification`；现有 `FeishuClient`/`build_*_card` 仍保持兼容
+- 验证情况：`conda run -n news-caught pytest tests/test_feishu_sender.py -q` 通过（3 个用例）
+- 风险/后续事项：当前共享 sender 缓存只覆盖同进程内同凭据复用；如果后续在多进程 worker 中使用，需要在调用侧决定是否共享或在退出时显式关闭缓存的客户端
+
 ## 2026-03-28 21:00
 
 - 修改人：Codex

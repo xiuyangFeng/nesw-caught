@@ -144,6 +144,9 @@ def test_market_watchlist_quotes_keep_partial_failures_visible(monkeypatch) -> N
 
 
 def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> None:
+    from app.db.session import SessionLocal
+    from app.models.notification_job import NotificationJob
+
     class FakeQuoteService:
         def __init__(self) -> None:
             self.responses = [
@@ -245,8 +248,11 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
 
     from app.services.notification_service import NotificationService
 
+    with SessionLocal() as session:
+        session.query(NotificationJob).delete()
+        session.commit()
+
     notification_service = NotificationService()
-    notification_service._send = MagicMock(return_value=True)
     config = MagicMock()
     config.alert_enabled = True
     fake_service = FakeQuoteService()
@@ -278,7 +284,9 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
         producer.run_cycle()
         producer.run_cycle()
 
-    assert notification_service._send.call_count == 2
+    with SessionLocal() as session:
+        jobs = session.query(NotificationJob).filter(NotificationJob.event_type == "watchlist_alert").all()
+        assert len(jobs) == 2
 
 
 def test_market_watchlist_quotes_read_cached_payload_without_publishing_refresh_event(monkeypatch) -> None:

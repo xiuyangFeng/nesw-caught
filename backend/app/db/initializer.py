@@ -10,6 +10,7 @@ from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
+from app.models.notification_job import NotificationJob
 from app.models.news_stock_mention import NewsStockMention
 from app.models.price_snapshot import PriceSnapshot
 from app.models.source_health import SourceHealth
@@ -101,6 +102,22 @@ def ensure_x_account_columns() -> None:
                 connection.execute(text(statement))
         connection.execute(text("UPDATE x_account SET tier = 'watch' WHERE tier IS NULL OR tier = ''"))
         connection.execute(text("UPDATE x_account SET source = 'manual' WHERE source IS NULL OR source = ''"))
+
+
+def ensure_notification_job_columns() -> None:
+    inspector = inspect(engine)
+    if "notification_job" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("notification_job")}
+    required_columns = {
+        "lease_token": "ALTER TABLE notification_job ADD COLUMN lease_token VARCHAR(64)",
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement in required_columns.items():
+            if column_name not in existing:
+                connection.execute(text(statement))
 
 
 def _source_health_markets_by_source_name() -> dict[str, str]:
@@ -232,6 +249,7 @@ def initialize_database() -> None:
     ensure_news_item_columns()
     ensure_topic_cluster_columns()
     ensure_x_account_columns()
+    ensure_notification_job_columns()
     ensure_source_health_columns()
 
     with SessionLocal() as session:

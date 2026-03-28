@@ -1155,6 +1155,7 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
                     "canonical_url": "https://example.com/pipeline-refresh-item",
                     "market": "us",
                     "sentiment_label": None,
+                    "editorial_score": None,
                     "published_at": "2026-03-19T10:00:00Z",
                     "fetched_at": inserted_payload["fetched_at"],
                 },
