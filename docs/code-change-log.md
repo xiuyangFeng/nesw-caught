@@ -2,6 +2,19 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 19:41
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线滚轮滚动穿透修复
+- 变更内容：重新排查后确认用户描述的“滑动 K 线时整个窗口跟着滑”更贴近触控板/滚轮链路，而不是触摸链路本身。`KlineDrawingOverlay` 在空白区域把 `wheel` 转发到底层 chart 时，之前没有对原始事件执行 `preventDefault()`，导致图表收到缩放/平移的同时，页面也继续原生滚动。现已补上 `wheel.preventDefault()`，并在回归测试中锁定“转发到底层 chart 的同时，原始滚轮事件必须被标记为 `defaultPrevented`”。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（2 个文件 / 18 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前滚轮路径已经明确阻断页面默认滚动；如果后续用户反馈主要来自移动端手势，再继续针对真实设备补充触摸链路验证脚本
+
 ## 2026-03-28 19:33
 
 - 修改人：Codex

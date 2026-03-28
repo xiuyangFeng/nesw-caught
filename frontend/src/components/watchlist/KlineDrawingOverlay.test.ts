@@ -561,16 +561,16 @@ describe('KlineDrawingOverlay', () => {
     await overlay.trigger('mousedown', { clientX: 200, clientY: 60, button: 0, buttons: 1 });
     expect(mouseDownSpy).toHaveBeenCalledTimes(1);
 
-    overlay.element.dispatchEvent(
-      new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 200,
-        clientY: 60,
-        deltaY: -20,
-      }),
-    );
+    const forwardedWheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 200,
+      clientY: 60,
+      deltaY: -20,
+    });
+    overlay.element.dispatchEvent(forwardedWheelEvent);
     expect(wheelSpy).toHaveBeenCalledTimes(1);
+    expect(forwardedWheelEvent.defaultPrevented).toBe(true);
 
     elementFromPointSpy.mockRestore();
     underlying.remove();

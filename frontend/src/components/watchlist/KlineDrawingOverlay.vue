@@ -394,6 +394,7 @@ function onWheel(event: WheelEvent) {
   if (overlayDisabled.value || props.activeTool !== 'select' || dragState.value || editingLabel.value || hitDrawingAtEvent(event)) {
     return;
   }
+  event.preventDefault();
   forwardWheelToChart(event);
 }
 
