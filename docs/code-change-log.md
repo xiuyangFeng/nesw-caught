@@ -2,6 +2,24 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 14:30
+
+- 修改人：Codex
+- 修改范围：News Feed 事件质量提升——中文情绪/event_type、来源加权、时间衰减、N+1 查询修复
+- 变更内容：纯后端改动，提升 Event Radar 事件卡的数据质量，不涉及前端变更。`NewsSignalClassifier` 新增 `POSITIVE_ZH`（18 词）、`NEGATIVE_ZH`（18 词）、`THEME_ZH`（22 词）中文词表，`_tokenize` 扩展为英文 regex + 中文最长匹配并集，`_keywords` 增加中文情绪词过滤，`_topic_key` 增加中文 theme 识别，`classify` 打分逻辑增加 `POSITIVE_ZH`/`NEGATIVE_ZH` dict lookup。`news_feed_layout.py` 的 `EVENT_TYPE_PATTERNS` 每类增加 7-9 个中文关键词（财报/营收→earnings，监管/处罚→regulation，大涨/暴跌→market_move 等）；新增 `SOURCE_TIER_WEIGHTS` 映射（primary 1.2 / secondary 1.0 / fallback 0.7），`_source_weight_map()` 通过 `load_sources()` 构建 source_name→weight 查找表；新增 `DECAY_LAMBDA=0.03`（~23h 半衰期）和 `_decayed_importance()` 指数衰减函数，排序时用衰减后分数替代原始 importance_score；`build_event_cards` 集成来源加权和衰减排序。`topic_repository.py` 新增 `batch_news_for_topics()` 和 `batch_related_symbols()` 批量查询方法；`NewsFeedLayoutService.build()` 从逐 topic 循环查询改为两条批量 SQL（从 2N+2 降到 4 条查询）。同步新增后端测试：中文情绪正/负/中三分类测试、中文 theme 词贡献 topic_key 测试、中文 event_type 模式匹配测试、来源加权分层测试、时间衰减排序测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_signal_classifier.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/topic_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_signal_pipeline.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-news-feed-event-quality-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-news-feed-event-quality-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增 API 或 schema 变化；`GET /api/news/feed-layout` 响应结构不变，`importance_score` 字段值现在包含来源加权修正
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_signal_pipeline.py backend/tests/test_news_feed_layout.py backend/tests/test_news.py` 通过（19 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：中文词表为硬编码首版，未引入 jieba 等分词库，新词或分词歧义不在覆盖范围；本轮不修正已入库旧新闻的 sentiment，如需修正需额外 reprocess 脚本；`_source_weight_map()` 每次调用都解析 source 定义，若后续 source 数量大可加缓存
+
 ## 2026-03-28 10:50
 
 - 修改人：Codex

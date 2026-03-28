@@ -34,15 +34,23 @@ def _make_news(*, title: str, summary: str, url_hash: str) -> NewsItem:
 
 def _cleanup_news(url_hashes: list[str]) -> None:
     with SessionLocal() as session:
-        news_ids = list(session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
-        topic_ids = list(session.scalars(select(TopicNewsLink.topic_cluster_id).where(TopicNewsLink.news_id.in_(news_ids))))
+        news_ids = list(
+            session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes)))
+        )
+        topic_ids = list(
+            session.scalars(
+                select(TopicNewsLink.topic_cluster_id).where(TopicNewsLink.news_id.in_(news_ids))
+            )
+        )
         if news_ids:
             session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(news_ids)))
             session.execute(delete(TopicNewsLink).where(TopicNewsLink.news_id.in_(news_ids)))
             session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
         if topic_ids:
             session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
-        session.execute(delete(LLMProviderConfig).where(LLMProviderConfig.provider_name == "pipeline-test"))
+        session.execute(
+            delete(LLMProviderConfig).where(LLMProviderConfig.provider_name == "pipeline-test")
+        )
         session.commit()
 
 
@@ -84,7 +92,9 @@ def test_process_news_ids_classifies_positive_negative_and_neutral_items() -> No
         with SessionLocal() as session:
             stored = {
                 item.url_hash: item
-                for item in session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+                for item in session.scalars(
+                    select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))
+                )
             }
             assert stored[url_hashes[0]].sentiment_label == "positive"
             assert stored[url_hashes[1]].sentiment_label == "negative"
@@ -132,7 +142,9 @@ def test_process_news_ids_clusters_similar_news_into_one_topic_and_creates_new_t
             repository = NewsRepository(session)
             topics = {
                 item.url_hash: repository.get_topic_for_news(item.id)
-                for item in session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+                for item in session.scalars(
+                    select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))
+                )
             }
             assert topics[url_hashes[0]] is not None
             assert topics[url_hashes[1]] is not None
@@ -143,7 +155,9 @@ def test_process_news_ids_clusters_similar_news_into_one_topic_and_creates_new_t
         _cleanup_news(url_hashes)
 
 
-def test_process_news_ids_falls_back_to_rule_output_when_llm_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_process_news_ids_falls_back_to_rule_output_when_llm_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     url_hashes = ["pipeline-llm-fallback"]
     _cleanup_news(url_hashes)
 
@@ -198,7 +212,9 @@ def test_process_news_ids_falls_back_to_rule_output_when_llm_fails(monkeypatch: 
         _cleanup_news(url_hashes)
 
 
-def test_news_created_batch_handler_publishes_news_updated_after_processing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_news_created_batch_handler_publishes_news_updated_after_processing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from app import main as main_module
 
     news_id = 4242
@@ -222,7 +238,9 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(monk
 
         def process_news_ids(self, news_ids: list[int]):
             assert news_ids == [news_id]
-            return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
+            return type(
+                "Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)}
+            )()
 
     class FakeNewsRepository:
         def __init__(self, session) -> None:
@@ -274,3 +292,82 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(monk
             "updated_fields": ["sentiment_label"],
         },
     ) in fake_bus.published
+
+
+def test_chinese_positive_sentiment_classified_correctly() -> None:
+    url_hashes = ["pipeline-zh-positive", "pipeline-zh-negative", "pipeline-zh-neutral"]
+    _cleanup_news(url_hashes)
+
+    with SessionLocal() as session:
+        items = [
+            _make_news(
+                title="营收大涨超预期 芯片业务强劲增长",
+                summary="公司业绩突破新高，看好后续发展机遇。",
+                url_hash=url_hashes[0],
+            ),
+            _make_news(
+                title="股价暴跌 市场承压 疲软信号明显",
+                summary="利空消息导致崩盘风险加剧，制裁压力加大。",
+                url_hash=url_hashes[1],
+            ),
+            _make_news(
+                title="公司发布新品展示技术路线",
+                summary="展会上展示了多种产品和应用场景。",
+                url_hash=url_hashes[2],
+            ),
+        ]
+        for item in items:
+            item.language = "zh"
+        session.add_all(items)
+        session.commit()
+        news_ids = [item.id for item in items]
+
+    try:
+        with SessionLocal() as session:
+            NewsSignalPipelineService(session).process_news_ids(news_ids)
+            session.commit()
+
+        with SessionLocal() as session:
+            stored = {
+                item.url_hash: item
+                for item in session.scalars(
+                    select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))
+                )
+            }
+            assert stored[url_hashes[0]].sentiment_label == "positive"
+            assert stored[url_hashes[1]].sentiment_label == "negative"
+            assert stored[url_hashes[2]].sentiment_label == "neutral"
+    finally:
+        _cleanup_news(url_hashes)
+
+
+def test_chinese_theme_words_contribute_to_topic_key() -> None:
+    url_hash = "pipeline-zh-theme"
+    _cleanup_news([url_hash])
+
+    with SessionLocal() as session:
+        item = _make_news(
+            title="台积电芯片产能扩产 供应链订单大幅增长",
+            summary="半导体出货提速，AI模型需求强劲。",
+            url_hash=url_hash,
+        )
+        item.language = "zh"
+        session.add(item)
+        session.commit()
+        news_id = item.id
+
+    try:
+        with SessionLocal() as session:
+            NewsSignalPipelineService(session).process_news_ids([news_id])
+            session.commit()
+
+        with SessionLocal() as session:
+            topic = NewsRepository(session).get_topic_for_news(news_id)
+            assert topic is not None
+            topic_keywords = [
+                k.strip().lower() for k in (topic.keywords or "").split(",") if k.strip()
+            ]
+            zh_themes = {"芯片", "产能", "供应链", "半导体", "出货", "模型"}
+            assert any(kw in zh_themes for kw in topic_keywords)
+    finally:
+        _cleanup_news([url_hash])
