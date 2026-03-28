@@ -25,3 +25,4 @@ frontend/dist/
 # Editor and tooling
 .vscode/
 .idea/
+.claude/
