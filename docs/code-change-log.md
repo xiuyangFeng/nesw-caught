@@ -2,6 +2,36 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 09:49
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线对象工作台键盘快捷键与编辑态守卫
+- 变更内容：在已有 store nudge 基础上，把对象工作台的键盘操作真正接到了图表层。`KlineChart` 现在支持 `Delete / Backspace` 删除当前多选、`Escape` 优先取消 draft 再清空选择、方向键批量微调选中对象，以及 `Shift + 方向键` 的大步长版本；空选择时不会拦截删除键，避免无意义地吃掉浏览器默认行为。审查阶段又补了一层全局快捷键守卫：当焦点位于原生输入框，或 `price_note` 标签编辑正在进行时，连 `Ctrl/Meta + Z/Y` 也不会误触发 drawing history。与此同时，`KlineDrawingOverlay` 新增 `labelEditingChange` 事件，把 `price_note` 文本编辑的打开、提交、取消、失焦生命周期显式同步给 chart，并阻断编辑器与 overlay 自己消费的 `Enter / Escape` 冒泡，避免单次按键被 chart window handler 二次消费。同步扩展 `KlineChart.test.ts` 和 `KlineDrawingOverlay.test.ts`，锁定键盘删除 / nudge / Esc 路由，以及 label editing guard 契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无后端接口或持久化结构变化；前端 overlay 新增 `labelEditingChange` 事件，chart 集成层新增键盘工作台路由
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 先失败后通过（2 个用例）；`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts` 先失败后通过（11 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistChartStore.test.ts` 通过（6 个用例）；`npm --prefix frontend run test -- --run src/stores/watchlistChartStore.test.ts src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（3 个文件 / 19 个用例）
+- 风险/后续事项：当前方向键价格步长仍基于当前 `klineData.candles` 全量范围，而不是可视区间；如果后续继续贴近券商终端手感，可以再把 visible range 纳入步长计算
+
+## 2026-03-28 09:45
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线对象工作台 store 级键盘 nudge / 删除收口
+- 变更内容：补齐了 `watchlistChartStore` 的多选键盘平移能力，新增 `nudgeSelectedDrawings(symbol, { candles, timeStep, priceDelta })`，复用现有几何移动语义批量移动当前选中对象，并在每次有效 nudge 前写入 history，确保 `undo / redo` 可以回放这类键盘操作，同时避免边界 no-op 也写出空 history。同步补强 store 测试，覆盖 `deleteSelectedDrawings()` 清空多选、nudge 后撤销 / 重做回放、无效 selection 下的 delete/lock/visible no-op，以及 `horizontal_line` 左右平移保持 no-op 的既有语义。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/watchlistChartStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无后端接口或持久化结构变化；前端 store 新增 `nudgeSelectedDrawings` 动作
+- 验证情况：`npm --prefix frontend run test -- --run src/stores/watchlistChartStore.test.ts` 先失败后通过（4 个用例）
+- 风险/后续事项：当前只补齐了 store 层 nudge 能力；如果后续继续落地键盘事件捕获，还需要在 chart/overlay 层接入 Delete / Backspace / Arrow / Escape 的按键路由与编辑态守卫
+
 ## 2026-03-28 00:58
 
 - 修改人：Codex

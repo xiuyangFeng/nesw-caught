@@ -13,6 +13,7 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
       'draftUpdate',
       'draftCommit',
       'draftCancel',
+      'labelEditingChange',
       'drawingSelect',
       'hoverAnchorChange',
       'drawingAnchorCommit',
@@ -57,6 +58,18 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
           @click="$emit('drawingLabelCommit', 'drawing-1', '突破确认')"
         >
           label
+        </button>
+        <button
+          data-role="overlay-label-editing-open"
+          @click="$emit('labelEditingChange', true)"
+        >
+          label-open
+        </button>
+        <button
+          data-role="overlay-label-editing-close"
+          @click="$emit('labelEditingChange', false)"
+        >
+          label-close
         </button>
       </div>
     `,
@@ -293,5 +306,148 @@ describe('KlineChart', () => {
     });
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('108');
     expect(chartStore.selectedDrawingId).toBeNull();
+  });
+
+  it('supports keyboard workbench actions for delete, escape, and nudging', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    setActivePinia(createPinia());
+    const { default: KlineChart } = await import('./KlineChart.vue');
+    const { useWatchlistChartStore } = await import('../../stores/watchlistChartStore');
+    const chartStore = useWatchlistChartStore();
+    const symbol = '0700.HK';
+
+    const wrapper = mount(KlineChart, {
+      props: {
+        currentPeriod: '1D',
+        klineData: {
+          symbol,
+          interval: '1d',
+          range: '1y',
+          stale: false,
+          candles: [
+            { time: '2026-03-18', open: 530, high: 540, low: 520, close: 535, volume: 1200 },
+            { time: '2026-03-19', open: 535, high: 550, low: 530, close: 548, volume: 1000 },
+            { time: '2026-03-20', open: 548, high: 560, low: 545, close: 558, volume: 980 },
+            { time: '2026-03-21', open: 558, high: 565, low: 550, close: 552, volume: 920 },
+            { time: '2026-03-24', open: 552, high: 570, low: 548, close: 568, volume: 1100 },
+            { time: '2026-03-25', open: 568, high: 572, low: 560, close: 566, volume: 990 },
+          ],
+          indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+          news_events: [],
+        },
+      },
+      attachTo: document.body,
+    });
+
+    chartStore.drawingsBySymbol[symbol] = [
+      {
+        id: 'drawing-1',
+        symbol,
+        toolType: 'trend_line',
+        createdAt: '2026-03-27T00:00:00.000Z',
+        updatedAt: '2026-03-27T00:00:00.000Z',
+        locked: false,
+        visible: true,
+        style: { color: '#ffb66d', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.18 },
+        anchors: [
+          { time: '2026-03-18', price: 530 },
+          { time: '2026-03-19', price: 548 },
+        ],
+        payload: {},
+      },
+      {
+        id: 'drawing-2',
+        symbol,
+        toolType: 'horizontal_line',
+        createdAt: '2026-03-27T00:00:00.000Z',
+        updatedAt: '2026-03-27T00:00:00.000Z',
+        locked: false,
+        visible: true,
+        style: { color: '#7dd3fc', lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
+        anchors: [{ time: '2026-03-18', price: 540 }],
+        payload: {},
+      },
+    ];
+    chartStore.selectedDrawingId = 'drawing-1';
+    chartStore.selectedDrawingIds = ['drawing-1', 'drawing-2'];
+
+    const deleteEvent = new KeyboardEvent('keydown', { key: 'Delete', cancelable: true });
+    const deletePreventSpy = vi.spyOn(deleteEvent, 'preventDefault');
+    window.dispatchEvent(deleteEvent);
+    await wrapper.vm.$nextTick();
+    expect(deletePreventSpy).toHaveBeenCalled();
+    expect(chartStore.drawingsBySymbol[symbol]).toHaveLength(0);
+    expect(chartStore.selectedDrawingIds).toEqual([]);
+
+    chartStore.undo(symbol);
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol[symbol]).toHaveLength(2);
+    chartStore.selectDrawing('drawing-1');
+    chartStore.selectDrawing('drawing-2', { append: true });
+
+    const leftEvent = new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true });
+    window.dispatchEvent(leftEvent);
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol[symbol][0]?.anchors[0]?.time).toBe('2026-03-18');
+    expect(chartStore.drawingsBySymbol[symbol][0]?.anchors[1]?.time).toBe('2026-03-18');
+    expect(chartStore.drawingsBySymbol[symbol][1]?.anchors[0]?.time).toBe('2026-03-18');
+
+    const shiftUpEvent = new KeyboardEvent('keydown', { key: 'ArrowUp', shiftKey: true, cancelable: true });
+    window.dispatchEvent(shiftUpEvent);
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol[symbol][0]?.anchors[0]?.price).toBeCloseTo(531.56);
+    expect(chartStore.drawingsBySymbol[symbol][1]?.anchors[0]?.price).toBeCloseTo(541.56);
+
+    chartStore.selectTool('trend_line');
+    chartStore.startDraft({ time: '2026-03-18', price: 530 });
+    const draftDeleteEvent = new KeyboardEvent('keydown', { key: 'Delete', cancelable: true });
+    window.dispatchEvent(draftDeleteEvent);
+    await wrapper.vm.$nextTick();
+    expect(chartStore.drawingsBySymbol[symbol]).toHaveLength(2);
+
+    const escapeDraftEvent = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    window.dispatchEvent(escapeDraftEvent);
+    await wrapper.vm.$nextTick();
+    expect(chartStore.draft).toBeNull();
+
+    const escapeSelectionEvent = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    window.dispatchEvent(escapeSelectionEvent);
+    await wrapper.vm.$nextTick();
+    expect(chartStore.selectedDrawingIds).toEqual([]);
+
+    chartStore.selectDrawing('drawing-1');
+    await wrapper.find('[data-role="overlay-label-editing-open"]').trigger('click');
+    const blockedDeleteEvent = new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true });
+    const blockedDeletePreventSpy = vi.spyOn(blockedDeleteEvent, 'preventDefault');
+    window.dispatchEvent(blockedDeleteEvent);
+    await wrapper.vm.$nextTick();
+    expect(blockedDeletePreventSpy).not.toHaveBeenCalled();
+    expect(chartStore.drawingsBySymbol[symbol]).toHaveLength(2);
+    await wrapper.find('[data-role="overlay-label-editing-close"]').trigger('click');
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    chartStore.updateDrawingStyle(symbol, 'drawing-1', { color: '#000000' });
+    input.focus();
+    const focusedUndoEvent = new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, cancelable: true });
+    const focusedUndoPreventSpy = vi.spyOn(focusedUndoEvent, 'preventDefault');
+    window.dispatchEvent(focusedUndoEvent);
+    await wrapper.vm.$nextTick();
+    expect(focusedUndoPreventSpy).not.toHaveBeenCalled();
+    expect(chartStore.drawingsBySymbol[symbol][0]?.style.color).toBe('#000000');
+
+    const focusedArrowEvent = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true });
+    const focusedArrowPreventSpy = vi.spyOn(focusedArrowEvent, 'preventDefault');
+    window.dispatchEvent(focusedArrowEvent);
+    await wrapper.vm.$nextTick();
+    expect(focusedArrowPreventSpy).not.toHaveBeenCalled();
+    input.remove();
+
+    chartStore.clearSelection();
+    const emptyDeleteEvent = new KeyboardEvent('keydown', { key: 'Delete', cancelable: true });
+    const emptyDeletePreventSpy = vi.spyOn(emptyDeleteEvent, 'preventDefault');
+    window.dispatchEvent(emptyDeleteEvent);
+    await wrapper.vm.$nextTick();
+    expect(emptyDeletePreventSpy).not.toHaveBeenCalled();
   });
 });

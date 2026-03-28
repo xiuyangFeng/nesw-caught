@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import type { KlineCandle, KlineDrawing, KlineDrawingAnchor, KlineDrawingTool } from '../../types/api';
 import {
@@ -31,6 +31,7 @@ const emit = defineEmits<{
   draftCommit: [];
   draftCancel: [];
   drawingSelect: [selection: { id: string | null; append: boolean }];
+  labelEditingChange: [editing: boolean];
   hoverAnchorChange: [anchor: KlineDrawingAnchor | null];
   drawingAnchorCommit: [drawingId: string, anchors: KlineDrawingAnchor[]];
   drawingMoveCommit: [drawingId: string, anchors: KlineDrawingAnchor[]];
@@ -42,6 +43,7 @@ const overlayDisabled = computed(() => props.disabled || !props.candles.length |
 const overlaySize = ref({ width: 0, height: 0 });
 const hoverAnchor = ref<KlineDrawingAnchor | null>(null);
 const editingLabel = ref<{ drawingId: string; text: string } | null>(null);
+const editorInputRef = ref<HTMLInputElement | null>(null);
 const pointerPassthroughActive = ref(false);
 const dragState = ref<
   | {
@@ -290,18 +292,23 @@ function onWheel(event: WheelEvent) {
 function onKeydown(event: KeyboardEvent) {
   if (editingLabel.value) {
     if (event.key === 'Escape') {
-      editingLabel.value = null;
+      cancelLabelEdit();
+      event.stopPropagation();
     }
     return;
   }
   if (event.key === 'Escape') {
-    emit('draftCancel');
+    if (hasDraft.value) {
+      emit('draftCancel');
+      event.stopPropagation();
+    }
     return;
   }
   if (event.key === 'Enter') {
     const drawing = selectedDrawing();
     if (drawing?.toolType === 'price_note') {
-      editingLabel.value = { drawingId: drawing.id, text: drawing.payload.text ?? drawing.anchors[0]?.price.toFixed(2) ?? '' };
+      openLabelEditor(drawing);
+      event.stopPropagation();
     }
   }
 }
@@ -361,7 +368,7 @@ function handleWindowMouseup() {
   }
 }
 
-function startLabelEdit(drawing: KlineDrawing) {
+function openLabelEditor(drawing: KlineDrawing) {
   if (drawing.toolType !== 'price_note') {
     return;
   }
@@ -369,6 +376,8 @@ function startLabelEdit(drawing: KlineDrawing) {
     drawingId: drawing.id,
     text: drawing.payload.text ?? drawing.anchors[0]?.price.toFixed(2) ?? '',
   };
+  emit('labelEditingChange', true);
+  nextTick(() => editorInputRef.value?.focus());
 }
 
 function commitLabelEdit() {
@@ -377,6 +386,19 @@ function commitLabelEdit() {
   }
   emit('drawingLabelCommit', editingLabel.value.drawingId, editingLabel.value.text);
   editingLabel.value = null;
+  emit('labelEditingChange', false);
+}
+
+function cancelLabelEdit() {
+  if (!editingLabel.value) {
+    return;
+  }
+  editingLabel.value = null;
+  emit('labelEditingChange', false);
+}
+
+function handleLabelInputBlur() {
+  cancelLabelEdit();
 }
 
 onMounted(() => {
@@ -484,7 +506,7 @@ onBeforeUnmount(() => {
           :y="(drawingPoints(drawing)[0]?.y ?? 0) - 8"
           fill="#f8fafc"
           font-size="12"
-          @dblclick.stop="startLabelEdit(drawing)"
+          @dblclick.stop="openLabelEditor(drawing)"
         >
           {{ drawing.payload.text }}
         </text>
@@ -520,12 +542,15 @@ onBeforeUnmount(() => {
       class="absolute inset-x-3 top-3 z-20 flex justify-end"
     >
       <input
+        ref="editorInputRef"
         data-role="price-note-editor-input"
         v-model="editingLabel.text"
         class="w-40 rounded-md border border-border bg-[rgba(7,12,22,0.96)] px-2 py-1 text-xs text-text outline-none"
+        autofocus
         maxlength="24"
-        @keydown.enter.prevent="commitLabelEdit"
-        @keydown.esc.prevent="editingLabel = null"
+        @keydown.enter.stop.prevent="commitLabelEdit"
+        @keydown.esc.stop.prevent="cancelLabelEdit"
+        @blur="handleLabelInputBlur"
       />
     </div>
   </div>

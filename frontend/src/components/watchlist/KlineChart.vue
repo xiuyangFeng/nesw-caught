@@ -76,6 +76,7 @@ const selectedDrawings = computed(() => {
   return chartStore.selectedDrawingIds.map((id) => chartStore.findDrawing(symbol, id)).filter((drawing): drawing is KlineDrawing => drawing !== null);
 });
 const overlayDisabled = computed(() => !props.klineData || !candles.value.length);
+const labelEditingActive = ref(false);
 const chartProjector = computed(() => ({
   getXForTime(time: string) {
     return (chart?.timeScale() as { timeToCoordinate?: (value: string) => number | null } | undefined)?.timeToCoordinate?.(time) ?? null;
@@ -404,6 +405,10 @@ function handleDrawingLabelCommit(drawingId: string, text: string) {
   chartStore.commitLabelEdit(props.klineData.symbol, drawingId, text);
 }
 
+function handleLabelEditingChange(editing: boolean) {
+  labelEditingActive.value = editing;
+}
+
 function handleUndo() {
   if (!props.klineData?.symbol) {
     return;
@@ -419,23 +424,89 @@ function handleRedo() {
 }
 
 function handleWindowKeydown(event: KeyboardEvent) {
-  if (!props.klineData?.symbol || (!event.ctrlKey && !event.metaKey)) {
+  if (!props.klineData?.symbol) {
     return;
   }
-  if (event.key.toLowerCase() === 'z' && event.shiftKey) {
-    event.preventDefault();
-    chartStore.redo(props.klineData.symbol);
+
+  if (labelEditingActive.value) {
     return;
   }
-  if (event.key.toLowerCase() === 'z') {
-    event.preventDefault();
-    chartStore.undo(props.klineData.symbol);
+
+  const activeElement = document.activeElement as HTMLElement | null;
+  if (
+    activeElement &&
+    (activeElement.tagName === 'INPUT' ||
+      activeElement.tagName === 'TEXTAREA' ||
+      activeElement.tagName === 'SELECT' ||
+      activeElement.isContentEditable)
+  ) {
     return;
   }
-  if (event.key.toLowerCase() === 'y') {
-    event.preventDefault();
-    chartStore.redo(props.klineData.symbol);
+
+  if (event.ctrlKey || event.metaKey) {
+    if (event.key.toLowerCase() === 'z' && event.shiftKey) {
+      event.preventDefault();
+      chartStore.redo(props.klineData.symbol);
+      return;
+    }
+    if (event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      chartStore.undo(props.klineData.symbol);
+      return;
+    }
+    if (event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      chartStore.redo(props.klineData.symbol);
+    }
+    return;
   }
+
+  if (event.key === 'Escape') {
+    if (chartStore.draft) {
+      event.preventDefault();
+      chartStore.cancelDraft();
+      return;
+    }
+    if (chartStore.selectedDrawingIds.length) {
+      event.preventDefault();
+      chartStore.clearSelection();
+    }
+    return;
+  }
+
+  if (chartStore.draft) {
+    return;
+  }
+
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (!chartStore.selectedDrawingIds.length) {
+      return;
+    }
+    event.preventDefault();
+    chartStore.deleteSelectedDrawings(props.klineData.symbol);
+    return;
+  }
+
+  if (!chartStore.selectedDrawingIds.length) {
+    return;
+  }
+
+  const timeStep = event.key === 'ArrowLeft' ? -(event.shiftKey ? 5 : 1) : event.key === 'ArrowRight' ? (event.shiftKey ? 5 : 1) : 0;
+  if (!timeStep && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+    return;
+  }
+
+  const high = Math.max(...candles.value.map((item) => item.high));
+  const low = Math.min(...candles.value.map((item) => item.low));
+  const basePriceStep = high > low ? (high - low) * (event.shiftKey ? 0.03 : 0.01) : 1;
+  const priceDelta = event.key === 'ArrowUp' ? basePriceStep : event.key === 'ArrowDown' ? -basePriceStep : 0;
+
+  event.preventDefault();
+  chartStore.nudgeSelectedDrawings(props.klineData.symbol, {
+    candles: candles.value,
+    timeStep,
+    priceDelta,
+  });
 }
 
 function currentRangeRatio() {
@@ -492,6 +563,7 @@ watch(
   () => [props.klineData?.symbol, props.klineData?.candles.length],
   () => {
     hoveredAnchor.value = null;
+    labelEditingActive.value = false;
     chartStore.selectDrawing(null);
     chartStore.cancelDraft();
     if (props.klineData?.symbol) {
@@ -596,6 +668,7 @@ onBeforeUnmount(() => {
                 @draft-update="chartStore.updateDraft($event)"
                 @draft-commit="handleDraftCommit"
                 @draft-cancel="chartStore.cancelDraft()"
+                @label-editing-change="handleLabelEditingChange"
                 @drawing-select="handleDrawingSelect"
                 @hover-anchor-change="handleHoverAnchorChange"
                 @drawing-anchor-commit="handleDrawingAnchorCommit"

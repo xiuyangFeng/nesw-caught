@@ -18,6 +18,7 @@ import {
   serializeDrawings,
   updateDrawing,
 } from '../utils/klineDrawings';
+import { moveDrawingByDelta } from '../utils/klineOverlayGeometry';
 import {
   ACTIVE_TEMPLATE_STORAGE_KEY,
   cloneTemplate,
@@ -191,6 +192,14 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     selectedDrawingIds.value = [];
   }
 
+  function resolveSelectedDrawings(symbol: string) {
+    if (!selectedDrawingIds.value.length) {
+      return [];
+    }
+    const selected = new Set(selectedDrawingIds.value);
+    return (drawingsBySymbol.value[symbol] ?? []).filter((drawing) => selected.has(drawing.id));
+  }
+
   function selectDrawing(id: string | null, options?: { append?: boolean }) {
     if (!id) {
       clearSelection();
@@ -299,13 +308,52 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
   }
 
   function deleteSelectedDrawings(symbol: string) {
-    if (!selectedDrawingIds.value.length) {
+    const validSelectedDrawings = resolveSelectedDrawings(symbol);
+    if (!validSelectedDrawings.length) {
       return;
     }
     pushHistory(symbol);
     const selected = new Set(selectedDrawingIds.value);
     drawingsBySymbol.value[symbol] = (drawingsBySymbol.value[symbol] ?? []).filter((drawing) => !selected.has(drawing.id));
     clearSelection();
+    schedulePersist(symbol);
+  }
+
+  function nudgeSelectedDrawings(
+    symbol: string,
+    input: {
+      candles: KlineCandle[];
+      timeStep: number;
+      priceDelta: number;
+    },
+  ) {
+    const drawings = drawingsBySymbol.value[symbol] ?? [];
+    const selected = new Set(selectedDrawingIds.value);
+    const validSelectedDrawings = resolveSelectedDrawings(symbol);
+    if (!validSelectedDrawings.length) {
+      return;
+    }
+    const nextDrawings = drawings.map((drawing) =>
+      selected.has(drawing.id)
+        ? updateDrawing(drawing, {
+            anchors: moveDrawingByDelta(drawing, input.candles, input.timeStep, input.priceDelta),
+          })
+        : drawing,
+    );
+    const changed = nextDrawings.some((drawing, index) =>
+      drawing.anchors.some(
+        (anchor, anchorIndex) =>
+          anchor.time !== drawings[index]?.anchors[anchorIndex]?.time || anchor.price !== drawings[index]?.anchors[anchorIndex]?.price,
+      ),
+    );
+    if (!changed) {
+      return;
+    }
+    pushHistory(symbol);
+    drawingsBySymbol.value[symbol] = nextDrawings;
+    const availableIds = new Set(drawingsBySymbol.value[symbol].map((drawing) => drawing.id));
+    selectedDrawingIds.value = selectedDrawingIds.value.filter((id) => availableIds.has(id));
+    selectedDrawingId.value = selectedDrawingIds.value[0] ?? null;
     schedulePersist(symbol);
   }
 
@@ -336,7 +384,8 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
   }
 
   function toggleSelectedLocked(symbol: string) {
-    if (!selectedDrawingIds.value.length) {
+    const validSelectedDrawings = resolveSelectedDrawings(symbol);
+    if (!validSelectedDrawings.length) {
       return;
     }
     const selected = new Set(selectedDrawingIds.value);
@@ -350,7 +399,8 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
   }
 
   function toggleSelectedVisible(symbol: string) {
-    if (!selectedDrawingIds.value.length) {
+    const validSelectedDrawings = resolveSelectedDrawings(symbol);
+    if (!validSelectedDrawings.length) {
       return;
     }
     const selected = new Set(selectedDrawingIds.value);
@@ -409,6 +459,7 @@ export const useWatchlistChartStore = defineStore('watchlistChartStore', () => {
     deleteCustomTemplate,
     setSubIndicator,
     deleteSelectedDrawings,
+    nudgeSelectedDrawings,
     duplicateSelectedDrawings,
     toggleSelectedLocked,
     toggleSelectedVisible,

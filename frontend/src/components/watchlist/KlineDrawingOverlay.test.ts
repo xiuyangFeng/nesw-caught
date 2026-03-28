@@ -262,10 +262,96 @@ describe('KlineDrawingOverlay', () => {
     expect(wrapper.emitted('drawingMoveCommit')?.[1]?.[0]).toBe('note-1');
 
     await wrapper.get('[data-role="price-note-label-note-1"]').trigger('dblclick');
+    expect(wrapper.emitted('labelEditingChange')?.[0]).toEqual([true]);
     const input = wrapper.get('[data-role="price-note-editor-input"]');
     await input.setValue('突破确认');
     await input.trigger('keydown.enter');
     expect(wrapper.emitted('drawingLabelCommit')?.[0]).toEqual(['note-1', '突破确认']);
+    expect(wrapper.emitted('labelEditingChange')?.[1]).toEqual([false]);
+    expect(wrapper.emitted('labelEditingChange')).toHaveLength(2);
+  });
+
+  it('emits label editing state changes on escape cancel and blur', async () => {
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [
+          {
+            id: 'note-1',
+            symbol: '0700.HK',
+            toolType: 'price_note',
+            createdAt: '2026-03-27T00:00:00.000Z',
+            updatedAt: '2026-03-27T00:00:00.000Z',
+            locked: false,
+            visible: true,
+            style: { color: '#fb7185', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0 },
+            anchors: [{ time: '2026-03-19', price: 545 }],
+            payload: { text: '观察位' },
+          },
+        ],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: 'note-1',
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    Object.defineProperty(overlay.element, 'clientWidth', { value: 300, configurable: true });
+    Object.defineProperty(overlay.element, 'clientHeight', { value: 120, configurable: true });
+    overlay.element.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 300,
+        height: 120,
+        right: 300,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }) as DOMRect;
+
+    await overlay.trigger('mousemove', { clientX: 150, clientY: 60 });
+    await wrapper.get('[data-role="price-note-label-note-1"]').trigger('dblclick');
+    const input = wrapper.get('[data-role="price-note-editor-input"]');
+    await input.trigger('keydown.esc');
+    expect(wrapper.emitted('labelEditingChange')?.slice(-2)).toEqual([[true], [false]]);
+
+    await overlay.trigger('mousemove', { clientX: 150, clientY: 60 });
+    await wrapper.get('[data-role="price-note-label-note-1"]').trigger('dblclick');
+    await wrapper.get('[data-role="price-note-editor-input"]').trigger('blur');
+    expect(wrapper.emitted('labelEditingChange')?.slice(-2)).toEqual([[true], [false]]);
+  });
+
+  it('stops escape from bubbling after consuming overlay-local keyboard actions', async () => {
+    const windowKeydownSpy = vi.fn();
+    window.addEventListener('keydown', windowKeydownSpy);
+
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [
+          { time: '2026-03-18', open: 535, high: 546, low: 530, close: 533.2, volume: 1200 },
+          { time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 },
+        ],
+        drawings: [],
+        draftAnchors: [{ time: '2026-03-18', price: 533.2 }],
+        activeTool: 'trend_line',
+        selectedDrawingId: null,
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    await overlay.trigger('keydown', { key: 'Escape' });
+    expect(wrapper.emitted('draftCancel')).toHaveLength(1);
+    expect(windowKeydownSpy).not.toHaveBeenCalled();
+    window.removeEventListener('keydown', windowKeydownSpy);
   });
 
   it('does not drag locked drawings', async () => {
