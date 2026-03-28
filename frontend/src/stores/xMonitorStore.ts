@@ -9,6 +9,7 @@ import type {
   XAccountUpdatePayload,
   XHealth,
   XPost,
+  XRadarResponse,
   XRefreshResult,
 } from '../types/api';
 import { isStale } from '../utils/time';
@@ -24,8 +25,10 @@ interface TranslationState {
 export const useXMonitorStore = defineStore('xMonitorStore', () => {
   const accounts = ref<XAccount[]>([]);
   const posts = ref<XPost[]>([]);
+  const radar = ref<XRadarResponse | null>(null);
   const health = ref<XHealth | null>(null);
   const loading = ref(false);
+  const radarLoading = ref(false);
   const healthLoading = ref(false);
   const refreshLoading = ref(false);
   const searchLoading = ref(false);
@@ -98,6 +101,23 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     loading.value = false;
   }
 
+  async function loadRadar() {
+    if (health.value && !health.value.enabled) {
+      radar.value = {
+        priority_signals: [],
+        macro_clusters: [],
+        evidence_stream: [],
+      };
+      radarLoading.value = false;
+      return;
+    }
+    radarLoading.value = true;
+    const response = await apiClient.getXRadar();
+    radar.value = response.data;
+    usingMock.value = usingMock.value || response.degraded;
+    radarLoading.value = false;
+  }
+
   async function refreshPosts() {
     if (health.value && !health.value.enabled) {
       return;
@@ -107,7 +127,7 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     lastRefresh.value = response.data;
     usingMock.value = usingMock.value || response.degraded;
     refreshLoading.value = false;
-    await Promise.all([loadHealth(), loadPosts()]);
+    await Promise.all([loadHealth(), loadPosts(), loadRadar()]);
   }
 
   async function searchPosts() {
@@ -128,7 +148,7 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     const response = await apiClient.createXAccount(payload);
     usingMock.value = usingMock.value || response.degraded;
     accountMutationLoading.value = false;
-    await loadAccounts();
+    await Promise.all([loadAccounts(), loadRadar()]);
   }
 
   async function updateAccount(handle: string, payload: XAccountUpdatePayload) {
@@ -136,7 +156,7 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     const response = await apiClient.updateXAccount(handle, payload);
     usingMock.value = usingMock.value || response.degraded;
     accountMutationLoading.value = false;
-    await loadAccounts();
+    await Promise.all([loadAccounts(), loadRadar()]);
   }
 
   async function deleteAccount(handle: string) {
@@ -144,7 +164,7 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     const response = await apiClient.deleteXAccount(handle);
     usingMock.value = usingMock.value || response.degraded;
     accountMutationLoading.value = false;
-    await Promise.all([loadAccounts(), loadPosts()]);
+    await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
   }
 
   async function importAccounts() {
@@ -152,7 +172,7 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     const response = await apiClient.importXAccounts();
     usingMock.value = usingMock.value || response.degraded;
     importExportLoading.value = false;
-    await Promise.all([loadAccounts(), loadPosts()]);
+    await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
     return response.data;
   }
 
@@ -201,14 +221,16 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
 
   async function bootstrap() {
     await loadHealth();
-    await Promise.all([loadAccounts(), loadPosts()]);
+    await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
   }
 
   return {
     accounts,
     posts,
+    radar,
     health,
     loading,
+    radarLoading,
     healthLoading,
     refreshLoading,
     searchLoading,
@@ -229,6 +251,7 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     loadHealth,
     loadAccounts,
     loadPosts,
+    loadRadar,
     refreshPosts,
     searchPosts,
     createAccount,

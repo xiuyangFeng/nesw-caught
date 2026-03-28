@@ -20,8 +20,9 @@ const createForm = reactive({
 });
 
 const accountOptions = computed(() => xMonitorStore.accounts.filter((item) => item.is_active));
+const evidenceFeed = computed(() => xMonitorStore.radar?.evidence_stream ?? xMonitorStore.posts);
 const visiblePosts = computed(() =>
-  xMonitorStore.posts.filter((post) => {
+  evidenceFeed.value.filter((post) => {
     const account = xMonitorStore.getAccountByHandle(post.account_handle);
     const tier = account?.tier ?? 'watch';
     if (xMonitorStore.searchTierFilter && tier !== xMonitorStore.searchTierFilter) {
@@ -33,16 +34,18 @@ const visiblePosts = computed(() =>
     return true;
   }),
 );
+const prioritySignals = computed(() => xMonitorStore.radar?.priority_signals ?? []);
+const macroClusters = computed(() => xMonitorStore.radar?.macro_clusters ?? []);
 const bannerTone = computed(() => {
   if (xMonitorStore.health?.enabled === false) return 'warning';
   if (xMonitorStore.health && !xMonitorStore.health.healthy) return 'danger';
   return xMonitorStore.usingMock ? 'warning' : 'default';
 });
 const bannerTitle = computed(() => {
-  if (xMonitorStore.health?.enabled === false) return 'X Monitor 未启用';
+  if (xMonitorStore.health?.enabled === false) return 'X Radar 未启用';
   if (xMonitorStore.health && !xMonitorStore.health.configured) return 'twitterapi.io API key 未配置';
   if (xMonitorStore.health && !xMonitorStore.health.healthy) return 'twitterapi.io 当前不可用';
-  return xMonitorStore.usingMock ? '已启用 mock 兼容层' : 'X Monitor 已连接到 twitterapi.io';
+  return xMonitorStore.usingMock ? '已启用 mock 兼容层' : 'X Radar 已连接到 twitterapi.io';
 });
 const bannerDetail = computed(() => {
   if (!xMonitorStore.health) return '健康状态加载中。';
@@ -59,7 +62,7 @@ const policySummary = computed(() => {
   if (!xMonitorStore.health) return null;
   return `请求节流 ${xMonitorStore.health.min_interval_seconds} 秒/次 · 账号刷新冷却 ${xMonitorStore.health.refresh_cooldown_hours} 小时`;
 });
-const feedSummaryTitle = computed(() => `当前跟踪 ${visiblePosts.value.length} 条帖子，帖子流已同步到最新窗口`);
+const signalSummaryTitle = computed(() => `当前识别 ${prioritySignals.value.length} 条优先异动，证据流包含 ${visiblePosts.value.length} 条帖子`);
 const feedSummaryDetail = computed(() => {
   const detailParts: string[] = [];
   if (policySummary.value) detailParts.push(policySummary.value);
@@ -128,10 +131,10 @@ onMounted(async () => {
   <div class="grid gap-4">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <h1 class="page-title">X Monitor</h1>
-        <p class="page-subtitle">通过 twitterapi.io 拉取关注账号与关键词相关的市场推文，不进入主新闻链路。</p>
+        <h1 class="page-title">X Radar</h1>
+        <p class="page-subtitle">以自定义账号池为主、宏观政策事件为辅，优先输出值得看的早期异动信号。</p>
       </div>
-      <StaleBadge :stale="xMonitorStore.stale" label="X 监控" />
+      <StaleBadge :stale="xMonitorStore.stale" label="X Radar" />
     </header>
 
     <StatusBanner :title="bannerTitle" :tone="bannerTone" :detail="bannerDetail">
@@ -149,7 +152,116 @@ onMounted(async () => {
       冷却中，下次可刷新：{{ nextRefreshText }}
     </p>
 
-    <section class="grid gap-4 xl:grid-cols-[0.95fr_1.25fr]" data-role="x-monitor-layout">
+    <section class="grid gap-4 xl:grid-cols-[1.2fr_0.88fr]" data-role="x-monitor-layout">
+      <div class="grid gap-4">
+        <SectionCard title="Priority Radar" subtitle="按优先级排序的早期异动信号，而不是原始帖子时间流">
+          <LoadingBlock :loading="xMonitorStore.radarLoading || xMonitorStore.healthLoading" :empty="prioritySignals.length === 0" empty-text="当前还没有优先异动信号">
+            <div class="mb-3 grid gap-1.5 rounded-[14px] border-l-[3px] border-l-system bg-[linear-gradient(135deg,rgba(15,27,40,0.96),rgba(10,19,31,0.86))] px-4 py-3" data-role="feed-summary">
+              <p class="m-0 text-[0.68rem] uppercase tracking-[0.14em] text-system">Radar Status</p>
+              <p class="m-0 text-[1.05rem] leading-[1.45]" data-role="feed-summary-title">{{ signalSummaryTitle }}</p>
+              <p class="m-0 text-[0.8rem] leading-[1.45] text-text-faint" data-role="feed-summary-detail">{{ feedSummaryDetail }}</p>
+            </div>
+            <div class="grid gap-3">
+              <article
+                v-for="signal in prioritySignals"
+                :key="signal.id"
+                class="grid gap-3 rounded-[18px] border border-border bg-panel-stronger p-4"
+                data-role="priority-signal-card"
+              >
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div class="grid gap-1">
+                    <strong>{{ signal.title }}</strong>
+                    <span class="text-sm text-text-faint">
+                      {{ signal.market.toUpperCase() }}
+                      <template v-if="signal.macro_tag"> · {{ signal.macro_tag }}</template>
+                      <template v-if="signal.primary_symbol"> · {{ signal.primary_symbol }}</template>
+                    </span>
+                  </div>
+                  <span class="pill neutral">P{{ Math.round(signal.priority_score) }}</span>
+                </div>
+                <p class="m-0 text-sm leading-6 text-text-soft">{{ signal.summary }}</p>
+                <div class="flex flex-wrap gap-2 text-xs text-text-faint">
+                  <span>信号类型 {{ signal.signal_type }}</span>
+                  <span>来源 {{ signal.source_count }} 个</span>
+                  <span>置信度 {{ signal.confidence_score.toFixed(2) }}</span>
+                  <span>最近时间 {{ formatMarketTime(signal.last_seen_at, signal.market) }} {{ getMarketTimezoneLabel(signal.market) }}</span>
+                </div>
+              </article>
+            </div>
+          </LoadingBlock>
+        </SectionCard>
+
+        <SectionCard title="Macro Watch" subtitle="用主题簇快速看清宏观 / 政策方向是否开始形成讨论">
+          <LoadingBlock :loading="xMonitorStore.radarLoading || xMonitorStore.healthLoading" :empty="macroClusters.length === 0" empty-text="当前没有宏观事件簇">
+            <div class="grid gap-3 md:grid-cols-2">
+              <article
+                v-for="cluster in macroClusters"
+                :key="cluster.macro_tag"
+                class="grid gap-2 rounded-[18px] border border-border bg-panel-stronger p-4"
+                data-role="macro-cluster-card"
+              >
+                <strong>{{ cluster.title }}</strong>
+                <div class="flex flex-wrap gap-2 text-sm text-text-faint">
+                  <span>tag {{ cluster.macro_tag }}</span>
+                  <span>{{ cluster.signal_count }} 条信号</span>
+                  <span>{{ cluster.source_count }} 个来源</span>
+                </div>
+              </article>
+            </div>
+          </LoadingBlock>
+        </SectionCard>
+
+        <SectionCard title="Evidence Feed" subtitle="原始帖子作为证据层保留，便于快速核查上下文">
+          <LoadingBlock :loading="xMonitorStore.loading || xMonitorStore.healthLoading" :empty="visiblePosts.length === 0" empty-text="当前没有可展示的 X 帖子">
+            <div
+              class="grid rounded-2xl border border-system/10 bg-[rgba(10,18,29,0.58)] shell:max-h-[clamp(420px,56vh,720px)] shell:overflow-y-auto"
+              data-role="post-feed"
+            >
+              <article
+                v-for="post in visiblePosts"
+                :key="post.id"
+                class="grid gap-2 border-b border-system/10 px-[14px] py-3 last:border-b-0"
+                data-role="post-list-item"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <strong>{{ post.account_display_name }}</strong>
+                    <span class="text-text-faint">@{{ post.account_handle }}</span>
+                    <span class="text-text-faint">{{ formatMarketTime(post.posted_at ?? post.captured_at, post.market) }} {{ getMarketTimezoneLabel(post.market) }}</span>
+                    <span class="text-text-faint">{{ post.market.toUpperCase() }}</span>
+                  </div>
+                  <span class="pill" :class="post.sentiment_label">{{ sentimentText(post.sentiment_label) }}</span>
+                </div>
+                <p class="m-0 text-[0.92rem] leading-[1.45] text-text-soft">{{ post.content_text }}</p>
+                <div class="flex flex-wrap items-center gap-2.5">
+                  <button
+                    class="rounded-full border border-system/25 bg-[rgba(16,31,45,0.92)] px-3 py-1.5 text-[0.82rem] font-semibold text-[#d7f1ff] disabled:cursor-not-allowed disabled:opacity-60"
+                    data-role="translate-button"
+                    type="button"
+                    :disabled="translationState(post).status === 'loading'"
+                    @click="xMonitorStore.translatePost(post)"
+                  >
+                    {{ translationState(post).status === 'loading' ? '翻译中...' : '翻译' }}
+                  </button>
+                  <p v-if="translationState(post).status === 'error' && translationState(post).error" class="m-0 text-[0.84rem] text-[#fca5a5]">
+                    {{ translationState(post).error }}
+                  </p>
+                </div>
+                <p v-if="translationState(post).status === 'success' && translationState(post).translated_text" class="m-0 text-[0.84rem] text-[#d9edf8]">
+                  {{ translationState(post).translated_text }}
+                </p>
+                <div class="mt-0 flex flex-wrap gap-2 text-[0.82rem] text-muted">
+                  <span>相关度 {{ post.relevance_score?.toFixed(2) ?? '--' }}</span>
+                  <span v-if="post.symbols.length > 0">{{ post.symbols.join(' · ') }}</span>
+                  <span v-else>暂无股票命中</span>
+                  <a v-if="post.canonical_url" :href="post.canonical_url" target="_blank" rel="noreferrer">打开原帖</a>
+                </div>
+              </article>
+            </div>
+          </LoadingBlock>
+        </SectionCard>
+      </div>
+
       <SectionCard title="状态与账号管理" subtitle="provider 状态、监控名单维护和帖子过滤条件">
         <div class="grid grid-cols-3 gap-2.5">
           <div class="grid gap-1 rounded-2xl border border-border bg-panel-stronger p-3.5">
@@ -290,61 +402,6 @@ onMounted(async () => {
             </article>
           </div>
         </div>
-      </SectionCard>
-
-      <SectionCard title="账号监控帖子流" subtitle="保留博主、时间、情绪、股票命中和原帖链接">
-        <LoadingBlock :loading="xMonitorStore.loading || xMonitorStore.healthLoading" :empty="visiblePosts.length === 0" empty-text="当前没有可展示的 X 帖子">
-          <div class="mb-3 grid gap-1.5 rounded-[14px] border-l-[3px] border-l-system bg-[linear-gradient(135deg,rgba(15,27,40,0.96),rgba(10,19,31,0.86))] px-4 py-3" data-role="feed-summary">
-            <p class="m-0 text-[0.68rem] uppercase tracking-[0.14em] text-system">Monitor Status</p>
-            <p class="m-0 text-[1.05rem] leading-[1.45]" data-role="feed-summary-title">{{ feedSummaryTitle }}</p>
-            <p class="m-0 text-[0.8rem] leading-[1.45] text-text-faint" data-role="feed-summary-detail">{{ feedSummaryDetail }}</p>
-          </div>
-          <div
-            class="grid rounded-2xl border border-system/10 bg-[rgba(10,18,29,0.58)] shell:max-h-[clamp(420px,56vh,720px)] shell:overflow-y-auto"
-            data-role="post-feed"
-          >
-            <article
-              v-for="post in visiblePosts"
-              :key="post.id"
-              class="grid gap-2 border-b border-system/10 px-[14px] py-3 last:border-b-0"
-              data-role="post-list-item"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                  <strong>{{ post.account_display_name }}</strong>
-                  <span class="text-text-faint">@{{ post.account_handle }}</span>
-                  <span class="text-text-faint">{{ formatMarketTime(post.posted_at ?? post.captured_at, post.market) }} {{ getMarketTimezoneLabel(post.market) }}</span>
-                  <span class="text-text-faint">{{ post.market.toUpperCase() }}</span>
-                </div>
-                <span class="pill" :class="post.sentiment_label">{{ sentimentText(post.sentiment_label) }}</span>
-              </div>
-              <p class="m-0 text-[0.92rem] leading-[1.45] text-text-soft">{{ post.content_text }}</p>
-              <div class="flex flex-wrap items-center gap-2.5">
-                <button
-                  class="rounded-full border border-system/25 bg-[rgba(16,31,45,0.92)] px-3 py-1.5 text-[0.82rem] font-semibold text-[#d7f1ff] disabled:cursor-not-allowed disabled:opacity-60"
-                  data-role="translate-button"
-                  type="button"
-                  :disabled="translationState(post).status === 'loading'"
-                  @click="xMonitorStore.translatePost(post)"
-                >
-                  {{ translationState(post).status === 'loading' ? '翻译中...' : '翻译' }}
-                </button>
-                <p v-if="translationState(post).status === 'error' && translationState(post).error" class="m-0 text-[0.84rem] text-[#fca5a5]">
-                  {{ translationState(post).error }}
-                </p>
-              </div>
-              <p v-if="translationState(post).status === 'success' && translationState(post).translated_text" class="m-0 text-[0.84rem] text-[#d9edf8]">
-                {{ translationState(post).translated_text }}
-              </p>
-              <div class="mt-0 flex flex-wrap gap-2 text-[0.82rem] text-muted">
-                <span>相关度 {{ post.relevance_score?.toFixed(2) ?? '--' }}</span>
-                <span v-if="post.symbols.length > 0">{{ post.symbols.join(' · ') }}</span>
-                <span v-else>暂无股票命中</span>
-                <a v-if="post.canonical_url" :href="post.canonical_url" target="_blank" rel="noreferrer">打开原帖</a>
-              </div>
-            </article>
-          </div>
-        </LoadingBlock>
       </SectionCard>
     </section>
 

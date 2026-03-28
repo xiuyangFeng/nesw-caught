@@ -35,6 +35,7 @@ import type {
   XHealth,
   XPost,
   XPostQuery,
+  XRadarResponse,
   XRefreshResult,
 } from '../types/api';
 import { HttpError, deleteJson, getJson, patchJson, postJson } from './http';
@@ -63,6 +64,7 @@ import {
   mockXAccounts,
   mockXHealth,
   mockXPosts,
+  mockXRadar,
   mockXRefreshResult,
 } from './mock';
 
@@ -240,6 +242,9 @@ export const apiClient = {
   },
   getXAccounts() {
     return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), () => mockXAccounts);
+  },
+  getXRadar(limit = 50) {
+    return withMockFallback<XRadarResponse>(() => getJson(`/api/x/radar?limit=${limit}`), () => mockXRadar);
   },
   createXAccount(payload: XAccountCreatePayload) {
     return withMockFallback<XAccount>(

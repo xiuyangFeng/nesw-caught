@@ -1,0 +1,32 @@
+{
+  "rules": [
+    {
+      "tag": "tariff",
+      "title": "Tariff",
+      "topic_tag": "macro",
+      "keywords": ["tariff", "duties"],
+      "weight": 34.0
+    },
+    {
+      "tag": "export_control",
+      "title": "Export Control",
+      "topic_tag": "macro",
+      "keywords": ["export control", "export controls"],
+      "weight": 28.0
+    },
+    {
+      "tag": "rate",
+      "title": "Rate",
+      "topic_tag": "macro",
+      "keywords": ["rate cut", "rates", "yield", "cpi", "inflation"],
+      "weight": 24.0
+    },
+    {
+      "tag": "fed",
+      "title": "Fed",
+      "topic_tag": "macro",
+      "keywords": ["fed", "fomc", "powell"],
+      "weight": 22.0
+    }
+  ]
+}

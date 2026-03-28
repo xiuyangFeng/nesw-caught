@@ -516,6 +516,36 @@ export interface XPost {
   symbols: string[];
 }
 
+export interface XRadarSignal {
+  id: number;
+  signal_type: 'account_post' | 'macro_event' | 'multi_account_resonance' | string;
+  title: string;
+  summary: string;
+  market: Market;
+  topic_tag: string | null;
+  macro_tag: string | null;
+  primary_symbol: string | null;
+  priority_score: number;
+  confidence_score: number;
+  source_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface XRadarMacroCluster {
+  macro_tag: string;
+  title: string;
+  signal_count: number;
+  source_count: number;
+  top_signal_ids: number[];
+}
+
+export interface XRadarResponse {
+  priority_signals: XRadarSignal[];
+  macro_clusters: XRadarMacroCluster[];
+  evidence_stream: XPost[];
+}
+
 export interface XRefreshResult {
   started_at: string;
   finished_at: string;

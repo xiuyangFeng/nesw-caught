@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     twitterapi_io_timeout_seconds: float = 60.0
     twitterapi_io_min_interval_seconds: float = 0.0
     x_monitor_refresh_cooldown_hours: int = 3
+    x_radar_rules_file: str | None = None
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
     market_quote_producer_enabled: bool = True

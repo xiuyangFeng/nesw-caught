@@ -2,6 +2,54 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 14:55
+
+- 修改人：Codex
+- 修改范围：X Radar 宏观词典外置配置
+- 变更内容：把原先硬编码在 `XRadarSignalBuilder` 里的宏观规则抽成外部 JSON 词典。后端配置新增 `x_radar_rules_file`（环境变量 `X_RADAR_RULES_FILE`），若未设置则默认读取仓库内的 `backend/data/x_radar_rules.example.json`。`XRadarSignalBuilder` 现在会优先从文件加载 `tag / title / topic_tag / keywords / weight` 规则，加载失败时再回退到内置默认规则；宏观信号和共振信号标题也改为优先使用词典中的 `title`。审查收口阶段又补了三处：词典中坏 `weight` 项现在会被跳过，不会在服务启动或刷新时抛 `ValueError`；`xMonitorStore` 新增 `radarLoading` 并在账号新增/更新/删除、导入后自动刷新 radar，避免雷达卡空闪或长期停留旧数据；`GET /api/x/radar` 现在严格按传入 `limit` 截断 `priority_signals / macro_clusters / evidence_stream`。同时新增回归测试，锁定“外部规则文件可覆盖宏观标签与权重”“坏规则文件不炸服务”“radar limit 生效”和 store 级刷新行为。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/core/config.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_radar_signal_builder.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/data/x_radar_rules.example.json`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/xMonitorStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/xMonitorStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无新增 API；新增运行时配置项 `X_RADAR_RULES_FILE`，用于指定 X Radar 词典文件路径；默认词典文件格式为 JSON，顶层 `rules` 数组内每项包含 `tag/title/topic_tag/keywords/weight`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q` 通过（30 个用例）；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts src/stores/xMonitorStore.test.ts` 通过（2 个文件 / 7 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前优先级规则仍是“账号权重 + 词典 weight + 轻量 symbol bonus”的规则法，尚未把不同 signal_type 的附加权重完全外置；如果后续要把 account 权重、共振窗口或不同 signal_type 的加分也交给配置文件，还需要继续扩展词典 schema
+
+## 2026-03-28 14:45
+
+- 修改人：Codex
+- 修改范围：X Monitor 升级为 X Radar 早期异动雷达
+- 变更内容：围绕“自定义账号池 + 宏观/政策事件补充 + 优先级排序”的新定位，对 X 模块做了一轮后端到前端的闭环重构。后端新增 `x_signal` 与 `x_signal_post_link` 两张表、`XSignalRepository` 与 `XRadarSignalBuilder`，把原始 `x_post` 上抬为可解释的信号层；`refresh()` 现在在原始帖子去重入库后，会同步生成 `account_post / macro_event / multi_account_resonance` 三类首版信号，并给信号挂证据帖。同步扩展 `x_monitor` schema 与路由，新增 `GET /api/x/radar`，统一返回 `priority_signals + macro_clusters + evidence_stream` 三层数据。前端新增 `XRadarResponse / XRadarSignal / XRadarMacroCluster` 类型、`apiClient.getXRadar()`、store 的 `radar` 状态和加载逻辑，并把 `XMonitorView` 改为雷达台布局：`Priority Radar -> Macro Watch -> Evidence Feed` 为主视觉，账号管理降为右侧工作区，但保留新增账号、启停、删除、导入导出、翻译证据帖、关键词搜索等原有能力。同步补写本轮 spec / plan 文档，并在该 worktree 内安装了前端依赖以恢复 `vitest` 基线。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/api/routes/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/db/initializer.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/__init__.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/x_signal.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/models/x_signal_post_link.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/repositories/x_signal_repository.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/schemas/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/x_radar_signal_builder.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_x_monitor.py`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/stores/xMonitorStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/XMonitorView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-28-x-radar-early-anomaly-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-28-x-radar-early-anomaly-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：新增后端接口 `GET /api/x/radar`；后端新增 `x_signal` 与 `x_signal_post_link` 持久化结构；前端新增 `XRadarResponse / XRadarSignal / XRadarMacroCluster` 类型和 `xMonitorStore.radar` 状态；原有 `GET /api/x/posts`、账号管理接口与刷新接口保持兼容
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_x_monitor.py -q` 通过（27 个用例）；`npm --prefix frontend run test -- --run src/views/XMonitorView.test.ts` 通过（1 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：首版宏观标签与优先级打分仍是规则法，关键词和分值需要后续根据真实使用频次继续调；`refresh()` 当前只对新插入帖子生成信号，若未来补回溯重建或规则变更，需要额外增加 reindex/rebuild 路径；本轮尚未把 `x_signal` 接入首页和自选股视图，这部分后续可以直接复用现有信号层
+
 ## 2026-03-28 14:30
 
 - 修改人：Codex

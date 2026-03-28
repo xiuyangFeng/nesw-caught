@@ -12,9 +12,11 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.repositories.x_account_repository import XAccountRepository
 from app.repositories.x_post_repository import XPostRepository
+from app.repositories.x_signal_repository import XSignalRepository
 from app.repositories.x_source_health_repository import XSourceHealthRepository
-from app.schemas.x_monitor import XPostSummaryView
+from app.schemas.x_monitor import XPostSummaryView, XRadarMacroClusterView, XRadarResponse, XRadarSignalView
 from app.services.twitterapi_io_client import TwitterApiIoClient, TwitterApiIoError
+from app.services.x_radar_signal_builder import XRadarSignalBuilder
 
 VALID_MARKETS = {"hk", "us", "cn"}
 VALID_SENTIMENTS = {"positive", "negative", "neutral", "mixed", "unknown"}
@@ -147,8 +149,13 @@ class XMonitorService:
         self.settings = get_settings()
         self.accounts = XAccountRepository(session)
         self.posts = XPostRepository(session)
+        self.signals = XSignalRepository(session)
         self.health_repo = XSourceHealthRepository(session)
         self.provider = TwitterApiIoClient()
+        self.signal_builder = XRadarSignalBuilder(
+            self.signals,
+            rules_file=getattr(self.settings, "x_radar_rules_file", None),
+        )
 
     def ensure_enabled(self) -> None:
         if not self.settings.x_monitor_enabled:
@@ -414,6 +421,7 @@ class XMonitorService:
 
         fetched_count = 0
         inserted_count = 0
+        inserted_post_rows: list[tuple[object, object, list[str]]] = []
 
         for account in active_accounts:
             tweets = by_handle.get(account.handle.lower(), [])
@@ -452,7 +460,10 @@ class XMonitorService:
                 )
                 mentions = [{"symbol": symbol, "market": summary.market, "confidence": 0.8} for symbol in summary.symbols]
                 self.posts.add_mentions(post.id, mentions)
+                inserted_post_rows.append((post, account, summary.symbols))
                 inserted_count += 1
+
+        self.signal_builder.build(inserted_post_rows)
 
         finished_at = _utc_now()
         latency_ms = (finished_at - started_at).total_seconds() * 1000
@@ -484,6 +495,51 @@ class XMonitorService:
                 continue
             results.append(summary)
         return results
+
+    def get_radar(self, limit: int = 50) -> XRadarResponse:
+        priority_signals = [
+            XRadarSignalView(
+                id=signal.id,
+                signal_type=signal.signal_type,
+                title=signal.title,
+                summary=signal.summary,
+                market=signal.market,
+                topic_tag=signal.topic_tag,
+                macro_tag=signal.macro_tag,
+                primary_symbol=signal.primary_symbol,
+                priority_score=signal.priority_score,
+                confidence_score=signal.confidence_score,
+                source_count=signal.source_count,
+                first_seen_at=signal.first_seen_at,
+                last_seen_at=signal.last_seen_at,
+            )
+            for signal in self.signals.list_priority_signals(limit=limit)
+        ]
+        macro_clusters = [
+            XRadarMacroClusterView.model_validate(row)
+            for row in self.signals.list_macro_clusters(limit=limit)
+        ]
+        evidence_stream = [
+            XPostSummaryView(
+                id=post.id,
+                account_handle=account.handle,
+                account_display_name=account.display_name,
+                content_text=post.content_text,
+                canonical_url=post.canonical_url,
+                market=post.market,
+                sentiment_label=post.sentiment_label,
+                relevance_score=post.relevance_score,
+                posted_at=post.posted_at,
+                captured_at=post.captured_at,
+                symbols=symbols,
+            )
+            for post, account, symbols in self.signals.list_evidence_posts(limit=limit)
+        ]
+        return XRadarResponse(
+            priority_signals=priority_signals,
+            macro_clusters=macro_clusters,
+            evidence_stream=evidence_stream,
+        )
 
     def provider_health(self) -> tuple[bool, str]:
         if not self.settings.x_monitor_enabled:
