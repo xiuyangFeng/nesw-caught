@@ -41,3 +41,38 @@ class NewsDetailView(NewsItemSummary):
     article: NewsArticleView | None = None
     mentions: list[NewsMentionView]
     topic: NewsTopicRefView | None = None
+
+
+class NewsFeedEventCardView(BaseModel):
+    event_key: str
+    event_title: str
+    event_summary: str | None = None
+    event_type: str
+    market: str
+    sentiment_label: str
+    importance_score: float
+    last_seen_at: UTCDateTime | None = None
+    primary_symbol: str | None = None
+    related_symbols: list[str]
+    source_count: int
+    news_count: int
+    news_items: list[NewsItemSummary]
+
+
+class NewsFeedTopicView(BaseModel):
+    id: int
+    topic_title: str
+    topic_summary: str | None = None
+    keywords: list[str]
+    market: str
+    sentiment_label: str
+    importance_score: float
+    news_count: int
+    last_seen_at: UTCDateTime
+    related_symbols: list[str]
+
+
+class NewsFeedLayoutView(BaseModel):
+    events: list[NewsFeedEventCardView]
+    topics: list[NewsFeedTopicView]
+    stream: list[NewsItemSummary]

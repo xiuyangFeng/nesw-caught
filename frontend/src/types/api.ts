@@ -54,6 +54,41 @@ export interface NewsDetail extends NewsItem {
   topic: NewsTopicRef | null;
 }
 
+export interface NewsFeedEventCard {
+  event_key: string;
+  event_title: string;
+  event_summary: string | null;
+  event_type: string;
+  market: Market;
+  sentiment_label: SentimentLabel;
+  importance_score: number;
+  last_seen_at: string | null;
+  primary_symbol: string | null;
+  related_symbols: string[];
+  source_count: number;
+  news_count: number;
+  news_items: NewsItem[];
+}
+
+export interface NewsFeedTopic {
+  id: number;
+  topic_title: string;
+  topic_summary: string | null;
+  keywords: string[];
+  market: Market;
+  sentiment_label: SentimentLabel;
+  importance_score: number;
+  news_count: number;
+  last_seen_at: string;
+  related_symbols: string[];
+}
+
+export interface NewsFeedLayout {
+  events: NewsFeedEventCard[];
+  topics: NewsFeedTopic[];
+  stream: NewsItem[];
+}
+
 export interface NewsRuntimeSource {
   source_name: string;
   market: Market;

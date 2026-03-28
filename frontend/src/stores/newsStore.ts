@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 
 import { apiClient } from '../api/client';
-import type { NewsAnalysis, NewsDetail, NewsItem, NewsQuery, NewsRuntimeSource, NewsRuntimeStatus, NewsUpdateEvent } from '../types/api';
+import type { NewsAnalysis, NewsDetail, NewsFeedLayout, NewsItem, NewsQuery, NewsRuntimeSource, NewsRuntimeStatus, NewsUpdateEvent } from '../types/api';
 import { isStale } from '../utils/time';
 
 export const useNewsStore = defineStore('newsStore', () => {
@@ -23,8 +23,17 @@ export const useNewsStore = defineStore('newsStore', () => {
 
   const feedItems = ref<NewsItem[]>([]);
   const feedLoading = ref(false);
+  const feedPendingRequests = ref(0);
+  const feedNewsRequestId = ref(0);
+  const feedLayoutRequestId = ref(0);
   const feedLastLoadedAt = ref<string | null>(null);
   const feedQuery = ref<NewsQuery>({ limit: 300 });
+  const feedLayout = ref<NewsFeedLayout>({
+    events: [],
+    topics: [],
+    stream: [],
+  });
+  const feedLayoutDegraded = ref(false);
 
   const sentimentItems = ref<NewsItem[]>([]);
   const sentimentLoading = ref(false);
@@ -83,12 +92,39 @@ export const useNewsStore = defineStore('newsStore', () => {
   }
 
   async function loadFeedNews(query: NewsQuery = feedQuery.value) {
-    await loadScopedNews(query, {
-      items: feedItems,
-      loading: feedLoading,
-      lastLoadedAt: feedLastLoadedAt,
-      queryRef: feedQuery,
-    });
+    feedPendingRequests.value += 1;
+    feedLoading.value = true;
+    const requestId = ++feedNewsRequestId.value;
+    try {
+      feedQuery.value = { ...query };
+      const response = await apiClient.getNews(feedQuery.value);
+      if (requestId === feedNewsRequestId.value) {
+        feedItems.value = response.data;
+        usingMock.value = usingMock.value || response.degraded;
+        feedLastLoadedAt.value = new Date().toISOString();
+      }
+    } finally {
+      feedPendingRequests.value = Math.max(0, feedPendingRequests.value - 1);
+      feedLoading.value = feedPendingRequests.value > 0;
+    }
+  }
+
+  async function loadFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}) {
+    feedPendingRequests.value += 1;
+    feedLoading.value = true;
+    const requestId = ++feedLayoutRequestId.value;
+    try {
+      const response = await apiClient.getNewsFeedLayout(query);
+      if (requestId === feedLayoutRequestId.value) {
+        feedLayout.value = response.data;
+        feedLayoutDegraded.value = response.degraded;
+        usingMock.value = usingMock.value || response.degraded;
+        feedLastLoadedAt.value = new Date().toISOString();
+      }
+    } finally {
+      feedPendingRequests.value = Math.max(0, feedPendingRequests.value - 1);
+      feedLoading.value = feedPendingRequests.value > 0;
+    }
   }
 
   async function loadSentimentNews(query: NewsQuery = sentimentQuery.value) {
@@ -143,6 +179,24 @@ export const useNewsStore = defineStore('newsStore', () => {
         itemsRef.value.length = limit;
       }
     }
+  }
+
+  function upsertLayoutStream(item: NewsItem) {
+    const nextStream = [...feedLayout.value.stream];
+    const existingIndex = nextStream.findIndex((candidate) => candidate.id === item.id);
+    if (existingIndex >= 0) {
+      nextStream.splice(existingIndex, 1, item);
+    } else {
+      nextStream.unshift(item);
+    }
+    const limit = feedQuery.value.limit ?? nextStream.length;
+    if (nextStream.length > limit) {
+      nextStream.length = limit;
+    }
+    feedLayout.value = {
+      ...feedLayout.value,
+      stream: nextStream,
+    };
   }
 
   async function loadDetail(id: number) {
@@ -203,13 +257,17 @@ export const useNewsStore = defineStore('newsStore', () => {
     upsertScopedItems(dashboardItems, dashboardQuery.value, item);
     upsertScopedItems(feedItems, feedQuery.value, item);
     upsertScopedItems(sentimentItems, sentimentQuery.value, item);
+    upsertLayoutStream(item);
     dashboardLastLoadedAt.value = new Date().toISOString();
+    feedLastLoadedAt.value = new Date().toISOString();
   }
 
   function upsertNewsUpdate(item: NewsUpdateEvent) {
     upsertScopedUpdate(dashboardItems, dashboardQuery.value, item);
     upsertScopedUpdate(feedItems, feedQuery.value, item);
     upsertScopedUpdate(sentimentItems, sentimentQuery.value, item);
+    upsertLayoutStream(item);
+    feedLastLoadedAt.value = new Date().toISOString();
   }
 
   return {
@@ -229,10 +287,13 @@ export const useNewsStore = defineStore('newsStore', () => {
     stale,
     dashboardQuery,
     feedItems,
+    feedLayout,
+    feedLayoutDegraded,
     feedLoading,
     feedLastLoadedAt,
     feedStale,
     feedQuery,
+    loadFeedLayout,
     sentimentItems,
     sentimentLoading,
     sentimentLastLoadedAt,

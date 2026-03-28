@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
 from app.models.news_item import NewsItem
+from app.models.news_stock_mention import NewsStockMention
 from app.models.source_health import SourceHealth
+from app.models.topic_cluster import TopicCluster
+from app.models.topic_news_link import TopicNewsLink
 from app.main import app
 from app.services.event_bus import EventBusStatus
 from app.services.news_ingestion import SourceDefinition
@@ -483,4 +486,216 @@ def test_news_list_orders_by_published_at_before_fetched_at() -> None:
     finally:
         with SessionLocal() as session:
             session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+            session.commit()
+
+
+def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
+    client = TestClient(app)
+    url_hashes = [
+        "test-feed-layout-nvda-1",
+        "test-feed-layout-nvda-2",
+        "test-feed-layout-fed-1",
+    ]
+    topic_keys = ["test-feed-layout-ai", "test-feed-layout-macro"]
+
+    with SessionLocal() as session:
+        news_items = [
+            NewsItem(
+                source_name="Bloomberg",
+                source_url="https://example.com/bloomberg",
+                title="NVIDIA launches new AI chip platform",
+                summary="Launch coverage highlights AI demand and supplier interest.",
+                canonical_url="https://example.com/nvda-launch-1",
+                url_hash=url_hashes[0],
+                market="us",
+                language="en",
+                sentiment_label="positive",
+                sentiment_score=0.72,
+                published_at=datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 8, 2, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+            NewsItem(
+                source_name="Reuters",
+                source_url="https://example.com/reuters",
+                title="Suppliers rally after NVIDIA chip release",
+                summary="Supply chain names rise after the new product cycle update.",
+                canonical_url="https://example.com/nvda-launch-2",
+                url_hash=url_hashes[1],
+                market="us",
+                language="en",
+                sentiment_label="positive",
+                sentiment_score=0.51,
+                published_at=datetime(2026, 3, 28, 7, 30, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 7, 35, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+            NewsItem(
+                source_name="WSJ",
+                source_url="https://example.com/wsj",
+                title="Fed officials signal policy remains unchanged",
+                summary="Macro tone stays cautious ahead of inflation data.",
+                canonical_url="https://example.com/fed-policy-1",
+                url_hash=url_hashes[2],
+                market="us",
+                language="en",
+                sentiment_label="neutral",
+                sentiment_score=0.02,
+                published_at=datetime(2026, 3, 28, 6, 45, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 6, 50, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+        ]
+        session.add_all(news_items)
+        session.flush()
+
+        topics = [
+                TopicCluster(
+                    topic_key=topic_keys[0],
+                    topic_title="AI Chip Launch",
+                    topic_summary="NVIDIA's new product cycle is pulling suppliers and AI infrastructure names higher.",
+                    keywords="nvidia,chip,launch,ai,supplier",
+                    sentiment_score=0.64,
+                    importance_score=9.91,
+                    last_seen_at=datetime(2026, 3, 28, 8, 2, tzinfo=timezone.utc),
+                ),
+                TopicCluster(
+                    topic_key=topic_keys[1],
+                    topic_title="Fed Policy Watch",
+                    topic_summary="Markets are waiting for the next inflation and rate signal.",
+                    keywords="fed,policy,rate,inflation",
+                    sentiment_score=0.0,
+                    importance_score=9.61,
+                    last_seen_at=datetime(2026, 3, 28, 6, 50, tzinfo=timezone.utc),
+                ),
+        ]
+        session.add_all(topics)
+        session.flush()
+
+        session.add_all(
+            [
+                TopicNewsLink(topic_cluster_id=topics[0].id, news_id=news_items[0].id),
+                TopicNewsLink(topic_cluster_id=topics[0].id, news_id=news_items[1].id),
+                TopicNewsLink(topic_cluster_id=topics[1].id, news_id=news_items[2].id),
+            ]
+        )
+        session.add_all(
+            [
+                NewsStockMention(news_id=news_items[0].id, symbol="NVDA", market="us", mention_type="body", confidence=0.92),
+                NewsStockMention(news_id=news_items[0].id, symbol="SMCI", market="us", mention_type="body", confidence=0.75),
+                NewsStockMention(news_id=news_items[1].id, symbol="NVDA", market="us", mention_type="body", confidence=0.81),
+            ]
+        )
+        session.commit()
+
+    try:
+        response = client.get("/api/news/feed-layout")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert list(payload.keys()) == ["events", "topics", "stream"]
+        assert payload["events"][0]["event_title"] == "AI Chip Launch"
+        assert payload["events"][0]["event_type"] == "product"
+        assert payload["events"][0]["primary_symbol"] == "NVDA"
+        assert payload["events"][0]["related_symbols"] == ["NVDA", "SMCI"]
+        assert payload["events"][0]["news_count"] == 2
+        assert len(payload["events"][0]["news_items"]) == 2
+        assert payload["topics"][0]["topic_title"] == "AI Chip Launch"
+        assert payload["stream"][0]["title"] == "NVIDIA launches new AI chip platform"
+    finally:
+        with SessionLocal() as session:
+            news_ids = list(session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+            topic_ids = list(session.scalars(select(TopicCluster.id).where(TopicCluster.topic_key.in_(topic_keys))))
+            if news_ids:
+                session.execute(delete(NewsStockMention).where(NewsStockMention.news_id.in_(news_ids)))
+                session.execute(delete(TopicNewsLink).where(TopicNewsLink.news_id.in_(news_ids)))
+                session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
+            if topic_ids:
+                session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
+            session.commit()
+
+
+def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() -> None:
+    client = TestClient(app)
+    url_hashes = [
+        "test-feed-layout-market-us",
+        "test-feed-layout-market-hk",
+    ]
+    topic_key = "test-feed-layout-cross-market"
+
+    with SessionLocal() as session:
+        news_items = [
+            NewsItem(
+                source_name="Reuters",
+                source_url="https://example.com/reuters",
+                title="Apple supplier flags softer demand",
+                summary="US supply chain warning.",
+                canonical_url="https://example.com/apple-demand",
+                url_hash=url_hashes[0],
+                market="us",
+                language="en",
+                sentiment_label="negative",
+                sentiment_score=-0.4,
+                published_at=datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 9, 1, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+            NewsItem(
+                source_name="AAStocks",
+                source_url="https://example.com/aastocks",
+                title="Tencent AI product update",
+                summary="Hong Kong internet update.",
+                canonical_url="https://example.com/tencent-ai",
+                url_hash=url_hashes[1],
+                market="hk",
+                language="en",
+                sentiment_label="positive",
+                sentiment_score=0.5,
+                published_at=datetime(2026, 3, 28, 8, 55, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 8, 56, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+        ]
+        session.add_all(news_items)
+        session.flush()
+
+        topic = TopicCluster(
+            topic_key=topic_key,
+            topic_title="Cross Market Supply Chain",
+            topic_summary="A topic carrying both US and HK mentions for filtering validation.",
+            keywords="supplier,demand,ai",
+            sentiment_score=0.0,
+            importance_score=9.2,
+            last_seen_at=datetime(2026, 3, 28, 9, 1, tzinfo=timezone.utc),
+        )
+        session.add(topic)
+        session.flush()
+        session.add_all(
+            [
+                TopicNewsLink(topic_cluster_id=topic.id, news_id=news_items[0].id),
+                TopicNewsLink(topic_cluster_id=topic.id, news_id=news_items[1].id),
+                NewsStockMention(news_id=news_items[0].id, symbol="AAPL", market="us", mention_type="body", confidence=0.9),
+                NewsStockMention(news_id=news_items[1].id, symbol="0700.HK", market="hk", mention_type="body", confidence=0.9),
+            ]
+        )
+        session.commit()
+
+    try:
+        response = client.get("/api/news/feed-layout", params={"market": "us"})
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["events"][0]["market"] == "us"
+        assert payload["events"][0]["primary_symbol"] == "AAPL"
+        assert payload["events"][0]["related_symbols"] == ["AAPL"]
+    finally:
+        with SessionLocal() as session:
+            news_ids = list(session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+            topic_ids = list(session.scalars(select(TopicCluster.id).where(TopicCluster.topic_key == topic_key)))
+            if news_ids:
+                session.execute(delete(NewsStockMention).where(NewsStockMention.news_id.in_(news_ids)))
+                session.execute(delete(TopicNewsLink).where(TopicNewsLink.news_id.in_(news_ids)))
+                session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
+            if topic_ids:
+                session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
             session.commit()
