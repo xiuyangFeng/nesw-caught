@@ -1012,3 +1012,391 @@ def test_x_health_endpoint_reports_provider_state(monkeypatch) -> None:
     assert payload["provider_name"] == "twitterapi.io"
     assert payload["min_interval_seconds"] == 6.0
     assert payload["refresh_cooldown_hours"] == 3
+
+
+def test_x_monitor_refresh_builds_macro_and_resonance_signals(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        json.dumps(
+            {
+                "accounts": [
+                    {
+                        "handle": "DeItaone",
+                        "display_name": "Delta One",
+                        "market_focus": "us",
+                        "is_active": True,
+                        "priority": 100,
+                        "tier": "core",
+                    },
+                    {
+                        "handle": "WalterBloomberg",
+                        "display_name": "Walter Bloomberg",
+                        "market_focus": "us",
+                        "is_active": True,
+                        "priority": 90,
+                        "tier": "watch",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            tweets = {
+                "DeItaone": [
+                    {
+                        "id": "200001",
+                        "text": "US tariff talk on AI chip exports is escalating for NVDA and AMD suppliers",
+                        "createdAt": "2026-03-28T07:00:00Z",
+                        "url": "https://x.com/DeItaone/status/200001",
+                        "symbols": ["NVDA", "AMD"],
+                        "author": {"userName": "DeItaone", "name": "Delta One"},
+                    }
+                ],
+                "WalterBloomberg": [
+                    {
+                        "id": "200002",
+                        "text": "Export control and tariff headlines keep hitting semis this morning",
+                        "createdAt": "2026-03-28T07:20:00Z",
+                        "url": "https://x.com/WalterBloomberg/status/200002",
+                        "symbols": ["NVDA"],
+                        "author": {"userName": "WalterBloomberg", "name": "Walter Bloomberg"},
+                    }
+                ],
+            }
+            return tweets[handle]
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+
+        summary = service.refresh()
+
+        assert summary.inserted_count == 2
+
+        signal_module = import_module("app.models.x_signal")
+        XSignal = signal_module.XSignal
+        signals = session.query(XSignal).order_by(XSignal.priority_score.desc(), XSignal.id.asc()).all()
+
+        assert len(signals) >= 2
+        assert any(signal.signal_type == "macro_event" and signal.macro_tag == "tariff" for signal in signals)
+        assert any(signal.signal_type == "multi_account_resonance" and signal.source_count == 2 for signal in signals)
+
+
+def test_x_monitor_service_returns_radar_payload(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        '{"accounts":[{"handle":"DeItaone","display_name":"Delta One","market_focus":"us","is_active":true,"priority":100,"tier":"core"}]}',
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": "210001",
+                    "text": "Fed rate cut odds are moving after new CPI headlines",
+                    "createdAt": "2026-03-28T08:00:00Z",
+                    "url": "https://x.com/DeItaone/status/210001",
+                    "symbols": ["SPY"],
+                    "author": {"userName": "DeItaone", "name": "Delta One"},
+                }
+            ]
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+        service.refresh()
+
+        radar = service.get_radar(limit=10)
+
+        assert len(radar.priority_signals) >= 1
+        assert len(radar.macro_clusters) >= 1
+        assert len(radar.evidence_stream) >= 1
+        assert radar.priority_signals[0].signal_type in {"account_post", "macro_event", "multi_account_resonance"}
+
+
+def test_x_radar_endpoint_returns_priority_signals(monkeypatch) -> None:
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def get_radar(self, limit: int = 50):
+            schema_module = import_module("app.schemas.x_monitor")
+            return schema_module.XRadarResponse(
+                priority_signals=[
+                    schema_module.XRadarSignalView(
+                        id=1,
+                        signal_type="macro_event",
+                        title="Tariff pressure hits semis",
+                        summary="Two tracked accounts flagged tariff risk around AI chips.",
+                        market="us",
+                        topic_tag="semis",
+                        macro_tag="tariff",
+                        primary_symbol="NVDA",
+                        priority_score=95.0,
+                        confidence_score=0.86,
+                        source_count=2,
+                        first_seen_at=datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc),
+                        last_seen_at=datetime(2026, 3, 28, 7, 20, tzinfo=timezone.utc),
+                    )
+                ],
+                macro_clusters=[
+                    schema_module.XRadarMacroClusterView(
+                        macro_tag="tariff",
+                        title="Tariff Watch",
+                        signal_count=1,
+                        source_count=2,
+                        top_signal_ids=[1],
+                    )
+                ],
+                evidence_stream=[],
+            )
+
+    monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
+
+    client = TestClient(app)
+    response = client.get("/api/x/radar")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["priority_signals"][0]["macro_tag"] == "tariff"
+    assert payload["macro_clusters"][0]["source_count"] == 2
+
+
+def test_x_monitor_refresh_uses_external_radar_rules_file(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    rules_file = tmp_path / "x_radar_rules.json"
+    accounts_file.write_text(
+        '{"accounts":[{"handle":"DeItaone","display_name":"Delta One","market_focus":"us","is_active":true,"priority":100,"tier":"core"}]}',
+        encoding="utf-8",
+    )
+    rules_file.write_text(
+        json.dumps(
+            {
+                "rules": [
+                    {
+                        "tag": "policy_shift",
+                        "title": "Policy Shift",
+                        "topic_tag": "macro",
+                        "keywords": ["white house", "executive order"],
+                        "weight": 77.0,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": "220001",
+                    "text": "White House executive order is pushing a new policy shift around AI exports",
+                    "createdAt": "2026-03-28T08:00:00Z",
+                    "url": "https://x.com/DeItaone/status/220001",
+                    "symbols": ["NVDA"],
+                    "author": {"userName": "DeItaone", "name": "Delta One"},
+                }
+            ]
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            x_radar_rules_file=str(rules_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+        service.refresh()
+
+        signal_module = import_module("app.models.x_signal")
+        XSignal = signal_module.XSignal
+        signal = session.query(XSignal).filter(XSignal.macro_tag == "policy_shift").one()
+
+        assert signal.title == "Policy Shift signal from tracked accounts"
+        assert signal.priority_score >= 127.0
+
+
+def test_x_monitor_refresh_falls_back_when_rules_file_contains_invalid_weight(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    rules_file = tmp_path / "x_radar_rules.json"
+    accounts_file.write_text(
+        '{"accounts":[{"handle":"DeItaone","display_name":"Delta One","market_focus":"us","is_active":true,"priority":100,"tier":"core"}]}',
+        encoding="utf-8",
+    )
+    rules_file.write_text(
+        json.dumps(
+            {
+                "rules": [
+                    {
+                        "tag": "bad_rule",
+                        "title": "Bad Rule",
+                        "topic_tag": "macro",
+                        "keywords": ["tariff"],
+                        "weight": "oops",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": "220002",
+                    "text": "Tariff pressure is building around AI chip exports",
+                    "createdAt": "2026-03-28T08:00:00Z",
+                    "url": "https://x.com/DeItaone/status/220002",
+                    "symbols": ["NVDA"],
+                    "author": {"userName": "DeItaone", "name": "Delta One"},
+                }
+            ]
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            x_radar_rules_file=str(rules_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+        summary = service.refresh()
+
+        assert summary.inserted_count == 1
+
+        signal_module = import_module("app.models.x_signal")
+        XSignal = signal_module.XSignal
+        signal = session.query(XSignal).filter(XSignal.macro_tag == "tariff").one()
+        assert signal.title == "Tariff signal from tracked accounts"
+
+
+def test_x_monitor_service_honors_radar_limit_for_macro_clusters(monkeypatch, tmp_path: Path) -> None:
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        json.dumps(
+            {
+                "accounts": [
+                    {"handle": "DeItaone", "display_name": "Delta One", "market_focus": "us", "is_active": True, "priority": 100, "tier": "core"},
+                    {"handle": "WalterBloomberg", "display_name": "Walter Bloomberg", "market_focus": "us", "is_active": True, "priority": 90, "tier": "watch"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            tweets = {
+                "DeItaone": [
+                    {
+                        "id": "230001",
+                        "text": "Tariff headlines are back for AI chips",
+                        "createdAt": "2026-03-28T07:00:00Z",
+                        "url": "https://x.com/DeItaone/status/230001",
+                        "symbols": ["NVDA"],
+                        "author": {"userName": "DeItaone", "name": "Delta One"},
+                    },
+                    {
+                        "id": "230002",
+                        "text": "Fed speakers are shifting rate expectations",
+                        "createdAt": "2026-03-28T07:10:00Z",
+                        "url": "https://x.com/DeItaone/status/230002",
+                        "symbols": ["SPY"],
+                        "author": {"userName": "DeItaone", "name": "Delta One"},
+                    },
+                ],
+                "WalterBloomberg": [
+                    {
+                        "id": "230003",
+                        "text": "Export control chatter is hitting semis again",
+                        "createdAt": "2026-03-28T07:20:00Z",
+                        "url": "https://x.com/WalterBloomberg/status/230003",
+                        "symbols": ["NVDA"],
+                        "author": {"userName": "WalterBloomberg", "name": "Walter Bloomberg"},
+                    }
+                ],
+            }
+            return tweets[handle]
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+            x_radar_rules_file=None,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+        service.refresh()
+
+        radar = service.get_radar(limit=1)
+
+        assert len(radar.priority_signals) == 1
+        assert len(radar.macro_clusters) == 1
+        assert len(radar.evidence_stream) == 1

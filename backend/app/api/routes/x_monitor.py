@@ -9,6 +9,7 @@ from app.schemas.x_monitor import (
     XAccountsExportResult,
     XAccountsImportResult,
     XPostSummaryView,
+    XRadarResponse,
     XRefreshResponse,
 )
 from app.services.x_monitor import XMonitorService
@@ -141,6 +142,16 @@ def search_posts(
     service = _service(session)
     _enabled(service)
     return service.search_posts(query=q, limit=limit)
+
+
+@router.get("/radar", response_model=XRadarResponse)
+def get_radar(
+    limit: int = Query(default=50, ge=1, le=200),
+    session: Session = Depends(get_db_session),
+) -> XRadarResponse:
+    service = _service(session)
+    _enabled(service)
+    return service.get_radar(limit=limit)
 
 
 @router.post("/refresh", response_model=XRefreshResponse)

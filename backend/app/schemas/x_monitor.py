@@ -96,6 +96,36 @@ class XRefreshResponse(BaseModel):
     next_refresh_at: UTCDateTime | None = None
 
 
+class XRadarSignalView(BaseModel):
+    id: int
+    signal_type: str
+    title: str
+    summary: str
+    market: str
+    topic_tag: str | None = None
+    macro_tag: str | None = None
+    primary_symbol: str | None = None
+    priority_score: float
+    confidence_score: float
+    source_count: int
+    first_seen_at: UTCDateTime
+    last_seen_at: UTCDateTime
+
+
+class XRadarMacroClusterView(BaseModel):
+    macro_tag: str
+    title: str
+    signal_count: int
+    source_count: int
+    top_signal_ids: list[int] = Field(default_factory=list)
+
+
+class XRadarResponse(BaseModel):
+    priority_signals: list[XRadarSignalView]
+    macro_clusters: list[XRadarMacroClusterView]
+    evidence_stream: list[XPostSummaryView]
+
+
 class XHealthResponse(BaseModel):
     enabled: bool
     configured: bool

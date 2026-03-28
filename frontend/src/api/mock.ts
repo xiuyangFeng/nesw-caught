@@ -25,6 +25,7 @@ import type {
   XAccount,
   XHealth,
   XPost,
+  XRadarResponse,
   XRefreshResult,
 } from '../types/api';
 
@@ -626,6 +627,58 @@ export const mockXPosts: XPost[] = [
     symbols: ['NVDA'],
   },
 ];
+
+export const mockXRadar: XRadarResponse = {
+  priority_signals: [
+    {
+      id: 1,
+      signal_type: 'macro_event',
+      title: 'Tariff pressure is building around AI semis',
+      summary: 'Tracked accounts are flagging tariff and export-control risk around AI chip supply chains before the news cycle fully catches up.',
+      market: 'us',
+      topic_tag: 'macro',
+      macro_tag: 'tariff',
+      primary_symbol: 'NVDA',
+      priority_score: 95,
+      confidence_score: 0.88,
+      source_count: 2,
+      first_seen_at: isoMinutesAgo(24),
+      last_seen_at: isoMinutesAgo(8),
+    },
+    {
+      id: 2,
+      signal_type: 'multi_account_resonance',
+      title: 'Fed path discussion is starting to converge',
+      summary: 'Multiple tracked accounts are reacting to rate-cut odds and CPI language in the same window.',
+      market: 'us',
+      topic_tag: 'macro',
+      macro_tag: 'rate',
+      primary_symbol: 'SPY',
+      priority_score: 89,
+      confidence_score: 0.83,
+      source_count: 3,
+      first_seen_at: isoMinutesAgo(36),
+      last_seen_at: isoMinutesAgo(12),
+    },
+  ],
+  macro_clusters: [
+    {
+      macro_tag: 'tariff',
+      title: 'Tariff Watch',
+      signal_count: 1,
+      source_count: 2,
+      top_signal_ids: [1],
+    },
+    {
+      macro_tag: 'rate',
+      title: 'Rate Watch',
+      signal_count: 1,
+      source_count: 3,
+      top_signal_ids: [2],
+    },
+  ],
+  evidence_stream: mockXPosts,
+};
 
 export const mockXRefreshResult: XRefreshResult = {
   started_at: isoMinutesAgo(1),

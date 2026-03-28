@@ -59,6 +59,49 @@ const xMonitorStore = reactive({
       symbols: [],
     },
   ],
+  radar: {
+    priority_signals: [
+      {
+        id: 11,
+        signal_type: 'macro_event',
+        title: 'Tariff pressure is building around AI semis',
+        summary: 'Two tracked accounts are flagging tariff and export-control risk around AI chips.',
+        market: 'us',
+        topic_tag: 'macro',
+        macro_tag: 'tariff',
+        primary_symbol: 'NVDA',
+        priority_score: 95,
+        confidence_score: 0.88,
+        source_count: 2,
+        first_seen_at: '2026-03-19T07:40:00Z',
+        last_seen_at: '2026-03-19T08:04:00Z',
+      },
+    ],
+    macro_clusters: [
+      {
+        macro_tag: 'tariff',
+        title: 'Tariff Watch',
+        signal_count: 1,
+        source_count: 2,
+        top_signal_ids: [11],
+      },
+    ],
+    evidence_stream: [
+      {
+        id: 1,
+        account_handle: 'DeItaone',
+        account_display_name: 'Delta One',
+        content_text: 'NVDA suppliers remain in focus',
+        canonical_url: 'https://x.com/DeItaone/status/190001',
+        market: 'us',
+        sentiment_label: 'unknown',
+        relevance_score: null,
+        posted_at: '2026-03-19T08:00:00Z',
+        captured_at: '2026-03-19T08:01:00Z',
+        symbols: ['NVDA'],
+      },
+    ],
+  },
   searchQuery: 'NVDA',
   searchResults: [
     {
@@ -113,6 +156,7 @@ const xMonitorStore = reactive({
   bootstrap: vi.fn().mockResolvedValue(undefined),
   loadAccounts: vi.fn().mockResolvedValue(undefined),
   loadPosts: vi.fn().mockResolvedValue(undefined),
+  loadRadar: vi.fn().mockResolvedValue(undefined),
   refreshPosts: vi.fn().mockResolvedValue(undefined),
   searchPosts: vi.fn().mockResolvedValue(undefined),
   createAccount: vi.fn().mockResolvedValue(undefined),
@@ -139,6 +183,7 @@ describe('XMonitorView', () => {
     xMonitorStore.bootstrap.mockClear();
     xMonitorStore.loadAccounts.mockClear();
     xMonitorStore.loadPosts.mockClear();
+    xMonitorStore.loadRadar.mockClear();
     xMonitorStore.refreshPosts.mockClear();
     xMonitorStore.searchPosts.mockClear();
     xMonitorStore.createAccount.mockClear();
@@ -155,10 +200,15 @@ describe('XMonitorView', () => {
     });
   });
 
-  it('renders account management controls, tier badges, and hides muted posts by default', () => {
+  it('renders radar sections, account management controls, and hides muted posts by default', () => {
     const wrapper = mount(XMonitorView);
 
-    expect(wrapper.text()).toContain('twitterapi.io');
+    expect(wrapper.text()).toContain('X Radar');
+    expect(wrapper.text()).toContain('Priority Radar');
+    expect(wrapper.text()).toContain('Macro Watch');
+    expect(wrapper.text()).toContain('Evidence Feed');
+    expect(wrapper.text()).toContain('Tariff pressure is building around AI semis');
+    expect(wrapper.text()).toContain('Tariff Watch');
     expect(wrapper.text()).toContain('账号管理');
     expect(wrapper.text()).toContain('core');
     expect(wrapper.text()).toContain('muted');
