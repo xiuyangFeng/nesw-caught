@@ -747,6 +747,8 @@ describe('KlineDrawingOverlay', () => {
         toJSON: () => undefined,
       }) as DOMRect;
 
+    expect((overlay.element as HTMLElement).style.touchAction).toBe('none');
+
     const startEvent = dispatchTouchEvent(overlay.element, 'touchstart', { clientX: 200, clientY: 60 });
     expect(touchStartSpy).toHaveBeenCalledTimes(1);
     expect(startEvent.defaultPrevented).toBe(true);
@@ -871,6 +873,24 @@ describe('KlineDrawingOverlay', () => {
 
     elementFromPointSpy.mockRestore();
     underlying.remove();
+  });
+
+  it('restores native touch-action when the overlay is disabled', async () => {
+    const wrapper = mount(KlineDrawingOverlay, {
+      props: {
+        symbol: '0700.HK',
+        candles: [],
+        drawings: [],
+        draftAnchors: null,
+        activeTool: 'select',
+        selectedDrawingId: null,
+        disabled: true,
+      },
+      attachTo: document.body,
+    });
+
+    const overlay = wrapper.get('[data-role="kline-drawing-overlay"]');
+    expect((overlay.element as HTMLElement).style.touchAction).toBe('auto');
   });
 
   it('preserves multi-touch sequences for the underlying chart', async () => {

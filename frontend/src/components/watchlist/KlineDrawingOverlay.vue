@@ -218,6 +218,8 @@ const crosshair = computed(() =>
   }),
 );
 
+const overlayTouchAction = computed(() => (overlayDisabled.value ? 'auto' : 'none'));
+
 function fibLevels(points: ProjectedPoint[]) {
   const [start, end] = points;
   if (!start || !end) {
@@ -581,6 +583,7 @@ onBeforeUnmount(() => {
     class="absolute inset-0 z-10"
     data-role="kline-drawing-overlay"
     tabindex="0"
+    :style="{ touchAction: overlayTouchAction }"
     @click="onClick"
     @mousedown="onMousedown"
     @mousemove="onMousemove"

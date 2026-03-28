@@ -2,6 +2,19 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 19:23
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线触摸滚动 follow-up 修正
+- 变更内容：针对真机上“图表区域仍可能触发页面原生滚动”的 follow-up，给 `KlineDrawingOverlay` 增加显式 `touch-action: none`，在 overlay 可交互时直接关闭浏览器对该区域的默认触摸滚动接管，避免继续单纯依赖 JS `preventDefault()` 的时序；同时补充测试，锁定交互态为 `none`、禁用态回退为 `auto` 的契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineDrawingOverlay.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineDrawingOverlay.test.ts src/components/watchlist/KlineChart.test.ts` 通过（2 个文件 / 18 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前图表区域会明确禁止浏览器原生 page pan；如果后续要支持更细粒度的移动端对象编辑手势，可能需要把当前 touch 模型进一步统一到 Pointer Events
+
 ## 2026-03-28 19:14
 
 - 修改人：Codex
