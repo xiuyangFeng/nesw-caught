@@ -78,7 +78,7 @@ vi.mock('./KlineDrawingOverlay.vue', () => ({
 
 let addSeriesMock: ReturnType<typeof vi.fn>;
 let chartMock: ReturnType<typeof vi.fn>;
-let seriesMocks: Array<{ setData: ReturnType<typeof vi.fn> }>;
+let seriesMocks: Array<{ setData: ReturnType<typeof vi.fn>; setMarkers: ReturnType<typeof vi.fn> }>;
 
 vi.mock('lightweight-charts', () => ({
   createChart: (...args: unknown[]) => chartMock(...args),
@@ -98,7 +98,7 @@ describe('KlineChart', () => {
     });
     seriesMocks = [];
     addSeriesMock = vi.fn(() => {
-      const series = { setData: vi.fn() };
+      const series = { setData: vi.fn(), setMarkers: vi.fn() };
       seriesMocks.push(series);
       return series;
     });
@@ -106,11 +106,79 @@ describe('KlineChart', () => {
       addSeries: addSeriesMock,
       remove: vi.fn(),
       timeScale: () => ({ fitContent: vi.fn() }),
+      subscribeCrosshairMove: vi.fn(),
+      subscribeClick: vi.fn(),
     }));
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('does not mount news tooltip or popup until an event is present', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { createPinia, setActivePinia } = await import('pinia');
+    setActivePinia(createPinia());
+    const { default: KlineChart } = await import('./KlineChart.vue');
+
+    mount(KlineChart, {
+      props: {
+        currentPeriod: '1D',
+        klineData: {
+          symbol: '0700.HK',
+          interval: '1d',
+          range: '1y',
+          stale: false,
+          candles: [{ time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 }],
+          indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+          news_events: [],
+        },
+      },
+      attachTo: document.body,
+    });
+
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('Invalid prop: type check failed for prop "event"'));
+    warnSpy.mockRestore();
+  });
+
+  it('clears stale news markers when the next payload has no news events', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    setActivePinia(createPinia());
+    const { default: KlineChart } = await import('./KlineChart.vue');
+
+    const wrapper = mount(KlineChart, {
+      props: {
+        currentPeriod: '1D',
+        klineData: {
+          symbol: '0700.HK',
+          interval: '1d',
+          range: '1y',
+          stale: false,
+          candles: [{ time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 }],
+          indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+          news_events: [{ time: '2026-03-19', items: [{ id: 1, title: 'Tencent update', sentiment: 'positive', summary: 'AI expansion' }] }],
+        },
+      },
+      attachTo: document.body,
+    });
+
+    expect(seriesMocks[0]?.setMarkers).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ time: '2026-03-19', text: '1' })]),
+    );
+
+    await wrapper.setProps({
+      klineData: {
+        symbol: '0700.HK',
+        interval: '1d',
+        range: '1y',
+        stale: false,
+        candles: [{ time: '2026-03-19', open: 540, high: 552, low: 538, close: 550.5, volume: 1000 }],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+    });
+
+    expect(seriesMocks[0]?.setMarkers).toHaveBeenLastCalledWith([]);
   });
 
   it('renders trading-desk chrome, preserves chart rendering, and emits focus-news from event chips', async () => {

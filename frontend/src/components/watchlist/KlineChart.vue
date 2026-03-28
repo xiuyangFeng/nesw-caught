@@ -396,10 +396,11 @@ function renderChart() {
 
   // News markers
   const newsEvents = props.klineData?.news_events ?? [];
-  if (newsEvents.length && candleSeries) {
+  const markerApi = candleSeries as { setMarkers?: (markers: Array<{ time: string; position: 'belowBar'; color: string; shape: 'circle'; text: string; size: number }>) => void } | null;
+  if (markerApi?.setMarkers) {
     const markers = buildMarkers(newsEvents);
     markers.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
-    (candleSeries as any).setMarkers(markers);
+    markerApi.setMarkers(markers);
   }
 }
 
@@ -802,12 +803,14 @@ onBeforeUnmount(() => {
                 @drawing-group-delete="klineData?.symbol && chartStore.deleteSelectedDrawings(klineData.symbol)"
               />
               <KlineNewsTooltip
+                v-if="tooltipState.event"
                 :event="tooltipState.event!"
                 :x="tooltipState.x"
                 :y="tooltipState.y"
                 :visible="tooltipState.visible"
               />
               <KlineNewsPopup
+                v-if="popupState.event"
                 :event="popupState.event!"
                 :x="popupState.x"
                 :y="popupState.y"

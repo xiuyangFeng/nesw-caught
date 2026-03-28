@@ -2,6 +2,32 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-28 21:00
+
+- 修改人：Codex
+- 修改范围：K 线新闻 marker review follow-up 收口
+- 变更内容：继续处理 `worktree-kline-news-markers` 的前端 review。`KlineChart` 的 news marker 渲染逻辑改为只要 candlestick series 支持 `setMarkers()` 就始终同步 marker 状态，因此当新的 `klineData.news_events` 为空时会显式传入 `[]` 清空旧 marker，避免切换 symbol/周期后仍残留上一份新闻标记。同步补充回归测试，锁定“初始无 event 时不挂载 tooltip/popup”和“从有新闻切到无新闻时会清空 marker”两个契约；并把 lightweight-charts 测试 mock 补齐到当前 `setMarkers / subscribeCrosshairMove / subscribeClick` 接口，确保该路径在单测里真实覆盖。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.claude/worktrees/kline-news-markers/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.claude/worktrees/kline-news-markers/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.claude/worktrees/kline-news-markers/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本次已收口当前这组 K 线新闻 marker 前端 review finding；若后续继续扩展 hover/click 交互，建议再补针对 crosshair/click 订阅行为的组件级测试
+
+## 2026-03-28 20:51
+
+- 修改人：Codex
+- 修改范围：K 线新闻 tooltip/popup 初始空态 prop 契约修复
+- 变更内容：针对 review 指出的 `KlineChart` 初始渲染时把 `null` 传给 `KlineNewsTooltip` / `KlineNewsPopup` 必填 `event` prop 的问题，改为仅在 `tooltipState.event` 或 `popupState.event` 存在时才挂载对应组件，消除 Vue invalid-prop warning，并保持子组件的 `NewsEventMarker` 类型契约不放宽。同步补齐 `KlineChart` 测试里的 lightweight-charts mock 能力，新增回归测试锁定“初始无新闻事件时不挂载 tooltip/popup”。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.claude/worktrees/kline-news-markers/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.claude/worktrees/kline-news-markers/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.claude/worktrees/kline-news-markers/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 通过（1 个文件 / 3 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本次只修复 review 中的 prop 契约问题；该工作树里其他前端 review finding 仍需单独处理
+
 ## 2026-03-28 19:41
 
 - 修改人：Codex
