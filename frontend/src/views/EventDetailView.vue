@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { apiClient } from '../api/client';
@@ -15,27 +15,14 @@ const router = useRouter();
 const loading = ref(false);
 const errorState = ref<'not-found' | 'error' | null>(null);
 const eventDetail = ref<NewsEventDetail | null>(null);
-const eventKey = computed(() => String(route.params.eventKey ?? ''));
-
-const sortedNewsItems = computed(() =>
-  [...(eventDetail.value?.news_items ?? [])].sort((left, right) => {
-    const rightTime = Date.parse(getNewsDisplayTimestamp(right) ?? '');
-    const leftTime = Date.parse(getNewsDisplayTimestamp(left) ?? '');
-    const normalizedRight = Number.isNaN(rightTime) ? 0 : rightTime;
-    const normalizedLeft = Number.isNaN(leftTime) ? 0 : leftTime;
-    if (normalizedRight !== normalizedLeft) {
-      return normalizedRight - normalizedLeft;
-    }
-    return right.id - left.id;
-  }),
-);
+const eventKey = () => String(route.params.eventKey ?? '');
 
 async function loadEventDetail() {
   loading.value = true;
   errorState.value = null;
   eventDetail.value = null;
   try {
-    const response = await apiClient.getNewsEventDetail(eventKey.value);
+    const response = await apiClient.getNewsEventDetail(eventKey());
     eventDetail.value = response.data;
   } catch (error) {
     if (error instanceof HttpError && error.status === 404) {
@@ -53,7 +40,7 @@ function backToFeed() {
 }
 
 watch(
-  () => eventKey.value,
+  () => eventKey(),
   async () => {
     await loadEventDetail();
   },
@@ -103,7 +90,7 @@ watch(
         <SectionCard title="Timeline" subtitle="只展示当前事件挂载的新闻，按时间倒序排列。">
           <div class="grid gap-3">
             <article
-              v-for="item in sortedNewsItems"
+              v-for="item in eventDetail.news_items"
               :key="item.id"
               class="grid gap-2 rounded-[18px] border border-border bg-panel-soft px-4 py-4"
             >

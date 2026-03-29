@@ -581,3 +581,89 @@ def test_get_event_detail_reconstructs_fused_event_with_full_news_items() -> Non
     assert detail.event_key == fused_key
     assert detail.news_count == 4
     assert len(detail.news_items) == 4
+
+
+def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null_published_last() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    topic = _topic(
+        1,
+        title="AI Chip Launch",
+        summary="Launch follow-up.",
+        keywords=["ai", "chip", "launch"],
+        importance_score=0.91,
+        last_seen_at=now,
+        related_symbols=["NVDA"],
+        sentiment_label="positive",
+    )
+    published_latest = _news_item(
+        10,
+        title="Published latest",
+        summary="Newest published story.",
+        source_name="Reuters",
+        published_at=datetime(2026, 3, 28, 9, 5, tzinfo=timezone.utc),
+    )
+    fetched_only = _news_item(
+        11,
+        title="Fetched only",
+        summary="No published_at, but fetched later.",
+        source_name="Bloomberg",
+        published_at=now,
+    )
+    fetched_only.published_at = None
+    fetched_only.fetched_at = datetime(2026, 3, 28, 9, 30, tzinfo=timezone.utc)
+    published_older = _news_item(
+        12,
+        title="Published older",
+        summary="Older published story.",
+        source_name="WSJ",
+        published_at=datetime(2026, 3, 28, 8, 50, tzinfo=timezone.utc),
+    )
+
+    detail = NewsFeedLayoutService._build_event_detail(
+        "topic-1",
+        topic_views=[topic],
+        topic_news_map={1: [fetched_only, published_older, published_latest]},
+        topic_mentions_map={1: ["NVDA"]},
+    )
+
+    assert detail is not None
+    assert [item.title for item in detail.news_items] == [
+        "Published latest",
+        "Published older",
+        "Fetched only",
+    ]
+
+
+def test_get_event_detail_does_not_truncate_large_event_news_items() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    topic = _topic(
+        1,
+        title="Large Event",
+        summary="Large event summary.",
+        keywords=["large", "event"],
+        importance_score=0.91,
+        last_seen_at=now,
+        related_symbols=["NVDA"],
+    )
+    news_items = [
+        _news_item(
+            news_id,
+            title=f"Story {news_id}",
+            summary="Bulk story.",
+            source_name=f"Source-{news_id % 7}",
+            published_at=datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc),
+        )
+        for news_id in range(1, 506)
+    ]
+
+    detail = NewsFeedLayoutService._build_event_detail(
+        "topic-1",
+        topic_views=[topic],
+        topic_news_map={1: news_items},
+        topic_mentions_map={1: ["NVDA"]},
+    )
+
+    assert detail is not None
+    assert detail.news_count == 505
+    assert detail.source_count == 7
+    assert len(detail.news_items) == 505

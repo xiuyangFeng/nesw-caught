@@ -195,11 +195,16 @@ def _event_type_from_texts(texts: Iterable[str]) -> str:
     return "general"
 
 
-def _news_sort_key(item: NewsItemSummary) -> tuple[int, datetime | None, datetime, int]:
+def _timestamp_value(value: datetime | None) -> float:
+    if value is None:
+        return float("-inf")
+    return value.timestamp()
+
+
+def _news_sort_key(item: NewsItemSummary) -> tuple[float, float, int]:
     return (
-        item.published_at is None,
-        item.published_at,
-        item.fetched_at,
+        _timestamp_value(item.published_at),
+        _timestamp_value(item.fetched_at),
         item.id,
     )
 
@@ -242,7 +247,10 @@ def _should_fuse(card_a: NewsFeedEventCardView, card_b: NewsFeedEventCardView) -
 
 
 def _merge_cards(
-    primary: NewsFeedEventCardView, secondary: NewsFeedEventCardView, *, max_news_items: int = 3
+    primary: NewsFeedEventCardView,
+    secondary: NewsFeedEventCardView,
+    *,
+    max_news_items: int | None = 3,
 ) -> NewsFeedEventCardView:
     seen_ids: set[int] = {item.id for item in primary.news_items}
     merged_news = list(primary.news_items)
@@ -275,14 +283,14 @@ def _merge_cards(
         related_symbols=merged_symbols,
         source_count=merged_source_count,
         news_count=merged_news_count,
-        news_items=merged_news[:max_news_items],
+        news_items=merged_news[:max_news_items] if max_news_items is not None else merged_news,
     )
 
 
 def fuse_event_cards(
     cards: list[NewsFeedEventCardView],
     *,
-    max_news_items: int = 3,
+    max_news_items: int | None = 3,
 ) -> list[NewsFeedEventCardView]:
     if len(cards) <= 1:
         return cards
@@ -307,7 +315,7 @@ def build_event_cards(
     *,
     topic_news_map: dict[int, list[NewsItemSummary]],
     topic_mentions_map: dict[int, list[str]],
-    max_news_items: int = 3,
+    max_news_items: int | None = 3,
 ) -> list[NewsFeedEventCardView]:
     weight_map = _source_weight_map()
     event_cards: list[NewsFeedEventCardView] = []
@@ -350,7 +358,9 @@ def build_event_cards(
                 related_symbols=related_symbols,
                 source_count=source_count,
                 news_count=len(news_items),
-                news_items=news_items[:max_news_items],
+                news_items=news_items[:max_news_items]
+                if max_news_items is not None
+                else news_items,
             )
         )
 
@@ -487,7 +497,7 @@ class NewsFeedLayoutService:
             topic_views,
             topic_news_map=topic_news_map,
             topic_mentions_map=topic_mentions_map,
-            max_news_items=500,
+            max_news_items=None,
         )
         full_event_card = next((card for card in full_cards if card.event_key == event_key), None)
         if full_event_card is None:

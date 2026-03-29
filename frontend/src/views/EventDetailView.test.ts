@@ -87,7 +87,7 @@ describe('EventDetailView', () => {
     });
   });
 
-  it('loads event detail from the backend and renders a sorted timeline', async () => {
+  it('loads event detail from the backend and preserves backend timeline order', async () => {
     const wrapper = mount(EventDetailView);
     await flushPromises();
 
@@ -97,7 +97,7 @@ describe('EventDetailView', () => {
     expect(wrapper.text()).toContain('SMCI');
 
     const timelineTitles = wrapper.findAll('[data-role="event-timeline-title"]').map((node) => node.text());
-    expect(timelineTitles).toEqual(['Published later', 'Late fetched source', 'No timestamp']);
+    expect(timelineTitles).toEqual(['Late fetched source', 'Published later', 'No timestamp']);
     expect(wrapper.text()).toContain('摘要待补充');
   });
 

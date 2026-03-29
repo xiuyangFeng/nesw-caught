@@ -49,7 +49,6 @@ import {
   mockNewsAnalyses,
   mockNews,
   mockNewsDetails,
-  mockNewsEventDetails,
   mockNewsFeedLayout,
   mockNewsRefreshResult,
   mockNewsRuntimeStatus,
@@ -134,17 +133,7 @@ export const apiClient = {
         }
         return response.json() as Promise<NewsEventDetail>;
       })
-      .then((data) => ({ data, degraded: false }))
-      .catch((error) => {
-        if (error instanceof HttpError) {
-          throw error;
-        }
-        const fallback = mockNewsEventDetails[eventKey];
-        if (!fallback) {
-          throw new HttpError('event not found', 404);
-        }
-        return { data: fallback, degraded: true };
-      });
+      .then((data) => ({ data, degraded: false }));
   },
   getNewsDetail(id: number) {
     return withMockFallback<NewsDetail | null>(

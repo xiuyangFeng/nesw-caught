@@ -318,4 +318,12 @@ describe('apiClient.getNewsEventDetail', () => {
       status: 500,
     });
   });
+
+  it('surfaces network failures instead of falling back to mock data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network offline')));
+
+    await expect(apiClient.getNewsEventDetail('topic-1')).rejects.toMatchObject({
+      message: 'network offline',
+    });
+  });
 });
