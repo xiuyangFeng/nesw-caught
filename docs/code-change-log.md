@@ -2,6 +2,58 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-29 23:37
+
+- 修改人：Codex
+- 修改范围：首页新闻发现重构、壳层导航优先级、Dashboard 次级化、前端回归测试
+- 变更内容：把前端首页默认落点从 `/dashboard` 改为 `/news`，新增 `frontend/src/router/index.test.ts` 锁定根路由进入新闻发现页。`AppShell` 同步从 dashboard-first 调整为 news-first：侧边导航把 `Latest Events` 提到 `01`，壳层 desk/workspace 文案改为 latest-event discovery 语义，并为新闻 layout 刷新路径补上 `feedQuery?.market` 的可空守卫，避免 SSE 事件到达时访问未初始化查询状态报错。`NewsFeedView` 重新 framing 为紧凑型 `Latest Events` 首页，弱化原有 `Signal Desk` 文案；`EventFeedCard` 改成更高密度的事件行，移除大块摘要，保留时间、事件类型、市场、主 symbol、相关 symbol、来源数和轻量 evidence 汇总，同时把底部证据入口收口为可聚焦的 story buttons，避免把整卡硬绑到 `news_items[0]` 并恢复键盘可达性；原始新闻流在首页中统一改走 `stream-compact` 以降低视觉权重。`DashboardView` 改为 secondary overview 语义，只保留次级总览定位，不再作为主控制台叙事。同步新增/更新路由、AppShell、EventFeedCard、NewsFeedView、DashboardView 的测试，前端全量测试恢复为全绿。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/router/index.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/EventFeedCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/news/EventFeedCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/DashboardView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-29-news-discovery-homepage-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-29-news-discovery-homepage-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无；继续复用现有 `feed-layout.events` 契约，没有新增前后端字段
+- 验证情况：`npm --prefix frontend run test -- --run src/router/index.test.ts src/components/layout/AppShell.test.ts src/components/news/EventFeedCard.test.ts src/views/NewsFeedView.test.ts src/views/DashboardView.test.ts` 通过（5 个文件 / 31 个用例）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run test -- --run` 通过（39 个文件 / 156 个用例）
+- 风险/后续事项：当前首页仍保留 topic 和 raw stream 两个 secondary evidence 区块，后续如果要继续提高首屏密度，可以进一步压缩辅助区块；另外，本次只做“广收事件 + 首页重心重排”，未引入 AI 过滤与个性化排序
+
+## 2026-03-29 23:34
+
+- 修改人：Codex
+- 修改范围：新闻发现首页、事件卡片密度、首页文案与回归测试
+- 变更内容：将 `NewsFeedView` 的首屏 framing 从偏 `Signal Desk` 的控制台文案改为 `Latest Events` 的紧凑事件发现页，首页副标题改为先看最新事件、再看主题和原始新闻流；把 `EventFeedCard` 压缩成更密集的事件行，移除大块摘要展示，改为事件级元数据和更轻量的来源证据汇总，并保留点击首条新闻的跳转行为；把原始新闻流卡片在首页中改为更紧凑的 `stream-compact` 呈现。同步新增 `EventFeedCard.test.ts`，并调整 `NewsFeedView.test.ts` 锁定 compact latest-events framing。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/components/news/EventFeedCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/components/news/EventFeedCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/views/NewsFeedView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/news/EventFeedCard.test.ts src/views/NewsFeedView.test.ts` 通过（2 个文件 / 14 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：首页仍保留 topic 和 raw stream 作为 secondary evidence layers，后续若要进一步压缩首屏，还可以继续收紧这些辅助区块的行高和信息量，但本次未引入新数据契约
+
+## 2026-03-29 23:30
+
+- 修改人：Codex
+- 修改范围：前端根路由重定向、AppShell 新闻流刷新守卫、AppShell 回归测试
+- 变更内容：将前端根路径 `/` 的重定向目标从 `/dashboard` 改为 `/news`，让应用落地后直接进入新闻发现页而不是仪表盘。`AppShell` 的新闻流刷新辅助函数改为通过 `newsStore.feedQuery?.market` 读取市场条件，避免在 `feedQuery` 尚未初始化或被清空时访问 `market` 抛错；当 `feedQuery` 缺失时仍会以空市场参数刷新 layout。同步补充回归测试，覆盖根路由跳转到新闻页，以及 `feedQuery` 缺失时的安全刷新路径。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/components/layout/AppShell.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/frontend/src/components/layout/AppShell.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-discovery-homepage/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/layout/AppShell.test.ts` 通过（11 个用例）
+- 风险/后续事项：当前只修复了 shell 里的显式刷新入口；如果后续还有其他直接读取 `newsStore.feedQuery` 的路径，建议统一收口到同一类可空访问模式
+
 ## 2026-03-28 21:14
 
 - 修改人：Codex

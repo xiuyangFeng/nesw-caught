@@ -25,8 +25,8 @@ let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
 let shellDisposed = false;
 
 const navItems = [
-  { label: 'Dashboard', to: '/dashboard', index: '01' },
-  { label: 'News Feed', to: '/news', index: '02' },
+  { label: 'Latest Events', to: '/news', index: '01' },
+  { label: 'Dashboard', to: '/dashboard', index: '02' },
   { label: 'Watchlist', to: '/watchlist', index: '03' },
   { label: 'X Monitor', to: '/x-monitor', index: '04' },
   { label: 'LLM Settings', to: '/settings/llm', index: '05' },
@@ -173,8 +173,9 @@ function refreshNewsFeedLayoutIfVisible() {
   if (!route.path.startsWith('/news')) {
     return;
   }
+  const market = newsStore.feedQuery?.market || undefined;
   void newsStore.loadFeedLayout({
-    market: newsStore.feedQuery.market || undefined,
+    market,
     limit_events: 6,
     limit_topics: 6,
     limit_stream: newsFeedLayoutStreamLimit,
@@ -276,9 +277,9 @@ onBeforeUnmount(() => {
             class="inline-flex w-fit items-center rounded-full border border-border bg-white/[0.03] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted"
             data-role="system-desk-chip"
           >
-            Desk
+            Discovery
           </span>
-          <small class="text-[11px] uppercase tracking-[0.12em] text-[#8ea0b5]">/ News / Topics / Movers</small>
+          <small class="text-[11px] uppercase tracking-[0.12em] text-[#8ea0b5]">/ Events / Evidence</small>
         </div>
       </div>
       <nav class="grid gap-1.5" data-role="primary-nav">
@@ -366,7 +367,7 @@ onBeforeUnmount(() => {
               </small>
             </div>
           </div>
-          <small class="uppercase tracking-[0.08em]">Workspace multi-market watch</small>
+          <small class="uppercase tracking-[0.08em]">Workspace latest-event discovery</small>
         </div>
       </div>
     </aside>
@@ -389,7 +390,7 @@ onBeforeUnmount(() => {
             {{ connectionStore.lastEventAt ? formatMarketTime(connectionStore.lastEventAt, 'hk') : '--' }}
             HKT
           </span>
-          <span>Workspace multi-market watch</span>
+          <span>Workspace latest-event discovery</span>
         </div>
       </section>
 

@@ -114,16 +114,17 @@ describe('DashboardView', () => {
     connectionStore.streamError = null;
   });
 
-  it('renders terminal-style dashboard labels and live modules', () => {
+  it('renders dashboard as a secondary overview instead of the primary control room', () => {
     const wrapper = mount(DashboardView);
     const columnRoles = wrapper
       .findAll('[data-role^="dashboard-column-"]')
       .map((node) => node.attributes('data-role'))
       .filter((value) => value !== 'dashboard-column-scroller');
 
-    expect(wrapper.text()).toContain('Market Control');
-    expect(wrapper.text()).toContain('Control Room');
-    expect(wrapper.text()).toContain('Signal Overview');
+    expect(wrapper.text()).toContain('Secondary Overview');
+    expect(wrapper.text()).toContain('Overview Snapshot');
+    expect(wrapper.text()).not.toContain('Market Control');
+    expect(wrapper.text()).not.toContain('Control Room');
     expect(wrapper.text()).toContain('Live Movers');
     expect(wrapper.find('[data-role="dashboard-hero"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="dashboard-columns"]').exists()).toBe(true);

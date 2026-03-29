@@ -145,10 +145,10 @@ const metrics = computed(() => {
   <div class="grid gap-4">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Control Room</p>
+        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Secondary Overview</p>
         <h1 class="page-title">Dashboard</h1>
         <p class="page-subtitle">
-          Market Control：把连接状态、情绪概览、主题聚合和自选股异动压缩到同一块总览面板里。
+          Overview Snapshot：为最新事件页提供连接状态、主题聚合和自选股异动的次级总览。
         </p>
       </div>
       <div class="flex items-center gap-2 self-start">
@@ -166,7 +166,7 @@ const metrics = computed(() => {
     </header>
 
     <div data-role="dashboard-hero">
-      <p class="mb-2.5 text-[11px] uppercase tracking-[0.18em] text-system">Signal Overview</p>
+      <p class="mb-2.5 text-[11px] uppercase tracking-[0.18em] text-system">Overview Snapshot</p>
       <HeroMetrics :metrics="metrics" />
     </div>
 

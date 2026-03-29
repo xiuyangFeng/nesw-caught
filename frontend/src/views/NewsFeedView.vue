@@ -243,8 +243,8 @@ watch(useVirtualScrolling, (enabled) => {
   <div class="grid gap-[14px]">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <h1 class="page-title">News Feed</h1>
-        <p class="page-subtitle">Signal Desk：按当前新闻顺序直接平铺，统一用紧凑横向卡片快速扫读。</p>
+        <h1 class="page-title">Latest Events</h1>
+        <p class="page-subtitle">Compact scan of the latest market events, then supporting topics and raw evidence.</p>
       </div>
       <StaleBadge :stale="newsStore.feedStale" label="新闻列表" />
     </header>
@@ -259,11 +259,10 @@ watch(useVirtualScrolling, (enabled) => {
     <section class="surface grid gap-[18px] rounded-[22px] p-5" data-role="news-feed-shell">
       <div class="flex flex-col items-start justify-between gap-4 xl:flex-row">
         <div>
-          <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Control Station</p>
-          <p class="mb-2 text-[11px] uppercase tracking-[0.18em] text-accent">Signal Desk</p>
-          <h2 class="m-0 text-[28px] tracking-[-0.035em] text-text">News Stream</h2>
+          <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">News Feed</p>
+          <h2 class="m-0 text-[30px] tracking-[-0.04em] text-text">Latest Events</h2>
           <p class="mt-2 max-w-[60ch] leading-[1.65] text-muted">
-            先看事件，再看主题，最后保留原始新闻流作为证据层。
+            先扫最新事件，再看主题簇和原始新闻流作为证据层。
           </p>
         </div>
         <div
@@ -308,7 +307,7 @@ watch(useVirtualScrolling, (enabled) => {
         <SectionCard
           eyebrow="Lead Layer"
           title="Event Radar"
-          subtitle="首页首屏先展示聚合后的市场事件主卡，再挂载对应新闻。"
+          subtitle="首页首屏先展示聚合后的市场事件主卡，卡片只保留事件级元数据。"
           compact
           data-role="event-radar-shell"
         >
@@ -349,8 +348,8 @@ watch(useVirtualScrolling, (enabled) => {
 
         <SectionCard
           eyebrow="Live Flow"
-          title="News Stream"
-          subtitle="统一横向卡片，保持当前顺序，方便连续扫读和快速点进详情。"
+          title="Raw Stream"
+          subtitle="保留原始新闻卡片作为证据层，优先级低于事件和主题。"
           compact
           data-role="news-stream-shell"
         >
@@ -365,7 +364,7 @@ watch(useVirtualScrolling, (enabled) => {
               v-for="entry in orderedEntries"
               :key="entry.item.id"
               :entry="entry"
-              variant="stream"
+              variant="stream-compact"
               @open="openStory"
             />
           </div>

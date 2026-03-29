@@ -176,12 +176,14 @@ describe('NewsFeedView', () => {
     newsStore.detailMap = detailMap;
   });
 
-  it('renders event radar first, then topic watch, then raw stream', () => {
+  it('frames the page as compact latest-event discovery instead of signal desk copy', () => {
     const wrapper = mount(NewsFeedView);
 
+    expect(wrapper.text()).toContain('Latest Events');
+    expect(wrapper.text()).not.toContain('Signal Desk');
     expect(wrapper.text()).toContain('Event Radar');
     expect(wrapper.text()).toContain('Topic Watch');
-    expect(wrapper.text()).toContain('Control Station');
+    expect(wrapper.text()).toContain('Raw Stream');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="filter-bar"]').classes()).toContain('rounded-[16px]');
     expect(wrapper.find('[data-role="news-feed-shell"]').exists()).toBe(true);

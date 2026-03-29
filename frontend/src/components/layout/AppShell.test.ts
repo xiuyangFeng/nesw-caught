@@ -19,7 +19,11 @@ const connectionStore = {
 const newsStore = {
   loadDashboardNews: vi.fn(async () => undefined),
   loadNewsRuntime: vi.fn(async () => undefined),
+  loadFeedLayout: vi.fn(async () => undefined),
   refreshDashboardNews: vi.fn(async () => false),
+  feedQuery: {
+    market: 'us',
+  },
   upsertNews: vi.fn(),
   upsertNewsUpdate: vi.fn(),
 };
@@ -113,7 +117,11 @@ describe('AppShell', () => {
     connectionStore.disconnect.mockClear();
     newsStore.loadDashboardNews.mockClear();
     newsStore.loadNewsRuntime.mockClear();
+    newsStore.loadFeedLayout.mockClear();
     newsStore.refreshDashboardNews.mockClear();
+    newsStore.feedQuery = {
+      market: 'us',
+    };
     newsStore.upsertNews.mockClear();
     newsStore.upsertNewsUpdate.mockClear();
     marketStore.loadSnapshots.mockClear();
@@ -130,19 +138,19 @@ describe('AppShell', () => {
 
     expect(wrapper.find('[data-role="system-header"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="system-desk-chip"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="system-desk-note"]').text()).toContain('Desk / News / Topics / Movers');
+    expect(wrapper.find('[data-role="system-desk-note"]').text()).toContain('Discovery / Events / Evidence');
     expect(wrapper.text()).not.toContain('跟踪新闻、主题热度、自选股异动与流式连接状态。');
     expect(wrapper.find('[data-role="primary-nav"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="system-status"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="shell-status-rail"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('SSE LIVE');
-    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('Workspace multi-market watch');
+    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('Workspace latest-event discovery');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('Last event');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('market_quote_producer');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('provider timeout');
     expect(wrapper.find('[data-role="runtime-diagnostic-headline"]').text()).toContain('market worker');
     expect(wrapper.find('[data-role="runtime-diagnostic-action"]').text()).toContain('打开 Watchlist');
-    expect(wrapper.find('[data-role="system-status"]').text()).toContain('Workspace multi-market watch');
+    expect(wrapper.find('[data-role="system-status"]').text()).toContain('Workspace latest-event discovery');
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });
 
@@ -167,8 +175,8 @@ describe('AppShell', () => {
 
     const activeLink = wrapper.find('[data-route-active="true"]');
     expect(activeLink.exists()).toBe(true);
-    expect(activeLink.text()).toContain('News Feed');
-    expect(activeLink.text()).toContain('02');
+    expect(activeLink.text()).toContain('Latest Events');
+    expect(activeLink.text()).toContain('01');
     expect(activeLink.text()).toContain('MODULE');
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
@@ -306,5 +314,54 @@ describe('AppShell', () => {
     wrapper.unmount();
 
     expect(connectionStore.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes the news feed layout safely when feedQuery is missing', async () => {
+    (newsStore as { feedQuery?: { market?: string } | undefined }).feedQuery = undefined;
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
+    expect(handleEvent).toBeTypeOf('function');
+
+    expect(() =>
+      handleEvent({
+        type: 'news.created',
+        occurred_at: '2026-03-25T02:31:00Z',
+        payload: {
+          id: 8,
+          title: 'Fresh headline',
+          summary: 'Fresh summary',
+          source_name: 'Reuters',
+          canonical_url: 'https://example.com/fresh',
+          market: 'us',
+          sentiment_label: 'neutral',
+          published_at: '2026-03-25T02:30:00Z',
+          fetched_at: '2026-03-25T02:31:00Z',
+        },
+      }),
+    ).not.toThrow();
+
+    expect(newsStore.loadFeedLayout).toHaveBeenCalledWith({
+      market: undefined,
+      limit_events: 6,
+      limit_topics: 6,
+      limit_stream: 100,
+    });
+
+    wrapper.unmount();
+  });
+
+  it('redirects root navigation to the news discovery page', async () => {
+    vi.resetModules();
+    vi.doUnmock('vue-router');
+
+    const { default: router } = await import('../../router');
+
+    await router.push('/');
+
+    expect(router.currentRoute.value.path).toBe('/news');
+    expect(router.currentRoute.value.name).toBe('news-feed');
   });
 });
