@@ -246,3 +246,76 @@ describe('apiClient.getNewsRuntime', () => {
     expect(response.data.sources).toHaveLength(1);
   });
 });
+
+describe('apiClient.getNewsEventDetail', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('loads event detail from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          event_key: 'topic-1',
+          event_title: 'AI Chip Launch',
+          event_summary: 'Summary',
+          event_type: 'product',
+          market: 'us',
+          sentiment_label: 'positive',
+          importance_score: 0.91,
+          last_seen_at: '2026-03-30T00:00:00Z',
+          primary_symbol: 'NVDA',
+          related_symbols: ['NVDA', 'SMCI'],
+          source_count: 2,
+          news_count: 2,
+          news_items: [],
+        }),
+      }),
+    );
+
+    const response = await apiClient.getNewsEventDetail('topic-1');
+
+    expect(fetch).toHaveBeenCalledWith('/api/news/events/topic-1', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.event_key).toBe('topic-1');
+  });
+
+  it('preserves backend 404 errors for the caller', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ detail: 'event not found' }),
+      }),
+    );
+
+    await expect(apiClient.getNewsEventDetail('topic-504')).rejects.toMatchObject({
+      message: 'event not found',
+      status: 404,
+    });
+  });
+
+  it('preserves backend 500 errors for the caller', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ detail: 'event detail rebuild failed' }),
+      }),
+    );
+
+    await expect(apiClient.getNewsEventDetail('topic-504')).rejects.toMatchObject({
+      message: 'event detail rebuild failed',
+      status: 500,
+    });
+  });
+});

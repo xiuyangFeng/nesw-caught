@@ -218,6 +218,10 @@ function openStory(id: number) {
   router.push({ name: 'news-detail', params: { id } });
 }
 
+function openEvent(eventKey: string) {
+  router.push({ name: 'event-detail', params: { eventKey } });
+}
+
 onMounted(async () => {
   await Promise.all([
     newsStore.loadFeedLayout({ limit_events: 6, limit_topics: 6, limit_stream: FEED_LAYOUT_STREAM_LIMIT }),
@@ -244,27 +248,19 @@ watch(useVirtualScrolling, (enabled) => {
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
         <h1 class="page-title">Latest Events</h1>
-        <p class="page-subtitle">Compact scan of the latest market events, then supporting topics and raw evidence.</p>
+        <p class="page-subtitle">聚焦最新市场事件，按事件优先、证据随后展开。</p>
       </div>
       <StaleBadge :stale="newsStore.feedStale" label="新闻列表" />
     </header>
 
-    <StatusBanner
-      kicker="Runtime"
-      :title="runtimeBannerTitle"
-      :tone="runtimeBannerTone"
-      :detail="runtimeBannerDetail"
-    />
-
     <section class="surface grid gap-[18px] rounded-[22px] p-5" data-role="news-feed-shell">
-      <div class="flex flex-col items-start justify-between gap-4 xl:flex-row">
-        <div>
-          <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">News Feed</p>
-          <h2 class="m-0 text-[30px] tracking-[-0.04em] text-text">Latest Events</h2>
-          <p class="mt-2 max-w-[60ch] leading-[1.65] text-muted">
-            先扫最新事件，再看主题簇和原始新闻流作为证据层。
-          </p>
-        </div>
+      <div class="grid gap-3" data-role="news-feed-toolbar">
+        <StatusBanner
+          kicker="Runtime"
+          :title="runtimeBannerTitle"
+          :tone="runtimeBannerTone"
+          :detail="runtimeBannerDetail"
+        />
         <div
           class="flex flex-wrap gap-2 rounded-[16px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-2.5"
           data-role="filter-bar"
@@ -316,7 +312,8 @@ watch(useVirtualScrolling, (enabled) => {
               v-for="event in filteredEvents"
               :key="event.event_key"
               :event="event"
-              @open="openStory"
+              @open-event="openEvent"
+              @open-story="openStory"
             />
           </div>
           <p v-else class="text-sm text-muted">Event Radar 暂无聚合事件</p>

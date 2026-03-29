@@ -5,6 +5,7 @@ import math
 from app.schemas.news import NewsItemSummary
 from app.schemas.topic import TopicItemView
 from app.services.news_feed_layout import (
+    NewsFeedLayoutService,
     build_event_cards,
     fuse_event_cards,
     _event_type_from_texts,
@@ -522,3 +523,61 @@ def test_merge_cards_recomputes_unique_story_and_source_counts() -> None:
     assert merged.news_count == 2
     assert merged.source_count == 2
     assert len(merged.news_items) == 2
+
+
+def test_get_event_detail_reconstructs_fused_event_with_full_news_items() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    first = _topic(
+        1,
+        title="NVIDIA AI Chip Launch",
+        summary="Primary launch story.",
+        keywords=["nvidia", "chip", "launch"],
+        importance_score=0.91,
+        last_seen_at=now,
+        related_symbols=["NVDA", "SMCI"],
+        sentiment_label="positive",
+    )
+    second = _topic(
+        2,
+        title="NVIDIA AI Platform Release",
+        summary="Follow-up platform release.",
+        keywords=["nvidia", "platform", "release"],
+        importance_score=0.88,
+        last_seen_at=now,
+        related_symbols=["NVDA", "AMD"],
+        sentiment_label="positive",
+    )
+    topic_views = [first, second]
+    topic_news_map = {
+        1: [
+            _news_item(1, title="Story A", summary="A", source_name="Reuters", published_at=now),
+            _news_item(2, title="Story B", summary="B", source_name="Bloomberg", published_at=now),
+        ],
+        2: [
+            _news_item(3, title="Story C", summary="C", source_name="WSJ", published_at=now),
+            _news_item(4, title="Story D", summary="D", source_name="The Verge", published_at=now),
+        ],
+    }
+    topic_mentions_map = {
+        1: ["NVDA", "SMCI"],
+        2: ["NVDA", "AMD"],
+    }
+
+    cards = build_event_cards(
+        topic_views,
+        topic_news_map=topic_news_map,
+        topic_mentions_map=topic_mentions_map,
+    )
+    fused_key = cards[0].event_key
+
+    detail = NewsFeedLayoutService._build_event_detail(
+        fused_key,
+        topic_views=topic_views,
+        topic_news_map=topic_news_map,
+        topic_mentions_map=topic_mentions_map,
+    )
+
+    assert detail is not None
+    assert detail.event_key == fused_key
+    assert detail.news_count == 4
+    assert len(detail.news_items) == 4

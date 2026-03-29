@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
-from app.schemas.news import NewsArticleView, NewsDetailView, NewsFeedLayoutView, NewsItemSummary, NewsMentionView, NewsTopicRefView
+from app.schemas.news import NewsArticleView, NewsDetailView, NewsEventDetailView, NewsFeedLayoutView, NewsItemSummary, NewsMentionView, NewsTopicRefView
 from app.schemas.llm import NewsAnalysisView
 from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView, NewsRuntimeView
 from app.services.event_bus import get_event_bus
@@ -82,6 +82,14 @@ def get_news_feed_layout(
         limit_topics=limit_topics,
         limit_stream=limit_stream,
     )
+
+
+@router.get("/events/{event_key}", response_model=NewsEventDetailView)
+def get_news_event_detail(event_key: str, session: Session = Depends(get_db_session)) -> NewsEventDetailView:
+    detail = NewsFeedLayoutService(session).get_event_detail(event_key)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="event not found")
+    return detail
 
 
 @router.get("/{news_id}/analysis", response_model=NewsAnalysisView | None)

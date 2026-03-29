@@ -24,4 +24,14 @@ describe('router', () => {
     expect(router.currentRoute.value.path).toBe('/news');
     expect(router.currentRoute.value.name).toBe('news-feed');
   });
+
+  it('resolves event detail routes by event key', async () => {
+    const { default: router } = await import('./index');
+
+    await router.push('/news/events/topic-1');
+
+    expect(router.currentRoute.value.path).toBe('/news/events/topic-1');
+    expect(router.currentRoute.value.name).toBe('event-detail');
+    expect(router.currentRoute.value.params).toEqual({ eventKey: 'topic-1' });
+  });
 });

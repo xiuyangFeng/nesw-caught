@@ -60,6 +60,10 @@ class NewsFeedEventCardView(BaseModel):
     news_items: list[NewsItemSummary]
 
 
+class NewsEventDetailView(NewsFeedEventCardView):
+    pass
+
+
 class NewsFeedTopicView(BaseModel):
     id: int
     topic_title: str

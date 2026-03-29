@@ -179,13 +179,16 @@ describe('NewsFeedView', () => {
   it('frames the page as compact latest-event discovery instead of signal desk copy', () => {
     const wrapper = mount(NewsFeedView);
 
-    expect(wrapper.text()).toContain('Latest Events');
+    expect(wrapper.findAll('h1').map((node) => node.text())).toEqual(['Latest Events']);
     expect(wrapper.text()).not.toContain('Signal Desk');
+    expect(wrapper.text()).not.toContain('News Feed');
+    expect(wrapper.findAll('h2').map((node) => node.text())).not.toContain('Latest Events');
     expect(wrapper.text()).toContain('Event Radar');
     expect(wrapper.text()).toContain('Topic Watch');
     expect(wrapper.text()).toContain('Raw Stream');
+    expect(wrapper.text()).not.toContain('先扫最新事件，再看主题簇和原始新闻流作为证据层。');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="filter-bar"]').classes()).toContain('rounded-[16px]');
+    expect(wrapper.find('[data-role="news-feed-toolbar"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-feed-shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(true);
@@ -208,12 +211,20 @@ describe('NewsFeedView', () => {
     expect(newsStore.loadFeedNews).toHaveBeenCalled();
   });
 
-  it('routes feed cards to the news detail page on click', async () => {
+  it('routes event cards to the event detail page on open-event', async () => {
     const wrapper = mount(NewsFeedView);
 
-    await wrapper.get('[data-role="news-card-shell"]').trigger('click');
+    await wrapper.getComponent({ name: 'EventFeedCard' }).vm.$emit('open-event', 'topic-1');
 
-    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 1 } });
+    expect(mockPush).toHaveBeenCalledWith({ name: 'event-detail', params: { eventKey: 'topic-1' } });
+  });
+
+  it('keeps evidence-pill story routing on news detail', async () => {
+    const wrapper = mount(NewsFeedView);
+
+    await wrapper.getComponent({ name: 'EventFeedCard' }).vm.$emit('open-story', 2);
+
+    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 2 } });
   });
 
   it('renders delayed/degraded/live status copy in the feed header', () => {

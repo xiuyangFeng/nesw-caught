@@ -9,6 +9,7 @@ from typing import Iterable
 from app.repositories.news_repository import NewsRepository
 from app.repositories.topic_repository import TopicRepository
 from app.schemas.news import (
+    NewsEventDetailView,
     NewsFeedEventCardView,
     NewsFeedLayoutView,
     NewsFeedTopicView,
@@ -194,6 +195,15 @@ def _event_type_from_texts(texts: Iterable[str]) -> str:
     return "general"
 
 
+def _news_sort_key(item: NewsItemSummary) -> tuple[int, datetime | None, datetime, int]:
+    return (
+        item.published_at is None,
+        item.published_at,
+        item.fetched_at,
+        item.id,
+    )
+
+
 def _qualifies_as_event(topic: TopicItemView) -> bool:
     return topic.importance_score >= 0.55 or topic.news_count >= 2 or bool(topic.related_symbols)
 
@@ -232,7 +242,7 @@ def _should_fuse(card_a: NewsFeedEventCardView, card_b: NewsFeedEventCardView) -
 
 
 def _merge_cards(
-    primary: NewsFeedEventCardView, secondary: NewsFeedEventCardView
+    primary: NewsFeedEventCardView, secondary: NewsFeedEventCardView, *, max_news_items: int = 3
 ) -> NewsFeedEventCardView:
     seen_ids: set[int] = {item.id for item in primary.news_items}
     merged_news = list(primary.news_items)
@@ -241,7 +251,7 @@ def _merge_cards(
             merged_news.append(item)
             seen_ids.add(item.id)
     merged_news.sort(
-        key=lambda item: (item.published_at is None, item.published_at, item.fetched_at),
+        key=_news_sort_key,
         reverse=True,
     )
     merged_symbols = list(dict.fromkeys(primary.related_symbols + secondary.related_symbols))[:5]
@@ -265,11 +275,15 @@ def _merge_cards(
         related_symbols=merged_symbols,
         source_count=merged_source_count,
         news_count=merged_news_count,
-        news_items=merged_news[:3],
+        news_items=merged_news[:max_news_items],
     )
 
 
-def fuse_event_cards(cards: list[NewsFeedEventCardView]) -> list[NewsFeedEventCardView]:
+def fuse_event_cards(
+    cards: list[NewsFeedEventCardView],
+    *,
+    max_news_items: int = 3,
+) -> list[NewsFeedEventCardView]:
     if len(cards) <= 1:
         return cards
     fused_indices: set[int] = set()
@@ -282,7 +296,7 @@ def fuse_event_cards(cards: list[NewsFeedEventCardView]) -> list[NewsFeedEventCa
             if j in fused_indices:
                 continue
             if _should_fuse(current, cards[j]):
-                current = _merge_cards(current, cards[j])
+                current = _merge_cards(current, cards[j], max_news_items=max_news_items)
                 fused_indices.add(j)
         result.append(current)
     return result
@@ -303,7 +317,7 @@ def build_event_cards(
 
         news_items = sorted(
             topic_news_map.get(topic.id, []),
-            key=lambda item: (item.published_at is None, item.published_at, item.fetched_at),
+            key=_news_sort_key,
             reverse=True,
         )
         mention_counter = Counter(topic_mentions_map.get(topic.id, []))
@@ -340,7 +354,7 @@ def build_event_cards(
             )
         )
 
-    event_cards = fuse_event_cards(event_cards)
+    event_cards = fuse_event_cards(event_cards, max_news_items=max_news_items)
 
     event_cards.sort(
         key=lambda card: (
@@ -405,19 +419,11 @@ class NewsFeedLayoutService:
         stream_items.sort(key=lambda x: x.editorial_score or 0.0, reverse=True)
         return stream_items
 
-    def build(
+    def _collect_topic_context(
         self,
         *,
         market: str | None = None,
-        limit_events: int = 6,
-        limit_topics: int = 6,
-        limit_stream: int = 24,
-    ) -> NewsFeedLayoutView:
-        stream_items = [
-            NewsItemSummary.model_validate(item, from_attributes=True)
-            for item in self.news_repository.list_recent(limit=limit_stream, market=market)
-        ]
-
+    ) -> tuple[list[NewsFeedTopicView], dict[int, list[NewsItemSummary]], dict[int, list[str]]]:
         topics = self.topic_repository.list_all()
         topic_ids = [t.id for t in topics]
 
@@ -458,6 +464,67 @@ class NewsFeedLayoutService:
         topic_views.sort(
             key=lambda item: (item.importance_score, item.last_seen_at.timestamp()), reverse=True
         )
+        return topic_views, topic_news_map, topic_mentions_map
+
+    @staticmethod
+    def _build_event_detail(
+        event_key: str,
+        *,
+        topic_views: list[NewsFeedTopicView],
+        topic_news_map: dict[int, list[NewsItemSummary]],
+        topic_mentions_map: dict[int, list[str]],
+    ) -> NewsEventDetailView | None:
+        cards = build_event_cards(
+            topic_views,
+            topic_news_map=topic_news_map,
+            topic_mentions_map=topic_mentions_map,
+        )
+        event_card = next((card for card in cards if card.event_key == event_key), None)
+        if event_card is None:
+            return None
+
+        full_cards = build_event_cards(
+            topic_views,
+            topic_news_map=topic_news_map,
+            topic_mentions_map=topic_mentions_map,
+            max_news_items=500,
+        )
+        full_event_card = next((card for card in full_cards if card.event_key == event_key), None)
+        if full_event_card is None:
+            return None
+
+        full_news_items = sorted(full_event_card.news_items, key=_news_sort_key, reverse=True)
+        payload = event_card.model_dump()
+        payload["news_count"] = len(full_news_items)
+        payload["source_count"] = len({item.source_name for item in full_news_items})
+        payload["news_items"] = full_news_items
+        return NewsEventDetailView(
+            **payload,
+        )
+
+    def get_event_detail(self, event_key: str) -> NewsEventDetailView | None:
+        topic_views, topic_news_map, topic_mentions_map = self._collect_topic_context()
+        return self._build_event_detail(
+            event_key,
+            topic_views=topic_views,
+            topic_news_map=topic_news_map,
+            topic_mentions_map=topic_mentions_map,
+        )
+
+    def build(
+        self,
+        *,
+        market: str | None = None,
+        limit_events: int = 6,
+        limit_topics: int = 6,
+        limit_stream: int = 24,
+    ) -> NewsFeedLayoutView:
+        stream_items = [
+            NewsItemSummary.model_validate(item, from_attributes=True)
+            for item in self.news_repository.list_recent(limit=limit_stream, market=market)
+        ]
+
+        topic_views, topic_news_map, topic_mentions_map = self._collect_topic_context(market=market)
         event_cards = build_event_cards(
             topic_views, topic_news_map=topic_news_map, topic_mentions_map=topic_mentions_map
         )

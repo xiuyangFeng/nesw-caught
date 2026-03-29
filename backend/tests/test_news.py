@@ -699,3 +699,106 @@ def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() 
             if topic_ids:
                 session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
             session.commit()
+
+
+def test_news_event_detail_returns_reconstructed_topic_event() -> None:
+    client = TestClient(app)
+    url_hashes = [
+        "test-event-detail-nvda-1",
+        "test-event-detail-nvda-2",
+    ]
+    topic_key = "test-event-detail-ai"
+    topic_id: int | None = None
+
+    with SessionLocal() as session:
+        news_items = [
+            NewsItem(
+                source_name="Reuters",
+                source_url="https://example.com/reuters",
+                title="NVIDIA launches new AI chip platform",
+                summary="Launch headline.",
+                canonical_url="https://example.com/nvda-launch",
+                url_hash=url_hashes[0],
+                market="us",
+                language="en",
+                sentiment_label="positive",
+                sentiment_score=0.7,
+                published_at=datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 8, 5, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+            NewsItem(
+                source_name="Bloomberg",
+                source_url="https://example.com/bloomberg",
+                title="Suppliers rally after NVIDIA chip release",
+                summary="Supplier reaction.",
+                canonical_url="https://example.com/nvda-supplier",
+                url_hash=url_hashes[1],
+                market="us",
+                language="en",
+                sentiment_label="positive",
+                sentiment_score=0.5,
+                published_at=datetime(2026, 3, 28, 7, 45, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 28, 7, 50, tzinfo=timezone.utc),
+                ingest_status="ingested",
+            ),
+        ]
+        session.add_all(news_items)
+        session.flush()
+
+        topic = TopicCluster(
+            topic_key=topic_key,
+            topic_title="AI Chip Launch",
+            topic_summary="NVIDIA's new product cycle is pulling suppliers higher.",
+            keywords="nvidia,chip,launch,ai,supplier",
+            sentiment_score=0.64,
+            importance_score=9.91,
+            last_seen_at=datetime(2026, 3, 28, 8, 2, tzinfo=timezone.utc),
+        )
+        session.add(topic)
+        session.flush()
+        topic_id = topic.id
+        session.add_all(
+            [
+                TopicNewsLink(topic_cluster_id=topic.id, news_id=news_items[0].id),
+                TopicNewsLink(topic_cluster_id=topic.id, news_id=news_items[1].id),
+                NewsStockMention(news_id=news_items[0].id, symbol="NVDA", market="us", mention_type="body", confidence=0.92),
+                NewsStockMention(news_id=news_items[0].id, symbol="SMCI", market="us", mention_type="body", confidence=0.75),
+                NewsStockMention(news_id=news_items[1].id, symbol="NVDA", market="us", mention_type="body", confidence=0.81),
+            ]
+        )
+        session.commit()
+
+    try:
+        assert topic_id is not None
+        response = client.get(f"/api/news/events/topic-{topic_id}")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["event_key"] == f"topic-{topic_id}"
+        assert payload["event_title"] == "AI Chip Launch"
+        assert payload["primary_symbol"] == "NVDA"
+        assert payload["related_symbols"] == ["NVDA", "SMCI"]
+        assert payload["news_count"] == 2
+        assert len(payload["news_items"]) == 2
+        assert payload["news_items"][0]["title"] == "NVIDIA launches new AI chip platform"
+    finally:
+        with SessionLocal() as session:
+            news_ids = list(session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+            topic_ids = list(session.scalars(select(TopicCluster.id).where(TopicCluster.topic_key == topic_key)))
+            if news_ids:
+                session.execute(delete(NewsStockMention).where(NewsStockMention.news_id.in_(news_ids)))
+                session.execute(delete(TopicNewsLink).where(TopicNewsLink.news_id.in_(news_ids)))
+                session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
+            if topic_ids:
+                session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
+            session.commit()
+
+
+def test_news_event_detail_returns_404_for_unknown_event_key() -> None:
+    client = TestClient(app)
+
+    response = client.get("/api/news/events/topic-999999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "event not found"}

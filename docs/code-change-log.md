@@ -2,6 +2,32 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-30 00:42
+
+- 修改人：Codex
+- 修改范围：事件详情后端接口、事件详情页 API 化、前后端回归测试
+- 变更内容：为了解决 `EventDetailView` 依赖前端 `feedLayout` 快照导致刷新/深链脆弱的问题，后端新增 `GET /api/news/events/{event_key}`。`NewsFeedLayoutService` 拆出可复用的 topic context 收集逻辑，并新增 `get_event_detail()` / `_build_event_detail()`，在服务端按现有 feed-layout 规则重建事件详情；`NewsEventDetailView` 作为新响应模型返回完整 `news_items`，不再沿用首页事件卡的 3 条截断结果。路由顺序上把 `/events/{event_key}` 放在 `/{news_id}` 之前，避免动态段冲突；详情侧排序契约统一为 `published_at -> fetched_at -> id` 倒序。前端新增 `NewsEventDetail` 类型和 `apiClient.getNewsEventDetail()`，并重新实现 `EventDetailView`：页面加载后直接请求后端事件详情，成功时渲染事件摘要和时间线，404 时显示“事件已不存在，或已发生聚合变化”，其他错误时显示通用失败态；同时新增 `event-detail` 路由与对应测试。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/backend/app/api/routes/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/backend/app/schemas/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/backend/app/services/news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/backend/tests/test_news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/router/index.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/router/index.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/views/EventDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/frontend/src/views/EventDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/docs/superpowers/specs/2026-03-30-event-detail-api-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/docs/superpowers/plans/2026-03-30-event-detail-api-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-api/docs/code-change-log.md`
+- 接口/数据结构变化：新增后端接口 `GET /api/news/events/{event_key}`；新增响应模型/前端类型 `NewsEventDetail`；现有 `GET /api/news/feed-layout` 契约不变
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_feed_layout.py -q` 通过（25 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/views/EventDetailView.test.ts src/router/index.test.ts` 通过（3 个文件 / 17 个用例）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run test -- --run` 通过（40 个文件 / 163 个用例）
+- 风险/后续事项：当前事件详情已不再依赖前端快照，但 `event_key` 仍然是“按当前规则可重建”的临时键，尚未升级为持久化事件实体 ID；若后续需要长期稳定回放或跨时间窗口复原，仍需引入事件持久化层
+
 ## 2026-03-29 23:37
 
 - 修改人：Codex

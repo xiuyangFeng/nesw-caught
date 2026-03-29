@@ -13,6 +13,7 @@ import type {
   MarketRefreshResult,
   NewsAnalysis,
   NewsDetail,
+  NewsEventDetail,
   NewsFeedLayout,
   NewsItem,
   NewsQuery,
@@ -48,6 +49,7 @@ import {
   mockNewsAnalyses,
   mockNews,
   mockNewsDetails,
+  mockNewsEventDetails,
   mockNewsFeedLayout,
   mockNewsRefreshResult,
   mockNewsRuntimeStatus,
@@ -118,6 +120,31 @@ export const apiClient = {
       () => getJson(withQuery('/api/news/feed-layout', query)),
       () => mockNewsFeedLayout,
     );
+  },
+  getNewsEventDetail(eventKey: string) {
+    return fetch(`/api/news/events/${eventKey}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new HttpError((await response.json()).detail ?? 'event not found', response.status);
+        }
+        return response.json() as Promise<NewsEventDetail>;
+      })
+      .then((data) => ({ data, degraded: false }))
+      .catch((error) => {
+        if (error instanceof HttpError) {
+          throw error;
+        }
+        const fallback = mockNewsEventDetails[eventKey];
+        if (!fallback) {
+          throw new HttpError('event not found', 404);
+        }
+        return { data: fallback, degraded: true };
+      });
   },
   getNewsDetail(id: number) {
     return withMockFallback<NewsDetail | null>(

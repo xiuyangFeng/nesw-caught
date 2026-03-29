@@ -22,41 +22,50 @@ const compactSources = computed(() => {
 });
 
 const emit = defineEmits<{
-  open: [id: number];
+  'open-event': [eventKey: string];
+  'open-story': [id: number];
 }>();
 </script>
 
 <template>
   <article class="event-feed-card event-feed-card--compact" data-role="event-feed-card">
-    <div class="event-feed-card__head">
-      <div class="event-feed-card__kickers">
-        <span class="event-pill">{{ event.event_type }}</span>
-        <span class="pill" :class="event.sentiment_label">{{ sentimentText(event.sentiment_label) }}</span>
-        <span class="market-tag">{{ event.market.toUpperCase() }}</span>
-      </div>
-      <span class="event-feed-card__time">{{ seenLabel }}</span>
-    </div>
-
-    <div class="event-feed-card__body">
-      <div class="event-feed-card__copy">
-        <h3 data-role="event-card-title">{{ event.event_title }}</h3>
-        <p class="event-feed-card__meta-line">
-          <span>{{ event.primary_symbol ?? 'N/A' }}</span>
-          <span>{{ event.related_symbols.join(' · ') || '未关联' }}</span>
-        </p>
+    <button
+      class="event-feed-card__primary"
+      type="button"
+      data-role="event-card-primary"
+      :aria-label="`查看事件 ${event.event_title}`"
+      @click="emit('open-event', event.event_key)"
+    >
+      <div class="event-feed-card__head">
+        <div class="event-feed-card__kickers">
+          <span class="event-pill">{{ event.event_type }}</span>
+          <span class="pill" :class="event.sentiment_label">{{ sentimentText(event.sentiment_label) }}</span>
+          <span class="market-tag">{{ event.market.toUpperCase() }}</span>
+        </div>
+        <span class="event-feed-card__time">{{ seenLabel }}</span>
       </div>
 
-      <div class="event-feed-card__stats">
-        <div>
-          <span class="event-feed-card__label">Sources</span>
-          <strong>{{ event.source_count }}</strong>
+      <div class="event-feed-card__body">
+        <div class="event-feed-card__copy">
+          <h3 data-role="event-card-title">{{ event.event_title }}</h3>
+          <p class="event-feed-card__meta-line">
+            <span>{{ event.primary_symbol ?? 'N/A' }}</span>
+            <span>{{ event.related_symbols.join(' · ') || '未关联' }}</span>
+          </p>
         </div>
-        <div>
-          <span class="event-feed-card__label">News</span>
-          <strong>{{ event.news_count }}</strong>
+
+        <div class="event-feed-card__stats">
+          <div>
+            <span class="event-feed-card__label">Sources</span>
+            <strong>{{ event.source_count }}</strong>
+          </div>
+          <div>
+            <span class="event-feed-card__label">News</span>
+            <strong>{{ event.news_count }}</strong>
+          </div>
         </div>
       </div>
-    </div>
+    </button>
 
     <div class="event-feed-card__foot">
       <div class="event-feed-card__foot-copy">
@@ -70,7 +79,7 @@ const emit = defineEmits<{
           class="event-feed-card__story"
           type="button"
           data-role="event-card-story"
-          @click="emit('open', item.id)"
+          @click.stop="emit('open-story', item.id)"
         >
           {{ item.source_name }}
         </button>
@@ -93,6 +102,24 @@ const emit = defineEmits<{
 
 .event-feed-card--compact {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.event-feed-card__primary {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.event-feed-card__primary:focus-visible {
+  outline: 2px solid rgba(159, 208, 255, 0.9);
+  outline-offset: 6px;
+  border-radius: 12px;
 }
 
 .event-feed-card__head,
@@ -189,6 +216,7 @@ const emit = defineEmits<{
   font-size: 11px;
   line-height: 1;
   padding: 6px 9px;
+  cursor: pointer;
 }
 
 .event-feed-card__stats strong,

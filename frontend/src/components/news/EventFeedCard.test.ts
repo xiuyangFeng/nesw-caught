@@ -44,24 +44,26 @@ const event: NewsFeedEventCard = {
 };
 
 describe('EventFeedCard', () => {
-  it('renders compact evidence buttons and emits the selected story id', async () => {
+  it('emits open-event from the primary shell and keeps evidence pills on open-story only', async () => {
     const wrapper = mount(EventFeedCard, {
       props: { event },
     });
 
     expect(wrapper.classes()).toContain('event-feed-card--compact');
     expect(wrapper.find('[data-role="event-card-title"]').text()).toBe('AI Chip Launch');
+    expect(wrapper.get('[data-role="event-card-primary"]').attributes('type')).toBe('button');
     expect(wrapper.text()).toContain('product');
     expect(wrapper.text()).toContain('NVDA');
     expect(wrapper.text()).toContain('SMCI');
-    expect(wrapper.text()).toContain('2');
-    expect(wrapper.find('.event-feed-card__summary').exists()).toBe(false);
 
     const evidenceButtons = wrapper.findAll('[data-role="event-card-story"]');
     expect(evidenceButtons).toHaveLength(2);
 
-    await evidenceButtons[1].trigger('click');
+    await wrapper.get('[data-role="event-card-primary"]').trigger('click');
+    expect(wrapper.emitted('open-event')).toEqual([['ai-chip-launch']]);
+    expect(wrapper.emitted('open-story')).toBeUndefined();
 
-    expect(wrapper.emitted('open')).toEqual([[2]]);
+    await evidenceButtons[1].trigger('click');
+    expect(wrapper.emitted('open-story')).toEqual([[2]]);
   });
 });

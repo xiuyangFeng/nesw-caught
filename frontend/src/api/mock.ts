@@ -7,6 +7,7 @@ import type {
   MarketSnapshot,
   NewsAnalysis,
   NewsDetail,
+  NewsEventDetail,
   NewsFeedLayout,
   NewsEventMarker,
   NewsItem,
@@ -495,6 +496,17 @@ export const mockNewsFeedLayout: NewsFeedLayout = {
   ],
   topics: mockTopics.slice(0, 3),
   stream: mockNews,
+};
+
+export const mockNewsEventDetails: Record<string, NewsEventDetail> = {
+  'topic-504': {
+    ...mockNewsFeedLayout.events[0],
+    news_items: [mockNews[3], mockNews[1]],
+  },
+  'topic-501': {
+    ...mockNewsFeedLayout.events[1],
+    news_items: [mockNews[0], mockNews[2]],
+  },
 };
 
 export const mockRelatedNews: Record<string, NewsItem[]> = {
