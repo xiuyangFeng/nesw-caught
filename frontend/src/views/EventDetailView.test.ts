@@ -109,6 +109,8 @@ describe('EventDetailView', () => {
     const timelineTitles = wrapper.findAll('[data-role="event-timeline-title"]').map((node) => node.text());
     expect(timelineTitles).toEqual(['Late fetched source', 'Published later', 'No timestamp']);
     expect(wrapper.text()).toContain('摘要待补充');
+    expect(wrapper.findAll('[data-role="event-timeline-summary-compact"]')).toHaveLength(3);
+    expect(wrapper.findAll('.timeline-action-compact')).toHaveLength(4);
   });
 
   it('routes timeline items to the news detail page and keeps source links optional', async () => {

@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-30 14:55
+
+- 修改人：Codex
+- 修改范围：事件详情页时间线新闻卡片压缩、前端视图回归测试
+- 变更内容：将 `EventDetailView` 的 timeline 新闻卡片改为更高密度的 compact 布局，收紧轨道间距、卡片内边距、标签尺寸、标题字号和按钮高度；同时把摘要统一压成单行省略，保留 `查看新闻详情` 与 `打开原文` 两个动作，但改成更紧凑的操作样式，从而在单屏内承载更多事件新闻。同步扩展 `EventDetailView.test.ts`，锁定单行摘要与紧凑动作区的渲染契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/EventDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/views/EventDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-30-event-detail-compact-timeline-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-30-event-detail-compact-timeline-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/views/EventDetailView.test.ts` 通过（1 个文件 / 5 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前压缩仍保留双动作入口，因此不同新闻来源组合下单卡高度会略有差异；如果后续还需要继续压缩，可再评估将 `打开原文` 收到二级入口或 hover 态
+
 ## 2026-03-30 13:54
 
 - 修改人：Codex

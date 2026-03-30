@@ -126,21 +126,23 @@ watch(
               </div>
 
               <div class="timeline-card">
-                <div class="flex flex-wrap items-center gap-2 text-sm text-muted">
+                <div class="timeline-meta-row flex flex-wrap items-center gap-2 text-sm text-muted">
                   <span data-role="event-stage-label" class="stage-pill">{{ eventStageLabel(index) }}</span>
                   <span data-role="event-source-name" class="pill neutral">{{ item.source_name }}</span>
                   <span data-role="event-sentiment-pill" class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
                   <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                 </div>
 
-                <h2 class="m-0 text-lg leading-[1.35] text-text" data-role="event-timeline-title">{{ item.title }}</h2>
-                <p class="m-0 text-sm leading-[1.7] text-muted">{{ item.summary ?? '摘要待补充' }}</p>
+                <h2 class="timeline-title m-0 text-text" data-role="event-timeline-title">{{ item.title }}</h2>
+                <p class="timeline-summary m-0 text-muted" data-role="event-timeline-summary-compact">
+                  {{ item.summary ?? '摘要待补充' }}
+                </p>
 
-                <div class="flex flex-wrap gap-2">
+                <div class="timeline-actions flex flex-wrap gap-2">
                   <button
                     type="button"
                     data-role="event-open-news-detail"
-                    class="timeline-action timeline-action-primary"
+                    class="timeline-action timeline-action-compact timeline-action-primary"
                     @click="openNewsDetail(item.id)"
                   >
                     查看新闻详情
@@ -151,7 +153,7 @@ watch(
                     target="_blank"
                     rel="noreferrer"
                     data-role="event-open-source-link"
-                    class="timeline-action"
+                    class="timeline-action timeline-action-compact"
                   >
                     打开原文
                   </a>
@@ -190,7 +192,7 @@ watch(
 .timeline-row {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
-  gap: 14px;
+  gap: 10px;
 }
 
 .timeline-rail {
@@ -200,12 +202,12 @@ watch(
 }
 
 .timeline-node {
-  width: 10px;
-  height: 10px;
-  margin-top: 14px;
+  width: 9px;
+  height: 9px;
+  margin-top: 10px;
   border-radius: 999px;
   background: linear-gradient(135deg, #9fd0ff, #2d7dd2);
-  box-shadow: 0 0 0 5px rgba(92, 174, 255, 0.12);
+  box-shadow: 0 0 0 4px rgba(92, 174, 255, 0.12);
 }
 
 .timeline-line {
@@ -220,21 +222,46 @@ watch(
 
 .timeline-card {
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 20px;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 18px;
   border: 1px solid rgba(132, 156, 189, 0.16);
   background: linear-gradient(180deg, rgba(17, 24, 39, 0.86), rgba(12, 18, 30, 0.92));
+}
+
+.timeline-meta-row {
+  row-gap: 6px;
+  column-gap: 6px;
+  font-size: 12px;
+}
+
+.timeline-title {
+  font-size: 15px;
+  line-height: 1.32;
+  font-weight: 550;
+}
+
+.timeline-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.timeline-actions {
+  row-gap: 6px;
+  column-gap: 8px;
 }
 
 .stage-pill {
   display: inline-flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: rgba(249, 196, 88, 0.14);
   color: #f3cf7a;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 
@@ -242,12 +269,13 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid rgba(132, 156, 189, 0.18);
   background: rgba(255, 255, 255, 0.04);
   color: var(--color-text-soft);
+  font-size: 12px;
   text-decoration: none;
   transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
@@ -267,11 +295,19 @@ watch(
 @media (max-width: 640px) {
   .timeline-row {
     grid-template-columns: 16px minmax(0, 1fr);
-    gap: 10px;
+    gap: 8px;
   }
 
   .timeline-card {
-    padding: 14px;
+    padding: 10px;
+  }
+
+  .timeline-title {
+    font-size: 14px;
+  }
+
+  .timeline-summary {
+    font-size: 11px;
   }
 }
 </style>
