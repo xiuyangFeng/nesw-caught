@@ -8,7 +8,13 @@ from app.core.config import get_settings
 from app.models.price_snapshot import PriceSnapshot
 from app.repositories.market_repository import MarketRepository
 from app.repositories.watchlist_repository import WatchlistRepository
-from app.services.quote_provider import NormalizedSymbol, QuoteRecord, YahooFinanceQuoteProvider, normalize_symbol
+from app.services.quote_provider import (
+    NormalizedSymbol,
+    QuoteRecord,
+    YahooFinanceQuoteProvider,
+    equivalent_symbol_candidates,
+    normalize_symbol,
+)
 
 
 class QuoteService:
@@ -26,14 +32,20 @@ class QuoteService:
         repository = WatchlistRepository(session)
         items = repository.list_all()
         market_repo = MarketRepository(session)
-        cached = market_repo.list_latest_by_symbols([item.symbol for item in items])
+        lookup_by_item_symbol: dict[str, str] = {}
+        for item in items:
+            try:
+                lookup_by_item_symbol[item.symbol] = normalize_symbol(item.symbol, item.market).symbol
+            except ValueError:
+                lookup_by_item_symbol[item.symbol] = item.symbol
+        cached = market_repo.list_latest_by_symbols(list(dict.fromkeys(lookup_by_item_symbol.values())))
         payloads: list[dict] = []
         for item in items:
-            snapshot = cached.get(item.symbol)
+            snapshot = cached.get(lookup_by_item_symbol[item.symbol])
             if snapshot is None:
                 payloads.append(
                     self._build_unavailable_payload(
-                        item.symbol,
+                        lookup_by_item_symbol[item.symbol],
                         item.market,
                         item.display_name,
                         "unavailable",
@@ -46,11 +58,22 @@ class QuoteService:
 
     def get_cached_symbol_quote(self, symbol: str, session: Session) -> dict:
         repository = WatchlistRepository(session)
-        item = repository.get_by_symbol(symbol.upper())
+        item = None
+        for candidate in equivalent_symbol_candidates(symbol):
+            item = repository.get_by_symbol(candidate)
+            if item is not None:
+                break
         market = item.market if item else None
         display_name = item.display_name if item else None
         try:
             normalized = normalize_symbol(symbol.upper(), market)
+            if item is None:
+                for candidate in equivalent_symbol_candidates(symbol, normalized.market):
+                    item = repository.get_by_symbol(candidate)
+                    if item is not None:
+                        break
+                market = item.market if item else normalized.market
+                display_name = item.display_name if item else display_name
             lookup_symbol = normalized.symbol
             lookup_market = normalized.market
         except ValueError as exc:
@@ -82,7 +105,7 @@ class QuoteService:
         except ValueError as exc:
             return self._build_unavailable_payload(symbol, market or "unknown", display_name, "symbol_not_supported", str(exc))
 
-        cached = market_repo.list_latest_by_symbols([symbol]).get(symbol)
+        cached = market_repo.list_latest_by_symbols([normalized.symbol]).get(normalized.symbol)
         if cached and self._is_fresh(cached):
             return self._snapshot_to_payload(cached, display_name)
 

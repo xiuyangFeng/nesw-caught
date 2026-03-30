@@ -19,6 +19,7 @@ const watchlistStore = reactive({
   candidates: [
     { symbol: '0700.HK', market: 'hk', display_name: 'Tencent', aliases: ['腾讯'] },
     { symbol: 'BABA', market: 'us', display_name: 'Alibaba', aliases: ['阿里'] },
+    { symbol: '600519.SH', market: 'cn', display_name: '贵州茅台', aliases: ['茅台', '600519'] },
   ],
   items: [
     { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' },
@@ -161,6 +162,7 @@ describe('WatchlistView', () => {
     watchlistStore.candidates = [
       { symbol: '0700.HK', market: 'hk', display_name: 'Tencent', aliases: ['腾讯'] },
       { symbol: 'BABA', market: 'us', display_name: 'Alibaba', aliases: ['阿里'] },
+      { symbol: '600519.SH', market: 'cn', display_name: '贵州茅台', aliases: ['茅台', '600519'] },
     ];
     watchlistStore.items = [
       { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' },
@@ -217,6 +219,26 @@ describe('WatchlistView', () => {
     await flushPromises();
 
     expect(watchlistStore.loadWatchlist).toHaveBeenCalled();
+  });
+
+  it('adds an a-share candidate from the modal and routes to its detail page', async () => {
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    await wrapper.get('[data-role="watchlist-open-add-modal"]').trigger('click');
+    await wrapper.get('[data-role="watchlist-add-search"]').setValue('600519');
+    await wrapper.get('[data-role="watchlist-candidate-600519.SH"]').trigger('click');
+    await wrapper.get('[data-role="watchlist-add-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(watchlistStore.createWatchlist).toHaveBeenCalledWith({
+      symbol: '600519.SH',
+      market: 'cn',
+      display_name: '贵州茅台',
+      alert_threshold: null,
+      alert_mode: 'fixed',
+    });
+    expect(push).toHaveBeenCalledWith({ name: 'watchlist-detail', params: { symbol: '600519.SH' } });
   });
 
   it('opens add modal and only submits after direct add', async () => {

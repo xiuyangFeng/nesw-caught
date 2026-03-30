@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
-from app.services.quote_provider import normalize_symbol
+from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
 
 
 @dataclass(slots=True)
@@ -95,10 +95,12 @@ class MarketChartService:
         }
 
     def _require_watchlist_symbol(self, symbol: str, session: Session):
-        item = WatchlistRepository(session).get_by_symbol(symbol.upper())
-        if item is None:
-            raise HTTPException(status_code=404, detail="watchlist symbol not found")
-        return item
+        repository = WatchlistRepository(session)
+        for candidate in equivalent_symbol_candidates(symbol):
+            item = repository.get_by_symbol(candidate)
+            if item is not None:
+                return item
+        raise HTTPException(status_code=404, detail="watchlist symbol not found")
 
     def _download_history(self, provider_symbol: str, period: str, interval: str) -> pd.DataFrame:
         import yfinance as yf

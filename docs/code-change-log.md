@@ -2,6 +2,30 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-30 15:52
+
+- 修改人：Codex
+- 修改范围：A 股自选候选、watchlist canonical symbol、A 股行情/K 线接入、前端降级 mock 同步
+- 变更内容：将 A 股接入现有 watchlist/K 线主链路。后端 `normalize_symbol()` 新增对 `600519.SH` / `000001.SZ`、`SH600519` / `SZ000001` 以及无 market hint 的 6 位数字代码的归一化支持，并明确把上海市场 canonical symbol `*.SH` 翻译为 Yahoo Finance provider symbol `*.SS`；同时新增等价 symbol 候选解析，统一处理 canonical / `SH`/`SZ` 前缀 / 纯数字 / legacy alias 之间的查找关系。`POST /api/watchlist` 对 A 股输入在入库前强制 canonicalize，并在重复校验时同时覆盖 legacy alias，避免同一只股票被重复加入；`QuoteService` 在 alias 详情查询、refresh 路径和 legacy alias watchlist 缓存读取时都会回查 canonical 记录，保持 `display_name` 与缓存命中不丢失；watchlist 的 K 线、相关新闻与删除接口统一支持 A 股 alias lookup，避免出现“图有、新闻空、删除 404”的 split-brain 状态。与此同时扩展内置候选池，新增贵州茅台、宁德时代、平安银行、招商银行、中国平安、比亚迪、海光信息、中芯国际等 A 股标的。前端同步补齐 A 股候选、降级 mock watchlist/quote/sparkline 数据，并新增 store / view / api fallback 测试，锁定 A 股自选添加与 K 线加载契约。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/app/services/quote_provider.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/app/services/quote_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/app/services/market_chart_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/app/api/routes/watchlist.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/app/services/watchlist_candidates.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/tests/test_market.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/backend/tests/test_stock_news_search.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/frontend/src/views/WatchlistView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/docs/superpowers/specs/2026-03-30-a-share-watchlist-kline-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/docs/superpowers/plans/2026-03-30-a-share-watchlist-kline-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex-a-share-kline-watchlist/docs/code-change-log.md`
+- 接口/数据结构变化：无新增 HTTP 接口；现有 `POST /api/watchlist` 对 A 股 symbol 的持久化规则调整为统一落库 canonical `.SH/.SZ`，`YahooFinanceQuoteProvider` 对上海市场增加 canonical-to-provider 的 `.SH -> .SS` 翻译
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_market.py backend/tests/test_stock_news_search.py -q` 通过（41 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/stores/watchlistStore.test.ts src/views/WatchlistView.test.ts src/components/watchlist/StockDetailPanel.test.ts src/components/watchlist/KlineChart.test.ts` 通过（5 个文件 / 43 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前只覆盖沪深 A 股个股；若后续要支持指数、ETF 或历史新闻 mention 的批量 canonical 回填，还需要继续扩 symbol 规则与数据清洗。Yahoo Finance 对 A 股代码可用性仍可能波动，异常时会沿用现有 `fetch_failed/delayed` 降级路径
+
 ## 2026-03-30 14:55
 
 - 修改人：Codex

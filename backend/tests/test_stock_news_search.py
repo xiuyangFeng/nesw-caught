@@ -290,6 +290,92 @@ def test_watchlist_create_triggers_sync_match():
         session.commit()
 
 
+def test_watchlist_create_canonicalizes_a_share_alias_before_persistence():
+    client = TestClient(app)
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        for symbol in ("SH600519", "600519.SH"):
+            item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == symbol))
+            if item is not None:
+                session.delete(item)
+        session.commit()
+
+    with patch("app.api.routes.watchlist.StockNewsSearchService.trigger_async_external_search"), patch(
+        "app.api.routes.watchlist.StockNewsSearchService.sync_match_existing",
+        return_value=0,
+    ):
+        response = client.post(
+            "/api/watchlist",
+            json={
+                "symbol": "SH600519",
+                "market": "cn",
+                "display_name": "贵州茅台",
+                "alert_threshold": None,
+                "alert_mode": "fixed",
+            },
+        )
+
+    assert response.status_code == 201
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        item = session.scalar(select(WatchlistItem).where(WatchlistItem.display_name == "贵州茅台"))
+        assert item is not None
+        assert item.symbol == "600519.SH"
+        assert item.market == "cn"
+        session.delete(item)
+        session.commit()
+
+
+def test_watchlist_create_rejects_when_legacy_a_share_alias_already_exists():
+    client = TestClient(app)
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        existing = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "SH600519"))
+        if existing is None:
+            session.add(
+                WatchlistItem(
+                    symbol="SH600519",
+                    market="cn",
+                    display_name="贵州茅台",
+                    is_active=True,
+                    alert_threshold=None,
+                    alert_mode="fixed",
+                )
+            )
+            session.commit()
+
+    with patch("app.api.routes.watchlist.StockNewsSearchService.trigger_async_external_search"), patch(
+        "app.api.routes.watchlist.StockNewsSearchService.sync_match_existing",
+        return_value=0,
+    ):
+        response = client.post(
+            "/api/watchlist",
+            json={
+                "symbol": "600519.SH",
+                "market": "cn",
+                "display_name": "贵州茅台",
+                "alert_threshold": None,
+                "alert_mode": "fixed",
+            },
+        )
+
+    assert response.status_code == 409
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "SH600519"))
+        if item is not None:
+            session.delete(item)
+        session.commit()
+
+
 def test_watchlist_candidates_returns_builtin_symbols():
     client = TestClient(app)
 
@@ -299,6 +385,7 @@ def test_watchlist_candidates_returns_builtin_symbols():
     payload = response.json()
     assert any(item["symbol"] == "0700.HK" and item["display_name"] == "Tencent" and item["market"] == "hk" for item in payload)
     assert any(item["symbol"] == "AAPL" and item["display_name"] == "Apple" and item["market"] == "us" for item in payload)
+    assert any(item["symbol"] == "600519.SH" and item["display_name"] == "贵州茅台" and item["market"] == "cn" for item in payload)
 
 
 def test_watchlist_delete_removes_existing_symbol():
@@ -331,9 +418,87 @@ def test_watchlist_delete_removes_existing_symbol():
         assert item is None
 
 
+def test_watchlist_delete_accepts_a_share_alias() -> None:
+    client = TestClient(app)
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "600519.SH"))
+        if item is None:
+            item = WatchlistItem(
+                symbol="600519.SH",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+            session.add(item)
+            session.commit()
+
+    response = client.delete("/api/watchlist/SH600519")
+
+    assert response.status_code == 204
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "600519.SH"))
+        assert item is None
+
+
 def test_watchlist_delete_returns_404_for_missing_symbol():
     client = TestClient(app)
 
     response = client.delete("/api/watchlist/NOT-REAL")
 
     assert response.status_code == 404
+
+
+def test_watchlist_related_news_accepts_a_share_alias() -> None:
+    client = TestClient(app)
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        watchlist_item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "600519.SH"))
+        if watchlist_item is None:
+            watchlist_item = WatchlistItem(
+                symbol="600519.SH",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+            session.add(watchlist_item)
+            session.flush()
+
+        news = _seed_news_for_symbol(session, "贵州茅台披露经营数据", "600519.SH", market="cn")
+        session.add(
+            NewsStockMention(
+                news_id=news.id,
+                symbol="600519.SH",
+                market="cn",
+                mention_type="manual",
+                confidence=0.9,
+            )
+        )
+        news_id = news.id
+        session.commit()
+
+    response = client.get("/api/watchlist/SH600519/related-news")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(item["id"] == news_id and item["market"] == "cn" for item in payload)
+
+    with SessionLocal() as session:
+        from app.models.watchlist_item import WatchlistItem
+
+        item = session.scalar(select(WatchlistItem).where(WatchlistItem.symbol == "600519.SH"))
+        if item is not None:
+            session.delete(item)
+        _cleanup_news(session, news_id)
+        session.commit()
