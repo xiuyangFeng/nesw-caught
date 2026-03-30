@@ -2,6 +2,18 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-30 12:39
+
+- 修改人：Codex
+- 修改范围：合并后后端回归测试稳健性修正
+- 变更内容：在将 `codex/event-detail-api` 合并回本地 `main` 后，`test_news_feed_layout_returns_event_cards_topics_and_stream` 暴露出对测试库全局最新新闻顺序的脆弱假设。该测试原先硬编码断言 `payload["stream"][0]` 必须等于本次 fixture 的首条新闻，在测试数据库已有更新新闻时会产生误报。本次一方面把断言收敛为“stream 中包含目标 fixture 标题”，另一方面把该组 fixture 的 `published_at/fetched_at/last_seen_at` 抬到远未来，确保它们稳定落入本测试期望验证的 stream 窗口，避免继续依赖共享测试库里的偶然排序。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_feed_layout.py -q` 通过（27 个用例）
+- 风险/后续事项：该测试已不再依赖共享测试库的全局最新排序；若后续要进一步锁定 stream 排名规则，建议补充更强隔离的 fixture 环境，而不是继续依赖共享库里的真实数据分布
+
 ## 2026-03-30 00:42
 
 - 修改人：Codex
