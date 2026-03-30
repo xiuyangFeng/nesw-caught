@@ -752,7 +752,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="pointer-events-none absolute left-3 top-14 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-[14px] border border-[rgba(255,183,125,0.18)] bg-[rgba(7,12,22,0.82)] px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
+          <div class="pointer-events-none absolute left-3 top-20 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-[14px] border border-[rgba(255,183,125,0.18)] bg-[rgba(7,12,22,0.82)] px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
             <span class="text-text-faint">开 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.open) }}</strong></span>
             <span class="text-text-faint">高 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.high) }}</strong></span>
             <span class="text-text-faint">低 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.low) }}</strong></span>

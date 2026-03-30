@@ -279,6 +279,7 @@ describe('KlineChart', () => {
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('开');
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('550.5');
     expect(wrapper.find('[data-role="kline-hud"]').text()).toContain('成交量');
+    expect(wrapper.find('[data-role="kline-hud"]').classes()).toContain('top-20');
     expect(wrapper.find('[data-role="overlay-projector-ready"]').text()).toBe('yes');
     expect(wrapper.find('[data-role="kline-layout-shell"]').attributes('data-sidebar-collapsed')).toBe('false');
     expect(wrapper.find('[data-role="kline-chart-dashboard"]').exists()).toBe(true);

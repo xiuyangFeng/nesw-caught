@@ -2,6 +2,33 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-30 18:49
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线 HUD 浮层二次下调
+- 变更内容：根据进一步反馈，将 `KlineChart.vue` 中顶部行情 HUD 继续从 `top-16` 下调到 `top-20`，再额外拉开与顶部标签区和主图上沿的距离，进一步减少对 K 线顶部走势的遮挡。同步更新 `KlineChart.test.ts` 中的定位断言，锁定新的垂直偏移。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前仍是固定偏移量方案；如果后续顶部标签数量继续增加，可能还需要联动收紧标签区或改为响应式 HUD 定位
+## 2026-03-30 18:43
+
+- 修改人：Codex
+- 修改范围：Watchlist K 线 HUD 浮层垂直位置微调、前端组件回归测试
+- 变更内容：将 `KlineChart.vue` 中展示开高低收、涨跌和成交量的顶部浮空 HUD 从 `top-14` 下调到 `top-16`，让该行情条与顶部标签区和主图上沿拉开一点距离，减轻对 K 线顶部区域的遮挡。同步在 `KlineChart.test.ts` 补充 HUD 定位类名断言，锁定这次下移后的样式，避免后续样式回退。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.vue`
+  - `/Users/xiuyang/Desktop/news-caught/frontend/src/components/watchlist/KlineChart.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-03-30-kline-hud-offset-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-03-30-kline-hud-offset-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无
+- 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：本次只做固定偏移量微调；若后续还要进一步减少遮挡，可能需要根据不同视口或标签行数改成更自适应的 HUD 定位策略
+
 ## 2026-03-30 15:52
 
 - 修改人：Codex
