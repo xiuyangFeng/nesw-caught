@@ -1,6 +1,17 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('./ResearchBriefPanel.vue', () => ({
+  default: {
+    props: ['researchBrief'],
+    template: `
+      <section data-role="research-brief-panel-stub">
+        <div data-role="research-brief-symbol">{{ researchBrief?.symbol ?? '' }}</div>
+      </section>
+    `,
+  },
+}));
+
 vi.mock('./KlineChart.vue', () => ({
   default: {
     props: ['highlightedEventTime', 'currentPeriod'],
@@ -94,6 +105,15 @@ describe('StockDetailPanel', () => {
             fetched_at: '2026-03-19T10:05:00Z',
           },
         ],
+        researchBrief: {
+          symbol: 'AAPL',
+          market: 'us',
+          generated_at: '2026-03-30T11:30:00Z',
+          window_days: 14,
+          top_action_level: 'act_now',
+          has_unexplained_price_move: false,
+          drivers: [],
+        },
         currentPeriod: '1D',
         klineLoading: false,
         klineError: null,
@@ -108,6 +128,8 @@ describe('StockDetailPanel', () => {
 
     expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(false);
     expect(wrapper.get('[data-role="kline-current-period"]').text()).toBe('1D');
+    expect(wrapper.get('[data-role="research-brief-panel-stub"]').exists()).toBe(true);
+    expect(wrapper.get('[data-role="research-brief-symbol"]').text()).toBe('AAPL');
 
     await wrapper.get('[data-role="kline-event-chip-2026-03-19"]').trigger('click');
     expect(wrapper.get('[data-role="trading-desk-news-item-101"]').attributes('data-highlighted')).toBe('true');
@@ -122,6 +144,7 @@ describe('StockDetailPanel', () => {
         quote: null,
         klineData: null,
         detailNews: [],
+        researchBrief: null,
         currentPeriod: '1Y',
         klineLoading: true,
         klineError: null,

@@ -21,11 +21,7 @@ async function loadPageData(targetSymbol: string) {
     return;
   }
   try {
-    await Promise.all([
-      watchlistStore.selectSymbol(targetSymbol),
-      watchlistStore.loadQuoteDetail(targetSymbol),
-      watchlistStore.loadRelatedNews(targetSymbol),
-    ]);
+    await watchlistStore.loadDetailWorkspace(targetSymbol);
   } catch (error) {
     if (error instanceof HttpError && error.status === 404) {
       await router.push({ name: 'watchlist' });
@@ -67,6 +63,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
         :quote="detailQuote"
         :kline-data="watchlistStore.klineData"
         :detail-news="watchlistStore.detailNews"
+        :research-brief="watchlistStore.researchBrief"
         :current-period="watchlistStore.currentPeriod"
         :kline-loading="watchlistStore.klineLoading"
         :kline-error="watchlistStore.klineError"

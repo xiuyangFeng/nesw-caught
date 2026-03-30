@@ -203,6 +203,49 @@ describe('apiClient.getWatchlistCandidates', () => {
   });
 });
 
+describe('apiClient.getWatchlistResearchBrief', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('loads the watchlist research brief from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          symbol: 'NVDA',
+          market: 'us',
+          generated_at: '2026-03-30T11:30:00Z',
+          window_days: 14,
+          top_action_level: 'act_now',
+          has_unexplained_price_move: false,
+          drivers: [],
+        }),
+      }),
+    );
+
+    const response = await apiClient.getWatchlistResearchBrief('NVDA');
+
+    expect(fetch).toHaveBeenCalledWith('/api/watchlist/NVDA/research-brief', {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.symbol).toBe('NVDA');
+    expect(response.data.window_days).toBe(14);
+    expect(response.data.market).toBe('us');
+  });
+
+  it('preserves backend failures instead of fabricating an empty brief', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.getWatchlistResearchBrief('NVDA')).rejects.toThrow('backend offline');
+  });
+});
+
 describe('apiClient.getNewsRuntime', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

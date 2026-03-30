@@ -29,6 +29,35 @@
 - 验证情况：`npm --prefix frontend run test -- --run src/components/watchlist/KlineChart.test.ts` 通过（1 个文件 / 4 个用例）；`npm --prefix frontend run build` 通过
 - 风险/后续事项：本次只做固定偏移量微调；若后续还要进一步减少遮挡，可能需要根据不同视口或标签行数改成更自适应的 HUD 定位策略
 
+## 2026-03-30 19:25
+
+- 修改人：Codex
+- 修改范围：Watchlist 研究简报、单股详情页研究视图、前后端回归测试
+- 变更内容：为自选股单股详情页新增第一阶段 `research brief` 链路。后端新增 `WatchlistResearchService` 和 `GET /api/watchlist/{symbol}/research-brief`，基于现有 related news 数据集和现有 symbol alias lookup 规则，在 14 天窗口内按 `政策/监管`、`公司动作`、`产业链传导`、`价格异动` 四类做规则归类，并输出 `act_now/watch_today/know_only` 动作等级及 `has_unexplained_price_move` 标记。前端同步新增 research brief 类型、API client、store 状态与 `loadDetailWorkspace()` 单一详情页加载入口，避免 view/store 重复拉取新闻；`StockDetailPanel` 中新增 `ResearchBriefPanel`，在 K 线下方、原始新闻流上方展示驱动摘要、分类分组和空态提示。根据最终代码审查又补齐了 3 个回归修正：quote detail 请求竞态保护、缺失 symbol 的 404 回退恢复，以及 research brief 摘要时间按实际市场时区展示。同步补齐 backend、api client、store、component、detail view 测试，锁定 research brief 契约与详情页加载编排。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/backend/app/api/routes/watchlist.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/backend/app/schemas/watchlist.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/backend/app/services/watchlist_research_service.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/backend/tests/test_watchlist_research.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/api/client.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/api/mock.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/components/watchlist/ResearchBriefPanel.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/components/watchlist/ResearchBriefPanel.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/components/watchlist/StockDetailPanel.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/stores/watchlistStore.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/stores/watchlistStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/views/WatchlistDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/frontend/src/views/WatchlistDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/docs/superpowers/specs/2026-03-30-watchlist-research-desk-phase1-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/docs/superpowers/plans/2026-03-30-watchlist-research-desk-phase1-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/watchlist-research-desk/docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/watchlist/{symbol}/research-brief`；新增前后端 research brief 结构体，包含 `market`、`window_days`、`top_action_level`、`has_unexplained_price_move` 和按分类展开的 `drivers`
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_watchlist_research.py backend/tests/test_stock_news_search.py -q` 通过（18 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/stores/watchlistStore.test.ts src/components/watchlist/ResearchBriefPanel.test.ts src/components/watchlist/StockDetailPanel.test.ts src/views/WatchlistDetailView.test.ts` 通过（5 个文件 / 43 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前 research brief 仍是纯关键词规则，误判与漏判风险存在；`supply_chain` 和 `price_action` 也还没有接入更强的行业知识库或个人反馈闭环。下一阶段更适合把 research brief 摘要上浮到 watchlist 列表，进一步变成真正的自选股优先级分发器
+
 ## 2026-03-30 15:52
 
 - 修改人：Codex

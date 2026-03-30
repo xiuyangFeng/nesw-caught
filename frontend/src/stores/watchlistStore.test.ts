@@ -8,6 +8,7 @@ const apiClient = {
   getStockQuoteDetail: vi.fn(),
   getStockKline: vi.fn(),
   getRelatedNews: vi.fn(),
+  getWatchlistResearchBrief: vi.fn(),
   createWatchlist: vi.fn(),
   getWatchlistCandidates: vi.fn(),
   deleteWatchlist: vi.fn(),
@@ -305,11 +306,24 @@ describe('watchlistStore', () => {
       data: [{ id: 1, title: 'Tencent update', summary: '...', source_name: 'Reuters', canonical_url: null, market: 'hk', sentiment_label: 'positive', published_at: null, fetched_at: '2026-03-20T00:00:00Z' }],
       degraded: false,
     });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: '0700.HK',
+        market: 'hk',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'watch_today',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
 
     await (store as any).selectSymbol('0700.HK');
 
     expect(apiClient.getStockKline).toHaveBeenCalledWith('0700.HK', '1d', '1y');
     expect(apiClient.getRelatedNews).toHaveBeenCalledWith('0700.HK');
+    expect(apiClient.getWatchlistResearchBrief).toHaveBeenCalledWith('0700.HK');
     expect(store.selectedSymbol).toBe('0700.HK');
     expect((store as any).klineData?.symbol).toBe('0700.HK');
     expect((store as any).detailNews).toHaveLength(1);
@@ -349,11 +363,24 @@ describe('watchlistStore', () => {
       ],
       degraded: false,
     });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: '600519.SH',
+        market: 'cn',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'act_now',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
 
     await (store as any).selectSymbol('600519.SH');
 
     expect(apiClient.getStockKline).toHaveBeenCalledWith('600519.SH', '1d', '1y');
     expect(apiClient.getRelatedNews).toHaveBeenCalledWith('600519.SH');
+    expect(apiClient.getWatchlistResearchBrief).toHaveBeenCalledWith('600519.SH');
     expect((store as any).klineData?.symbol).toBe('600519.SH');
     expect((store as any).detailNews[0]?.market).toBe('cn');
   });
@@ -463,6 +490,18 @@ describe('watchlistStore', () => {
     store.items = [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }];
     apiClient.getStockKline.mockRejectedValue(new Error('timeout'));
     apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: '0700.HK',
+        market: 'hk',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'none',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
 
     await (store as any).selectSymbol('0700.HK');
 
@@ -506,6 +545,18 @@ describe('watchlistStore', () => {
           }),
       );
     apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: 'AAPL',
+        market: 'us',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'none',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
 
     const firstSelection = (store as any).selectSymbol('0700.HK');
     const secondSelection = (store as any).selectSymbol('AAPL');
@@ -539,5 +590,215 @@ describe('watchlistStore', () => {
 
     expect(store.selectedSymbol).toBe('AAPL');
     expect((store as any).klineData?.symbol).toBe('AAPL');
+  });
+
+  it('loads the detail workspace through a single store entrypoint', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getStockQuoteDetail.mockResolvedValue({
+      data: {
+        symbol: 'NVDA',
+        market: 'us',
+        display_name: 'NVIDIA',
+        provider_symbol: 'NVDA',
+        price: 100,
+        change_amount: 1,
+        change_percent: 1,
+        open_price: 99,
+        previous_close: 98,
+        day_high: 101,
+        day_low: 97,
+        volume: 1000,
+        status: 'ok',
+        source: 'yahoo_finance',
+        message: null,
+        is_abnormal: false,
+        abnormal_reason: null,
+        fetched_at: '2026-03-30T11:30:00Z',
+      },
+      degraded: false,
+    });
+    apiClient.getStockKline.mockResolvedValue({
+      data: {
+        symbol: 'NVDA',
+        interval: '1d',
+        range: '1y',
+        stale: false,
+        candles: [],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+    apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: 'NVDA',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'act_now',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
+
+    await (store as any).loadDetailWorkspace('NVDA');
+
+    expect(apiClient.getStockQuoteDetail).toHaveBeenCalledWith('NVDA');
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('NVDA', '1d', '1y');
+    expect(apiClient.getRelatedNews).toHaveBeenCalledWith('NVDA');
+    expect(apiClient.getWatchlistResearchBrief).toHaveBeenCalledWith('NVDA');
+    expect(store.quoteDetail?.symbol).toBe('NVDA');
+  });
+
+  it('ignores stale quote detail responses after the user switches symbols quickly', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    let resolveFirstDetail!: (value: any) => void;
+    let resolveSecondDetail!: (value: any) => void;
+    apiClient.getStockQuoteDetail
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstDetail = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecondDetail = resolve; }));
+    apiClient.getStockKline.mockResolvedValue({
+      data: {
+        symbol: 'AAPL',
+        interval: '1d',
+        range: '1y',
+        stale: false,
+        candles: [],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [],
+      },
+      degraded: false,
+    });
+    apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: 'AAPL',
+        market: 'us',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'none',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
+
+    const firstLoad = (store as any).loadDetailWorkspace('0700.HK');
+    const secondLoad = (store as any).loadDetailWorkspace('AAPL');
+
+    resolveSecondDetail({
+      data: {
+        symbol: 'AAPL',
+        market: 'us',
+        display_name: 'Apple',
+        provider_symbol: 'AAPL',
+        price: 200,
+        change_amount: 1,
+        change_percent: 1,
+        open_price: 199,
+        previous_close: 198,
+        day_high: 201,
+        day_low: 197,
+        volume: 1000,
+        status: 'ok',
+        source: 'yahoo_finance',
+        message: null,
+        is_abnormal: false,
+        abnormal_reason: null,
+        fetched_at: '2026-03-30T11:30:00Z',
+      },
+      degraded: false,
+    });
+    resolveFirstDetail({
+      data: {
+        symbol: '0700.HK',
+        market: 'hk',
+        display_name: 'Tencent',
+        provider_symbol: '0700.HK',
+        price: 550,
+        change_amount: 1,
+        change_percent: 1,
+        open_price: 549,
+        previous_close: 548,
+        day_high: 551,
+        day_low: 547,
+        volume: 1000,
+        status: 'ok',
+        source: 'yahoo_finance',
+        message: null,
+        is_abnormal: false,
+        abnormal_reason: null,
+        fetched_at: '2026-03-30T11:30:00Z',
+      },
+      degraded: false,
+    });
+
+    await Promise.all([firstLoad, secondLoad]);
+
+    expect(store.selectedSymbol).toBe('AAPL');
+    expect(store.quoteDetail?.symbol).toBe('AAPL');
+  });
+
+  it('treats missing watchlist symbols as a 404 in the single detail loader', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    const { HttpError } = await import('../api/http');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getStockQuoteDetail.mockResolvedValue({
+      data: {
+        symbol: 'NOT-REAL',
+        market: 'unknown',
+        display_name: null,
+        provider_symbol: null,
+        price: null,
+        change_amount: null,
+        change_percent: null,
+        open_price: null,
+        previous_close: null,
+        day_high: null,
+        day_low: null,
+        volume: null,
+        status: 'symbol_not_supported',
+        source: 'yahoo_finance',
+        message: 'symbol not supported',
+        is_abnormal: false,
+        abnormal_reason: null,
+        fetched_at: '2026-03-30T11:30:00Z',
+      },
+      degraded: false,
+    });
+    apiClient.getStockKline.mockRejectedValue(new Error('missing'));
+    apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getWatchlistResearchBrief.mockResolvedValue({
+      data: {
+        symbol: 'NOT-REAL',
+        market: 'us',
+        generated_at: '2026-03-30T11:30:00Z',
+        window_days: 14,
+        top_action_level: 'none',
+        has_unexplained_price_move: false,
+        drivers: [],
+      },
+      degraded: false,
+    });
+
+    try {
+      await (store as any).loadDetailWorkspace('NOT-REAL');
+      throw new Error('expected loadDetailWorkspace to reject');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpError);
+      expect(error).toMatchObject({ status: 404 });
+    }
   });
 });

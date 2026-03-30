@@ -250,6 +250,27 @@ export interface WatchlistCandidate {
   aliases: string[];
 }
 
+export type ResearchDriverCategory = 'policy_macro' | 'company_action' | 'supply_chain' | 'price_action';
+export type ResearchActionLevel = 'act_now' | 'watch_today' | 'know_only';
+export type ResearchTopActionLevel = ResearchActionLevel | 'none';
+
+export interface WatchlistResearchDriver {
+  category: ResearchDriverCategory;
+  action_level: ResearchActionLevel;
+  reason: string;
+  news_item: NewsItem;
+}
+
+export interface WatchlistResearchBrief {
+  symbol: string;
+  market: Market;
+  generated_at: string;
+  window_days: number;
+  top_action_level: ResearchTopActionLevel;
+  has_unexplained_price_move: boolean;
+  drivers: WatchlistResearchDriver[];
+}
+
 export interface TopicItem {
   id: number;
   topic_title: string;

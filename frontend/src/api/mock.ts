@@ -23,6 +23,7 @@ import type {
   WatchlistCandidate,
   WatchlistItem,
   WatchlistQuoteSummary,
+  WatchlistResearchBrief,
   XAccount,
   XHealth,
   XPost,
@@ -590,6 +591,57 @@ export const mockRelatedNews: Record<string, NewsItem[]> = {
   '0700.HK': [mockNews[0], mockNews[2]],
   AAPL: [mockNews[1]],
   NVDA: [mockNews[3]],
+};
+
+export const mockWatchlistResearchBriefs: Record<string, WatchlistResearchBrief> = {
+  '0700.HK': {
+    symbol: '0700.HK',
+    market: 'hk',
+    generated_at: isoMinutesAgo(5),
+    window_days: 14,
+    top_action_level: 'act_now',
+    has_unexplained_price_move: false,
+    drivers: [
+      {
+        category: 'company_action',
+        action_level: 'act_now',
+        reason: '公司动作或订单变化可能改变未来催化节奏。优先级高，建议立即核对原文。',
+        news_item: mockNews[0],
+      },
+    ],
+  },
+  AAPL: {
+    symbol: 'AAPL',
+    market: 'us',
+    generated_at: isoMinutesAgo(5),
+    window_days: 14,
+    top_action_level: 'watch_today',
+    has_unexplained_price_move: false,
+    drivers: [
+      {
+        category: 'supply_chain',
+        action_level: 'watch_today',
+        reason: '产业链供需或价格变化值得继续跟踪传导路径。建议今天内完成确认。',
+        news_item: mockNews[1],
+      },
+    ],
+  },
+  NVDA: {
+    symbol: 'NVDA',
+    market: 'us',
+    generated_at: isoMinutesAgo(5),
+    window_days: 14,
+    top_action_level: 'watch_today',
+    has_unexplained_price_move: false,
+    drivers: [
+      {
+        category: 'supply_chain',
+        action_level: 'watch_today',
+        reason: '产业链供需或价格变化值得继续跟踪传导路径。建议今天内完成确认。',
+        news_item: mockNews[3],
+      },
+    ],
+  },
 };
 
 const buildMockNewsEvents = (symbol: string): NewsEventMarker[] =>

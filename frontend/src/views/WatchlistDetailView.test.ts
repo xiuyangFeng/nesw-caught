@@ -56,6 +56,15 @@ const watchlistStore = reactive({
       fetched_at: '2026-03-19T10:05:00Z',
     },
   ],
+  researchBrief: {
+    symbol: 'AAPL',
+    market: 'us',
+    generated_at: '2026-03-30T11:30:00Z',
+    window_days: 14,
+    top_action_level: 'act_now',
+    has_unexplained_price_move: false,
+    drivers: [],
+  },
   klineData: {
     symbol: 'AAPL',
     interval: '1d',
@@ -83,6 +92,7 @@ const watchlistStore = reactive({
   stale: false,
   loadQuoteDetail: vi.fn(async () => undefined),
   loadRelatedNews: vi.fn(async () => undefined),
+  loadDetailWorkspace: vi.fn(async () => undefined),
   selectSymbol: vi.fn(async () => undefined),
 });
 
@@ -133,6 +143,7 @@ describe('WatchlistDetailView', () => {
     routeState.params.symbol = 'AAPL';
     watchlistStore.loadQuoteDetail.mockClear();
     watchlistStore.loadRelatedNews.mockClear();
+    watchlistStore.loadDetailWorkspace.mockClear();
     watchlistStore.selectSymbol.mockClear();
   });
 
@@ -140,9 +151,7 @@ describe('WatchlistDetailView', () => {
     const wrapper = mount(WatchlistDetailView);
     await flushPromises();
 
-    expect(watchlistStore.selectSymbol).toHaveBeenCalledWith('AAPL');
-    expect(watchlistStore.loadQuoteDetail).toHaveBeenCalledWith('AAPL');
-    expect(watchlistStore.loadRelatedNews).toHaveBeenCalledWith('AAPL');
+    expect(watchlistStore.loadDetailWorkspace).toHaveBeenCalledWith('AAPL');
     expect(wrapper.find('[data-role="watchlist-detail-main"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('返回自选股总览');
   });
@@ -152,6 +161,7 @@ describe('WatchlistDetailView', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-role="trading-desk-main"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-detail-research"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="watchlist-detail-news"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="indicator-chart-stub"]').exists()).toBe(false);
@@ -164,18 +174,25 @@ describe('WatchlistDetailView', () => {
     await flushPromises();
 
     expect(push).toHaveBeenCalledWith({ name: 'watchlist' });
-    expect(watchlistStore.selectSymbol).not.toHaveBeenCalled();
-    expect(watchlistStore.loadQuoteDetail).not.toHaveBeenCalled();
-    expect(watchlistStore.loadRelatedNews).not.toHaveBeenCalled();
+    expect(watchlistStore.loadDetailWorkspace).not.toHaveBeenCalled();
   });
 
   it('does not leave the detail page on non-404 loading errors', async () => {
-    watchlistStore.loadQuoteDetail.mockRejectedValueOnce(new HttpError('temporary failure', 500));
+    watchlistStore.loadDetailWorkspace.mockRejectedValueOnce(new HttpError('temporary failure', 500));
 
     const wrapper = mount(WatchlistDetailView);
     await flushPromises();
 
     expect(push).not.toHaveBeenCalledWith({ name: 'watchlist' });
     expect(wrapper.find('[data-role="watchlist-detail-main"]').exists()).toBe(true);
+  });
+
+  it('returns to the watchlist list on missing-symbol workspace errors', async () => {
+    watchlistStore.loadDetailWorkspace.mockRejectedValueOnce(new HttpError('watchlist symbol not found', 404));
+
+    mount(WatchlistDetailView);
+    await flushPromises();
+
+    expect(push).toHaveBeenCalledWith({ name: 'watchlist' });
   });
 });

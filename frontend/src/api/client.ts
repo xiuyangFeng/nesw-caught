@@ -28,6 +28,7 @@ import type {
   WatchlistItem,
   WatchlistItemCreate,
   WatchlistQuoteSummary,
+  WatchlistResearchBrief,
   XAccount,
   XAccountCreatePayload,
   XAccountUpdatePayload,
@@ -60,6 +61,7 @@ import {
   mockWatchlistCandidates,
   mockWatchlist,
   mockWatchlistQuotes,
+  mockWatchlistResearchBriefs,
   mockWatchlistSparklines,
   buildMockTranslation,
   mockXAccounts,
@@ -243,6 +245,12 @@ export const apiClient = {
       () => getJson(`/api/watchlist/${encodeURIComponent(symbol)}/related-news`),
       () => mockRelatedNews[symbol] ?? [],
     );
+  },
+  getWatchlistResearchBrief(symbol: string) {
+    return getJson<WatchlistResearchBrief>(`/api/watchlist/${encodeURIComponent(symbol)}/research-brief`).then((data) => ({
+      data,
+      degraded: false,
+    }));
   },
   getTopics() {
     return withMockFallback<TopicItem[]>(() => getJson('/api/topics'), () => mockTopics);
