@@ -5,12 +5,14 @@ import type { NewsEventMarker, NewsItem, StockKlineResponse, WatchlistDashboardP
 import { formatNumber, formatPercent } from '../../utils/format';
 import { formatMarketTime } from '../../utils/time';
 import KlineChart from './KlineChart.vue';
+import ResearchBriefPanel from './ResearchBriefPanel.vue';
 import RelatedNewsSidebar from './RelatedNewsSidebar.vue';
 
 const props = defineProps<{
   quote: WatchlistQuoteSummary | null;
   klineData: StockKlineResponse | null;
   detailNews: NewsItem[];
+  researchBrief: import('../../types/api').WatchlistResearchBrief | null;
   currentPeriod: WatchlistDashboardPeriod;
   klineLoading: boolean;
   klineError: string | null;
@@ -174,6 +176,10 @@ function focusNewsItem(item: NewsItem) {
         @focus-news="focusNewsEvent"
         @switch-period="emit('switchPeriod', $event)"
       />
+    </section>
+
+    <section v-if="researchBrief" data-role="watchlist-detail-research">
+      <ResearchBriefPanel :research-brief="researchBrief" />
     </section>
 
     <section class="grid gap-4" data-role="watchlist-detail-news">

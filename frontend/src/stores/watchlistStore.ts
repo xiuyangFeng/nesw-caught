@@ -13,6 +13,7 @@ import type {
   WatchlistItem,
   WatchlistItemCreate,
   WatchlistQuoteSummary,
+  WatchlistResearchBrief,
 } from '../types/api';
 import { isStale } from '../utils/time';
 
@@ -31,6 +32,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   const quoteDetail = ref<StockQuoteDetail | null>(null);
   const relatedNews = ref<Record<string, NewsItem[]>>({});
   const detailNews = ref<NewsItem[]>([]);
+  const researchBrief = ref<WatchlistResearchBrief | null>(null);
   const lastManualRefreshResult = ref<import('../types/api').MarketRefreshResult | null>(null);
   const selectedSymbol = ref<string | null>(null);
   const currentPeriod = ref<WatchlistDashboardPeriod>('1D');
@@ -57,6 +59,17 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   let detailRequestId = 0;
 
   const stale = computed(() => isStale(lastLoadedAt.value, 5));
+
+  function beginDetailRequest(symbol: string): number {
+    detailRequestId += 1;
+    selectedSymbol.value = symbol;
+    detailNews.value = [];
+    researchBrief.value = null;
+    klineData.value = null;
+    klineError.value = null;
+    quoteDetail.value = null;
+    return detailRequestId;
+  }
 
   async function loadCandidates() {
     candidatesLoading.value = true;
@@ -118,23 +131,24 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     }
   }
 
-  async function loadQuoteDetail(symbol: string) {
+  async function loadQuoteDetail(symbol: string, requestId = detailRequestId) {
     detailLoading.value = true;
-    selectedSymbol.value = symbol;
-    quoteDetail.value = null;
     try {
       const response = await apiClient.getStockQuoteDetail(symbol);
-      quoteDetail.value = response.data;
-      usingMock.value = usingMock.value || response.degraded;
-      lastLoadedAt.value = new Date().toISOString();
+      if (requestId === detailRequestId && selectedSymbol.value === symbol) {
+        quoteDetail.value = response.data;
+        usingMock.value = usingMock.value || response.degraded;
+        lastLoadedAt.value = new Date().toISOString();
+      }
     } finally {
-      detailLoading.value = false;
+      if (requestId === detailRequestId) {
+        detailLoading.value = false;
+      }
     }
   }
 
-  async function loadRelatedNews(symbol: string) {
+  async function loadRelatedNews(symbol: string, requestId = detailRequestId) {
     relatedLoading.value = true;
-    const requestId = detailRequestId;
     try {
       const response = await apiClient.getRelatedNews(symbol);
       relatedNews.value[symbol] = response.data;
@@ -149,8 +163,21 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     }
   }
 
-  async function loadKline(symbol: string, period = currentPeriod.value) {
-    const requestId = detailRequestId;
+  async function loadResearchBrief(symbol: string, requestId = detailRequestId) {
+    try {
+      const response = await apiClient.getWatchlistResearchBrief(symbol);
+      if (requestId === detailRequestId && selectedSymbol.value === symbol) {
+        researchBrief.value = response.data;
+      }
+      usingMock.value = usingMock.value || response.degraded;
+    } catch {
+      if (requestId === detailRequestId && selectedSymbol.value === symbol) {
+        researchBrief.value = null;
+      }
+    }
+  }
+
+  async function loadKline(symbol: string, period = currentPeriod.value, requestId = detailRequestId) {
     const query = PERIOD_QUERY_MAP[period];
     klineLoading.value = true;
     klineError.value = null;
@@ -176,14 +203,34 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   }
 
   async function selectSymbol(symbol: string) {
-    detailRequestId += 1;
-    selectedSymbol.value = symbol;
-    detailNews.value = [];
-    klineData.value = null;
-    klineError.value = null;
-    const [, newsResult] = await Promise.allSettled([loadKline(symbol, currentPeriod.value), loadRelatedNews(symbol)]);
+    const requestId = beginDetailRequest(symbol);
+    const [, newsResult] = await Promise.allSettled([
+      loadKline(symbol, currentPeriod.value, requestId),
+      loadRelatedNews(symbol, requestId),
+      loadResearchBrief(symbol, requestId),
+    ]);
     if (newsResult.status === 'rejected') {
       detailNews.value = [];
+    }
+  }
+
+  async function loadDetailWorkspace(symbol: string) {
+    const requestId = beginDetailRequest(symbol);
+    const [, newsResult] = await Promise.allSettled([
+      loadQuoteDetail(symbol, requestId),
+      loadKline(symbol, currentPeriod.value, requestId),
+      loadRelatedNews(symbol, requestId),
+      loadResearchBrief(symbol, requestId),
+    ]);
+    if (newsResult.status === 'rejected') {
+      detailNews.value = [];
+    }
+    if (
+      quoteDetail.value?.symbol === symbol &&
+      !quoteDetail.value.display_name &&
+      (quoteDetail.value.status === 'unavailable' || quoteDetail.value.status === 'symbol_not_supported')
+    ) {
+      throw new HttpError('watchlist symbol not found', 404);
     }
   }
 
@@ -230,6 +277,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
         klineData.value = null;
         klineError.value = null;
         detailNews.value = [];
+        researchBrief.value = null;
       }
     } catch {
       deleteError.value = '删除自选股失败，请检查后端服务';
@@ -246,6 +294,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     quoteDetail,
     relatedNews,
     detailNews,
+    researchBrief,
     lastManualRefreshResult,
     selectedSymbol,
     currentPeriod,
@@ -275,8 +324,10 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     refreshMarketQuotes,
     loadQuoteDetail,
     loadRelatedNews,
+    loadResearchBrief,
     loadKline,
     selectSymbol,
+    loadDetailWorkspace,
     switchPeriod,
     createWatchlist,
     deleteWatchlist,

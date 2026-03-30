@@ -8,9 +8,10 @@ from app.db.session import get_db_session
 from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import NewsItemSummary
-from app.schemas.watchlist import WatchlistCandidateView, WatchlistItemCreate, WatchlistItemView
+from app.schemas.watchlist import WatchlistCandidateView, WatchlistItemCreate, WatchlistItemView, WatchlistResearchBriefView
 from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
 from app.services.stock_news_search import StockNewsSearchService
+from app.services.watchlist_research_service import WatchlistResearchService
 from app.services.watchlist_candidates import list_watchlist_candidates
 
 logger = logging.getLogger(__name__)
@@ -115,3 +116,11 @@ def list_related_news(
     repository = NewsMentionsRepository(session)
     items = repository.list_related_news(_resolve_watchlist_stored_symbol(symbol, watchlist_repository))
     return [NewsItemSummary.model_validate(item, from_attributes=True) for item in items]
+
+
+@router.get("/{symbol}/research-brief", response_model=WatchlistResearchBriefView)
+def get_watchlist_research_brief(
+    symbol: str,
+    session: Session = Depends(get_db_session),
+) -> WatchlistResearchBriefView:
+    return WatchlistResearchService().build_brief(_resolve_watchlist_stored_symbol(symbol, WatchlistRepository(session)), session)

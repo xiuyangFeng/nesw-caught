@@ -1,0 +1,93 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+
+import type { ResearchDriverCategory, WatchlistResearchBrief } from '../../types/api';
+import { formatMarketTime } from '../../utils/time';
+
+const props = defineProps<{
+  researchBrief: WatchlistResearchBrief;
+}>();
+
+const groupedDrivers = computed(() => {
+  const groups = new Map<ResearchDriverCategory, typeof props.researchBrief.drivers>();
+  for (const driver of props.researchBrief.drivers) {
+    const existing = groups.get(driver.category) ?? [];
+    existing.push(driver);
+    groups.set(driver.category, existing);
+  }
+  return Array.from(groups.entries());
+});
+
+function categoryLabel(category: ResearchDriverCategory) {
+  return {
+    policy_macro: '政策/监管/宏观',
+    company_action: '产品/订单/公司动作',
+    supply_chain: '产业链传导',
+    price_action: '价格异动解释',
+  }[category];
+}
+
+function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
+  return {
+    act_now: '立即看',
+    watch_today: '今日跟踪',
+    know_only: '知道即可',
+    none: '暂无驱动',
+  }[level];
+}
+</script>
+
+<template>
+  <section
+    class="grid gap-4 rounded-[18px] border border-[rgba(148,163,184,0.12)] bg-[linear-gradient(180deg,rgba(11,18,28,0.95),rgba(8,13,22,0.99))] p-4"
+    data-role="research-brief-panel"
+  >
+    <div class="flex flex-wrap items-start justify-between gap-3" data-role="research-brief-summary">
+      <div class="grid gap-1">
+        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Research Brief</p>
+        <strong class="text-text">近 {{ researchBrief.window_days }} 天驱动压缩</strong>
+        <p class="text-sm text-text-soft">
+          当前优先级：{{ actionLabel(researchBrief.top_action_level) }}
+          <template v-if="researchBrief.has_unexplained_price_move"> · 存在价格异动待解释</template>
+        </p>
+      </div>
+      <span class="text-[11px] uppercase tracking-[0.14em] text-text-faint">
+        {{ researchBrief.drivers.length }} drivers · {{ formatMarketTime(researchBrief.generated_at, researchBrief.market) }}
+      </span>
+    </div>
+
+    <div v-if="!researchBrief.drivers.length" class="rounded-[14px] border border-border bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-text-soft" data-role="research-brief-empty">
+      暂无可归因驱动，继续关注价格和原始新闻流。
+    </div>
+
+    <div v-else class="grid gap-3">
+      <section
+        v-for="[category, drivers] in groupedDrivers"
+        :key="category"
+        class="grid gap-2 rounded-[14px] border border-[rgba(148,163,184,0.1)] bg-[rgba(255,255,255,0.02)] p-3"
+        :data-role="`research-driver-group-${category}`"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <strong class="text-sm text-text">{{ categoryLabel(category) }}</strong>
+          <span class="text-[11px] uppercase tracking-[0.14em] text-text-faint">{{ drivers.length }} items</span>
+        </div>
+        <article
+          v-for="driver in drivers"
+          :key="driver.news_item.id"
+          class="grid gap-1.5 rounded-[12px] border border-[rgba(148,163,184,0.08)] bg-[rgba(255,255,255,0.02)] p-3"
+          :data-role="`research-driver-item-${driver.news_item.id}`"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <strong class="text-sm text-text">{{ driver.news_item.title }}</strong>
+            <span class="text-[11px] uppercase tracking-[0.14em] text-[#ffca97]">{{ actionLabel(driver.action_level) }}</span>
+          </div>
+          <p class="text-sm text-text-soft">{{ driver.reason }}</p>
+          <div class="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
+            <span>{{ driver.news_item.source_name }}</span>
+            <span>{{ formatMarketTime(driver.news_item.published_at ?? driver.news_item.fetched_at, driver.news_item.market) }}</span>
+          </div>
+        </article>
+      </section>
+    </div>
+  </section>
+</template>
