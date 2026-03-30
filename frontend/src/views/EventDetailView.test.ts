@@ -65,7 +65,7 @@ describe('EventDetailView', () => {
             title: 'Published later',
             summary: 'Should sort first.',
             source_name: 'Bloomberg',
-            canonical_url: 'https://example.com/bloomberg',
+            canonical_url: null,
             market: 'us',
             sentiment_label: 'positive',
             published_at: '2026-03-18T08:10:00Z',
@@ -87,18 +87,43 @@ describe('EventDetailView', () => {
     });
   });
 
-  it('loads event detail from the backend and preserves backend timeline order', async () => {
+  it('renders a compact event header and timeline metadata using backend order', async () => {
     const wrapper = mount(EventDetailView);
     await flushPromises();
 
     expect(getNewsEventDetail).toHaveBeenCalledWith('topic-1');
     expect(wrapper.text()).toContain('AI Chip Launch');
+    expect(wrapper.text()).toContain('NVIDIA 新一轮 AI 芯片发布带动供应链关注度上升。');
+    expect(wrapper.text()).toContain('PRODUCT');
+    expect(wrapper.text()).toContain('偏利好');
+    expect(wrapper.text()).toContain('US');
     expect(wrapper.text()).toContain('NVDA');
     expect(wrapper.text()).toContain('SMCI');
+    expect(wrapper.text()).toContain('Sources 3');
+    expect(wrapper.text()).toContain('News 3');
+    expect(wrapper.text()).toContain('03/18 04:12 ET');
+    expect(wrapper.findAll('[data-role="event-stage-label"]').map((node) => node.text())).toEqual(['首发', '跟进', '更新']);
+    expect(wrapper.findAll('[data-role="event-source-name"]').map((node) => node.text())).toEqual(['Reuters', 'Bloomberg', 'CLS']);
+    expect(wrapper.findAll('[data-role="event-sentiment-pill"]').map((node) => node.text())).toEqual(['中性', '偏利好', '中性']);
 
     const timelineTitles = wrapper.findAll('[data-role="event-timeline-title"]').map((node) => node.text());
     expect(timelineTitles).toEqual(['Late fetched source', 'Published later', 'No timestamp']);
     expect(wrapper.text()).toContain('摘要待补充');
+  });
+
+  it('routes timeline items to the news detail page and keeps source links optional', async () => {
+    const wrapper = mount(EventDetailView);
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-role="event-open-source-link"]')).toHaveLength(1);
+    expect(wrapper.get('[data-role="event-open-source-link"]').attributes('href')).toBe('https://example.com/reuters');
+
+    const detailButtons = wrapper.findAll('[data-role="event-open-news-detail"]');
+    expect(detailButtons).toHaveLength(3);
+
+    await detailButtons[1].trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 2 } });
   });
 
   it('shows a not-found state when the backend returns 404', async () => {

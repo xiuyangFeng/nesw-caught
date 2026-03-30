@@ -2,6 +2,36 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-30 13:54
+
+- 修改人：Codex
+- 修改范围：事件详情页时间线重构、事件页继续阅读链路、前端回归测试
+- 变更内容：将 `EventDetailView` 从“摘要卡 + 普通列表”重构为更紧凑的事件演化页。顶部去掉重复的 `Event Detail` 大标题，保留返回入口并把事件主体压缩为 compact header：显示 `event_type`、情绪、市场、主 symbol、关联 symbols、来源数、新闻数和最后更新时间。中部时间线改为轨道式布局，每条新闻根据后端返回顺序生成轻量阶段标签 `首发 / 跟进 / 更新`，并展示来源、时间、情绪、标题和摘要。每个时间线项新增 `查看新闻详情` 动作，接通到现有 `/news/:id`，同时在存在 `canonical_url` 时继续提供 `打开原文` 链接。同步扩展 `EventDetailView.test.ts`，锁定 compact header、阶段标签、来源/情绪元信息以及新闻详情跳转行为。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/frontend/src/views/EventDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/frontend/src/views/EventDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/docs/superpowers/specs/2026-03-30-event-detail-timeline-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/docs/superpowers/plans/2026-03-30-event-detail-timeline-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/docs/code-change-log.md`
+- 接口/数据结构变化：无；继续复用现有 `GET /api/news/events/{event_key}` 和 `NewsEventDetail.news_items`
+- 验证情况：`npm --prefix frontend run test -- --run src/views/EventDetailView.test.ts src/views/NewsFeedView.test.ts src/router/index.test.ts src/views/NewsDetailView.test.ts` 通过（4 个文件 / 25 个用例）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run test -- --run` 通过（40 个文件 / 167 个用例）
+- 风险/后续事项：时间线阶段标签是前端基于顺序生成的轻量阅读标签，不代表严格事实分类；若后续需要更强语义，应由后端提供显式事件阶段字段
+
+## 2026-03-30 13:52
+
+- 修改人：Codex
+- 修改范围：事件详情页时间线重构、事件摘要压缩、前端交互回归测试
+- 变更内容：将 `EventDetailView` 从“摘要卡 + 普通列表”重构为真正的事件演化页。顶部改为更紧凑的 compact header，保留事件标题、摘要、事件类型、情绪、市场、主 symbol、关联 symbols、来源数、新闻数和最后更新时间，避免再次挤占正文空间。中部时间线改成带轨道的 timeline 布局，按后端返回顺序展示当前事件挂载新闻，并基于时间线位置给出 `首发 / 跟进 / 更新` 轻量阶段标签。每条时间线新闻新增 `查看新闻详情` 动作，接通到现有 `/news/:id`；存在 `canonical_url` 时额外提供 `打开原文`。同步扩充 `EventDetailView.test.ts`，锁定 compact header、阶段标签、来源/情绪展示和 timeline 动作。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/frontend/src/views/EventDetailView.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/frontend/src/views/EventDetailView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/docs/superpowers/specs/2026-03-30-event-detail-timeline-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/docs/superpowers/plans/2026-03-30-event-detail-timeline-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/event-detail-timeline/docs/code-change-log.md`
+- 接口/数据结构变化：无；继续复用现有 `GET /api/news/events/{event_key}` 与 `NewsEventDetail.news_items`
+- 验证情况：`npm --prefix frontend run test -- --run src/views/EventDetailView.test.ts src/views/NewsFeedView.test.ts src/router/index.test.ts src/views/NewsDetailView.test.ts` 通过（4 个文件 / 25 个用例）；`npm --prefix frontend run build` 通过；`npm --prefix frontend run test -- --run` 通过（40 个文件 / 167 个用例）
+- 风险/后续事项：时间线阶段标签目前基于前端顺序做轻语义推导，并不是后端显式分类；如果后续要做更严格的“首发/跟进/更新”定义，需新增服务端字段或更明确的判定规则
+
 ## 2026-03-30 12:39
 
 - 修改人：Codex
