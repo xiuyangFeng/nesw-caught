@@ -52,9 +52,66 @@ class QuoteRecord:
     fetched_at: datetime
 
 
+def equivalent_symbol_candidates(symbol: str, market: str | None = None) -> list[str]:
+    raw = symbol.strip().upper()
+    candidates: list[str] = [raw]
+
+    try:
+        normalized = normalize_symbol(raw, market)
+    except ValueError:
+        return candidates
+
+    if normalized.symbol not in candidates:
+        candidates.append(normalized.symbol)
+
+    if normalized.market == "cn":
+        digits, suffix = normalized.symbol.split(".", 1)
+        for candidate in (digits, f"SH{digits}" if suffix == "SH" else f"SZ{digits}"):
+            if candidate not in candidates:
+                candidates.append(candidate)
+
+    return candidates
+
+
 def normalize_symbol(symbol: str, market: str | None = None) -> NormalizedSymbol:
     raw = symbol.strip().upper()
     inferred_market = (market or "").lower()
+
+    if raw.endswith(".SH"):
+        digits = raw[:-3]
+        if digits.isdigit() and len(digits) == 6:
+            return NormalizedSymbol(symbol=f"{digits}.SH", market="cn", provider_symbol=f"{digits}.SS")
+
+    if raw.endswith(".SS"):
+        digits = raw[:-3]
+        if digits.isdigit() and len(digits) == 6:
+            return NormalizedSymbol(symbol=f"{digits}.SH", market="cn", provider_symbol=f"{digits}.SS")
+
+    if raw.endswith(".SZ"):
+        digits = raw[:-3]
+        if digits.isdigit() and len(digits) == 6:
+            return NormalizedSymbol(symbol=f"{digits}.SZ", market="cn", provider_symbol=f"{digits}.SZ")
+
+    if raw.startswith("SH") and raw[2:].isdigit() and len(raw[2:]) == 6:
+        digits = raw[2:]
+        return NormalizedSymbol(symbol=f"{digits}.SH", market="cn", provider_symbol=f"{digits}.SS")
+
+    if raw.startswith("SZ") and raw[2:].isdigit() and len(raw[2:]) == 6:
+        digits = raw[2:]
+        return NormalizedSymbol(symbol=f"{digits}.SZ", market="cn", provider_symbol=f"{digits}.SZ")
+
+    if inferred_market == "cn" and raw.isdigit() and len(raw) == 6:
+        if raw.startswith("6"):
+            return NormalizedSymbol(symbol=f"{raw}.SH", market="cn", provider_symbol=f"{raw}.SS")
+        if raw.startswith(("0", "3")):
+            return NormalizedSymbol(symbol=f"{raw}.SZ", market="cn", provider_symbol=f"{raw}.SZ")
+        raise ValueError(f"unsupported symbol: {symbol}")
+
+    if raw.isdigit() and len(raw) == 6:
+        if raw.startswith("6"):
+            return NormalizedSymbol(symbol=f"{raw}.SH", market="cn", provider_symbol=f"{raw}.SS")
+        if raw.startswith(("0", "3")):
+            return NormalizedSymbol(symbol=f"{raw}.SZ", market="cn", provider_symbol=f"{raw}.SZ")
 
     if raw.endswith(".HK"):
         digits = raw[:-3]

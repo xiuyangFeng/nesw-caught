@@ -188,6 +188,21 @@ describe('apiClient.getStockKline', () => {
   });
 });
 
+describe('apiClient.getWatchlistCandidates', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to mock candidates that include a-shares when backend is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    const response = await apiClient.getWatchlistCandidates();
+
+    expect(response.degraded).toBe(true);
+    expect(response.data.some((item) => item.symbol === '600519.SH' && item.market === 'cn')).toBe(true);
+  });
+});
+
 describe('apiClient.getNewsRuntime', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

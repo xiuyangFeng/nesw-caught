@@ -328,6 +328,26 @@ export const mockWatchlistQuotes: WatchlistQuoteSummary[] = [
     abnormal_reason: null,
     fetched_at: isoMinutesAgo(2),
   },
+  {
+    symbol: '600519.SH',
+    market: 'cn',
+    display_name: '贵州茅台',
+    provider_symbol: '600519.SS',
+    price: 1688.8,
+    change_amount: 12.5,
+    change_percent: 0.75,
+    open_price: 1670.0,
+    previous_close: 1676.3,
+    day_high: 1699.0,
+    day_low: 1668.0,
+    volume: 928000,
+    status: 'ok',
+    source: 'yahoo_finance',
+    message: null,
+    is_abnormal: false,
+    abnormal_reason: null,
+    fetched_at: isoMinutesAgo(2),
+  },
   mockMarketSnapshots[2],
 ];
 
@@ -372,6 +392,15 @@ export const mockWatchlist: WatchlistItem[] = [
     alert_threshold: 4,
     alert_mode: 'fixed',
   },
+  {
+    id: 5,
+    symbol: '600519.SH',
+    market: 'cn',
+    display_name: '贵州茅台',
+    is_active: true,
+    alert_threshold: 3,
+    alert_mode: 'fixed',
+  },
 ];
 
 export const mockWatchlistCandidates: WatchlistCandidate[] = [
@@ -404,6 +433,54 @@ export const mockWatchlistCandidates: WatchlistCandidate[] = [
     market: 'us',
     display_name: 'Tencent Music',
     aliases: ['腾讯音乐', 'tencent music entertainment'],
+  },
+  {
+    symbol: '600519.SH',
+    market: 'cn',
+    display_name: '贵州茅台',
+    aliases: ['茅台', '贵州茅台', '600519', 'sh600519', 'kweichow moutai'],
+  },
+  {
+    symbol: '300750.SZ',
+    market: 'cn',
+    display_name: '宁德时代',
+    aliases: ['宁德时代', '300750', 'sz300750', 'catl'],
+  },
+  {
+    symbol: '000001.SZ',
+    market: 'cn',
+    display_name: '平安银行',
+    aliases: ['平安银行', '000001', 'sz000001', 'ping an bank'],
+  },
+  {
+    symbol: '600036.SH',
+    market: 'cn',
+    display_name: '招商银行',
+    aliases: ['招商银行', '600036', 'sh600036', 'cmb'],
+  },
+  {
+    symbol: '601318.SH',
+    market: 'cn',
+    display_name: '中国平安',
+    aliases: ['中国平安', '601318', 'sh601318', 'ping an insurance'],
+  },
+  {
+    symbol: '002594.SZ',
+    market: 'cn',
+    display_name: '比亚迪',
+    aliases: ['比亚迪', '002594', 'sz002594', 'byd'],
+  },
+  {
+    symbol: '688041.SH',
+    market: 'cn',
+    display_name: '海光信息',
+    aliases: ['海光信息', '688041', 'sh688041', 'haiguang'],
+  },
+  {
+    symbol: '688981.SH',
+    market: 'cn',
+    display_name: '中芯国际',
+    aliases: ['中芯国际', '688981', 'sh688981', 'smic'],
   },
 ];
 

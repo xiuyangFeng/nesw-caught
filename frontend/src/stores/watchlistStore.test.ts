@@ -49,14 +49,16 @@ describe('watchlistStore', () => {
       data: [
         { symbol: '0700.HK', market: 'hk', display_name: 'Tencent', aliases: ['腾讯'] },
         { symbol: 'AAPL', market: 'us', display_name: 'Apple', aliases: ['苹果'] },
+        { symbol: '600519.SH', market: 'cn', display_name: '贵州茅台', aliases: ['茅台', '600519'] },
       ],
       degraded: false,
     });
 
     await (store as any).loadCandidates();
 
-    expect((store as any).candidates).toHaveLength(2);
-    expect((store as any).candidates[0].symbol).toBe('0700.HK');
+    expect((store as any).candidates).toHaveLength(3);
+    expect((store as any).candidates[2].symbol).toBe('600519.SH');
+    expect((store as any).candidates[2].market).toBe('cn');
   });
 
   it('deletes the selected symbol and falls back to the next item', async () => {
@@ -311,6 +313,49 @@ describe('watchlistStore', () => {
     expect(store.selectedSymbol).toBe('0700.HK');
     expect((store as any).klineData?.symbol).toBe('0700.HK');
     expect((store as any).detailNews).toHaveLength(1);
+  });
+
+  it('selects an a-share symbol and preserves canonical labels through kline loading', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getStockKline.mockResolvedValue({
+      data: {
+        symbol: '600519.SH',
+        interval: '1d',
+        range: '1y',
+        stale: false,
+        candles: [{ time: '2026-03-30', open: 1670, high: 1699, low: 1668, close: 1688.8, volume: 928000 }],
+        indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+        news_events: [{ time: '2026-03-30', items: [{ id: 42, title: '贵州茅台披露经营数据', sentiment: 'positive' }] }],
+      },
+      degraded: false,
+    });
+    apiClient.getRelatedNews.mockResolvedValue({
+      data: [
+        {
+          id: 42,
+          title: '贵州茅台披露经营数据',
+          summary: '业绩继续保持稳健。',
+          source_name: 'CLS Telegraph',
+          canonical_url: null,
+          market: 'cn',
+          sentiment_label: 'positive',
+          published_at: '2026-03-30T10:00:00Z',
+          fetched_at: '2026-03-30T10:05:00Z',
+        },
+      ],
+      degraded: false,
+    });
+
+    await (store as any).selectSymbol('600519.SH');
+
+    expect(apiClient.getStockKline).toHaveBeenCalledWith('600519.SH', '1d', '1y');
+    expect(apiClient.getRelatedNews).toHaveBeenCalledWith('600519.SH');
+    expect((store as any).klineData?.symbol).toBe('600519.SH');
+    expect((store as any).detailNews[0]?.market).toBe('cn');
   });
 
   it('switches dashboard period using the fixed spec mapping', async () => {

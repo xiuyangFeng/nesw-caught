@@ -1,10 +1,16 @@
 from fastapi.testclient import TestClient
 import pandas as pd
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from app.api.routes import market as market_routes
+from app.db.session import SessionLocal
 from app.main import app
+from app.models.price_snapshot import PriceSnapshot
+from app.models.watchlist_item import WatchlistItem
 from app.services.market_chart_service import MarketChartService
+from app.services.quote_service import QuoteService
+from app.services.quote_provider import normalize_symbol
 
 
 def test_market_watchlist_quotes_return_expanded_fields(monkeypatch) -> None:
@@ -47,6 +53,255 @@ def test_market_watchlist_quotes_return_expanded_fields(monkeypatch) -> None:
     assert payload[0]["source"] == "yahoo_finance"
 
 
+def test_quote_service_keeps_display_name_for_a_share_alias_lookup() -> None:
+    service = QuoteService()
+
+    with SessionLocal() as session:
+        existing_item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "600519.SH").one_or_none()
+        if existing_item is not None:
+            session.delete(existing_item)
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        session.commit()
+
+        session.add(
+            WatchlistItem(
+                symbol="600519.SH",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+        )
+        session.add(
+            PriceSnapshot(
+                symbol="600519.SH",
+                market="cn",
+                price=1688.8,
+                change_amount=12.5,
+                change_percent=0.75,
+                open_price=1670.0,
+                previous_close=1676.3,
+                day_high=1699.0,
+                day_low=1668.0,
+                volume=928000,
+                provider_name="yahoo_finance",
+                provider_symbol="600519.SS",
+                quote_status="ok",
+                status_message=None,
+                fetched_at=datetime.now(timezone.utc),
+            )
+        )
+        session.commit()
+
+        payload = service.get_cached_symbol_quote("SH600519", session)
+
+        assert payload["symbol"] == "600519.SH"
+        assert payload["display_name"] == "贵州茅台"
+        assert payload["provider_symbol"] == "600519.SS"
+
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "600519.SH").one_or_none()
+        if item is not None:
+            session.delete(item)
+        session.commit()
+
+
+def test_quote_service_reads_cached_watchlist_quote_for_legacy_a_share_alias_row() -> None:
+    service = QuoteService()
+
+    with SessionLocal() as session:
+        existing_item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if existing_item is not None:
+            session.delete(existing_item)
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        session.commit()
+
+        session.add(
+            WatchlistItem(
+                symbol="SH600519",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+        )
+        session.add(
+            PriceSnapshot(
+                symbol="600519.SH",
+                market="cn",
+                price=1688.8,
+                change_amount=12.5,
+                change_percent=0.75,
+                open_price=1670.0,
+                previous_close=1676.3,
+                day_high=1699.0,
+                day_low=1668.0,
+                volume=928000,
+                provider_name="yahoo_finance",
+                provider_symbol="600519.SS",
+                quote_status="ok",
+                status_message=None,
+                fetched_at=datetime.now(timezone.utc),
+            )
+        )
+        session.commit()
+
+        payload = service.get_cached_watchlist_quotes(session)
+
+        row = next(item for item in payload if item["display_name"] == "贵州茅台")
+        assert row["symbol"] == "600519.SH"
+        assert row["display_name"] == "贵州茅台"
+        assert row["status"] == "ok"
+
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if item is not None:
+            session.delete(item)
+        session.commit()
+
+
+def test_quote_service_refresh_uses_canonical_cached_snapshot_for_legacy_a_share_alias_row() -> None:
+    service = QuoteService()
+
+    with SessionLocal() as session:
+        existing_item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if existing_item is not None:
+            session.delete(existing_item)
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        session.commit()
+
+        session.add(
+            WatchlistItem(
+                symbol="SH600519",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+        )
+        session.add(
+            PriceSnapshot(
+                symbol="600519.SH",
+                market="cn",
+                price=1688.8,
+                change_amount=12.5,
+                change_percent=0.75,
+                open_price=1670.0,
+                previous_close=1676.3,
+                day_high=1699.0,
+                day_low=1668.0,
+                volume=928000,
+                provider_name="yahoo_finance",
+                provider_symbol="600519.SS",
+                quote_status="ok",
+                status_message=None,
+                fetched_at=datetime.now(timezone.utc),
+            )
+        )
+        session.commit()
+
+        with patch.object(service.provider, "fetch_quote", side_effect=RuntimeError("provider down")) as fetch_quote:
+            payload = service.refresh_watchlist_quotes(session)
+
+        row = next(item for item in payload if item["display_name"] == "贵州茅台")
+        assert row["symbol"] == "600519.SH"
+        assert row["status"] == "ok"
+        assert all(call.args[0].provider_symbol != "600519.SS" for call in fetch_quote.call_args_list)
+
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if item is not None:
+            session.delete(item)
+        session.commit()
+
+
+def test_quote_service_resolves_canonical_a_share_input_against_legacy_watchlist_row() -> None:
+    service = QuoteService()
+
+    with SessionLocal() as session:
+        existing_item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if existing_item is not None:
+            session.delete(existing_item)
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        session.commit()
+
+        session.add(
+            WatchlistItem(
+                symbol="SH600519",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+        )
+        session.add(
+            PriceSnapshot(
+                symbol="600519.SH",
+                market="cn",
+                price=1688.8,
+                change_amount=12.5,
+                change_percent=0.75,
+                open_price=1670.0,
+                previous_close=1676.3,
+                day_high=1699.0,
+                day_low=1668.0,
+                volume=928000,
+                provider_name="yahoo_finance",
+                provider_symbol="600519.SS",
+                quote_status="ok",
+                status_message=None,
+                fetched_at=datetime.now(timezone.utc),
+            )
+        )
+        session.commit()
+
+        payload = service.get_cached_symbol_quote("600519.SH", session)
+
+        assert payload["symbol"] == "600519.SH"
+        assert payload["display_name"] == "贵州茅台"
+        assert payload["provider_symbol"] == "600519.SS"
+
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol == "600519.SH").delete()
+        item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if item is not None:
+            session.delete(item)
+        session.commit()
+
+
+def test_market_chart_service_resolves_canonical_a_share_input_against_legacy_watchlist_row() -> None:
+    service = MarketChartService()
+
+    with SessionLocal() as session:
+        existing_item = session.query(WatchlistItem).filter(WatchlistItem.symbol == "SH600519").one_or_none()
+        if existing_item is not None:
+            session.delete(existing_item)
+        session.commit()
+
+        session.add(
+            WatchlistItem(
+                symbol="SH600519",
+                market="cn",
+                display_name="贵州茅台",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+        )
+        session.commit()
+
+        item = service._require_watchlist_symbol("600519.SH", session)
+
+        assert item.symbol == "SH600519"
+        assert item.display_name == "贵州茅台"
+
+        session.delete(item)
+        session.commit()
+
+
 def test_market_symbol_detail_normalizes_hk_alias(monkeypatch) -> None:
     class FakeQuoteService:
         def __init__(self) -> None:
@@ -86,6 +341,69 @@ def test_market_symbol_detail_normalizes_hk_alias(monkeypatch) -> None:
     assert fake_service.received_symbol == "HK253"
     assert payload["provider_symbol"] == "0253.HK"
     assert payload["symbol"] == "HK253"
+
+
+def test_normalize_symbol_supports_a_share_aliases() -> None:
+    canonical_sh = normalize_symbol("600519.SH")
+    prefix_sh = normalize_symbol("SH600519")
+    bare_sh = normalize_symbol("600519")
+    inferred_sh = normalize_symbol("600519", "cn")
+    canonical_sz = normalize_symbol("000001.SZ")
+    prefix_sz = normalize_symbol("SZ000001")
+    bare_sz = normalize_symbol("000001")
+    inferred_sz = normalize_symbol("000001", "cn")
+
+    assert canonical_sh.market == "cn"
+    assert canonical_sh.provider_symbol == "600519.SS"
+    assert prefix_sh.provider_symbol == "600519.SS"
+    assert bare_sh.provider_symbol == "600519.SS"
+    assert inferred_sh.provider_symbol == "600519.SS"
+    assert canonical_sz.market == "cn"
+    assert canonical_sz.provider_symbol == "000001.SZ"
+    assert prefix_sz.provider_symbol == "000001.SZ"
+    assert bare_sz.provider_symbol == "000001.SZ"
+    assert inferred_sz.provider_symbol == "000001.SZ"
+
+
+def test_market_symbol_detail_normalizes_a_share_alias(monkeypatch) -> None:
+    class FakeQuoteService:
+        def __init__(self) -> None:
+            self.received_symbol: str | None = None
+
+        def get_cached_symbol_quote(self, symbol, session):  # pragma: no cover - exercised through route
+            self.received_symbol = symbol
+            return {
+                "symbol": symbol,
+                "market": "cn",
+                "display_name": "贵州茅台",
+                "provider_symbol": "600519.SS",
+                "price": 1688.8,
+                "change_amount": 12.5,
+                "change_percent": 0.75,
+                "open_price": 1670.0,
+                "previous_close": 1676.3,
+                "day_high": 1699.0,
+                "day_low": 1668.0,
+                "volume": 928000,
+                "status": "ok",
+                "source": "yahoo_finance",
+                "message": None,
+                "is_abnormal": False,
+                "abnormal_reason": None,
+                "fetched_at": "2026-03-30T07:00:00Z",
+            }
+
+    fake_service = FakeQuoteService()
+    monkeypatch.setattr(market_routes, "get_quote_service", lambda: fake_service, raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/symbols/SH600519")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert fake_service.received_symbol == "SH600519"
+    assert payload["provider_symbol"] == "600519.SS"
+    assert payload["symbol"] == "SH600519"
 
 
 def test_market_watchlist_quotes_keep_partial_failures_visible(monkeypatch) -> None:
@@ -542,6 +860,98 @@ def test_market_kline_route_returns_chart_payload(monkeypatch) -> None:
     assert payload["stale"] is False
 
 
+def test_market_kline_route_returns_a_share_chart_payload(monkeypatch) -> None:
+    class FakeChartService:
+        def get_kline(self, symbol, interval, range_name, session):  # pragma: no cover - exercised through route
+            assert symbol == "600519.SH"
+            assert interval == "1d"
+            assert range_name == "1y"
+            return {
+                "symbol": "600519.SH",
+                "interval": "1d",
+                "range": "1y",
+                "stale": False,
+                "candles": [
+                    {
+                        "time": "2026-03-30",
+                        "open": 1670.0,
+                        "high": 1699.0,
+                        "low": 1668.0,
+                        "close": 1688.8,
+                        "volume": 928000,
+                    }
+                ],
+                "indicators": {
+                    "ma5": [{"time": "2026-03-30", "value": 1678.5}],
+                    "ma10": [],
+                    "ma20": [],
+                    "ma60": [],
+                    "macd": [{"time": "2026-03-30", "dif": 8.2, "dea": 5.4, "histogram": 2.8}],
+                    "kdj": [{"time": "2026-03-30", "k": 61.0, "d": 55.2, "j": 72.6}],
+                    "bollinger": [{"time": "2026-03-30", "upper": 1705.0, "middle": 1672.0, "lower": 1639.0}],
+                },
+                "news_events": [
+                    {
+                        "time": "2026-03-30",
+                        "items": [{"id": 42, "title": "贵州茅台披露经营数据", "sentiment": "positive"}],
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/symbols/600519.SH/kline?interval=1d&range=1y")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["symbol"] == "600519.SH"
+    assert payload["candles"][0]["close"] == 1688.8
+    assert payload["news_events"][0]["items"][0]["id"] == 42
+
+
+def test_market_kline_route_accepts_bare_a_share_numeric_alias(monkeypatch) -> None:
+    class FakeChartService:
+        def get_kline(self, symbol, interval, range_name, session):  # pragma: no cover - exercised through route
+            assert symbol == "600519"
+            assert interval == "1d"
+            assert range_name == "1y"
+            return {
+                "symbol": "600519.SH",
+                "interval": "1d",
+                "range": "1y",
+                "stale": False,
+                "candles": [
+                    {
+                        "time": "2026-03-30",
+                        "open": 1670.0,
+                        "high": 1699.0,
+                        "low": 1668.0,
+                        "close": 1688.8,
+                        "volume": 928000,
+                    }
+                ],
+                "indicators": {
+                    "ma5": [{"time": "2026-03-30", "value": 1678.5}],
+                    "ma10": [],
+                    "ma20": [],
+                    "ma60": [],
+                    "macd": [],
+                    "kdj": [],
+                    "bollinger": [],
+                },
+                "news_events": [],
+            }
+
+    monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
+    client = TestClient(app)
+
+    response = client.get("/api/market/symbols/600519/kline?interval=1d&range=1y")
+
+    assert response.status_code == 200
+    assert response.json()["symbol"] == "600519.SH"
+
+
 def test_market_kline_route_returns_404_for_non_watchlist_symbol(monkeypatch) -> None:
     from fastapi import HTTPException
 
@@ -561,21 +971,21 @@ def test_market_kline_route_returns_404_for_non_watchlist_symbol(monkeypatch) ->
 def test_market_sparklines_route_returns_price_map(monkeypatch) -> None:
     class FakeChartService:
         def get_sparklines(self, symbols, session):  # pragma: no cover - exercised through route
-            assert symbols == ["HK0100", "HK0700"]
+            assert symbols == ["HK0100", "600519.SH"]
             return {
                 "HK0100": {"prices": [920.0, 935.0, 910.0]},
-                "HK0700": {"prices": [500.0, 498.0, 502.0]},
+                "600519.SH": {"prices": [1650.0, 1676.3, 1688.8]},
             }
 
     monkeypatch.setattr(market_routes, "get_market_chart_service", lambda: FakeChartService(), raising=False)
     client = TestClient(app)
 
-    response = client.post("/api/market/sparklines", json={"symbols": ["HK0100", "HK0700"]})
+    response = client.post("/api/market/sparklines", json={"symbols": ["HK0100", "600519.SH"]})
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["HK0100"]["prices"] == [920.0, 935.0, 910.0]
-    assert payload["HK0700"]["prices"][-1] == 502.0
+    assert payload["600519.SH"]["prices"][-1] == 1688.8
 
 
 def test_market_sparklines_route_rejects_more_than_30_symbols(monkeypatch) -> None:
@@ -742,4 +1152,28 @@ def test_market_chart_service_skips_failed_symbols_when_building_sparklines() ->
 
     assert payload == {
         "HK0100": {"prices": [920.0, 935.0, 910.0]},
+    }
+
+
+def test_market_chart_service_supports_a_share_sparklines() -> None:
+    service = MarketChartService()
+
+    def fake_require(symbol: str, session):
+        item = MagicMock()
+        item.symbol = symbol
+        item.market = "cn"
+        return item
+
+    frame = MagicMock()
+    close_series = MagicMock()
+    close_series.tail.return_value.dropna.return_value.tolist.return_value = [1650.0, 1676.3, 1688.8]
+    frame.__getitem__.return_value = close_series
+
+    with patch.object(service, "_require_watchlist_symbol", side_effect=fake_require), patch.object(
+        service, "_download_history", return_value=frame
+    ):
+        payload = service.get_sparklines(["600519.SH"], session=MagicMock())
+
+    assert payload == {
+        "600519.SH": {"prices": [1650.0, 1676.3, 1688.8]},
     }
