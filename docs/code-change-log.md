@@ -2,6 +2,29 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-03-31 19:09
+
+- 修改人：Codex
+- 修改范围：新闻首页事件卡持仓命中条、事件 feed 契约补充、前后端回归测试
+- 变更内容：为 `NewsFeedEventCard` / `feed-layout` 事件契约新增 `watchlist_hits` 字段，后端在 `NewsFeedLayoutService` 中基于现有 `primary_symbol + related_symbols` 和当前 watchlist 做稳定顺序匹配，输出去重后的持仓股票显示名，并跳过空 `display_name`。前端同步为新闻首页 `EventFeedCard` 增加单行紧凑型 `命中持仓` 条，只在命中时显示，最多展示 2 个股票名字，其余收口为 `+N`，保持卡片高度不明显抬升。同步补齐 backend feed-layout 契约测试、前端 API/store/组件/视图测试，以及本次设计/计划文档。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/backend/app/schemas/news.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/backend/app/services/news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/backend/tests/test_news.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/backend/tests/test_news_feed_layout.py`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/frontend/src/types/api.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/frontend/src/api/client.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/frontend/src/stores/newsStore.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/frontend/src/components/news/EventFeedCard.vue`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/frontend/src/components/news/EventFeedCard.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/frontend/src/views/NewsFeedView.test.ts`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/docs/superpowers/specs/2026-03-31-news-portfolio-hit-strip-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/docs/superpowers/plans/2026-03-31-news-portfolio-hit-strip-plan.md`
+  - `/Users/xiuyang/Desktop/news-caught/.worktrees/codex/news-portfolio-hit-strip/docs/code-change-log.md`
+- 接口/数据结构变化：`GET /api/news/feed-layout` 的事件项新增 `watchlist_hits: string[]`；由于现有 schema 继承关系，`NewsEventDetailView` 也会带出该字段，但本次未新增详情页展示逻辑
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_feed_layout.py -q` 通过（29 个用例）；`npm --prefix frontend run test -- --run src/api/client.test.ts src/stores/newsStore.test.ts src/components/news/EventFeedCard.test.ts src/views/NewsFeedView.test.ts` 通过（4 个文件 / 40 个用例）；`npm --prefix frontend run build` 通过
+- 风险/后续事项：当前命中仍是 symbol 直连匹配，只能回答“命中了哪些持仓”，还不能解释产业链间接影响；若后续继续做新闻研究层，适合在事件详情里再补“为什么命中”的解释层
+
 ## 2026-03-30 18:49
 
 - 修改人：Codex

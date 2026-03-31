@@ -75,6 +75,7 @@ const feedLayout = {
       last_seen_at: '2026-03-18T08:00:00Z',
       primary_symbol: 'NVDA',
       related_symbols: ['NVDA', 'SMCI'],
+      watchlist_hits: ['NVIDIA', 'Supermicro'],
       source_count: 2,
       news_count: 2,
       news_items: items,
@@ -193,6 +194,7 @@ describe('NewsFeedView', () => {
     expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-stream-shell"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('命中持仓：');
     expect(wrapper.text()).toContain('AI Chip Launch');
     expect(wrapper.text()).toContain('NVDA');
     expect(wrapper.text()).toContain('SMCI');

@@ -246,6 +246,42 @@ describe('apiClient.getWatchlistResearchBrief', () => {
   });
 });
 
+describe('apiClient.getNewsEventDetail', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('accepts watchlist hits in the event detail payload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          event_key: 'ai-chip-launch',
+          event_title: 'AI Chip Launch',
+          event_summary: 'NVIDIA 新一轮 AI 芯片发布带动供应链关注度上升。',
+          event_type: 'product',
+          market: 'us',
+          sentiment_label: 'positive',
+          importance_score: 0.93,
+          last_seen_at: '2026-03-18T08:00:00Z',
+          primary_symbol: 'NVDA',
+          related_symbols: ['NVDA', 'SMCI'],
+          watchlist_hits: ['NVIDIA', 'Supermicro'],
+          source_count: 2,
+          news_count: 2,
+          news_items: [],
+        }),
+      }),
+    );
+
+    const response = await apiClient.getNewsEventDetail('ai-chip-launch');
+
+    expect(response.degraded).toBe(false);
+    expect(response.data.watchlist_hits).toEqual(['NVIDIA', 'Supermicro']);
+  });
+});
+
 describe('apiClient.getNewsRuntime', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

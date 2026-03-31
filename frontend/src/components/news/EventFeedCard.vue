@@ -21,6 +21,13 @@ const compactSources = computed(() => {
   return sources.length ? sources.join(' · ') : '暂无来源';
 });
 
+const watchlistHits = computed(() =>
+  (props.event.watchlist_hits ?? []).filter((hit): hit is string => Boolean(hit && hit.trim())),
+);
+
+const watchlistHitPreview = computed(() => watchlistHits.value.slice(0, 2));
+const watchlistHitOverflow = computed(() => Math.max(0, watchlistHits.value.length - watchlistHitPreview.value.length));
+
 const emit = defineEmits<{
   'open-event': [eventKey: string];
   'open-story': [id: number];
@@ -66,6 +73,20 @@ const emit = defineEmits<{
         </div>
       </div>
     </button>
+
+    <div v-if="watchlistHitPreview.length" class="event-feed-card__watchlist-strip" data-role="event-card-watchlist-hits">
+      <span class="event-feed-card__watchlist-strip-label">命中持仓：</span>
+      <span
+        v-for="hit in watchlistHitPreview"
+        :key="hit"
+        class="event-feed-card__watchlist-hit"
+      >
+        {{ hit }}
+      </span>
+      <span v-if="watchlistHitOverflow > 0" class="event-feed-card__watchlist-hit event-feed-card__watchlist-hit--overflow">
+        +{{ watchlistHitOverflow }}
+      </span>
+    </div>
 
     <div class="event-feed-card__foot">
       <div class="event-feed-card__foot-copy">
@@ -187,6 +208,43 @@ const emit = defineEmits<{
   gap: 10px;
   padding-top: 2px;
   border-top: 1px solid rgba(133, 161, 191, 0.12);
+}
+
+.event-feed-card__watchlist-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.event-feed-card__watchlist-strip-label {
+  flex: none;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.event-feed-card__watchlist-hit {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(92, 174, 255, 0.12);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-feed-card__watchlist-hit--overflow {
+  background: rgba(133, 161, 191, 0.16);
+  color: var(--text-soft);
 }
 
 .event-feed-card__foot-copy {

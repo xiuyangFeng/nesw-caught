@@ -9,6 +9,7 @@ from app.models.news_stock_mention import NewsStockMention
 from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
+from app.models.watchlist_item import WatchlistItem
 from app.main import app
 from app.services.event_bus import EventBusStatus
 from app.services.news_ingestion import SourceDefinition
@@ -497,8 +498,10 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
         "test-feed-layout-fed-1",
     ]
     topic_keys = ["test-feed-layout-ai", "test-feed-layout-macro"]
+    watchlist_symbols = ["NVDA", "SMCI"]
 
     with SessionLocal() as session:
+        session.execute(delete(WatchlistItem).where(WatchlistItem.symbol.in_(watchlist_symbols)))
         news_items = [
             NewsItem(
                 source_name="Bloomberg",
@@ -584,6 +587,8 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                 NewsStockMention(news_id=news_items[0].id, symbol="NVDA", market="us", mention_type="body", confidence=0.92),
                 NewsStockMention(news_id=news_items[0].id, symbol="SMCI", market="us", mention_type="body", confidence=0.75),
                 NewsStockMention(news_id=news_items[1].id, symbol="NVDA", market="us", mention_type="body", confidence=0.81),
+                WatchlistItem(symbol="NVDA", market="us", display_name="NVIDIA"),
+                WatchlistItem(symbol="SMCI", market="us", display_name="Super Micro"),
             ]
         )
         session.commit()
@@ -598,6 +603,7 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
         assert payload["events"][0]["event_type"] == "product"
         assert payload["events"][0]["primary_symbol"] == "NVDA"
         assert payload["events"][0]["related_symbols"] == ["NVDA", "SMCI"]
+        assert payload["events"][0]["watchlist_hits"] == ["NVIDIA", "Super Micro"]
         assert payload["events"][0]["news_count"] == 2
         assert len(payload["events"][0]["news_items"]) == 2
         assert payload["topics"][0]["topic_title"] == "AI Chip Launch"
@@ -613,6 +619,7 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                 session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
             if topic_ids:
                 session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
+            session.execute(delete(WatchlistItem).where(WatchlistItem.symbol.in_(watchlist_symbols)))
             session.commit()
 
 

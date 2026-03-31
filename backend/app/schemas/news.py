@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.common import UTCDateTime
 
@@ -55,6 +55,7 @@ class NewsFeedEventCardView(BaseModel):
     last_seen_at: UTCDateTime | None = None
     primary_symbol: str | None = None
     related_symbols: list[str]
+    watchlist_hits: list[str] = Field(default_factory=list)
     source_count: int
     news_count: int
     news_items: list[NewsItemSummary]

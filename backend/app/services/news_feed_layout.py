@@ -6,8 +6,10 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Iterable
 
+from app.models.watchlist_item import WatchlistItem
 from app.repositories.news_repository import NewsRepository
 from app.repositories.topic_repository import TopicRepository
+from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import (
     NewsEventDetailView,
     NewsFeedEventCardView,
@@ -232,6 +234,51 @@ def _symbol_overlap(symbols_a: list[str], symbols_b: list[str]) -> int:
     return len(set(symbols_a) & set(symbols_b))
 
 
+def _watchlist_hits_for_symbols(
+    symbols: Iterable[str],
+    watchlist_items: Iterable[WatchlistItem],
+) -> list[str]:
+    watchlist_items = list(watchlist_items)
+    watchlist_by_symbol: dict[str, str] = {}
+    for item in watchlist_items:
+        symbol = item.symbol.strip().upper()
+        display_name = item.display_name.strip()
+        if not symbol or not display_name:
+            continue
+        watchlist_by_symbol[symbol] = display_name
+
+    hits: list[str] = []
+    seen_hits: set[str] = set()
+    for symbol in symbols:
+        normalized_symbol = symbol.strip().upper()
+        if not normalized_symbol:
+            continue
+        display_name = watchlist_by_symbol.get(normalized_symbol)
+        if display_name is None or display_name in seen_hits:
+            continue
+        hits.append(display_name)
+        seen_hits.add(display_name)
+    return hits
+
+
+def _attach_watchlist_hits(
+    cards: list[NewsFeedEventCardView],
+    watchlist_items: Iterable[WatchlistItem],
+) -> list[NewsFeedEventCardView]:
+    watchlist_items = list(watchlist_items)
+    return [
+        card.model_copy(
+            update={
+                "watchlist_hits": _watchlist_hits_for_symbols(
+                    [symbol for symbol in [card.primary_symbol, *card.related_symbols] if symbol],
+                    watchlist_items,
+                )
+            }
+        )
+        for card in cards
+    ]
+
+
 def _should_fuse(card_a: NewsFeedEventCardView, card_b: NewsFeedEventCardView) -> bool:
     if card_a.event_type == "general" or card_b.event_type == "general":
         return False
@@ -395,6 +442,7 @@ class NewsFeedLayoutService:
     def __init__(self, session) -> None:
         self.topic_repository = TopicRepository(session)
         self.news_repository = NewsRepository(session)
+        self.watchlist_repository = WatchlistRepository(session)
 
     def _stream_editorial_scores(
         self,
@@ -483,12 +531,15 @@ class NewsFeedLayoutService:
         topic_views: list[NewsFeedTopicView],
         topic_news_map: dict[int, list[NewsItemSummary]],
         topic_mentions_map: dict[int, list[str]],
+        watchlist_items: list[WatchlistItem] | None = None,
     ) -> NewsEventDetailView | None:
+        watchlist_items = watchlist_items or []
         cards = build_event_cards(
             topic_views,
             topic_news_map=topic_news_map,
             topic_mentions_map=topic_mentions_map,
         )
+        cards = _attach_watchlist_hits(cards, watchlist_items)
         event_card = next((card for card in cards if card.event_key == event_key), None)
         if event_card is None:
             return None
@@ -499,6 +550,7 @@ class NewsFeedLayoutService:
             topic_mentions_map=topic_mentions_map,
             max_news_items=None,
         )
+        full_cards = _attach_watchlist_hits(full_cards, watchlist_items)
         full_event_card = next((card for card in full_cards if card.event_key == event_key), None)
         if full_event_card is None:
             return None
@@ -514,11 +566,13 @@ class NewsFeedLayoutService:
 
     def get_event_detail(self, event_key: str) -> NewsEventDetailView | None:
         topic_views, topic_news_map, topic_mentions_map = self._collect_topic_context()
+        watchlist_items = self.watchlist_repository.list_all()
         return self._build_event_detail(
             event_key,
             topic_views=topic_views,
             topic_news_map=topic_news_map,
             topic_mentions_map=topic_mentions_map,
+            watchlist_items=watchlist_items,
         )
 
     def build(
@@ -535,9 +589,11 @@ class NewsFeedLayoutService:
         ]
 
         topic_views, topic_news_map, topic_mentions_map = self._collect_topic_context(market=market)
+        watchlist_items = self.watchlist_repository.list_all()
         event_cards = build_event_cards(
             topic_views, topic_news_map=topic_news_map, topic_mentions_map=topic_mentions_map
         )
+        event_cards = _attach_watchlist_hits(event_cards, watchlist_items)
 
         scored_stream = self._stream_editorial_scores(
             stream_items, topic_views, topic_news_map, topic_mentions_map

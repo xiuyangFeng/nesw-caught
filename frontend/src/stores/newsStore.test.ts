@@ -292,7 +292,22 @@ describe('newsStore', () => {
 
     resolveSecond?.({
       data: {
-        events: [{ event_key: 'second', event_title: 'Second', event_summary: null, event_type: 'general', market: 'us', sentiment_label: 'neutral', importance_score: 0.5, last_seen_at: null, primary_symbol: null, related_symbols: [], source_count: 1, news_count: 1, news_items: [] }],
+        events: [{
+          event_key: 'second',
+          event_title: 'Second',
+          event_summary: null,
+          event_type: 'general',
+          market: 'us',
+          sentiment_label: 'neutral',
+          importance_score: 0.5,
+          last_seen_at: null,
+          primary_symbol: null,
+          related_symbols: [],
+          watchlist_hits: ['NVIDIA'],
+          source_count: 1,
+          news_count: 1,
+          news_items: [],
+        }],
         topics: [],
         stream: [],
       },
@@ -302,7 +317,22 @@ describe('newsStore', () => {
 
     resolveFirst?.({
       data: {
-        events: [{ event_key: 'first', event_title: 'First', event_summary: null, event_type: 'general', market: 'us', sentiment_label: 'neutral', importance_score: 0.4, last_seen_at: null, primary_symbol: null, related_symbols: [], source_count: 1, news_count: 1, news_items: [] }],
+        events: [{
+          event_key: 'first',
+          event_title: 'First',
+          event_summary: null,
+          event_type: 'general',
+          market: 'us',
+          sentiment_label: 'neutral',
+          importance_score: 0.4,
+          last_seen_at: null,
+          primary_symbol: null,
+          related_symbols: [],
+          watchlist_hits: ['Micron'],
+          source_count: 1,
+          news_count: 1,
+          news_items: [],
+        }],
         topics: [],
         stream: [],
       },
@@ -311,6 +341,7 @@ describe('newsStore', () => {
     await firstPromise;
 
     expect((store as any).feedLayout.events[0].event_key).toBe('second');
+    expect((store as any).feedLayout.events[0].watchlist_hits).toEqual(['NVIDIA']);
   });
 
   it('keeps only the latest raw feed response when requests resolve out of order', async () => {

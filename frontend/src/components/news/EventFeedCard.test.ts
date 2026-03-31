@@ -44,6 +44,24 @@ const event: NewsFeedEventCard = {
 };
 
 describe('EventFeedCard', () => {
+  it('renders a compact watchlist hit strip with at most two names and overflow', () => {
+    const wrapper = mount(EventFeedCard, {
+      props: {
+        event: {
+          ...event,
+          watchlist_hits: ['NVIDIA', 'SMCI', 'Micron'],
+        } as NewsFeedEventCard,
+      },
+    });
+
+    const strip = wrapper.get('[data-role="event-card-watchlist-hits"]');
+    expect(strip.text()).toContain('命中持仓：');
+    expect(strip.text()).toContain('NVIDIA');
+    expect(strip.text()).toContain('SMCI');
+    expect(strip.text()).toContain('+1');
+    expect(strip.text()).not.toContain('Micron');
+  });
+
   it('emits open-event from the primary shell and keeps evidence pills on open-story only', async () => {
     const wrapper = mount(EventFeedCard, {
       props: { event },

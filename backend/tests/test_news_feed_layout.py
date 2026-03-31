@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 import math
+from types import SimpleNamespace
 
 from app.schemas.news import NewsItemSummary
 from app.schemas.topic import TopicItemView
@@ -8,6 +9,8 @@ from app.services.news_feed_layout import (
     NewsFeedLayoutService,
     build_event_cards,
     fuse_event_cards,
+    _attach_watchlist_hits,
+    _watchlist_hits_for_symbols,
     _event_type_from_texts,
     _title_overlap,
     _should_fuse,
@@ -154,6 +157,38 @@ def test_build_event_cards_keeps_only_qualifying_topics_and_sorts_by_importance_
     assert event_cards[0].event_type == "product"
     assert event_cards[0].primary_symbol == "NVDA"
     assert event_cards[0].related_symbols == ["NVDA", "SMCI"]
+
+
+def test_watchlist_hits_follow_primary_symbol_then_related_symbols_and_skip_blank_labels() -> None:
+    watchlist_items = [
+        SimpleNamespace(symbol="SMCI", display_name="Super Micro"),
+        SimpleNamespace(symbol="NVDA", display_name="NVIDIA"),
+        SimpleNamespace(symbol="AMD", display_name="   "),
+        SimpleNamespace(symbol="TSLA", display_name="Tesla"),
+    ]
+
+    hits = _watchlist_hits_for_symbols(["NVDA", "SMCI", "NVDA", "AMD", "TSLA"], watchlist_items)
+
+    assert hits == ["NVIDIA", "Super Micro", "Tesla"]
+
+
+def test_attach_watchlist_hits_populates_event_cards() -> None:
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    card = _event_card(
+        event_key="t-1",
+        event_title="NVIDIA AI Chip Launch",
+        primary_symbol="NVDA",
+        related_symbols=["SMCI", "NVDA"],
+        last_seen_at=now,
+    )
+    watchlist_items = [
+        SimpleNamespace(symbol="NVDA", display_name="NVIDIA"),
+        SimpleNamespace(symbol="SMCI", display_name="Super Micro"),
+    ]
+
+    [updated] = _attach_watchlist_hits([card], watchlist_items)
+
+    assert updated.watchlist_hits == ["NVIDIA", "Super Micro"]
 
 
 def test_build_event_cards_limits_story_mounts_and_classifies_macro_and_supply_chain_patterns() -> (

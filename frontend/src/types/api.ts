@@ -66,6 +66,7 @@ export interface NewsFeedEventCard {
   last_seen_at: string | null;
   primary_symbol: string | null;
   related_symbols: string[];
+  watchlist_hits?: string[] | null;
   source_count: number;
   news_count: number;
   news_items: NewsItem[];
@@ -82,6 +83,7 @@ export interface NewsEventDetail {
   last_seen_at: string | null;
   primary_symbol: string | null;
   related_symbols: string[];
+  watchlist_hits?: string[] | null;
   source_count: number;
   news_count: number;
   news_items: NewsItem[];
