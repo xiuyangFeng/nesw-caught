@@ -1,0 +1,415 @@
+
+> news-caught-frontend@0.1.0 test
+> vitest --run
+
+
+ RUN  v3.2.4 /Users/xiuyang/Desktop/news-caught/frontend
+
+ ✓ src/stores/watchlistStore.test.ts (17 tests) 278ms
+ ✓ src/stores/watchlistChartStore.test.ts (6 tests) 320ms
+   ✓ watchlistChartStore > supports multi-selection, undo/redo, and group actions  317ms
+ ❯ src/views/WatchlistDetailView.test.ts (5 tests | 5 failed) 40ms
+   × WatchlistDetailView > loads the dedicated detail page data for the route symbol 32ms
+     → Cannot read properties of undefined (reading 'AAPL')
+   × WatchlistDetailView > renders the dedicated detail layout with news below kline and without the old settings popover entry 4ms
+     → Cannot read properties of undefined (reading 'AAPL')
+   × WatchlistDetailView > falls back to the watchlist list when the route symbol is missing 2ms
+     → Cannot read properties of undefined (reading 'AAPL')
+   × WatchlistDetailView > does not leave the detail page on non-404 loading errors 1ms
+     → Cannot read properties of undefined (reading 'AAPL')
+   × WatchlistDetailView > returns to the watchlist list on missing-symbol workspace errors 1ms
+     → Cannot read properties of undefined (reading 'AAPL')
+ ❯ src/views/WatchlistView.test.ts (9 tests | 4 failed) 161ms
+   ✓ WatchlistView > renders the standalone watchlist list page without the detail panel 41ms
+   ✓ WatchlistView > selects a stock card when the user clicks the sidebar item 10ms
+   ✓ WatchlistView > keeps loading the dashboard when candidate lookup fails 5ms
+   × WatchlistView > adds an a-share candidate from the modal and routes to its detail page 30ms
+     → Unable to get [data-role="watchlist-candidate-600519.SH"] within: <div class="grid gap-4" data-role="watchlist-dashboard">
+  <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist</p>
+      <h1 class="page-title mb-2">自选股</h1>
+      <p class="page-subtitle">搜索、添加并快速切换到单股 K 线详情。</p>
+    </div><span class="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold bg-[#0f7b6c1a] text-success" data-stale="false">已刷新 · 行情列表</span>
+  </header>
+  <section class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm shadow-[0_16px_36px_rgba(2,6,12,0.22)]" data-role="market-worker-status">
+    <div class="flex flex-wrap items-center gap-2"><span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Market Worker</span><strong class="text-text">market_quote_producer</strong><span class="rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-faint">degraded</span><button class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60" data-role="market-refresh-action">立即刷新一轮</button></div>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-headline">market worker 最近执行失败</p>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-detail">worker 已进入 degraded 状态，最近一轮行情生产没有稳定完成。</p>
+    <!--v-if-->
+    <!--v-if-->
+  </section>
+  <section>
+    <aside class="grid gap-4" data-role="watchlist-sidebar">
+      <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4" data-role="watchlist-toolbar">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.22em] text-[#ffb77d]">Watchlist</p>
+            <h2 class="mt-1 text-base text-text">列表</h2>
+          </div><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-3 py-1.5 text-xs font-semibold text-[#2f1500] transition hover:brightness-105" data-role="watchlist-open-add-modal"> 添加 </button>
+        </div>
+        <div class="mt-3 flex items-center gap-2"><input class="min-w-0 flex-1 rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" placeholder="搜索已添加股票"><button type="button" class="shrink-0 rounded-full border border-[#ff9f2f4f] bg-[rgba(255,159,47,0.08)] px-3 py-2 text-[11px] font-semibold text-[#ffca97] disabled:opacity-60" data-role="watchlist-refresh-action"> 刷新 </button></div>
+        <!--v-if-->
+      </div>
+      <div class="grid gap-2.5" data-role="watchlist-compact-list">
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-[#ffb66d] bg-[linear-gradient(160deg,rgba(35,23,11,0.98),rgba(18,13,10,0.98))] shadow-[0_12px_24px_rgba(255,159,47,0.14)]" data-role="stock-card-0700.HK" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Tencent</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">hk</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">0700.HK</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">550.5</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 21,366,376</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-positive">+1.01%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Abnormal</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-positive">5.5</span>
+          </div>
+        </article>
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.96),rgba(7,12,22,0.98))]" data-role="stock-card-AAPL" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Apple</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">us</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">AAPL</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">200.1</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 10,342</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-negative">-0.60%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Stable</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-negative">-1.2</span>
+          </div>
+        </article>
+      </div>
+    </aside>
+  </section>
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(3,7,13,0.72)] px-4 py-8 pointer-events-auto opacity-100" aria-hidden="false" aria-modal="true" data-role="watchlist-add-modal" role="dialog">
+    <div class="w-full max-w-4xl rounded-[24px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-4 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Add</p>
+          <h2 class="mt-1 text-xl text-text">添加自选</h2>
+          <p class="mt-1 text-sm text-text-soft">选中候选后直接加入，需要时再展开高级设置。</p>
+        </div><button type="button" class="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.18em] text-text-faint" data-role="watchlist-add-close"> 关闭 </button>
+      </div>
+      <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <section class="rounded-[20px] border border-border/80 bg-black/10 p-4"><label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search"> 搜索候选 </label><input id="watchlist-add-search" class="mt-2 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" data-role="watchlist-add-search" placeholder="输入股票代码、名称或别名" value="600519">
+          <div class="mt-3 grid gap-2">
+            <p class="rounded-2xl border border-dashed border-border/70 px-3 py-4 text-sm text-text-soft"> 没有匹配到候选股票 </p>
+          </div>
+        </section>
+        <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Selection</p>
+          <p class="mt-3 rounded-[20px] border border-dashed border-border/70 px-3 py-6 text-sm text-text-soft"> 先从左侧选中一个候选股票，再决定是否直接添加。 </p>
+          <!--v-if-->
+          <div class="mt-6 flex flex-wrap justify-end gap-3"><button type="button" class="rounded-full border border-border px-4 py-2 text-sm text-text-faint"> 取消 </button><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-5 py-2 text-sm font-semibold text-[#2f1500] disabled:cursor-not-allowed disabled:opacity-60" disabled="" data-role="watchlist-add-submit">直接添加</button></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+   × WatchlistView > opens add modal and only submits after direct add 18ms
+     → Unable to get [data-role="watchlist-candidate-BABA"] within: <div class="grid gap-4" data-role="watchlist-dashboard">
+  <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist</p>
+      <h1 class="page-title mb-2">自选股</h1>
+      <p class="page-subtitle">搜索、添加并快速切换到单股 K 线详情。</p>
+    </div><span class="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold bg-[#0f7b6c1a] text-success" data-stale="false">已刷新 · 行情列表</span>
+  </header>
+  <section class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm shadow-[0_16px_36px_rgba(2,6,12,0.22)]" data-role="market-worker-status">
+    <div class="flex flex-wrap items-center gap-2"><span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Market Worker</span><strong class="text-text">market_quote_producer</strong><span class="rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-faint">degraded</span><button class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60" data-role="market-refresh-action">立即刷新一轮</button></div>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-headline">market worker 最近执行失败</p>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-detail">worker 已进入 degraded 状态，最近一轮行情生产没有稳定完成。</p>
+    <!--v-if-->
+    <!--v-if-->
+  </section>
+  <section>
+    <aside class="grid gap-4" data-role="watchlist-sidebar">
+      <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4" data-role="watchlist-toolbar">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.22em] text-[#ffb77d]">Watchlist</p>
+            <h2 class="mt-1 text-base text-text">列表</h2>
+          </div><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-3 py-1.5 text-xs font-semibold text-[#2f1500] transition hover:brightness-105" data-role="watchlist-open-add-modal"> 添加 </button>
+        </div>
+        <div class="mt-3 flex items-center gap-2"><input class="min-w-0 flex-1 rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" placeholder="搜索已添加股票"><button type="button" class="shrink-0 rounded-full border border-[#ff9f2f4f] bg-[rgba(255,159,47,0.08)] px-3 py-2 text-[11px] font-semibold text-[#ffca97] disabled:opacity-60" data-role="watchlist-refresh-action"> 刷新 </button></div>
+        <!--v-if-->
+      </div>
+      <div class="grid gap-2.5" data-role="watchlist-compact-list">
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-[#ffb66d] bg-[linear-gradient(160deg,rgba(35,23,11,0.98),rgba(18,13,10,0.98))] shadow-[0_12px_24px_rgba(255,159,47,0.14)]" data-role="stock-card-0700.HK" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Tencent</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">hk</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">0700.HK</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">550.5</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 21,366,376</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-positive">+1.01%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Abnormal</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-positive">5.5</span>
+          </div>
+        </article>
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.96),rgba(7,12,22,0.98))]" data-role="stock-card-AAPL" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Apple</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">us</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">AAPL</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">200.1</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 10,342</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-negative">-0.60%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Stable</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-negative">-1.2</span>
+          </div>
+        </article>
+      </div>
+    </aside>
+  </section>
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(3,7,13,0.72)] px-4 py-8 pointer-events-auto opacity-100" aria-hidden="false" aria-modal="true" data-role="watchlist-add-modal" role="dialog">
+    <div class="w-full max-w-4xl rounded-[24px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-4 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Add</p>
+          <h2 class="mt-1 text-xl text-text">添加自选</h2>
+          <p class="mt-1 text-sm text-text-soft">选中候选后直接加入，需要时再展开高级设置。</p>
+        </div><button type="button" class="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.18em] text-text-faint" data-role="watchlist-add-close"> 关闭 </button>
+      </div>
+      <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <section class="rounded-[20px] border border-border/80 bg-black/10 p-4"><label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search"> 搜索候选 </label><input id="watchlist-add-search" class="mt-2 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" data-role="watchlist-add-search" placeholder="输入股票代码、名称或别名" value="Alibaba">
+          <div class="mt-3 grid gap-2">
+            <p class="rounded-2xl border border-dashed border-border/70 px-3 py-4 text-sm text-text-soft"> 没有匹配到候选股票 </p>
+          </div>
+        </section>
+        <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Selection</p>
+          <p class="mt-3 rounded-[20px] border border-dashed border-border/70 px-3 py-6 text-sm text-text-soft"> 先从左侧选中一个候选股票，再决定是否直接添加。 </p>
+          <!--v-if-->
+          <div class="mt-6 flex flex-wrap justify-end gap-3"><button type="button" class="rounded-full border border-border px-4 py-2 text-sm text-text-faint"> 取消 </button><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-5 py-2 text-sm font-semibold text-[#2f1500] disabled:cursor-not-allowed disabled:opacity-60" disabled="" data-role="watchlist-add-submit">直接添加</button></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+   × WatchlistView > passes advanced threshold when user expands advanced settings 18ms
+     → Unable to get [data-role="watchlist-candidate-BABA"] within: <div class="grid gap-4" data-role="watchlist-dashboard">
+  <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist</p>
+      <h1 class="page-title mb-2">自选股</h1>
+      <p class="page-subtitle">搜索、添加并快速切换到单股 K 线详情。</p>
+    </div><span class="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold bg-[#0f7b6c1a] text-success" data-stale="false">已刷新 · 行情列表</span>
+  </header>
+  <section class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm shadow-[0_16px_36px_rgba(2,6,12,0.22)]" data-role="market-worker-status">
+    <div class="flex flex-wrap items-center gap-2"><span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Market Worker</span><strong class="text-text">market_quote_producer</strong><span class="rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-faint">degraded</span><button class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60" data-role="market-refresh-action">立即刷新一轮</button></div>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-headline">market worker 最近执行失败</p>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-detail">worker 已进入 degraded 状态，最近一轮行情生产没有稳定完成。</p>
+    <!--v-if-->
+    <!--v-if-->
+  </section>
+  <section>
+    <aside class="grid gap-4" data-role="watchlist-sidebar">
+      <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4" data-role="watchlist-toolbar">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.22em] text-[#ffb77d]">Watchlist</p>
+            <h2 class="mt-1 text-base text-text">列表</h2>
+          </div><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-3 py-1.5 text-xs font-semibold text-[#2f1500] transition hover:brightness-105" data-role="watchlist-open-add-modal"> 添加 </button>
+        </div>
+        <div class="mt-3 flex items-center gap-2"><input class="min-w-0 flex-1 rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" placeholder="搜索已添加股票"><button type="button" class="shrink-0 rounded-full border border-[#ff9f2f4f] bg-[rgba(255,159,47,0.08)] px-3 py-2 text-[11px] font-semibold text-[#ffca97] disabled:opacity-60" data-role="watchlist-refresh-action"> 刷新 </button></div>
+        <!--v-if-->
+      </div>
+      <div class="grid gap-2.5" data-role="watchlist-compact-list">
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-[#ffb66d] bg-[linear-gradient(160deg,rgba(35,23,11,0.98),rgba(18,13,10,0.98))] shadow-[0_12px_24px_rgba(255,159,47,0.14)]" data-role="stock-card-0700.HK" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Tencent</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">hk</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">0700.HK</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">550.5</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 21,366,376</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-positive">+1.01%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Abnormal</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-positive">5.5</span>
+          </div>
+        </article>
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.96),rgba(7,12,22,0.98))]" data-role="stock-card-AAPL" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Apple</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">us</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">AAPL</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">200.1</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 10,342</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-negative">-0.60%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Stable</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-negative">-1.2</span>
+          </div>
+        </article>
+      </div>
+    </aside>
+  </section>
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(3,7,13,0.72)] px-4 py-8 pointer-events-auto opacity-100" aria-hidden="false" aria-modal="true" data-role="watchlist-add-modal" role="dialog">
+    <div class="w-full max-w-4xl rounded-[24px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-4 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Add</p>
+          <h2 class="mt-1 text-xl text-text">添加自选</h2>
+          <p class="mt-1 text-sm text-text-soft">选中候选后直接加入，需要时再展开高级设置。</p>
+        </div><button type="button" class="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.18em] text-text-faint" data-role="watchlist-add-close"> 关闭 </button>
+      </div>
+      <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <section class="rounded-[20px] border border-border/80 bg-black/10 p-4"><label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search"> 搜索候选 </label><input id="watchlist-add-search" class="mt-2 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" data-role="watchlist-add-search" placeholder="输入股票代码、名称或别名" value="Alibaba">
+          <div class="mt-3 grid gap-2">
+            <p class="rounded-2xl border border-dashed border-border/70 px-3 py-4 text-sm text-text-soft"> 没有匹配到候选股票 </p>
+          </div>
+        </section>
+        <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Selection</p>
+          <p class="mt-3 rounded-[20px] border border-dashed border-border/70 px-3 py-6 text-sm text-text-soft"> 先从左侧选中一个候选股票，再决定是否直接添加。 </p>
+          <!--v-if-->
+          <div class="mt-6 flex flex-wrap justify-end gap-3"><button type="button" class="rounded-full border border-border px-4 py-2 text-sm text-text-faint"> 取消 </button><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-5 py-2 text-sm font-semibold text-[#2f1500] disabled:cursor-not-allowed disabled:opacity-60" disabled="" data-role="watchlist-add-submit">直接添加</button></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+   × WatchlistView > keeps the modal open and preserves selection after add failure 12ms
+     → Unable to get [data-role="watchlist-candidate-BABA"] within: <div class="grid gap-4" data-role="watchlist-dashboard">
+  <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist</p>
+      <h1 class="page-title mb-2">自选股</h1>
+      <p class="page-subtitle">搜索、添加并快速切换到单股 K 线详情。</p>
+    </div><span class="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold bg-[#0f7b6c1a] text-success" data-stale="false">已刷新 · 行情列表</span>
+  </header>
+  <section class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm shadow-[0_16px_36px_rgba(2,6,12,0.22)]" data-role="market-worker-status">
+    <div class="flex flex-wrap items-center gap-2"><span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Market Worker</span><strong class="text-text">market_quote_producer</strong><span class="rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-faint">degraded</span><button class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60" data-role="market-refresh-action">立即刷新一轮</button></div>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-headline">market worker 最近执行失败</p>
+    <p class="m-0 text-text-soft" data-role="runtime-diagnostic-detail">worker 已进入 degraded 状态，最近一轮行情生产没有稳定完成。</p>
+    <!--v-if-->
+    <!--v-if-->
+  </section>
+  <section>
+    <aside class="grid gap-4" data-role="watchlist-sidebar">
+      <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4" data-role="watchlist-toolbar">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.22em] text-[#ffb77d]">Watchlist</p>
+            <h2 class="mt-1 text-base text-text">列表</h2>
+          </div><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-3 py-1.5 text-xs font-semibold text-[#2f1500] transition hover:brightness-105" data-role="watchlist-open-add-modal"> 添加 </button>
+        </div>
+        <div class="mt-3 flex items-center gap-2"><input class="min-w-0 flex-1 rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" placeholder="搜索已添加股票"><button type="button" class="shrink-0 rounded-full border border-[#ff9f2f4f] bg-[rgba(255,159,47,0.08)] px-3 py-2 text-[11px] font-semibold text-[#ffca97] disabled:opacity-60" data-role="watchlist-refresh-action"> 刷新 </button></div>
+        <!--v-if-->
+      </div>
+      <div class="grid gap-2.5" data-role="watchlist-compact-list">
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-[#ffb66d] bg-[linear-gradient(160deg,rgba(35,23,11,0.98),rgba(18,13,10,0.98))] shadow-[0_12px_24px_rgba(255,159,47,0.14)]" data-role="stock-card-0700.HK" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Tencent</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">hk</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">0700.HK</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">550.5</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 21,366,376</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-positive">+1.01%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Abnormal</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-positive">5.5</span>
+          </div>
+        </article>
+        <article class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.96),rgba(7,12,22,0.98))]" data-role="stock-card-AAPL" data-density="compact" role="button" tabindex="0">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div class="grid min-w-0 gap-1">
+              <div class="flex min-w-0 items-center gap-2"><strong class="truncate text-[13px] font-semibold text-text">Apple</strong><span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">us</span></div><span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">AAPL</span>
+              <div class="mt-0.5 flex items-end gap-2"><strong class="text-[22px] leading-none text-text">200.1</strong><span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol 10,342</span></div>
+            </div>
+            <div class="grid min-w-[78px] justify-items-end gap-1"><button type="button" class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]">×</button><span class="text-sm font-semibold leading-none text-negative">-0.60%</span><span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">Stable</span></div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="h-11 w-full" data-role="stock-sparkline"></div>
+            </div><span class="text-[10px] font-medium tracking-[0.08em] text-negative">-1.2</span>
+          </div>
+        </article>
+      </div>
+    </aside>
+  </section>
+  <div class="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(3,7,13,0.72)] px-4 py-8 pointer-events-auto opacity-100" aria-hidden="false" aria-modal="true" data-role="watchlist-add-modal" role="dialog">
+    <div class="w-full max-w-4xl rounded-[24px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-4 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Add</p>
+          <h2 class="mt-1 text-xl text-text">添加自选</h2>
+          <p class="mt-1 text-sm text-text-soft">选中候选后直接加入，需要时再展开高级设置。</p>
+        </div><button type="button" class="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.18em] text-text-faint" data-role="watchlist-add-close"> 关闭 </button>
+      </div>
+      <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <section class="rounded-[20px] border border-border/80 bg-black/10 p-4"><label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search"> 搜索候选 </label><input id="watchlist-add-search" class="mt-2 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" data-role="watchlist-add-search" placeholder="输入股票代码、名称或别名" value="Alibaba">
+          <div class="mt-3 grid gap-2">
+            <p class="rounded-2xl border border-dashed border-border/70 px-3 py-4 text-sm text-text-soft"> 没有匹配到候选股票 </p>
+          </div>
+        </section>
+        <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Selection</p>
+          <p class="mt-3 rounded-[20px] border border-dashed border-border/70 px-3 py-6 text-sm text-text-soft"> 先从左侧选中一个候选股票，再决定是否直接添加。 </p>
+          <!--v-if-->
+          <div class="mt-6 flex flex-wrap justify-end gap-3"><button type="button" class="rounded-full border border-border px-4 py-2 text-sm text-text-faint"> 取消 </button><button type="button" class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-5 py-2 text-sm font-semibold text-[#2f1500] disabled:cursor-not-allowed disabled:opacity-60" disabled="" data-role="watchlist-add-submit">直接添加</button></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+   ✓ WatchlistView > keeps refresh errors inside the view state instead of leaking promise rejections 13ms
+   ✓ WatchlistView > keeps delete errors inside the view state instead of leaking promise rejections 13ms
+ ✓ src/components/watchlist/KlineChart.test.ts (4 tests) 657ms
+   ✓ KlineChart > does not mount news tooltip or popup until an event is present  523ms
+ ✓ src/views/DashboardView.test.ts (6 tests) 270ms
+ ✓ src/router/index.test.ts (2 tests) 939ms
+   ✓ router > redirects root navigation to the news discovery route  783ms
+ ✓ src/views/EventDetailView.test.ts (5 tests) 65ms
+ ✓ src/components/layout/AppShell.test.ts (11 tests) 199ms
+ ✓ src/views/XMonitorView.test.ts (5 tests) 116ms
+ ✓ src/views/SentimentNewsView.test.ts (1 test) 99ms
+ ✓ src/views/NewsFeedView.test.ts (14 tests) 633ms
+ ✓ src/stores/xMonitorStore.test.ts (2 tests) 168ms
+ ✓ src/views/TopicDetailView.test.ts (2 tests) 72ms
+ ✓ src/views/LlmSettingsView.test.ts (4 tests) 99ms
+ ✓ src/components/watchlist/KlineDrawingOverlay.test.ts (16 tests) 139ms
+ ✓ src/stores/newsStore.test.ts (8 tests) 101ms
+ ✓ src/components/watchlist/WatchlistTable.test.ts (2 tests) 72ms
+ ✓ src/components/news/StoryStrip.test.ts (1 test) 83ms
+ ✓ src/views/NewsDetailView.test.ts (4 tests) 98ms
+ ✓ src/stores/runtimeStatusStore.test.ts (3 tests) 117ms
+ ✓ src/components/news/NewsVirtualList.test.ts (1 test) 67ms
+ ✓ src/stores/connectionStore.test.ts (1 test) 57ms
+ ✓ src/components/dashboard/HeroMetrics.test.ts (3 tests) 32ms
+ ✓ src/views/NotifySettingsView.test.ts (1 test) 111ms
+ ✓ src/components/common/SectionCard.test.ts (2 tests) 79ms
+ ✓ src/components/watchlist/KlineToolbar.test.ts (1 test) 52ms
+ ✓ src/components/common/Sparkline.test.ts (4 tests) 22ms
+ ✓ src/components/watchlist/ResearchBriefPanel.test.ts (3 tests) 111ms
+ ✓ src/components/news/EventFeedCard.test.ts (2 tests) 71ms
+ ✓ src/components/dashboard/SourceHealthGrid.test.ts (3 tests) 53ms
+ ✓ src/components/common/StatusBanner.test.ts (2 tests) 43ms
+ ✓ src/components/news/NewsCard.test.ts (1 test) 40ms
+ ✓ src/api/client.test.ts (19 tests) 6ms
+ ✓ src/utils/runtimeDiagnostics.test.ts (5 tests) 32ms
+ ✓ src/composables/useKlineMarkers.test.ts (2 tests) 5ms
+ ✓ src/components/watchlist/KlineDrawingSelectionPopover.test.ts (1 test) 45ms
+ ✓ src/components/watchlist/StockSparkline.test.ts (1 test) 24ms
+ ✓ src/components/watchlist/KlineIndicatorWorkbench.test.ts (1 test) 98ms
+ ✓ src/components/dashboard/TopicBoard.test.ts (2 tests) 35ms
+ ✓ src/utils/newsEditorial.test.ts (4 tests) 2ms
+ ✓ src/utils/klineOverlayGeometry.test.ts (4 tests) 2ms
+ ✓ src/utils/markdown.test.ts (7 tests) 3ms
+ ✓ src/utils/time.test.ts (2 tests) 1ms
+
+ Test Files  3 failed | 42 passed (45)
+      Tests  9 failed | 190 passed (199)
+   Start at  23:23:39
+   Duration  4.69s (transform 2.54s, setup 0ms, collect 6.58s, tests 5.72s, environment 17.29s, prepare 2.66s)
+

@@ -51,3 +51,10 @@ class WatchlistResearchBriefView(BaseModel):
     top_action_level: ResearchTopActionLevel
     has_unexplained_price_move: bool = False
     drivers: list[WatchlistResearchDriverView] = Field(default_factory=list)
+
+
+class WatchlistAiInsightView(BaseModel):
+    symbol: str
+    insight_text: str
+    generated_at: UTCDateTime
+    failover: dict[str, str] | None = None

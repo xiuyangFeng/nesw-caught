@@ -67,6 +67,7 @@ import {
   mockWatchlistSparklines,
   buildMockTranslation,
   mockXAccounts,
+  mockWatchlistAiInsights,
   mockXHealth,
   mockXPosts,
   mockXRadar,
@@ -212,6 +213,37 @@ export const apiClient = {
       }
     );
   },
+  getLlmStats() {
+    return withMockFallback<any>(
+      () => getJson('/api/llm/stats'),
+      () => ({
+        overall: { prompt_tokens: 4200, completion_tokens: 6800, total_tokens: 11000 },
+        models: [
+          { model_name: 'deepseek-chat', prompt_tokens: 3000, completion_tokens: 5000, total_tokens: 8000, call_count: 12 },
+          { model_name: 'gpt-4o', prompt_tokens: 1200, completion_tokens: 1800, total_tokens: 3000, call_count: 4 }
+        ],
+        operations: [
+          { operation_type: 'chat', total_tokens: 6500 },
+          { operation_type: 'analysis', total_tokens: 4500 }
+        ],
+        daily: [
+          { date: '2026-06-06', prompt_tokens: 500, completion_tokens: 800, total_tokens: 1300 },
+          { date: '2026-06-07', prompt_tokens: 600, completion_tokens: 900, total_tokens: 1500 },
+          { date: '2026-06-08', prompt_tokens: 800, completion_tokens: 1200, total_tokens: 2000 },
+          { date: '2026-06-09', prompt_tokens: 400, completion_tokens: 700, total_tokens: 1100 },
+          { date: '2026-06-10', prompt_tokens: 900, completion_tokens: 1400, total_tokens: 2300 },
+          { date: '2026-06-11', prompt_tokens: 300, completion_tokens: 600, total_tokens: 900 },
+          { date: '2026-06-12', prompt_tokens: 700, completion_tokens: 1200, total_tokens: 1900 }
+        ]
+      })
+    );
+  },
+  searchMarketSymbols(q: string) {
+    return getJson<any[]>(`/api/market/search?q=${encodeURIComponent(q)}`).then((data) => ({ data, degraded: false }));
+  },
+  pingLlmConfig(id: number) {
+    return postJson<LLMConnectionTestResponse & { latency_ms: number }>(`/api/llm/config/${id}/ping`, {}).then((data) => ({ data, degraded: false }));
+  },
   translateText(payload: LLMTranslateRequest) {
     return postJson<LLMTranslateResponse>('/api/llm/translate', payload)
       .then((data) => ({ data, degraded: false }))
@@ -311,6 +343,16 @@ export const apiClient = {
       data,
       degraded: false,
     }));
+  },
+  getWatchlistAiInsight(symbol: string) {
+    return withMockFallback<{ symbol: string; insight_text: string; generated_at: string }>(
+      () => postJson(`/api/watchlist/${encodeURIComponent(symbol)}/ai-insight`, {}),
+      () => mockWatchlistAiInsights[symbol] || {
+        symbol,
+        insight_text: `这是关于 ${symbol} 的模拟 AI 洞察报告。该个股近期展现了一定的增长潜力。`,
+        generated_at: new Date().toISOString(),
+      },
+    );
   },
   getTopics() {
     return withMockFallback<TopicItem[]>(() => getJson('/api/topics'), () => mockTopics);

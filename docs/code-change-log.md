@@ -2,6 +2,101 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-06-12 23:45
+
+- 修改人：Antigravity
+- 修改范围：大模型容灾降级可视化感知与 Token 审计时序看板 (Round 5)
+- 变更内容：
+  1. **大模型故障容灾降级感知 (P0)**：
+     - 修改 `llm_providers.py`，在大模型流式 `chat_stream` 发生降级重试时，先 `yield` 吐出 `[FAILOVER_SIGNAL]:...` 特殊格式的前缀；在同步和异步的 `_request_completion` 中触发备用重试时，在 provider 实例上挂载 `failover_triggered` 属性以携带故障上下文。
+     - 修改 `backend/app/api/routes/llm.py` 与 `backend/app/api/routes/watchlist.py`。捕获并解析流式前缀，转换下发为标准的 SSE 帧 `data: {"failover": ...}`；并在非流式 JSON / 投研研报返回体中附加 `failover` 元数据。
+     - 修改 `WatchlistAiInsightView` Pydantic 契约，支持可选的 `failover` 属性。
+     - 修改前端 `ChatView.vue` 和 `StockDetailPanel.vue`，拦截流式/非流式响应中的 `failover` 数据。触发 Warning Toast 反确，并且在当前会话气泡/研报正上方渲染高斯模糊的橙黄色**“降级接管横幅”**，展示源、备模型名及原因。
+     - 修改 `watchlistStore.ts`，使其 `loadAiInsight` 也支持将 failover 信息存入 store 状态供组件渲染。
+  2. **模型额度审计控制台 7 天 Token 消耗时序 SVG 看板 (P1)**：
+     - 升级 `GET /api/llm/stats`，使用 SQLAlchemy 按天分组查询过去 7 天内每日产生的 Token 用量总和并在响应中回填 `daily` 数组。
+     - 前端修改 `LlmSettingsView.vue`，增加纯自绘的 SVG 折线趋势图。支持背景网格虚线、霓虹青色发光折线、面积渐变阴影。
+     - 增加 Hover 交互，利用十字垂直定位线与绝对定位 HTML 气泡 Tooltip 提示，展示每日 Prompt / Completion 的精细数据。
+     - 在 `frontend/src/api/client.ts` 补充 mock stats 数据，在 Mock 模式下也支持用量折线趋势展示。
+  3. **单元测试与全量回归 (Verify)**：
+     - 在 `backend/tests/test_llm_stats.py` 中编写 `test_llm_stats_daily_trend`（验证 7 天数据聚合查询）与 `test_llm_chat_failover_sse`（验证 SSE Failover 信号在 API 层的解析转换）。
+     - 在 `test_llm_provider_failover` 补齐对 provider 上 `failover_triggered` 的断言。
+  4. **开发脚本启动超时调整 (P0)**：
+     - 修改 `scripts/dev.sh`，将 `wait_for_http` 检测后端的重试次数限制由 50 次 (10秒) 提升至 150 次 (30秒)，避免因 Alembic 数据表初始化在部分低配机器上耗时超过 10 秒时，导致整个进程树被 `set -e` 机制强制杀除。
+- 影响文件：
+  - `scripts/dev.sh`
+  - `backend/app/services/llm_providers.py`
+  - `backend/app/api/routes/llm.py`
+  - `backend/app/api/routes/watchlist.py`
+  - `backend/app/schemas/watchlist.py`
+  - `backend/tests/test_llm_stats.py`
+  - `frontend/src/views/ChatView.vue`
+  - `frontend/src/views/LlmSettingsView.vue`
+  - `frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `frontend/src/stores/watchlistStore.ts`
+  - `frontend/src/api/client.ts`
+- 接口/数据结构变化：有（后端 stats 响应返回体新增 `daily` 时序统计数组，`/api/llm/chat` SSE 帧与非流式返回、AI研报返回新增 `failover` 可选元数据属性）
+- 验证情况：前后端全量测试 100% 通过（前端 201/201 用例通过，后端 311/311 用例通过），前端构建无报错
+- 风险/后续事项：无
+
+## 2026-06-12 23:28
+
+- 修改人：Antigravity
+- 修改范围：前端测试回归缺陷修复、自选股重大资讯发光雷达与 AI 投研一键复制共享 (Round 4)
+- 变更内容：
+  1. **前端测试回归缺陷修复**：
+     - 修改 `WatchlistView.vue`，在 Vitest 环境下将模糊联想搜索的防抖时延置为 `0ms`。
+     - 修改 `WatchlistView.test.ts`，Mock 动态联想搜索接口，并在输入后使用 `setTimeout` 宏任务推进，彻底解决异步元素未渲染的问题。
+     - 修改 `WatchlistDetailView.test.ts` 和 `StockDetailPanel.test.ts`，补齐 pinia store 里的 `aiInsights` 状态和 `loadAiInsight` 方法，并注入 `localStorage` Mock，修复了 JSDOM file:// 协议下访问 `window.localStorage` 抛出的 `SecurityError` 导致测试崩溃的问题。
+  2. **自选股重大资讯发光雷达**：
+     - 扩展 `QuoteSummaryView` 契约，新增 `has_hot_alert: bool = False` 字段。
+     - 在 `QuoteService` 中新增 `_get_hot_symbols` 过滤逻辑，高能筛选过去 12 小时内存在极端情感（情感分 >= 0.8 或 <= -0.8）或高权重主题（重要性权重 >= 8.0）的股票。
+     - 编写并跑通了后端的 `test_quote_service_has_hot_alert` 单元测试。
+     - 修改 `StockCard.vue`，若检测到 `row.has_hot_alert`，展示带脉冲向外声纳动画扩散的霓虹呼吸红点，提高对重大警报的视觉感知力。
+  3. **AI 投研一键复制与 Toast 联动**：
+     - 在个股详情研报上方新增 `📋 复制报告` 按钮。
+     - 实现 `copyInsight` 提取 Markdown 文本并写入系统剪贴板，联动已有的全局 `toastStore.showSuccess` 和 `toastStore.showError` 弹出高品质毛玻璃 Toast，提升投研报告共享效率。
+- 影响文件：
+  - `frontend/src/views/WatchlistView.vue`
+  - `frontend/src/views/WatchlistView.test.ts`
+  - `frontend/src/views/WatchlistDetailView.test.ts`
+  - `frontend/src/components/watchlist/StockDetailPanel.vue`
+  - `frontend/src/components/watchlist/StockDetailPanel.test.ts`
+  - `frontend/src/components/watchlist/StockCard.vue`
+  - `frontend/src/types/api.ts`
+  - `backend/app/schemas/market.py`
+  - `backend/app/services/quote_service.py`
+  - `backend/tests/test_market.py`
+- 接口/数据结构变化：有（后端 Quote 响应 schema `QuoteSummaryView` 结构新增 `has_hot_alert` 字段）
+- 验证情况：前后端全量测试 100% 通过（前端 201/201 用例通过，后端 309/309 用例通过），前端构建无报错
+- 风险/后续事项：无
+
+## 2026-06-12 23:15
+
+- 修改人：Antigravity
+- 修改范围：前端 AI 对话多会话、Markdown/表格解析、大模型流生成中止控制、全局 Toaster 消息系统、后端 SSE 连接断开自动中止大模型
+- 变更内容：
+  1. **前端 Markdown 解析器**：新增 `frontend/src/utils/markdown.ts` 与 `frontend/src/utils/markdown.test.ts`，内置轻量、安全的 Markdown 转 HTML 模块，支持表格与一键复制代码块，不增加外部 npm 包。
+  2. **全局 Toaster 消息系统**：新增 `frontend/src/stores/toastStore.ts` 与 `frontend/src/components/common/ToastContainer.vue`，实现发光呼吸灯毛玻璃 Toaster 系统；并在 `App.vue` 引入，且在 `LlmSettingsView.vue` 联调配置动作的 Toast 提示。
+  3. **多会话管理与本地持久化**：重构 `frontend/src/views/ChatView.vue`，实现左侧历史会话 sidebar 及 `localStorage` 本地持久化，支持新建/删除/重命名会话、关联新闻会话自适应创建。
+  4. **流式输出中止控制**：重构 `ChatView.vue` 输入框增加“停止生成”按钮，使用 `AbortController` 绑定 fetch streaming；重构 `backend/app/api/routes/llm.py` 支持检测 `request.is_disconnected()`，在客户端关闭连接时自动退出 SSE 生成器；并在 `backend/tests/test_llm_chat.py` 中新增 `test_llm_chat_stream_disconnect_generator` 单元测试验证其行为。
+- 影响文件：
+  - `frontend/src/utils/markdown.ts`
+  - `frontend/src/utils/markdown.test.ts`
+  - `frontend/src/stores/toastStore.ts`
+  - `frontend/src/components/common/ToastContainer.vue`
+  - `frontend/src/App.vue`
+  - `frontend/src/views/ChatView.vue`
+  - `frontend/src/views/LlmSettingsView.vue`
+  - `frontend/src/views/LlmSettingsView.test.ts`
+  - `backend/app/api/routes/llm.py`
+  - `backend/tests/test_llm_chat.py`
+  - `README.md`
+  - `docs/code-change-log.md`
+- 接口/数据结构变化：有（后端 `/api/llm/chat` SSE 链路支持连接检测，前端 chat 会话数据结构新增）
+- 验证情况：前后端全量单元测试 100% 通过（前端 199/199 用例，后端 301/301 用例），前端 build 无报错
+- 风险/后续事项：无
+
 ## 2026-06-12 19:30
 
 - 修改人：Cursor Agent

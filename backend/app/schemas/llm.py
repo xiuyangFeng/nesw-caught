@@ -50,6 +50,7 @@ class LLMConnectionTestView(BaseModel):
     provider_name: str
     model_name: str
     message: str
+    latency_ms: float | None = None
 
 
 class LLMAnalysisCandidate(BaseModel):

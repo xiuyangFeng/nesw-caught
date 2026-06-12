@@ -241,3 +241,50 @@ def test_watchlist_research_brief_returns_none_top_action_when_no_drivers_exist(
     with SessionLocal() as session:
         _cleanup_symbol_data(session, "TSLA")
         session.commit()
+
+
+def test_watchlist_ai_insight_api() -> None:
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+
+    with SessionLocal() as session:
+        symbol = "MSFT"
+        _cleanup_symbol_data(session, symbol)
+        _ensure_watchlist_item(session, symbol=symbol, market="us", display_name="Microsoft")
+        _seed_news(
+            session,
+            title="Microsoft releases new AI cloud integration tools",
+            summary="New integrations showcase growth potential in SaaS markets.",
+            symbol=symbol,
+            market="us",
+            published_hours_ago=2,
+        )
+        session.commit()
+
+    with patch("app.repositories.llm_provider_config_repository.LLMProviderConfigRepository.get_default", return_value=None):
+        res_no_llm = client.post("/api/watchlist/MSFT/ai-insight")
+        assert res_no_llm.status_code == 400
+        assert "llm provider is not configured" in res_no_llm.json()["detail"]
+
+    fake_config = MagicMock()
+    fake_config.id = 999
+    fake_config.provider_name = "openai_compatible"
+    fake_config.model_name = "deepseek-chat"
+    fake_config.base_url = "https://example-llm.test/v1"
+    fake_config.decrypted_api_key = "sk-live-test-key"
+
+    with patch("app.repositories.llm_provider_config_repository.LLMProviderConfigRepository.get_default", return_value=fake_config), \
+         patch("app.services.llm_providers.OpenAICompatibleProvider.generate_text") as mock_gen:
+
+        mock_gen.return_value = "# AI Insight\nStrong growth potential."
+
+        res = client.post("/api/watchlist/MSFT/ai-insight")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["symbol"] == "MSFT"
+        assert "# AI Insight" in data["insight_text"]
+        assert "generated_at" in data
+
+    with SessionLocal() as session:
+        _cleanup_symbol_data(session, "MSFT")
+        session.commit()

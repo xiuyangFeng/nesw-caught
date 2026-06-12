@@ -41,6 +41,15 @@ class LLMProviderConfigRepository:
             return config
         return self.get_active()
 
+    def get_backup(self, exclude_id: int) -> LLMProviderConfig | None:
+        stmt = (
+            select(LLMProviderConfig)
+            .where(LLMProviderConfig.is_active.is_(True))
+            .where(LLMProviderConfig.id != exclude_id)
+            .order_by(LLMProviderConfig.is_default.desc(), LLMProviderConfig.updated_at.desc())
+        )
+        return self.session.scalar(stmt)
+
     def get_by_id(self, config_id: int) -> LLMProviderConfig | None:
         stmt = select(LLMProviderConfig).where(LLMProviderConfig.id == config_id)
         return self.session.scalar(stmt)

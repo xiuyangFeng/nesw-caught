@@ -1,6 +1,9 @@
+import asyncio
 import json
-from fastapi import APIRouter, Depends, HTTPException
+import time
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
@@ -183,6 +186,7 @@ def test_llm_connection(session: Session = Depends(get_db_session)) -> LLMConnec
 @router.post("/chat")
 async def chat_with_llm(
     payload: LLMChatRequest,
+    request: Request,
     session: Session = Depends(get_db_session),
 ):
     repository = LLMProviderConfigRepository(session)
@@ -236,7 +240,18 @@ async def chat_with_llm(
         async def event_generator():
             try:
                 async for token in provider.chat_stream(messages=messages):
-                    yield f"data: {json.dumps({'text': token})}\n\n"
+                    if await request.is_disconnected():
+                        break
+                    if token.startswith("[FAILOVER_SIGNAL]:"):
+                        try:
+                            failover_data = json.loads(token[len("[FAILOVER_SIGNAL]:"):])
+                            yield f"data: {json.dumps({'failover': failover_data})}\n\n"
+                        except Exception:
+                            pass
+                    else:
+                        yield f"data: {json.dumps({'text': token})}\n\n"
+            except asyncio.CancelledError:
+                pass
             except LLMProviderError as exc:
                 yield f"data: {json.dumps({'error': str(exc)})}\n\n"
             except Exception as exc:
@@ -257,8 +272,123 @@ async def chat_with_llm(
         try:
             # 拼接历史会话
             response_text = await provider._request_completion(messages=messages)
-            return {"text": response_text}
+            res_payload = {"text": response_text}
+            if hasattr(provider, "failover_triggered"):
+                res_payload["failover"] = provider.failover_triggered
+            return res_payload
         except LLMProviderError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
+
+
+@router.get("/stats")
+def get_llm_stats(session: Session = Depends(get_db_session)):
+    from app.models.llm_token_usage import LLMTokenUsage
+    
+    # Group by model_name
+    stmt_model = (
+        select(
+            LLMTokenUsage.model_name,
+            func.sum(LLMTokenUsage.prompt_tokens).label("prompt"),
+            func.sum(LLMTokenUsage.completion_tokens).label("completion"),
+            func.sum(LLMTokenUsage.total_tokens).label("total"),
+            func.count(LLMTokenUsage.id).label("count")
+        )
+        .group_by(LLMTokenUsage.model_name)
+    )
+    model_stats = []
+    for row in session.execute(stmt_model):
+        model_stats.append({
+            "model_name": row.model_name,
+            "prompt_tokens": int(row.prompt or 0),
+            "completion_tokens": int(row.completion or 0),
+            "total_tokens": int(row.total or 0),
+            "call_count": int(row.count or 0),
+        })
+
+    # Group by operation_type
+    stmt_op = (
+        select(
+            LLMTokenUsage.operation_type,
+            func.sum(LLMTokenUsage.total_tokens).label("total")
+        )
+        .group_by(LLMTokenUsage.operation_type)
+    )
+    op_stats = []
+    for row in session.execute(stmt_op):
+        op_stats.append({
+            "operation_type": row.operation_type,
+            "total_tokens": int(row.total or 0),
+        })
+
+    # Total overall stats
+    stmt_total = select(
+        func.sum(LLMTokenUsage.prompt_tokens).label("prompt"),
+        func.sum(LLMTokenUsage.completion_tokens).label("completion"),
+        func.sum(LLMTokenUsage.total_tokens).label("total")
+    )
+    total_row = session.execute(stmt_total).first()
+    
+    overall = {
+        "prompt_tokens": int(total_row.prompt or 0) if total_row else 0,
+        "completion_tokens": int(total_row.completion or 0) if total_row else 0,
+        "total_tokens": int(total_row.total or 0) if total_row else 0,
+    }
+
+    # Group by daily trend (last 7 days)
+    from datetime import datetime, timedelta, timezone
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    stmt_daily = (
+        select(
+            func.date(LLMTokenUsage.created_at).label("day"),
+            func.sum(LLMTokenUsage.prompt_tokens).label("prompt"),
+            func.sum(LLMTokenUsage.completion_tokens).label("completion"),
+            func.sum(LLMTokenUsage.total_tokens).label("total")
+        )
+        .where(LLMTokenUsage.created_at >= seven_days_ago)
+        .group_by(func.date(LLMTokenUsage.created_at))
+        .order_by(func.date(LLMTokenUsage.created_at).asc())
+    )
+    daily_stats = []
+    for row in session.execute(stmt_daily):
+        daily_stats.append({
+            "date": str(row.day),
+            "prompt_tokens": int(row.prompt or 0),
+            "completion_tokens": int(row.completion or 0),
+            "total_tokens": int(row.total or 0),
+        })
+
+    return {
+        "overall": overall,
+        "models": model_stats,
+        "operations": op_stats,
+        "daily": daily_stats,
+    }
+
+
+@router.post("/config/{config_id}/ping", response_model=LLMConnectionTestView)
+def ping_llm_config(
+    config_id: int,
+    session: Session = Depends(get_db_session)
+) -> LLMConnectionTestView:
+    repository = LLMProviderConfigRepository(session)
+    config = repository.get_by_id(config_id)
+    if config is None:
+        raise HTTPException(status_code=404, detail="LLM config not found")
+
+    provider = build_provider(config)
+    start_time = time.perf_counter()
+    try:
+        provider.test_connection()
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    latency = (time.perf_counter() - start_time) * 1000.0
+    return LLMConnectionTestView(
+        provider_name=config.provider_name,
+        model_name=config.model_name,
+        message="LLM connection succeeded",
+        latency_ms=round(latency, 2)
+    )
+

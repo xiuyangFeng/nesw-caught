@@ -7,6 +7,12 @@ import { formatMarketTime } from '../../utils/time';
 import KlineChart from './KlineChart.vue';
 import ResearchBriefPanel from './ResearchBriefPanel.vue';
 import RelatedNewsSidebar from './RelatedNewsSidebar.vue';
+import { useWatchlistStore } from '../../stores/watchlistStore';
+import { parseMarkdown } from '../../utils/markdown';
+import { useToastStore } from '../../stores/toastStore';
+
+const watchlistStore = useWatchlistStore();
+const toastStore = useToastStore();
 
 const props = defineProps<{
   quote: WatchlistQuoteSummary | null;
@@ -119,6 +125,25 @@ function focusNewsEvent(event: NewsEventMarker) {
 function focusNewsItem(item: NewsItem) {
   highlightedEventTime.value = (item.published_at ?? item.fetched_at).slice(0, 10);
 }
+
+const currentSymbol = computed(() => props.quote?.symbol ?? props.klineData?.symbol ?? '');
+const aiInsight = computed(() => currentSymbol.value ? (watchlistStore.aiInsights[currentSymbol.value] || null) : null);
+
+async function generateAiInsight() {
+  if (!currentSymbol.value) return;
+  await watchlistStore.loadAiInsight(currentSymbol.value);
+}
+
+async function copyInsight() {
+  if (!aiInsight.value?.text) return;
+  try {
+    await navigator.clipboard.writeText(aiInsight.value.text);
+    toastStore.showSuccess('📋 AI 投研报告已成功复制到剪贴板，请随时转发分享！');
+  } catch (err) {
+    console.error('Failed to copy text', err);
+    toastStore.showError('复制失败，请手动选择复制');
+  }
+}
 </script>
 
 <template>
@@ -180,6 +205,96 @@ function focusNewsItem(item: NewsItem) {
 
     <section v-if="researchBrief" data-role="watchlist-detail-research">
       <ResearchBriefPanel :research-brief="researchBrief" />
+    </section>
+
+    <!-- AI 投研洞察 (AI Insight Workspace) -->
+    <section v-if="currentSymbol" class="grid gap-2" data-role="watchlist-detail-ai-insight">
+      <div class="surface rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] px-4 py-4 shadow-[0_14px_34px_rgba(2,6,12,0.28)]">
+        <div class="mb-3.5 flex items-center justify-between gap-3 border-b border-border/40 pb-2">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.16em] text-[#a855f7] font-semibold">AI Intelligence</p>
+            <h3 class="text-[15px] font-semibold text-text mt-0.5">AI 投研洞察 (AI Insight)</h3>
+          </div>
+          <div v-if="aiInsight?.text" class="flex items-center gap-2">
+            <!-- 一键复制 -->
+            <button
+              class="rounded-lg bg-purple-500/10 hover:bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-400 font-semibold transition-colors flex items-center gap-1 active:scale-95"
+              type="button"
+              @click="copyInsight"
+            >
+              📋 复制报告
+            </button>
+            <button
+              class="rounded-lg bg-white/[0.05] hover:bg-white/[0.1] px-2.5 py-1 text-[11px] text-text-faint hover:text-text transition-colors"
+              type="button"
+              :disabled="aiInsight.loading"
+              @click="generateAiInsight"
+            >
+              {{ aiInsight.loading ? '正在研判…' : '🔄 重新生成' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-xl bg-black/15 p-4 border border-border/40">
+          <!-- 未生成且未在加载中 -->
+          <div v-if="!aiInsight || (!aiInsight.loading && !aiInsight.text && !aiInsight.error)" class="flex flex-col items-center justify-center py-6 text-center">
+            <p class="text-xs text-text-faint mb-3.5 max-w-md">
+              尚未生成本自选股的最新 AI 投研研判简报。点击下方按钮即可一键调取大模型进行新闻脱水分析。
+            </p>
+            <button
+              class="flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#6d28d9,#a855f7)] px-5 py-2.5 text-xs font-semibold text-white transition hover:brightness-110 shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:shadow-[0_0_20px_rgba(168,85,247,0.5)] active:scale-95"
+              type="button"
+              @click="generateAiInsight"
+            >
+              ✨ 一键生成 AI 洞察
+            </button>
+          </div>
+
+          <!-- 加载中 -->
+          <div v-else-if="aiInsight.loading" class="flex flex-col items-center justify-center py-8">
+            <div class="relative h-9 w-9">
+              <div class="absolute inset-0 rounded-full border-2 border-purple-500/20" />
+              <div class="absolute inset-0 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+            </div>
+            <p class="text-xs text-purple-400 font-semibold mt-4 animate-pulse">
+              正在汇聚近期新闻并生成 AI 研判报告…
+            </p>
+          </div>
+
+          <!-- 报错 -->
+          <div v-else-if="aiInsight.error" class="flex flex-col items-center justify-center py-6 text-center">
+            <p class="text-xs text-danger mb-3.5">
+              {{ aiInsight.error }}
+            </p>
+            <button
+              class="rounded-full bg-white/[0.08] hover:bg-white/[0.15] px-4 py-2 text-xs font-semibold text-text transition"
+              type="button"
+              @click="generateAiInsight"
+            >
+              重试一次
+            </button>
+          </div>
+
+          <!-- 正常展示（Markdown 渲染） -->
+          <div v-else-if="aiInsight.text" class="grid gap-2">
+            <!-- Failover Alert Banner -->
+            <div
+              v-if="aiInsight.failover"
+              class="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 backdrop-blur-md text-[11px] text-[#ffd175] flex items-center gap-2 select-text shadow-sm"
+            >
+              <span class="animate-pulse">⚡</span>
+              <span>
+                <strong>故障接管</strong>：由于默认模型 <code>{{ aiInsight.failover.from_model }}</code> 访问异常，已无缝切换至备用模型 <code>{{ aiInsight.failover.to_model }}</code> 进行研报生成。
+              </span>
+            </div>
+            <!-- 采用 renderMarkdown 渲染 -->
+            <div
+              class="markdown-content text-[12px] leading-[1.65] text-text-muted space-y-2 select-text"
+              v-html="parseMarkdown(aiInsight.text)"
+            />
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="grid gap-4" data-role="watchlist-detail-news">

@@ -12,6 +12,24 @@ Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
 });
 
+vi.mock('../api/client', () => ({
+  apiClient: {
+    searchMarketSymbols: vi.fn(async (q: string) => {
+      const candidates = [
+        { symbol: '0700.HK', market: 'hk', display_name: 'Tencent', aliases: ['腾讯'] },
+        { symbol: 'BABA', market: 'us', display_name: 'Alibaba', aliases: ['阿里'] },
+        { symbol: '600519.SH', market: 'cn', display_name: '贵州茅台', aliases: ['茅台', '600519'] },
+      ];
+      const filtered = candidates.filter(c =>
+        c.symbol.toLowerCase().includes(q.toLowerCase()) ||
+        c.display_name.toLowerCase().includes(q.toLowerCase()) ||
+        (c.aliases && c.aliases.some(a => a.toLowerCase().includes(q.toLowerCase())))
+      );
+      return { data: filtered };
+    }),
+  },
+}));
+
 import WatchlistView from './WatchlistView.vue';
 const push = vi.fn();
 
@@ -227,6 +245,8 @@ describe('WatchlistView', () => {
 
     await wrapper.get('[data-role="watchlist-open-add-modal"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-search"]').setValue('600519');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
     await wrapper.get('[data-role="watchlist-candidate-600519.SH"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-submit"]').trigger('click');
     await flushPromises();
@@ -250,6 +270,8 @@ describe('WatchlistView', () => {
     expect(wrapper.text()).toContain('添加自选');
 
     await wrapper.get('[data-role="watchlist-add-search"]').setValue('Alibaba');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
     await wrapper.get('[data-role="watchlist-candidate-BABA"]').trigger('click');
 
     expect(watchlistStore.createWatchlist).not.toHaveBeenCalled();
@@ -275,6 +297,8 @@ describe('WatchlistView', () => {
 
     await wrapper.get('[data-role="watchlist-open-add-modal"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-search"]').setValue('Alibaba');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
     await wrapper.get('[data-role="watchlist-candidate-BABA"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-advanced-toggle"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-threshold"]').setValue('8.5');
@@ -296,6 +320,8 @@ describe('WatchlistView', () => {
 
     await wrapper.get('[data-role="watchlist-open-add-modal"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-search"]').setValue('Alibaba');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushPromises();
     await wrapper.get('[data-role="watchlist-candidate-BABA"]').trigger('click');
     await wrapper.get('[data-role="watchlist-add-submit"]').trigger('click');
     await flushPromises();

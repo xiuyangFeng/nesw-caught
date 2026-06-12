@@ -421,3 +421,70 @@ describe('apiClient.getNewsEventDetail', () => {
     });
   });
 });
+
+describe('apiClient.pingLlmConfig', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('posts ping configuration requests to the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          provider_name: 'openai_compatible',
+          model_name: 'deepseek-chat',
+          message: 'LLM connection succeeded',
+          latency_ms: 120,
+        }),
+      }),
+    );
+
+    const response = await apiClient.pingLlmConfig(1);
+
+    expect(fetch).toHaveBeenCalledWith('/api/llm/config/1/ping', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.latency_ms).toBe(120);
+  });
+});
+
+describe('apiClient.getWatchlistAiInsight', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('loads the watchlist stock ai insight from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          symbol: '0700.HK',
+          insight_text: '# AI Insight\nPositive outlook.',
+          generated_at: '2026-06-12T15:20:00Z',
+        }),
+      }),
+    );
+
+    const response = await apiClient.getWatchlistAiInsight('0700.HK');
+
+    expect(fetch).toHaveBeenCalledWith('/api/watchlist/0700.HK/ai-insight', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.insight_text).toBe('# AI Insight\nPositive outlook.');
+  });
+});

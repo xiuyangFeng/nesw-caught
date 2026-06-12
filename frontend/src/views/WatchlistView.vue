@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import StaleBadge from '../components/common/StaleBadge.vue';
@@ -10,6 +10,7 @@ import { useWatchlistStore } from '../stores/watchlistStore';
 import type { WatchlistCandidate } from '../types/api';
 import { getRuntimeDiagnostic } from '../utils/runtimeDiagnostics';
 import { formatMarketTime } from '../utils/time';
+import { apiClient } from '../api/client';
 
 const router = useRouter();
 const runtimeStatusStore = useRuntimeStatusStore();
@@ -20,16 +21,44 @@ const addModalSelectedCandidate = ref<WatchlistCandidate | null>(null);
 const addModalAdvancedOpen = ref(false);
 const addModalAlertThreshold = ref('');
 
+const dynamicMatches = ref<WatchlistCandidate[]>([]);
+const isSearching = ref(false);
+let searchDebounceTimer: any = null;
+
+function performSearch(queryText: string) {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+  }
+  const trimmed = queryText.trim();
+  if (!trimmed) {
+    dynamicMatches.value = [];
+    return;
+  }
+  isSearching.value = true;
+  const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+  const debounceMs = isTest ? 0 : 300;
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await apiClient.searchMarketSymbols(trimmed);
+      dynamicMatches.value = res.data;
+    } catch (err) {
+      console.error('Failed to search market symbols', err);
+    } finally {
+      isSearching.value = false;
+    }
+  }, debounceMs);
+}
+
+watch(addModalQuery, (newVal) => {
+  performSearch(newVal);
+});
+
 const addModalMatches = computed(() => {
   const keyword = addModalQuery.value.trim().toLowerCase();
   if (!keyword) {
     return watchlistStore.candidates.slice(0, 8);
   }
-  return watchlistStore.candidates
-    .filter((candidate) =>
-      [candidate.symbol, candidate.display_name, ...(candidate.aliases ?? [])].join(' ').toLowerCase().includes(keyword),
-    )
-    .slice(0, 8);
+  return dynamicMatches.value;
 });
 
 function openAddModal() {

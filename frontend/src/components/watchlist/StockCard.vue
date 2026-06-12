@@ -51,6 +51,11 @@ const toneClass = computed(() => {
           <span class="rounded-full border border-border/80 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-text-faint">
             {{ row.market }}
           </span>
+          <!-- 雷达警报灯 -->
+          <div v-if="row.has_hot_alert" class="relative flex h-2 w-2 shrink-0 ml-1" title="12小时内有重大警报新闻">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600 shadow-[0_0_8px_#ef4444]"></span>
+          </div>
         </div>
         <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ row.symbol }}</span>
         <div class="mt-0.5 flex items-end gap-2">

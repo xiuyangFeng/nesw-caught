@@ -929,3 +929,24 @@ export const mockFeishuTestResult: FeishuTestResult = {
   success: true,
   message: '测试消息发送成功（mock）',
 };
+
+
+export const mockWatchlistAiInsights: Record<string, { symbol: string; insight_text: string; generated_at: string }> = {
+  '0700.HK': {
+    symbol: '0700.HK',
+    insight_text: `# AI 投研研判简报 (0700.HK)
+
+## 1. 核心利好梳理
+- **云AI代理线扩张**：公司正积极布局企业级 AI Agent 工作流，将在下个财报周期前进一步扩大云业务在 AI 商业化层面的想象空间，有望显著提振云基础设施和SaaS订阅收入。
+- **估值修复资金回流**：港股本地及北向资金对大型互联网巨头重现增量兴趣，提供坚实的资金面支撑。
+
+## 2. 核心利空与潜在风险
+- **地缘与宏观环境**：AI 芯片与技术出口限制措施仍对国内云计算的长效发展构成不可忽略的底层硬件采购阻力。
+- **竞争加剧**：企业服务市场上国内同行竞争依然激烈，产品落地与商业变现周期可能偏长。
+
+## 3. 后市策略研判
+- **短期情绪**：偏乐观。AI Agent 的推进能够为大模型板块及公司自身提供催化点，短期资金情绪良好。
+- **中长期基本面**：向好。腾讯凭借庞大的用户基数与企业服务底座（企业微信、腾讯会议等），在 AI 落地方面转化效率极高，中长期依然具备稳固的商业溢价。`,
+    generated_at: new Date().toISOString()
+  }
+};

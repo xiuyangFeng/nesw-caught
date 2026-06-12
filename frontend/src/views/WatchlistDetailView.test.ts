@@ -2,6 +2,28 @@ import { mount, flushPromises } from '@vue/test-utils';
 import { reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: vi.fn(() => null),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  },
+  configurable: true,
+});
+
+vi.mock('@vue/devtools-api', () => ({
+  setupDevtoolsPlugin: vi.fn(),
+}));
+vi.mock('@vue/devtools-kit', () => ({}));
+
+vi.mock('../stores/toastStore', () => ({
+  useToastStore: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+  }),
+}));
+
 import { HttpError } from '../api/http';
 import WatchlistDetailView from './WatchlistDetailView.vue';
 
@@ -85,6 +107,9 @@ const watchlistStore = reactive({
     news_events: [{ time: '2026-03-19', items: [{ id: 1, title: 'Apple update', sentiment: 'neutral' }] }],
   },
   currentPeriod: '1D',
+  aiInsights: {
+    AAPL: { loading: false, text: 'AI Insight Text', error: null },
+  },
   klineLoading: false,
   klineError: null,
   detailLoading: false,
@@ -94,6 +119,7 @@ const watchlistStore = reactive({
   loadRelatedNews: vi.fn(async () => undefined),
   loadDetailWorkspace: vi.fn(async () => undefined),
   selectSymbol: vi.fn(async () => undefined),
+  loadAiInsight: vi.fn(async () => undefined),
 });
 
 const routeState = reactive({

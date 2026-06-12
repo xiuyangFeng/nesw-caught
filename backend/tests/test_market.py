@@ -1177,3 +1177,68 @@ def test_market_chart_service_supports_a_share_sparklines() -> None:
     assert payload == {
         "600519.SH": {"prices": [1650.0, 1676.3, 1688.8]},
     }
+
+
+def test_quote_service_has_hot_alert() -> None:
+    from app.models.news_stock_mention import NewsStockMention
+    from app.models.news_item import NewsItem
+    from datetime import timedelta
+    service = QuoteService()
+
+    with SessionLocal() as session:
+        # 清理数据
+        session.query(NewsStockMention).filter(NewsStockMention.symbol == "BABA").delete()
+        session.query(WatchlistItem).filter(WatchlistItem.symbol.in_(["BABA", "AAPL"])).delete()
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol.in_(["BABA", "AAPL"])).delete()
+        session.commit()
+
+        # 插入 AAPL (无警报)
+        session.add(WatchlistItem(symbol="AAPL", market="us", display_name="Apple"))
+        session.add(PriceSnapshot(
+            symbol="AAPL", market="us", price=150.0, change_percent=0.0, provider_name="test", provider_symbol="AAPL", quote_status="ok", fetched_at=datetime.now(timezone.utc)
+        ))
+
+        # 插入 BABA (有警报)
+        session.add(WatchlistItem(symbol="BABA", market="us", display_name="Alibaba"))
+        session.add(PriceSnapshot(
+            symbol="BABA", market="us", price=80.0, change_percent=0.0, provider_name="test", provider_symbol="BABA", quote_status="ok", fetched_at=datetime.now(timezone.utc)
+        ))
+
+        # 插入重大新闻 (情绪分0.9, 2小时前)
+        news = NewsItem(
+            title="Alibaba Big Breakthrough",
+            summary="A breakthrough in AI",
+            source_name="Reuters",
+            source_url="https://reuters.com",
+            market="us",
+            sentiment_label="positive",
+            sentiment_score=0.9,
+            url_hash="hash_baba_test_123",
+            canonical_url="https://reuters.com/baba_test_123",
+            published_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            fetched_at=datetime.now(timezone.utc),
+        )
+        session.add(news)
+        session.commit()
+
+        # 插入关联
+        session.add(NewsStockMention(news_id=news.id, symbol="BABA", market="us"))
+        session.commit()
+
+        # 执行查询
+        quotes = service.get_cached_watchlist_quotes(session)
+
+        # 断言
+        quotes_map = {q["symbol"]: q for q in quotes}
+        assert "BABA" in quotes_map
+        assert quotes_map["BABA"]["has_hot_alert"] is True
+
+        assert "AAPL" in quotes_map
+        assert quotes_map["AAPL"]["has_hot_alert"] is False
+
+        # 清理
+        session.query(NewsStockMention).filter(NewsStockMention.symbol == "BABA").delete()
+        session.delete(news)
+        session.query(WatchlistItem).filter(WatchlistItem.symbol.in_(["BABA", "AAPL"])).delete()
+        session.query(PriceSnapshot).filter(PriceSnapshot.symbol.in_(["BABA", "AAPL"])).delete()
+        session.commit()

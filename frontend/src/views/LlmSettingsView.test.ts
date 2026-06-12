@@ -28,6 +28,19 @@ vi.mock('../stores/llmStore', () => ({
   useLlmStore: () => llmStore,
 }));
 
+const toastStore = {
+  show: vi.fn(),
+  showSuccess: vi.fn(),
+  showError: vi.fn(),
+  showWarning: vi.fn(),
+  showInfo: vi.fn(),
+  remove: vi.fn(),
+};
+
+vi.mock('../stores/toastStore', () => ({
+  useToastStore: () => toastStore,
+}));
+
 describe('LlmSettingsView', () => {
   beforeEach(() => {
     llmStore.loading = false;

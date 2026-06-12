@@ -15,6 +15,7 @@ export const useLlmStore = defineStore('llmStore', () => {
   const saveSuccess = ref<string | null>(null);
   const testError = ref<string | null>(null);
   const testSuccess = ref<string | null>(null);
+  const pingStatuses = ref<Record<number, { loading: boolean; latency: number | null; error: string | null }>>({});
 
   async function loadConfig() {
     loading.value = true;
@@ -114,6 +115,24 @@ export const useLlmStore = defineStore('llmStore', () => {
     }
   }
 
+  async function pingConfig(id: number) {
+    pingStatuses.value[id] = { loading: true, latency: null, error: null };
+    try {
+      const response = await apiClient.pingLlmConfig(id);
+      pingStatuses.value[id] = {
+        loading: false,
+        latency: response.data.latency_ms,
+        error: null,
+      };
+    } catch (error) {
+      pingStatuses.value[id] = {
+        loading: false,
+        latency: null,
+        error: error instanceof Error ? error.message : '连接失败',
+      };
+    }
+  }
+
   return {
     config,
     configs,
@@ -125,6 +144,7 @@ export const useLlmStore = defineStore('llmStore', () => {
     saveSuccess,
     testError,
     testSuccess,
+    pingStatuses,
     loadConfig,
     loadAllConfigs,
     saveConfig,
@@ -132,5 +152,6 @@ export const useLlmStore = defineStore('llmStore', () => {
     setDefaultConfig,
     toggleConfigActive,
     testConnection,
+    pingConfig,
   };
 });

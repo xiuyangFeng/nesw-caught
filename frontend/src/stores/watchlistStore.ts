@@ -33,6 +33,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
   const relatedNews = ref<Record<string, NewsItem[]>>({});
   const detailNews = ref<NewsItem[]>([]);
   const researchBrief = ref<WatchlistResearchBrief | null>(null);
+  const aiInsights = ref<Record<string, { loading: boolean; text: string | null; error: string | null; failover?: { from_model: string; to_model: string; reason: string } | null }>>({});
   const lastManualRefreshResult = ref<import('../types/api').MarketRefreshResult | null>(null);
   const selectedSymbol = ref<string | null>(null);
   const currentPeriod = ref<WatchlistDashboardPeriod>('1D');
@@ -287,6 +288,26 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     }
   }
 
+  async function loadAiInsight(symbol: string) {
+    aiInsights.value[symbol] = { loading: true, text: null, error: null, failover: null };
+    try {
+      const response = await apiClient.getWatchlistAiInsight(symbol);
+      aiInsights.value[symbol] = {
+        loading: false,
+        text: response.data.insight_text,
+        error: null,
+        failover: response.data.failover || null,
+      };
+    } catch (error) {
+      aiInsights.value[symbol] = {
+        loading: false,
+        text: null,
+        error: error instanceof Error ? error.message : '获取 AI 研判失败',
+        failover: null,
+      };
+    }
+  }
+
   return {
     candidates,
     items,
@@ -295,6 +316,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     relatedNews,
     detailNews,
     researchBrief,
+    aiInsights,
     lastManualRefreshResult,
     selectedSymbol,
     currentPeriod,
@@ -331,5 +353,6 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     switchPeriod,
     createWatchlist,
     deleteWatchlist,
+    loadAiInsight,
   };
 });

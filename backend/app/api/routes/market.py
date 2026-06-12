@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
@@ -113,3 +115,73 @@ def refresh_market_quotes(session: Session = Depends(get_db_session)) -> MarketR
         symbols=[str(q.get("symbol")) for q in quotes if q.get("symbol")],
         triggered_at=datetime.now(timezone.utc),
     )
+
+
+@router.get("/search")
+def search_market_symbols(q: str, session: Session = Depends(get_db_session)):
+    query = q.strip()
+    if not query:
+        return []
+
+    # 1. Try Yahoo Finance suggestion API
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        res = httpx.get(
+            f"https://query1.finance.yahoo.com/v1/finance/search?q={query}",
+            headers=headers,
+            timeout=2.0
+        )
+        if res.status_code == 200:
+            data = res.json()
+            quotes = data.get("quotes", [])
+            results = []
+            for item in quotes:
+                symbol = item.get("symbol")
+                if not symbol:
+                    continue
+                shortname = item.get("shortname") or item.get("longname") or symbol
+                quote_type = item.get("quoteType")
+                
+                # Check market based on symbol suffix or exchange
+                exchange = item.get("exchange")
+                market = "us"
+                if symbol.endswith(".HK") or exchange == "HKG":
+                    market = "hk"
+                elif symbol.endswith(".SS") or symbol.endswith(".SZ") or exchange in {"SHH", "SHE"}:
+                    market = "cn"
+                
+                results.append({
+                    "symbol": symbol,
+                    "display_name": shortname,
+                    "market": market,
+                    "type": quote_type,
+                })
+            if results:
+                return results
+    except Exception:
+        # Fallback to local on connection timeout/failure
+        pass
+
+    # 2. Local fallback: search in price_snapshot
+    from app.models.price_snapshot import PriceSnapshot
+    
+    stmt = (
+        select(PriceSnapshot)
+        .where(
+            PriceSnapshot.symbol.like(f"%{query}%") |
+            PriceSnapshot.provider_symbol.like(f"%{query}%")
+        )
+        .limit(10)
+    )
+    results = []
+    for snapshot in session.scalars(stmt):
+        results.append({
+            "symbol": snapshot.symbol,
+            "display_name": snapshot.symbol,
+            "market": snapshot.market,
+            "type": "EQUITY",
+        })
+    return results
+

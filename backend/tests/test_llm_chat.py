@@ -165,3 +165,52 @@ def test_llm_chat_flow() -> None:
     
     response_text = "".join(chunks)
     assert response_text == "Hello async world"
+
+
+def test_llm_chat_stream_disconnect_generator() -> None:
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+    from app.api.routes.llm import chat_with_llm
+    from app.schemas.llm import LLMChatRequest
+
+    mock_session = MagicMock()
+    payload = LLMChatRequest(
+        message="Test message",
+        history=[],
+        stream=True
+    )
+
+    mock_request = MagicMock()
+    # First call returns False, second returns True to simulate a client abort
+    mock_request.is_disconnected = AsyncMock(side_effect=[False, True])
+
+    with patch("app.api.routes.llm.LLMProviderConfigRepository") as MockRepo, \
+         patch("app.api.routes.llm.build_async_provider") as MockBuildProvider:
+
+        mock_repo = MockRepo.return_value
+        mock_config = MagicMock()
+        mock_repo.get_default.return_value = mock_config
+
+        mock_provider = MockBuildProvider.return_value
+
+        async def mock_stream(*args, **kwargs):
+            yield "Chunk1"
+            yield "Chunk2"
+            yield "Chunk3"
+
+        mock_provider.chat_stream.side_effect = mock_stream
+
+        async def _run_test():
+            response = await chat_with_llm(payload=payload, request=mock_request, session=mock_session)
+            chunks = []
+            async for chunk in response.body_iterator:
+                chunks.append(chunk)
+            return chunks
+
+        chunks = asyncio.run(_run_test())
+
+        # Since is_disconnected returned True on the second check, we should only get the first chunk
+        assert len(chunks) == 1
+        assert "Chunk1" in chunks[0]
+        assert "Chunk2" not in "".join(chunks)
+

@@ -227,6 +227,7 @@ export interface MarketSnapshot {
   is_abnormal: boolean;
   abnormal_reason: string | null;
   fetched_at: string;
+  has_hot_alert?: boolean;
 }
 
 export interface WatchlistQuoteSummary extends MarketSnapshot {}

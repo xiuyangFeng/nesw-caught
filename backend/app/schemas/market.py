@@ -26,6 +26,7 @@ class QuoteSummaryView(BaseModel):
     source: str | None = None
     message: str | None = None
     fetched_at: UTCDateTime
+    has_hot_alert: bool = False
 
 
 class QuoteDetailView(QuoteSummaryView):

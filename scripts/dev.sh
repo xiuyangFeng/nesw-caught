@@ -75,7 +75,7 @@ wait_for_process_start() {
 
 wait_for_http() {
   local url="$1"
-  local retries="${2:-50}"
+  local retries="${2:-150}"
   local delay="${3:-0.2}"
   local attempt=1
 
@@ -117,7 +117,7 @@ echo "[news-caught] starting backend on http://127.0.0.1:8000"
 conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 wait_for_process_start "${BACKEND_PID}" "backend"
-wait_for_http "http://127.0.0.1:8000/api/stream/status"
+wait_for_http "http://127.0.0.1:8000/api/stream/status" 150 0.2
 
 echo "[news-caught] starting frontend on http://127.0.0.1:5174"
 npm --prefix frontend run dev -- --host 0.0.0.0 --port 5174 &

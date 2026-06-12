@@ -1,6 +1,35 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: vi.fn(() => null),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  },
+  configurable: true,
+});
+
+vi.mock('@vue/devtools-api', () => ({
+  setupDevtoolsPlugin: vi.fn(),
+}));
+vi.mock('../../stores/watchlistStore', () => ({
+  useWatchlistStore: () => ({
+    aiInsights: {
+      AAPL: { loading: false, text: 'AI Insight', error: null },
+    },
+    loadAiInsight: vi.fn(),
+  }),
+}));
+
+vi.mock('../../stores/toastStore', () => ({
+  useToastStore: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+  }),
+}));
+
 vi.mock('./ResearchBriefPanel.vue', () => ({
   default: {
     props: ['researchBrief'],
