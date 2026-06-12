@@ -1,12 +1,4 @@
 <script setup lang="ts">
-import {
-  CandlestickSeries,
-  HistogramSeries,
-  LineSeries,
-  createChart,
-  type IChartApi,
-  type ISeriesApi,
-} from 'lightweight-charts';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import type {
@@ -14,13 +6,16 @@ import type {
   KlineDrawingStyle,
   KlineSubIndicator,
   NewsEventMarker,
-  NewsEventMarkerItem,
   StockKlineResponse,
   WatchlistDashboardPeriod,
 } from '../../types/api';
 import { useWatchlistChartStore } from '../../stores/watchlistChartStore';
 import { buildOverlayLines, calculateRsi } from '../../utils/klineIndicators';
 import { formatNumber, formatPercent } from '../../utils/format';
+import { formatKlinePeriod, formatKlineRange, indicatorPointByTime } from '../../utils/klineFormat';
+import { useChartResize } from '../../composables/useChartResize';
+import { useKlineChartLifecycle } from '../../composables/useKlineChartLifecycle';
+import { useKlineMarkers } from '../../composables/useKlineMarkers';
 import KlineDrawingOverlay from './KlineDrawingOverlay.vue';
 import KlineDrawingSelectionPopover from './KlineDrawingSelectionPopover.vue';
 import KlineIndicatorWorkbench from './KlineIndicatorWorkbench.vue';
@@ -44,23 +39,29 @@ const mainChartRef = ref<HTMLElement | null>(null);
 const subChartRef = ref<HTMLElement | null>(null);
 const dashboardCollapsed = ref(false);
 
-let chart: IChartApi | null = null;
-let subChart: IChartApi | null = null;
-let candleSeries: ISeriesApi<'Candlestick'> | null = null;
-let volumeSeries: ISeriesApi<'Histogram'> | null = null;
-let macdHistogramSeries: ISeriesApi<'Histogram'> | null = null;
-let macdDifSeries: ISeriesApi<'Line'> | null = null;
-let macdDeaSeries: ISeriesApi<'Line'> | null = null;
-let kSeries: ISeriesApi<'Line'> | null = null;
-let dSeries: ISeriesApi<'Line'> | null = null;
-let jSeries: ISeriesApi<'Line'> | null = null;
-let rsiSeries: ISeriesApi<'Line'> | null = null;
-const lineSeriesMap = new Map<string, ISeriesApi<'Line'>>();
-
+const klineDataRef = computed(() => props.klineData);
 const candles = computed(() => props.klineData?.candles ?? []);
 const activeTemplate = computed(() => chartStore.activeTemplate);
 const activeLines = computed(() => (activeTemplate.value ? buildOverlayLines(activeTemplate.value, candles.value) : []));
 const activeSubIndicator = computed<KlineSubIndicator>(() => chartStore.subIndicator);
+
+const { tooltipState, popupState, setupChartInteractions, bindMarkersToSeries } = useKlineMarkers(klineDataRef, mainChartRef);
+
+const { chartProjector, renderChart, destroyCharts, getChart, getSubChart } = useKlineChartLifecycle({
+  mainChartRef,
+  subChartRef,
+  candles,
+  activeLines,
+  activeSubIndicator,
+  klineData: klineDataRef,
+  onMarkersBind: bindMarkersToSeries,
+});
+
+const { resizeAll } = useChartResize([
+  { container: mainChartRef, getChart },
+  { container: subChartRef, getChart: getSubChart },
+]);
+
 const drawings = computed(() => {
   const symbol = props.klineData?.symbol;
   return symbol ? chartStore.drawingsBySymbol[symbol] ?? [] : [];
@@ -80,50 +81,6 @@ const selectedDrawings = computed(() => {
 });
 const overlayDisabled = computed(() => !props.klineData || !candles.value.length);
 const labelEditingActive = ref(false);
-
-const newsEventsByTime = computed(() => {
-  const map: Record<string, NewsEventMarker> = {};
-  for (const event of props.klineData?.news_events ?? []) {
-    map[event.time] = event;
-  }
-  return map;
-});
-
-const tooltipState = ref<{ visible: boolean; x: number; y: number; event: NewsEventMarker | null }>({
-  visible: false,
-  x: 0,
-  y: 0,
-  event: null,
-});
-
-const popupState = ref<{ visible: boolean; x: number; y: number; event: NewsEventMarker | null }>({
-  visible: false,
-  x: 0,
-  y: 0,
-  event: null,
-});
-
-const SENTIMENT_COLORS: Record<string, string> = {
-  positive: '#22c55e',
-  negative: '#ef4444',
-  neutral: '#3b82f6',
-  mixed: '#a855f7',
-  unknown: '#94a3b8',
-};
-const chartProjector = computed(() => ({
-  getXForTime(time: string) {
-    return (chart?.timeScale() as { timeToCoordinate?: (value: string) => number | null } | undefined)?.timeToCoordinate?.(time) ?? null;
-  },
-  getTimeForX(x: number) {
-    return (chart?.timeScale() as { coordinateToTime?: (value: number) => string | null } | undefined)?.coordinateToTime?.(x) ?? null;
-  },
-  getYForPrice(price: number) {
-    return (candleSeries as { priceToCoordinate?: (value: number) => number | null } | null)?.priceToCoordinate?.(price) ?? null;
-  },
-  getPriceForY(y: number) {
-    return (candleSeries as { coordinateToPrice?: (value: number) => number | null } | null)?.coordinateToPrice?.(y) ?? null;
-  },
-}));
 
 const legendItems = computed(() =>
   activeLines.value.map((item) => ({
@@ -148,283 +105,10 @@ const activeHudCandle = computed(() => {
 });
 const activeCursorTime = computed(() => hoveredAnchor.value?.time ?? latestCandle.value?.time ?? null);
 
-function indicatorPointByTime<T extends { time: string }>(points: T[], time: string | null) {
-  if (!points.length) {
-    return null;
-  }
-  if (!time) {
-    return points.at(-1) ?? null;
-  }
-  return points.find((point) => point.time === time) ?? points.at(-1) ?? null;
-}
-
 const activeMacd = computed(() => indicatorPointByTime(props.klineData?.indicators.macd ?? [], activeCursorTime.value));
 const activeKdj = computed(() => indicatorPointByTime(props.klineData?.indicators.kdj ?? [], activeCursorTime.value));
 const activeRsi = computed(() => indicatorPointByTime(calculateRsi(candles.value, 14), activeCursorTime.value)?.value ?? null);
 const activeBoll = computed(() => indicatorPointByTime(props.klineData?.indicators.bollinger ?? [], activeCursorTime.value));
-
-function ensureChart() {
-  if (chart || !mainChartRef.value) {
-    return;
-  }
-  chart = createChart(mainChartRef.value, {
-    autoSize: true,
-    height: 420,
-    layout: {
-      background: { color: 'transparent' },
-      textColor: 'rgba(226,232,240,0.72)',
-      attributionLogo: false,
-    },
-    grid: {
-      vertLines: { color: 'rgba(148,163,184,0.08)' },
-      horzLines: { color: 'rgba(148,163,184,0.08)' },
-    },
-    rightPriceScale: { borderVisible: false },
-    timeScale: { borderVisible: false },
-  });
-  candleSeries = chart.addSeries(CandlestickSeries, {
-    upColor: '#f97316',
-    downColor: '#22c55e',
-    borderUpColor: '#f97316',
-    borderDownColor: '#22c55e',
-    wickUpColor: '#f97316',
-    wickDownColor: '#22c55e',
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-}
-
-function currentPeriodLabel(period: WatchlistDashboardPeriod | undefined) {
-  return period === '1W' ? '周K' : period === '1M' ? '月K' : period === '1Y' ? '年K' : '日K';
-}
-
-function currentRangeLabel(period: WatchlistDashboardPeriod | undefined) {
-  return period === '1W' ? '近5年' : period === '1M' ? '近10年' : period === '1Y' ? '长期' : '近1年';
-}
-
-function formatKlinePeriod(interval: string | undefined, range: string | undefined): string {
-  if (interval === '1d' && range === '1y') {
-    return '日K';
-  }
-  if (interval === '1wk' && range === '5y') {
-    return '周K';
-  }
-  if (interval === '1mo' && range === '10y') {
-    return '月K';
-  }
-  if (interval === '1mo' && range === 'max') {
-    return '年K';
-  }
-  return interval ?? '--';
-}
-
-function formatKlineRange(interval: string | undefined, range: string | undefined): string {
-  if (interval === '1d' && range === '1y') {
-    return '近1年';
-  }
-  if (interval === '1wk' && range === '5y') {
-    return '近5年';
-  }
-  if (interval === '1mo' && range === '10y') {
-    return '近10年';
-  }
-  if (interval === '1mo' && range === 'max') {
-    return '长期';
-  }
-  return range ?? '--';
-}
-
-function ensureSubChart() {
-  if (subChart || !subChartRef.value) {
-    return;
-  }
-  subChart = createChart(subChartRef.value, {
-    autoSize: true,
-    height: 140,
-    layout: {
-      background: { color: 'transparent' },
-      textColor: 'rgba(148,163,184,0.72)',
-      attributionLogo: false,
-    },
-    grid: {
-      vertLines: { color: 'rgba(148,163,184,0.06)' },
-      horzLines: { color: 'rgba(148,163,184,0.08)' },
-    },
-    rightPriceScale: { borderVisible: false },
-    timeScale: { borderVisible: false },
-  });
-  volumeSeries = subChart.addSeries(HistogramSeries, {
-    priceFormat: { type: 'volume' },
-    priceLineVisible: false,
-    lastValueVisible: false,
-    color: 'rgba(255,182,109,0.35)',
-  });
-  macdHistogramSeries = subChart.addSeries(HistogramSeries, {
-    priceLineVisible: false,
-    lastValueVisible: false,
-    color: 'rgba(255,182,109,0.32)',
-  });
-  macdDifSeries = subChart.addSeries(LineSeries, {
-    color: '#ffd166',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-  macdDeaSeries = subChart.addSeries(LineSeries, {
-    color: '#7dd3fc',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-  kSeries = subChart.addSeries(LineSeries, {
-    color: '#ffd166',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-  dSeries = subChart.addSeries(LineSeries, {
-    color: '#7dd3fc',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-  jSeries = subChart.addSeries(LineSeries, {
-    color: '#fb7185',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-  rsiSeries = subChart.addSeries(LineSeries, {
-    color: '#34d399',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  });
-}
-
-function ensureLineSeries(key: string, color: string, lineStyle?: 0 | 2) {
-  ensureChart();
-  if (!chart) {
-    return null;
-  }
-  if (!lineSeriesMap.has(key)) {
-    lineSeriesMap.set(
-      key,
-      chart.addSeries(LineSeries, {
-        color,
-        lineWidth: 2,
-        lineStyle,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      }),
-    );
-  }
-  return lineSeriesMap.get(key) ?? null;
-}
-
-function clearSubChart() {
-  volumeSeries?.setData([]);
-  macdHistogramSeries?.setData([]);
-  macdDifSeries?.setData([]);
-  macdDeaSeries?.setData([]);
-  kSeries?.setData([]);
-  dSeries?.setData([]);
-  jSeries?.setData([]);
-  rsiSeries?.setData([]);
-}
-
-function renderSubChart() {
-  ensureSubChart();
-  if (!subChart || !props.klineData) {
-    clearSubChart();
-    return;
-  }
-  clearSubChart();
-  if (activeSubIndicator.value === 'VOL') {
-    volumeSeries?.setData(
-      props.klineData.candles.map((candle) => ({
-        time: candle.time,
-        value: candle.volume ?? 0,
-        color: candle.close >= candle.open ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.35)',
-      })),
-    );
-  } else if (activeSubIndicator.value === 'MACD') {
-    macdHistogramSeries?.setData(
-      props.klineData.indicators.macd.map((point) => ({
-        time: point.time,
-        value: point.histogram,
-        color: point.histogram >= 0 ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.4)',
-      })),
-    );
-    macdDifSeries?.setData(props.klineData.indicators.macd.map((point) => ({ time: point.time, value: point.dif })));
-    macdDeaSeries?.setData(props.klineData.indicators.macd.map((point) => ({ time: point.time, value: point.dea })));
-  } else if (activeSubIndicator.value === 'KDJ') {
-    kSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.k })));
-    dSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.d })));
-    jSeries?.setData(props.klineData.indicators.kdj.map((point) => ({ time: point.time, value: point.j })));
-  } else {
-    rsiSeries?.setData(calculateRsi(props.klineData.candles, 14).filter((point) => !Number.isNaN(point.value)).map((point) => ({ time: point.time, value: point.value })));
-  }
-  subChart.timeScale().fitContent();
-}
-
-function renderChart() {
-  ensureChart();
-  if (!chart || !candleSeries) {
-    return;
-  }
-  candleSeries.setData(
-    candles.value.map((candle) => ({
-      time: candle.time,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    })),
-  );
-  const activeKeys = new Set(activeLines.value.map((item) => item.key));
-  activeLines.value.forEach((item) => {
-    ensureLineSeries(item.key, item.color, item.lineStyle)?.setData(item.points.filter((point) => !Number.isNaN(point.value)));
-  });
-  lineSeriesMap.forEach((series, key) => {
-    if (!activeKeys.has(key)) {
-      series.setData([]);
-    }
-  });
-  chart.timeScale().fitContent();
-  renderSubChart();
-
-  // News markers
-  const newsEvents = props.klineData?.news_events ?? [];
-  const markerApi = candleSeries as { setMarkers?: (markers: Array<{ time: string; position: 'belowBar'; color: string; shape: 'circle'; text: string; size: number }>) => void } | null;
-  if (markerApi?.setMarkers) {
-    const markers = buildMarkers(newsEvents);
-    markers.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
-    markerApi.setMarkers(markers);
-  }
-}
-
-function getDominantSentiment(items: NewsEventMarkerItem[]): string {
-  const counts: Record<string, number> = {};
-  for (const item of items) {
-    counts[item.sentiment] = (counts[item.sentiment] ?? 0) + 1;
-  }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
-}
-
-function buildMarkers(events: NewsEventMarker[]): Array<{ time: string; position: 'belowBar'; color: string; shape: 'circle'; text: string; size: number }> {
-  return events.map((event) => {
-    const dominant = getDominantSentiment(event.items);
-    return {
-      time: event.time,
-      position: 'belowBar' as const,
-      color: SENTIMENT_COLORS[dominant] ?? '#94a3b8',
-      shape: 'circle' as const,
-      text: `${event.items.length}`,
-      size: Math.min(2 + event.items.length, 6),
-    };
-  });
-}
 
 function handleDraftStart(anchor: { time: string; price: number }) {
   if (!props.klineData?.symbol) {
@@ -623,55 +307,6 @@ const subIndicatorRows = computed(() => {
   return [['成交量', formatNumber(activeHudCandle.value?.volume, 0)]];
 });
 
-function setupChartInteractions() {
-  if (!chart) return;
-
-  // Guard against duplicate subscriptions
-  if ((chart as any).__newsInteractionsAttached) return;
-  (chart as any).__newsInteractionsAttached = true;
-
-  chart.subscribeCrosshairMove((param: any) => {
-    if (!param.time || !param.point) {
-      tooltipState.value.visible = false;
-      return;
-    }
-    const event = newsEventsByTime.value[param.time as string];
-    if (!event) {
-      tooltipState.value.visible = false;
-      return;
-    }
-    const rect = mainChartRef.value?.getBoundingClientRect();
-    if (!rect) return;
-    tooltipState.value = {
-      visible: true,
-      x: rect.left + (param.point.x ?? 0) + 12,
-      y: rect.top + (param.point.y ?? 0) - 10,
-      event,
-    };
-  });
-
-  chart.subscribeClick((param: any) => {
-    tooltipState.value.visible = false;
-    if (!param.time || !param.point) {
-      popupState.value.visible = false;
-      return;
-    }
-    const event = newsEventsByTime.value[param.time as string];
-    if (!event) {
-      popupState.value.visible = false;
-      return;
-    }
-    const rect = mainChartRef.value?.getBoundingClientRect();
-    if (!rect) return;
-    popupState.value = {
-      visible: true,
-      x: rect.left + (param.point.x ?? 0) + 12,
-      y: rect.top + (param.point.y ?? 0) + 20,
-      event,
-    };
-  });
-}
-
 watch(
   () => [props.klineData?.symbol, props.klineData?.candles.length],
   () => {
@@ -682,7 +317,7 @@ watch(
     if (props.klineData?.symbol) {
       chartStore.hydrateForSymbol(props.klineData.symbol, props.klineData.candles);
       renderChart();
-      setupChartInteractions();
+      setupChartInteractions(getChart());
     }
   },
   { immediate: true },
@@ -696,6 +331,10 @@ watch(
   { deep: true },
 );
 
+watch(dashboardCollapsed, () => {
+  resizeAll();
+});
+
 onMounted(() => {
   renderChart();
   window.addEventListener('keydown', handleWindowKeydown);
@@ -703,8 +342,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleWindowKeydown);
-  chart?.remove();
-  subChart?.remove();
+  destroyCharts();
   chartStore.flushAll();
 });
 </script>

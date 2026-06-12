@@ -216,6 +216,13 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app import main as main_module
+    from app.workers.queue_worker import analysis_queue
+
+    while not analysis_queue.empty():
+        try:
+            analysis_queue.get_nowait()
+        except Exception:
+            break
 
     news_id = 4242
 
@@ -261,6 +268,9 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             item.published_at = datetime(2026, 3, 25, 2, 30, tzinfo=timezone.utc)
             return item
 
+        def get_by_ids(self, requested_ids: list[int]) -> list[NewsItem]:
+            return [self.get_by_id(rid) for rid in requested_ids]
+
     class FakeNotificationService:
         def on_news_created(self, payload: dict[str, object]) -> None:
             del payload
@@ -277,6 +287,29 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
     main_module._register_event_handlers()
     fake_bus.publish("news.created_batch", {"news_ids": [news_id]})
 
+    # Simulate background queue worker consumption
+    from app.workers.queue_worker import BackgroundQueueWorker
+    # Create a dummy session that matches context manager protocol
+    class DummySession:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+        def commit(self): pass
+        def close(self): pass
+        def execute(self, *args, **kwargs):
+            class DummyResult:
+                def scalars(self):
+                    return type("Scalar", (), {"all": lambda: [], "first": lambda: None})()
+            return DummyResult()
+    
+    # Also monkeypatch the worker's imports to use the fakes
+    monkeypatch.setattr("app.workers.queue_worker.NewsSignalPipelineService", FakePipelineService)
+    monkeypatch.setattr("app.workers.queue_worker.NewsRepository", FakeNewsRepository)
+
+    qw = BackgroundQueueWorker(session_factory=lambda: DummySession())
+    qw.run_cycle()
+
     assert (
         "news.updated",
         {
@@ -287,6 +320,7 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             "canonical_url": "https://example.com/story",
             "market": "us",
             "sentiment_label": "positive",
+            "editorial_score": None,
             "published_at": "2026-03-25T02:30:00Z",
             "fetched_at": "2026-03-25T02:31:03Z",
             "updated_fields": ["sentiment_label"],

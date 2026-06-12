@@ -42,6 +42,14 @@ conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 
 PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer
 ```
 
+启动新闻抓取调度 worker（按源 cadence 调度 + 失败指数退避）：
+
+```bash
+PYTHONPATH=backend conda run -n news-caught python -m app.workers.news_scheduler
+```
+
+也可以设置 `NEWS_SCHEDULER_ENABLED=true` 让调度器随后端进程一起启动（单进程部署推荐，SSE 事件无需 Redis 即可触达前端）。
+
 启动前端：
 
 ```bash
@@ -86,6 +94,10 @@ make dev
 conda run -n news-caught pytest backend/tests
 ```
 
+> [!NOTE]
+> 单元测试在运行时会自动重定向到专用的临时测试数据库（`backend/data/app_test.db`），并在测试结束后销毁。这可确保单元测试 100% 隔离，完全不会干扰或污染你的本地开发库（`app.db`）。
+
+
 前端构建检查：
 
 ```bash
@@ -102,7 +114,9 @@ make ingest-news
 
 ## 自选股真实行情
 
-自选股页面已切换为真实行情接口，默认通过 `yfinance` 拉取港股和美股报价。当前行情 producer 已从 Web 应用进程中拆出，需通过独立 worker 常驻轮询自选股、写入本地快照，并发布 `market.watchlist_refreshed`；前端接口只读取最近一次已生产的行情结果，不再在 HTTP 请求路径里同步触发刷新。首次更新环境时请确保已安装新增依赖：
+自选股页面已切换为真实行情接口，支持批量与容灾拉取。默认通过 `yfinance` 批量并发拉取港股、美股和A股报价。同时，为了提高可用性并抗限流，本模块实现了国内备用行情源：当港股/A股在 `yfinance` 批量拉取失败或超时被限流时，会自动透明地降级，无缝切换至国内腾讯财经的轻量行情接口。
+
+当前行情 producer 已从 Web 应用进程中拆出，需通过独立 worker 常驻轮询自选股、写入本地快照，并发布 `market.watchlist_refreshed`；前端接口只读取最近一次已生产的行情结果，不再在 HTTP 请求路径里同步触发刷新。首次更新环境时请确保已安装新增依赖：
 
 ```bash
 conda env update -f environment.yml --prune
@@ -201,6 +215,43 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
 账号白名单文件格式参考：
 
 - [backend/data/x_monitor_accounts.example.json](/Users/xiuyang/Desktop/news-caught/backend/data/x_monitor_accounts.example.json)
+
+## 多模型配置管理与流式 AI 对话助手 (Multi-Model Management & AI Chat)
+
+项目已升级大模型（LLM）配置体系，支持多模型配置同时接入与切换，并新增了一个面向终端用户的流式 AI 聊天问答页面。
+
+1. **多模型接入与状态管理**：
+   - 数据库与 Repository 层已升级，允许同时存储和配置多套大模型参数（包括 Provider 名称、显示名称、Base URL、Model 名称和 API Key）。
+   - 支持设置单个模型为**默认模型**，并在列表上进行“启用/禁用”、“设为默认”、“编辑”和“删除”的精细化状态控制。
+   - 配置列表配备状态呼吸指示灯，提升操作过程中的 Terminal 科技感。
+
+2. **流式 AI 对话室 (`ChatView.vue`)**：
+   - 提供了基于 Markdown 的精美聊天对话气泡，支持打字机样式的流式 SSE 渲染（基于 `fetch` + `ReadableStream` 接收）。
+   - 支持选择不同的活动模型进行对话。
+   - 提供了预设的金融投资分析快捷追问选项（如“简述股票影响”、“分析潜在风险”等）。
+
+3. **新闻上下文融合问答**：
+   - 在新闻详情页 (`NewsDetailView.vue`) 添加了紫粉色渐变发光的 **“关于此新闻问 AI”** 按钮。
+   - 点击可直达 AI Chat 页面，自动将新闻详情（包含标题、摘要、来源、时间以及爬取到的**文章正文完整内容**）装载为首条 System 上下文。
+   - 支持随时在聊天顶部面板中一键清除新闻上下文，随时切换至普通聊天模式。
+
+新增接口：
+- `GET /api/llm/config/all`：获取所有已配置的 LLM 配置列表
+- `DELETE /api/llm/config/{id}`：删除指定的 LLM 配置
+- `POST /api/llm/config/{id}/default`：将指定配置设为系统默认模型
+- `POST /api/llm/config/{id}/active`：启用/禁用特定配置
+- `POST /api/llm/chat`：异步对话核心端点（支持 `stream=true` 实时流式响应）
+
+## 大仪表盘与新闻可见性增强 (Dashboard View Upgrade)
+
+前端仪表盘（Dashboard）已升级为高表现力、高响应性的中央交互控制台：
+
+- **舆情偏好罗盘 (`SentimentGauge.vue`)**：自绘半圆 SVG 情绪指针罗盘，增加精密仪表盘刻度 Tick 与指针头部科技发光小点，直观反映利好比率。
+- **24小时舆情波动趋势 (`SentimentTrendChart.vue`)**：自绘霓虹双色 SVG 折线图与渐变半透明填充面积图，展示过去 24 小时内利好与利空新闻的时间分布和多空力量博弈走势。
+- **突发快讯横幅 (`BreakingNewsSpotlight.vue`)**：顶部聚光灯雷达 Banner 升级为多条突发/高价值新闻（`editorial_score >= 8.5`）的淡入淡出自动轮播（鼠标悬停时暂停），并配备多层心跳声纳雷达光晕与左右手动控制键。
+- **全局控制联动**：市场范围与舆情过滤按钮能通过 Computed 响应式纯本地（0ms 延迟）联动罗盘角度偏转、趋势图重绘、四个核心大指标、聚合主题及自选股异动列表。
+- **突发新闻高显性卡片**：主 News Feed 列表中，凡是 `editorial_score >= 8.5` 的新闻将被标记为特制卡片，配有红/绿流光渐变左侧边框、霓虹背景发光和前置闪烁警报呼吸灯，以在滑动扫描时提供最强的注意力指引。
+- **极速阅览抽屉 (`NewsDetailDrawer.vue`)**：右侧滑出的半透明高斯模糊抽屉。点击新闻即可 0ms 展开全文、关联股票及 AI 深度研判（Top Pick首选影响、事件摘要与潜在风险），并在当前过滤集合中支持上一篇/下一篇滑动翻页。
 
 ## 变更记录要求
 

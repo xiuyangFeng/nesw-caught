@@ -10,7 +10,7 @@ class ArticleContent(Base):
     __tablename__ = "article_content"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id"), unique=True, index=True)
+    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id", ondelete="CASCADE"), unique=True, index=True)
     content_text: Mapped[str | None] = mapped_column(Text(), default=None)
     content_html: Mapped[str | None] = mapped_column(Text(), default=None)
     extract_status: Mapped[str] = mapped_column(default="pending")

@@ -23,6 +23,9 @@ export const useNewsStore = defineStore('newsStore', () => {
 
   const feedItems = ref<NewsItem[]>([]);
   const feedLoading = ref(false);
+  const feedLoadingMore = ref(false);
+  const feedNextCursor = ref<string | null>(null);
+  const feedHasMore = computed(() => feedNextCursor.value !== null);
   const feedPendingRequests = ref(0);
   const feedNewsRequestId = ref(0);
   const feedLayoutRequestId = ref(0);
@@ -76,7 +79,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     options.loading.value = true;
     options.queryRef.value = { ...query };
     const response = await apiClient.getNews(options.queryRef.value);
-    options.items.value = response.data;
+    options.items.value = response.data.items;
     usingMock.value = usingMock.value || response.degraded;
     options.lastLoadedAt.value = new Date().toISOString();
     options.loading.value = false;
@@ -99,13 +102,40 @@ export const useNewsStore = defineStore('newsStore', () => {
       feedQuery.value = { ...query };
       const response = await apiClient.getNews(feedQuery.value);
       if (requestId === feedNewsRequestId.value) {
-        feedItems.value = response.data;
+        feedItems.value = response.data.items;
+        feedNextCursor.value = response.data.next_cursor;
         usingMock.value = usingMock.value || response.degraded;
         feedLastLoadedAt.value = new Date().toISOString();
       }
     } finally {
       feedPendingRequests.value = Math.max(0, feedPendingRequests.value - 1);
       feedLoading.value = feedPendingRequests.value > 0;
+    }
+  }
+
+  async function loadMoreFeedNews() {
+    if (!feedNextCursor.value || feedLoadingMore.value || feedLoading.value) {
+      return false;
+    }
+    feedLoadingMore.value = true;
+    const requestId = ++feedNewsRequestId.value;
+    try {
+      const response = await apiClient.getNews({
+        ...feedQuery.value,
+        cursor: feedNextCursor.value,
+      });
+      if (requestId !== feedNewsRequestId.value) {
+        return false;
+      }
+      const existingIds = new Set(feedItems.value.map((item) => item.id));
+      const appended = response.data.items.filter((item) => !existingIds.has(item.id));
+      feedItems.value = [...feedItems.value, ...appended];
+      feedNextCursor.value = response.data.next_cursor;
+      usingMock.value = usingMock.value || response.degraded;
+      feedLastLoadedAt.value = new Date().toISOString();
+      return appended.length > 0;
+    } finally {
+      feedLoadingMore.value = false;
     }
   }
 
@@ -290,10 +320,14 @@ export const useNewsStore = defineStore('newsStore', () => {
     feedLayout,
     feedLayoutDegraded,
     feedLoading,
+    feedLoadingMore,
+    feedHasMore,
+    feedNextCursor,
     feedLastLoadedAt,
     feedStale,
     feedQuery,
     loadFeedLayout,
+    loadMoreFeedNews,
     sentimentItems,
     sentimentLoading,
     sentimentLastLoadedAt,

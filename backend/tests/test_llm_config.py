@@ -52,7 +52,8 @@ def test_post_llm_config_persists_active_provider_without_exposing_raw_key() -> 
     assert payload["base_url"] == "https://example-llm.test/v1"
     assert payload["display_name"] == "OpenAI Compatible"
     assert payload["api_key_set"] is True
-    assert "api_key" not in payload
+    assert payload["api_key"] == "sk-***cret"
+    assert payload["api_key"] != "sk-test-secret"
 
     follow_up = client.get("/api/llm/config")
 
@@ -62,7 +63,8 @@ def test_post_llm_config_persists_active_provider_without_exposing_raw_key() -> 
     assert follow_up_payload["provider_name"] == "openai_compatible"
     assert follow_up_payload["model_name"] == "deepseek-chat"
     assert follow_up_payload["api_key_set"] is True
-    assert "api_key" not in follow_up_payload
+    assert follow_up_payload["api_key"] == "sk-***cret"
+    assert follow_up_payload["api_key"] != "sk-test-secret"
 
 
 def test_post_llm_config_preserves_existing_key_when_update_omits_new_key() -> None:

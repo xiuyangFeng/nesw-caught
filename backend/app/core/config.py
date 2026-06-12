@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ai_enabled: bool = False
     http_timeout_seconds: float = 10.0
     news_sources_file: str | None = None
+    news_scheduler_enabled: bool = False
+    news_scheduler_tick_seconds: float = 5.0
+    news_backoff_max_multiplier: int = 8
     x_monitor_enabled: bool = False
     x_monitor_accounts_file: str | None = None
     twitterapi_io_api_key: str | None = None
@@ -37,6 +40,13 @@ class Settings(BaseSettings):
     market_quote_poll_interval_seconds: float = 15.0
     tavily_api_key: str | None = None
     stock_news_min_count: int = 3
+    data_cleanup_enabled: bool = True
+    data_cleanup_interval_seconds: float = 86400.0
+    data_cleanup_vacuum_interval_seconds: float = 604800.0
+    news_item_retention_days: int = 180
+    article_content_retention_days: int = 90
+    price_snapshot_retention_days: int = 30
+    dedup_secondary_judge: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

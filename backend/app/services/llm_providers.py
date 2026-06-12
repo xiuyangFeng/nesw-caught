@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 import json
 from urllib.parse import urlparse
 
@@ -25,7 +26,7 @@ class OpenAICompatibleProvider:
         if hostname.endswith(".test") or hostname in {"example.com", "example.org", "example.net"}:
             raise LLMProviderError(f"llm provider uses placeholder base url: {base_url}")
 
-        api_key = self.config.api_key or ""
+        api_key = self.config.decrypted_api_key or ""
         if api_key.startswith("sk-test"):
             raise LLMProviderError("llm provider uses placeholder api key")
 
@@ -37,13 +38,13 @@ class OpenAICompatibleProvider:
     ) -> str:
         self._validate_config()
         base_url = (self.config.base_url or "").rstrip("/")
-        if not self.config.api_key:
+        if not self.config.decrypted_api_key:
             raise LLMProviderError("llm provider api key is not configured")
 
         with httpx.Client(
             timeout=60.0,
             headers={
-                "Authorization": f"Bearer {self.config.api_key}",
+                "Authorization": f"Bearer {self.config.decrypted_api_key}",
                 "Content-Type": "application/json",
                 "User-Agent": "news-caught/0.1",
             },
@@ -78,6 +79,48 @@ class OpenAICompatibleProvider:
             raise LLMProviderError("llm provider returned empty content")
 
         return content
+
+    def embed_text(self, text: str) -> list[float]:
+        self._validate_config()
+        base_url = (self.config.base_url or "").rstrip("/")
+        if not self.config.decrypted_api_key:
+            raise LLMProviderError("llm provider api key is not configured")
+
+        with httpx.Client(
+            timeout=60.0,
+            headers={
+                "Authorization": f"Bearer {self.config.decrypted_api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "news-caught/0.1",
+            },
+        ) as client:
+            try:
+                response = client.post(
+                    f"{base_url}/embeddings",
+                    json={
+                        "model": self.config.model_name,
+                        "input": text,
+                    },
+                )
+            except httpx.HTTPError as exc:
+                raise LLMProviderError(f"llm provider request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise LLMProviderError(self._build_error_message(response))
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise LLMProviderError("llm provider returned invalid json") from exc
+
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(data, list) or not data:
+            raise LLMProviderError("llm provider returned no embeddings")
+
+        embedding = data[0].get("embedding") if isinstance(data[0], dict) else None
+        if not isinstance(embedding, list) or not embedding:
+            raise LLMProviderError("llm provider returned empty embedding")
+        return [float(value) for value in embedding]
 
     def analyze_json(self, *, prompt: str) -> dict[str, object] | object:
         content = self._request_completion(
@@ -140,5 +183,146 @@ class OpenAICompatibleProvider:
         return f"llm provider request failed with status {response.status_code}"
 
 
+class AsyncOpenAICompatibleProvider:
+    def __init__(self, config: LLMProviderConfig) -> None:
+        self.config = config
+
+    def _validate_config(self) -> None:
+        base_url = (self.config.base_url or "").strip()
+        if not base_url:
+            raise LLMProviderError("llm provider base url is not configured")
+
+        hostname = (urlparse(base_url).hostname or "").lower()
+        if hostname.endswith(".test") or hostname in {"example.com", "example.org", "example.net"}:
+            raise LLMProviderError(f"llm provider uses placeholder base url: {base_url}")
+
+        api_key = self.config.decrypted_api_key or ""
+        if api_key.startswith("sk-test"):
+            raise LLMProviderError("llm provider uses placeholder api key")
+
+    async def _request_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        self._validate_config()
+        base_url = (self.config.base_url or "").rstrip("/")
+        if not self.config.decrypted_api_key:
+            raise LLMProviderError("llm provider api key is not configured")
+
+        async with httpx.AsyncClient(
+            timeout=60.0,
+            headers={
+                "Authorization": f"Bearer {self.config.decrypted_api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "news-caught/0.1",
+            },
+        ) as client:
+            try:
+                response = await client.post(
+                    f"{base_url}/chat/completions",
+                    json={
+                        "model": self.config.model_name,
+                        "messages": messages,
+                        **({"response_format": response_format} if response_format else {}),
+                    },
+                )
+            except httpx.HTTPError as exc:
+                raise LLMProviderError(f"llm provider request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise LLMProviderError(OpenAICompatibleProvider._build_error_message(response))
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise LLMProviderError("llm provider returned invalid json") from exc
+
+        choices = payload.get("choices") if isinstance(payload, dict) else None
+        if not isinstance(choices, list) or not choices:
+            raise LLMProviderError("llm provider returned no choices")
+
+        message = choices[0].get("message") if isinstance(choices[0], dict) else None
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            raise LLMProviderError("llm provider returned empty content")
+
+        return content
+
+    async def generate_text(self, *, system_prompt: str, user_prompt: str) -> str:
+        return await self._request_completion(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+        )
+
+    async def test_connection(self) -> None:
+        await self.generate_text(
+            system_prompt=(
+                "This is a connection test. Reply with a very short plain text response. "
+                "Do not use markdown, JSON, or extra explanation."
+            ),
+            user_prompt="ping",
+        )
+
+    async def chat_stream(
+        self,
+        *,
+        messages: list[dict[str, str]],
+    ) -> AsyncGenerator[str, None]:
+        self._validate_config()
+        base_url = (self.config.base_url or "").rstrip("/")
+        if not self.config.decrypted_api_key:
+            raise LLMProviderError("llm provider api key is not configured")
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            try:
+                async with client.stream(
+                    "POST",
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.config.decrypted_api_key}",
+                        "Content-Type": "application/json",
+                        "User-Agent": "news-caught/0.1",
+                    },
+                    json={
+                        "model": self.config.model_name,
+                        "messages": messages,
+                        "stream": True,
+                    },
+                ) as response:
+                    if response.status_code >= 400:
+                        await response.read()
+                        raise LLMProviderError(OpenAICompatibleProvider._build_error_message(response))
+
+                    async for line in response.aiter_lines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        if line == "data: [DONE]":
+                            break
+                        if line.startswith("data: "):
+                            data_str = line[6:]
+                            try:
+                                payload = json.loads(data_str)
+                                choices = payload.get("choices")
+                                if isinstance(choices, list) and choices:
+                                    delta = choices[0].get("delta")
+                                    if isinstance(delta, dict):
+                                        content = delta.get("content")
+                                        if content:
+                                            yield content
+                            except json.JSONDecodeError:
+                                continue
+            except httpx.HTTPError as exc:
+                raise LLMProviderError(f"llm provider stream request failed: {exc}") from exc
+
+
 def build_provider(config: LLMProviderConfig) -> OpenAICompatibleProvider:
     return OpenAICompatibleProvider(config)
+
+
+def build_async_provider(config: LLMProviderConfig) -> AsyncOpenAICompatibleProvider:
+    return AsyncOpenAICompatibleProvider(config)

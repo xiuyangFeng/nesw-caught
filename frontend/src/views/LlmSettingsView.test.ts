@@ -6,6 +6,7 @@ import LlmSettingsView from './LlmSettingsView.vue';
 
 const llmStore = reactive({
   config: null as any,
+  configs: [] as any[],
   loading: false,
   saving: false,
   testingConnection: false,
@@ -15,8 +16,12 @@ const llmStore = reactive({
   testError: null as string | null,
   testSuccess: null as string | null,
   loadConfig: vi.fn(),
+  loadAllConfigs: vi.fn(),
   saveConfig: vi.fn(),
   testConnection: vi.fn(),
+  deleteConfig: vi.fn(),
+  setDefaultConfig: vi.fn(),
+  toggleConfigActive: vi.fn(),
 });
 
 vi.mock('../stores/llmStore', () => ({
@@ -33,7 +38,9 @@ describe('LlmSettingsView', () => {
     llmStore.saveSuccess = null;
     llmStore.testError = null;
     llmStore.testSuccess = null;
+    llmStore.configs = [];
     llmStore.loadConfig.mockReset();
+    llmStore.loadAllConfigs.mockReset();
     llmStore.saveConfig.mockReset();
     llmStore.testConnection.mockReset();
     llmStore.config = null;
@@ -53,8 +60,8 @@ describe('LlmSettingsView', () => {
     const wrapper = mount(LlmSettingsView);
 
     expect(wrapper.find('[data-role="llm-settings-grid"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('尚未配置任何 LLM');
-    expect(wrapper.find('input[type="password"]').attributes('placeholder')).toContain('留空表示保留当前 key');
+    expect(wrapper.text()).toContain('尚未配置任何模型');
+    expect(wrapper.find('input[type="password"]').attributes('placeholder')).toContain('必填 API Key');
     expect(wrapper.find('[data-surface="terminal-field"]').exists()).toBe(true);
   });
 
@@ -96,14 +103,18 @@ describe('LlmSettingsView', () => {
     await inputs[1].setValue('DeepSeek');
     await inputs[2].setValue('https://example-llm.test/v2');
     await inputs[3].setValue('deepseek-reasoner');
+    await inputs[4].setValue('sk-test-key');
     await wrapper.find('form').trigger('submit.prevent');
 
     expect(llmStore.saveConfig).toHaveBeenCalledWith({
+      id: null,
       provider_name: 'openai_compatible',
       display_name: 'DeepSeek',
       base_url: 'https://example-llm.test/v2',
       model_name: 'deepseek-reasoner',
-      api_key: undefined,
+      api_key: 'sk-test-key',
+      is_active: true,
+      is_default: false,
     });
     expect(wrapper.text()).toContain('LLM 配置已保存');
   });

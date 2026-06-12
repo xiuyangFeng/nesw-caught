@@ -178,3 +178,257 @@ class YahooFinanceQuoteProvider:
             message=None,
             fetched_at=datetime.now(timezone.utc),
         )
+
+    def fetch_quotes_batch(self, normalized_list: list[NormalizedSymbol]) -> list[QuoteRecord]:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        if not normalized_list:
+            return []
+
+        max_workers = min(len(normalized_list), 10)
+        results_map: dict[str, QuoteRecord] = {}
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_ns = {
+                executor.submit(self.fetch_quote, ns): ns
+                for ns in normalized_list
+            }
+            for future in as_completed(future_to_ns):
+                ns = future_to_ns[future]
+                try:
+                    record = future.result()
+                    results_map[ns.symbol] = record
+                except Exception as exc:
+                    results_map[ns.symbol] = QuoteRecord(
+                        symbol=ns.symbol,
+                        market=ns.market,
+                        provider_symbol=ns.provider_symbol,
+                        price=None,
+                        change_amount=None,
+                        change_percent=None,
+                        open_price=open_price if 'open_price' in locals() else None,
+                        previous_close=previous_close if 'previous_close' in locals() else None,
+                        day_high=day_high if 'day_high' in locals() else None,
+                        day_low=day_low if 'day_low' in locals() else None,
+                        volume=None,
+                        status="fetch_failed",
+                        source=self.source_name,
+                        message=str(exc),
+                        fetched_at=datetime.now(timezone.utc),
+                    )
+
+        return [results_map[ns.symbol] for ns in normalized_list]
+
+
+class TencentQuoteProvider:
+    source_name = "tencent_finance"
+
+    def fetch_quote(self, normalized: NormalizedSymbol) -> QuoteRecord:
+        if normalized.market not in ("cn", "hk"):
+            raise ValueError(f"Tencent provider only supports cn/hk, got: {normalized.market}")
+
+        if normalized.market == "cn":
+            digits, suffix = normalized.symbol.split(".", 1)
+            code = f"{suffix.lower()}{digits}"
+        else:
+            digits = "".join(filter(str.isdigit, normalized.symbol))
+            code = f"hk{digits.zfill(5)}"
+
+        url = f"http://qt.gtimg.cn/q={code}"
+
+        try:
+            import urllib.request
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                content = response.read().decode("gbk")
+        except Exception as exc:
+            raise RuntimeError(f"failed to fetch data from tencent: {exc}") from exc
+
+        if not content or "=" not in content:
+            raise RuntimeError(f"empty or invalid response from tencent for {normalized.symbol}")
+
+        try:
+            parts = content.split("=", 1)[1].strip().strip('"').strip(';').split("~")
+            if len(parts) < 35:
+                raise RuntimeError(f"incomplete data returned from tencent: expected >= 35 fields, got {len(parts)}")
+
+            price = _coerce_float(parts[3])
+            previous_close = _coerce_float(parts[4])
+            open_price = _coerce_float(parts[5])
+
+            raw_vol = _coerce_float(parts[6])
+            if raw_vol is not None:
+                volume = int(raw_vol * 100) if normalized.market == "cn" else int(raw_vol)
+            else:
+                volume = None
+
+            change_amount = _coerce_float(parts[31])
+            change_percent = _coerce_float(parts[32])
+            day_high = _coerce_float(parts[33])
+            day_low = _coerce_float(parts[34])
+
+            if price is None or previous_close is None:
+                raise RuntimeError(f"invalid price/close data from tencent: {content}")
+
+            return QuoteRecord(
+                symbol=normalized.symbol,
+                market=normalized.market,
+                provider_symbol=code,
+                price=price,
+                change_amount=change_amount,
+                change_percent=change_percent,
+                open_price=open_price,
+                previous_close=previous_close,
+                day_high=day_high,
+                day_low=day_low,
+                volume=volume,
+                status="ok",
+                source=self.source_name,
+                message=None,
+                fetched_at=datetime.now(timezone.utc),
+            )
+        except Exception as exc:
+            raise RuntimeError(f"failed to parse tencent response: {exc}") from exc
+
+    def fetch_quotes_batch(self, normalized_list: list[NormalizedSymbol]) -> list[QuoteRecord]:
+        if not normalized_list:
+            return []
+
+        results_map: dict[str, QuoteRecord] = {}
+        codes: list[str] = []
+        ns_map: dict[str, NormalizedSymbol] = {}
+
+        for ns in normalized_list:
+            if ns.market == "cn":
+                digits, suffix = ns.symbol.split(".", 1)
+                code = f"{suffix.lower()}{digits}"
+            elif ns.market == "hk":
+                digits = "".join(filter(str.isdigit, ns.symbol))
+                code = f"hk{digits.zfill(5)}"
+            else:
+                results_map[ns.symbol] = QuoteRecord(
+                    symbol=ns.symbol,
+                    market=ns.market,
+                    provider_symbol=ns.provider_symbol,
+                    price=None,
+                    change_amount=None,
+                    change_percent=None,
+                    open_price=None,
+                    previous_close=None,
+                    day_high=None,
+                    day_low=None,
+                    volume=None,
+                    status="fetch_failed",
+                    source=self.source_name,
+                    message=f"Tencent provider only supports cn/hk, got {ns.market}",
+                    fetched_at=datetime.now(timezone.utc),
+                )
+                continue
+
+            codes.append(code)
+            ns_map[code] = ns
+
+        if not codes:
+            return [results_map[ns.symbol] for ns in normalized_list]
+
+        url = f"http://qt.gtimg.cn/q={','.join(codes)}"
+
+        try:
+            import urllib.request
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                content = response.read().decode("gbk")
+        except Exception as exc:
+            for code in codes:
+                ns = ns_map[code]
+                results_map[ns.symbol] = QuoteRecord(
+                    symbol=ns.symbol,
+                    market=ns.market,
+                    provider_symbol=ns.provider_symbol,
+                    price=None,
+                    change_amount=None,
+                    change_percent=None,
+                    open_price=None,
+                    previous_close=None,
+                    day_high=None,
+                    day_low=None,
+                    volume=None,
+                    status="fetch_failed",
+                    source=self.source_name,
+                    message=str(exc),
+                    fetched_at=datetime.now(timezone.utc),
+                )
+            return [results_map[ns.symbol] for ns in normalized_list]
+
+        lines = [line.strip() for line in content.split("\n") if line.strip() and "=" in line]
+
+        for line in lines:
+            try:
+                left, right = line.split("=", 1)
+                code = left.replace("v_", "").strip()
+                ns = ns_map.get(code)
+                if not ns:
+                    continue
+
+                parts = right.strip().strip('"').strip(';').split("~")
+                if len(parts) < 35:
+                    raise RuntimeError(f"incomplete fields: expected >= 35, got {len(parts)}")
+
+                price = _coerce_float(parts[3])
+                previous_close = _coerce_float(parts[4])
+                open_price = _coerce_float(parts[5])
+
+                raw_vol = _coerce_float(parts[6])
+                if raw_vol is not None:
+                    volume = int(raw_vol * 100) if ns.market == "cn" else int(raw_vol)
+                else:
+                    volume = None
+
+                change_amount = _coerce_float(parts[31])
+                change_percent = _coerce_float(parts[32])
+                day_high = _coerce_float(parts[33])
+                day_low = _coerce_float(parts[34])
+
+                results_map[ns.symbol] = QuoteRecord(
+                    symbol=ns.symbol,
+                    market=ns.market,
+                    provider_symbol=code,
+                    price=price,
+                    change_amount=change_amount,
+                    change_percent=change_percent,
+                    open_price=open_price,
+                    previous_close=previous_close,
+                    day_high=day_high,
+                    day_low=day_low,
+                    volume=volume,
+                    status="ok",
+                    source=self.source_name,
+                    message=None,
+                    fetched_at=datetime.now(timezone.utc),
+                )
+            except Exception as exc:
+                pass
+
+        for code in codes:
+            ns = ns_map[code]
+            if ns.symbol not in results_map:
+                results_map[ns.symbol] = QuoteRecord(
+                    symbol=ns.symbol,
+                    market=ns.market,
+                    provider_symbol=ns.provider_symbol,
+                    price=None,
+                    change_amount=None,
+                    change_percent=None,
+                    open_price=None,
+                    previous_close=None,
+                    day_high=None,
+                    day_low=None,
+                    volume=None,
+                    status="fetch_failed",
+                    source=self.source_name,
+                    message="no response or parse error",
+                    fetched_at=datetime.now(timezone.utc),
+                )
+
+        return [results_map[ns.symbol] for ns in normalized_list]
+

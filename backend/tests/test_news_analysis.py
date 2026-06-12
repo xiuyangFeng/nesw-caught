@@ -147,16 +147,16 @@ def test_post_llm_translate_surfaces_provider_connection_errors(monkeypatch) -> 
         json={
             "provider_name": "openai_compatible",
             "display_name": "OpenAI Compatible",
-            "base_url": "https://example-llm.test/v1",
+            "base_url": "https://api.example-real-llm.com/v1",
             "model_name": "deepseek-chat",
-            "api_key": "sk-test-secret",
+            "api_key": "sk-real-secret-123",
         },
     )
 
     original_post = httpx.Client.post
 
     def fake_post(self, url: str, *args, **kwargs):  # type: ignore[no-untyped-def]
-        if url == "https://example-llm.test/v1/chat/completions":
+        if url == "https://api.example-real-llm.com/v1/chat/completions":
             raise httpx.ConnectError("dns lookup failed", request=httpx.Request("POST", url))
         return original_post(self, url, *args, **kwargs)
 
@@ -178,7 +178,7 @@ def test_post_llm_translate_surfaces_provider_authentication_errors(monkeypatch)
             "display_name": "DeepSeek",
             "base_url": "https://api.deepseek.com/v1",
             "model_name": "deepseek-chat",
-            "api_key": "sk-test-secret",
+            "api_key": "sk-real-secret-456",
         },
     )
 
@@ -203,6 +203,7 @@ def test_post_llm_translate_surfaces_provider_authentication_errors(monkeypatch)
 
     assert response.status_code == 502
     assert response.json()["detail"] == "llm provider request failed: Authentication Fails, Your api key: ****20e1 is invalid"
+
 
 
 def test_post_llm_test_requires_active_provider_config() -> None:

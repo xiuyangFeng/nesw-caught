@@ -27,8 +27,16 @@
   --text-soft: rgba(226, 235, 245, 0.76);
   --text-faint: #93a7bf;
   --muted: #98abc2;
-  --positive: #39c884;
-  --negative: #ff6f86;
+  /* 行情/情绪色:红涨绿跌(A股/港股惯例)。positive=利好/上涨,negative=利空/下跌 */
+  --positive: #ff6f86;
+  --positive-soft: rgba(255, 111, 134, 0.12);
+  --negative: #39c884;
+  --negative-soft: rgba(57, 200, 132, 0.12);
+  /* 系统健康色:与行情色解耦,绿=健康、红=故障 */
+  --success: #39c884;
+  --success-soft: rgba(57, 200, 132, 0.12);
+  --danger: #ff6f86;
+  --danger-soft: rgba(255, 111, 134, 0.12);
   --neutral: #53c2ff;
   --warning: #53c2ff;
   --accent: #53c2ff;
@@ -128,13 +136,23 @@
   }
 
   .pill.positive {
-    background: rgba(57, 200, 132, 0.12);
+    background: var(--positive-soft);
     color: var(--positive);
   }
 
   .pill.negative {
-    background: rgba(255, 111, 134, 0.12);
+    background: var(--negative-soft);
     color: var(--negative);
+  }
+
+  .pill.success {
+    background: var(--success-soft);
+    color: var(--success);
+  }
+
+  .pill.danger {
+    background: var(--danger-soft);
+    color: var(--danger);
   }
 
   .pill.neutral,

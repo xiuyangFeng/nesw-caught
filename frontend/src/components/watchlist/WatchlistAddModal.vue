@@ -123,7 +123,7 @@ const emit = defineEmits<{
             先从左侧选中一个候选股票，再决定是否直接添加。
           </p>
 
-          <p v-if="createError" class="mt-4 text-sm text-negative">{{ createError }}</p>
+          <p v-if="createError" class="mt-4 text-sm text-danger">{{ createError }}</p>
 
           <div class="mt-6 flex flex-wrap justify-end gap-3">
             <button

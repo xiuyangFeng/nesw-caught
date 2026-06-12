@@ -4,21 +4,36 @@ from app.schemas.common import UTCDateTime
 
 
 class LLMConfigUpsertRequest(BaseModel):
+    id: int | None = None
     provider_name: str
     display_name: str | None = None
     base_url: str | None = None
     model_name: str
     api_key: str | None = None
+    is_active: bool = True
+    is_default: bool = False
 
 
 class LLMConfigView(BaseModel):
     configured: bool
+    id: int | None = None
     provider_name: str | None = None
     display_name: str | None = None
     model_name: str | None = None
     base_url: str | None = None
+    api_key: str | None = None
     api_key_set: bool = False
+    is_active: bool = True
+    is_default: bool = False
     updated_at: UTCDateTime | None = None
+
+
+class LLMChatRequest(BaseModel):
+    message: str
+    history: list[dict[str, str]] = []
+    news_id: int | None = None
+    config_id: int | None = None
+    stream: bool = True
 
 
 class LLMTranslateRequest(BaseModel):

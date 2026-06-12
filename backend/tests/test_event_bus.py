@@ -92,3 +92,30 @@ def test_settings_expose_redis_event_layer_defaults() -> None:
     assert settings.event_bus_publish_timeout_seconds == 1.0
     assert settings.market_quote_producer_enabled is True
     assert settings.market_quote_poll_interval_seconds == 15.0
+
+
+def test_local_event_handler_exception_isolation() -> None:
+    local_bus = InMemoryEventBus()
+    bus = HybridEventBus(backend="memory", local_bus=local_bus)
+
+    calls = []
+
+    def failing_handler(payload):
+        raise ValueError("failing handler error")
+
+    def normal_handler(payload):
+        calls.append(payload)
+
+    bus.subscribe("test_event", failing_handler)
+    bus.subscribe("test_event", normal_handler)
+
+    # Publish should not raise exception
+    bus.publish("test_event", {"data": "test"})
+
+    # The normal handler should still run
+    assert calls == [{"data": "test"}]
+
+    # Status should be degraded with the error registered
+    status = bus.get_status()
+    assert status.status == "degraded"
+    assert "failing handler error" in str(status.last_error)

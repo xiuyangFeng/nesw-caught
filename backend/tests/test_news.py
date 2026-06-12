@@ -404,9 +404,9 @@ def test_news_list_applies_filters_and_limit() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 1
-    assert payload[0]["market"] == "hk"
-    assert payload[0]["source_name"] == "Reuters"
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["market"] == "hk"
+    assert payload["items"][0]["source_name"] == "Reuters"
 
 
 def test_news_list_applies_keyword_filter() -> None:
@@ -416,8 +416,8 @@ def test_news_list_applies_keyword_filter() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 1
-    assert "Tencent" in payload[0]["title"]
+    assert len(payload["items"]) == 1
+    assert "Tencent" in payload["items"][0]["title"]
 
 
 def test_news_detail_serializes_utc_timestamps() -> None:
@@ -483,7 +483,94 @@ def test_news_list_orders_by_published_at_before_fetched_at() -> None:
 
         assert response.status_code == 200
         payload = response.json()
-        assert [item["title"] for item in payload] == ["Published newer", "Fetched newer"]
+        assert [item["title"] for item in payload["items"]] == ["Published newer", "Fetched newer"]
+    finally:
+        with SessionLocal() as session:
+            session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+            session.commit()
+
+
+def test_news_list_keyset_pagination_returns_next_cursor() -> None:
+    client = TestClient(app)
+    now = datetime.now(timezone.utc)
+    url_hashes = [
+        "test-keyset-page-1",
+        "test-keyset-page-2",
+        "test-keyset-page-3",
+    ]
+
+    with SessionLocal() as session:
+        session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+        session.add_all(
+            [
+                NewsItem(
+                    source_name="Keyset Test",
+                    source_url="https://example.com/keyset",
+                    title="Newest item",
+                    summary="page 1",
+                    canonical_url="https://example.com/keyset-1",
+                    url_hash=url_hashes[0],
+                    market="us",
+                    language="en",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=now - timedelta(minutes=1),
+                    fetched_at=now,
+                    ingest_status="ingested",
+                ),
+                NewsItem(
+                    source_name="Keyset Test",
+                    source_url="https://example.com/keyset",
+                    title="Middle item",
+                    summary="page 2",
+                    canonical_url="https://example.com/keyset-2",
+                    url_hash=url_hashes[1],
+                    market="us",
+                    language="en",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=now - timedelta(minutes=2),
+                    fetched_at=now,
+                    ingest_status="ingested",
+                ),
+                NewsItem(
+                    source_name="Keyset Test",
+                    source_url="https://example.com/keyset",
+                    title="Oldest item",
+                    summary="page 3",
+                    canonical_url="https://example.com/keyset-3",
+                    url_hash=url_hashes[2],
+                    market="us",
+                    language="en",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=now - timedelta(minutes=3),
+                    fetched_at=now,
+                    ingest_status="ingested",
+                ),
+            ]
+        )
+        session.commit()
+
+    try:
+        first_page = client.get("/api/news", params={"source_name": "Keyset Test", "limit": 2})
+        assert first_page.status_code == 200
+        first_payload = first_page.json()
+        assert [item["title"] for item in first_payload["items"]] == ["Newest item", "Middle item"]
+        assert first_payload["next_cursor"]
+
+        second_page = client.get(
+            "/api/news",
+            params={
+                "source_name": "Keyset Test",
+                "limit": 2,
+                "cursor": first_payload["next_cursor"],
+            },
+        )
+        assert second_page.status_code == 200
+        second_payload = second_page.json()
+        assert [item["title"] for item in second_payload["items"]] == ["Oldest item"]
+        assert second_payload["next_cursor"] is None
     finally:
         with SessionLocal() as session:
             session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
@@ -631,6 +718,18 @@ def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() 
     ]
     topic_key = "test-feed-layout-cross-market"
 
+    # Initial cleanup to remove potential leftovers from previous failed runs
+    with SessionLocal() as session:
+        news_ids = list(session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))
+        topic_ids = list(session.scalars(select(TopicCluster.id).where(TopicCluster.topic_key == topic_key)))
+        if news_ids:
+            session.execute(delete(NewsStockMention).where(NewsStockMention.news_id.in_(news_ids)))
+            session.execute(delete(TopicNewsLink).where(TopicNewsLink.news_id.in_(news_ids)))
+            session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
+        if topic_ids:
+            session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
+        session.commit()
+
     with SessionLocal() as session:
         news_items = [
             NewsItem(
@@ -693,9 +792,14 @@ def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() 
 
         assert response.status_code == 200
         payload = response.json()
-        assert payload["events"][0]["market"] == "us"
-        assert payload["events"][0]["primary_symbol"] == "AAPL"
-        assert payload["events"][0]["related_symbols"] == ["AAPL"]
+        target_event = next(
+            (e for e in payload["events"] if e["event_title"] == "Cross Market Supply Chain"),
+            None
+        )
+        assert target_event is not None, f"Event not found in payload: {payload['events']}"
+        assert target_event["market"] == "us"
+        assert target_event["primary_symbol"] == "AAPL"
+        assert target_event["related_symbols"] == ["AAPL"]
     finally:
         with SessionLocal() as session:
             news_ids = list(session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes))))

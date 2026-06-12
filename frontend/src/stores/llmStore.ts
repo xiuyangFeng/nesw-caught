@@ -6,6 +6,7 @@ import type { LLMConfigSummary, LLMConfigUpdateRequest } from '../types/api';
 
 export const useLlmStore = defineStore('llmStore', () => {
   const config = ref<LLMConfigSummary | null>(null);
+  const configs = ref<LLMConfigSummary[]>([]);
   const loading = ref(false);
   const saving = ref(false);
   const testingConnection = ref(false);
@@ -28,6 +29,19 @@ export const useLlmStore = defineStore('llmStore', () => {
     }
   }
 
+  async function loadAllConfigs() {
+    loading.value = true;
+    loadError.value = null;
+    try {
+      const response = await apiClient.getAllLlmConfigs();
+      configs.value = response.data;
+    } catch (error) {
+      loadError.value = error instanceof Error ? error.message : '加载失败';
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function saveConfig(payload: LLMConfigUpdateRequest) {
     saving.value = true;
     saveError.value = null;
@@ -36,11 +50,52 @@ export const useLlmStore = defineStore('llmStore', () => {
       const response = await apiClient.saveLlmConfig(payload);
       config.value = response.data;
       saveSuccess.value = 'LLM 配置已保存';
+      await loadAllConfigs();
     } catch (error) {
       saveError.value = error instanceof Error ? error.message : '保存失败';
       throw error;
     } finally {
       saving.value = false;
+    }
+  }
+
+  async function deleteConfig(id: number) {
+    loading.value = true;
+    try {
+      await apiClient.deleteLlmConfig(id);
+      await loadAllConfigs();
+      // 如果删除了当前默认，重新加载 active config
+      await loadConfig();
+    } catch (error) {
+      loadError.value = error instanceof Error ? error.message : '删除失败';
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function setDefaultConfig(id: number) {
+    loading.value = true;
+    try {
+      const response = await apiClient.setDefaultLlmConfig(id);
+      config.value = response.data;
+      await loadAllConfigs();
+    } catch (error) {
+      loadError.value = error instanceof Error ? error.message : '设置默认失败';
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function toggleConfigActive(id: number, is_active: boolean) {
+    loading.value = true;
+    try {
+      await apiClient.toggleLlmConfigActive(id, is_active);
+      await loadAllConfigs();
+      await loadConfig();
+    } catch (error) {
+      loadError.value = error instanceof Error ? error.message : '更新状态失败';
+    } finally {
+      loading.value = false;
     }
   }
 
@@ -61,6 +116,7 @@ export const useLlmStore = defineStore('llmStore', () => {
 
   return {
     config,
+    configs,
     loading,
     saving,
     testingConnection,
@@ -70,7 +126,11 @@ export const useLlmStore = defineStore('llmStore', () => {
     testError,
     testSuccess,
     loadConfig,
+    loadAllConfigs,
     saveConfig,
+    deleteConfig,
+    setDefaultConfig,
+    toggleConfigActive,
     testConnection,
   };
 });

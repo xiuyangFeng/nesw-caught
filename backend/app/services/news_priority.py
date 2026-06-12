@@ -69,17 +69,22 @@ def rank_news_items(items: list[NewsPriorityItem], *, now: datetime | None = Non
     return sorted(items, key=lambda item: news_priority_key(item, now=now))
 
 
-def _has_official_signal(item: NewsPriorityItem) -> bool:
-    source_name = item.source_name.lower()
-    if any(hint in source_name for hint in OFFICIAL_SOURCE_HINTS):
+def has_official_signal(source_name: str, relevance_hints: tuple[str, ...] = ()) -> bool:
+    """来源名或相关性提示是否带有"官方/监管"信号。供排序与 editorial 评分复用。"""
+    normalized_source = source_name.lower()
+    if any(hint in normalized_source for hint in OFFICIAL_SOURCE_HINTS):
         return True
 
-    for hint in item.relevance_hints:
+    for hint in relevance_hints:
         normalized_hint = hint.lower()
         if any(official_hint in normalized_hint for official_hint in OFFICIAL_RELEVANCE_HINTS):
             return True
 
     return False
+
+
+def _has_official_signal(item: NewsPriorityItem) -> bool:
+    return has_official_signal(item.source_name, item.relevance_hints)
 
 
 def _normalize_datetime(value: datetime) -> datetime:

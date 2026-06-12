@@ -1034,6 +1034,9 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
             assert news_id == 999
             return inserted_item
 
+        def get_by_ids(self, news_ids: list[int]):
+            return [inserted_item for nid in news_ids if nid == 999]
+
     class FakeBus:
         def __init__(self) -> None:
             self.handlers: dict[str, list] = {}
@@ -1046,6 +1049,13 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
                 handler(payload)
 
     from app import main as main_module
+    from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
+
+    while not analysis_queue.empty():
+        try:
+            analysis_queue.get_nowait()
+        except Exception:
+            break
 
     notification_service = FakeNotificationService()
     fake_bus = FakeBus()
@@ -1053,8 +1063,35 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
     monkeypatch.setattr(main_module, "NewsRepository", FakeNewsRepository)
     monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
 
+    class FakePipelineService:
+        def __init__(self, session) -> None:
+            self.session = session
+        def process_news_ids(self, news_ids: list[int]):
+            return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
+
+    monkeypatch.setattr("app.workers.queue_worker.NewsSignalPipelineService", FakePipelineService)
+    monkeypatch.setattr("app.workers.queue_worker.NewsRepository", FakeNewsRepository)
+
+    class DummySession:
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        def commit(self): pass
+        def close(self): pass
+        def add(self, instance): pass
+        def execute(self, *args, **kwargs):
+            class DummyResult:
+                def scalars(self):
+                    return type("Scalar", (), {"all": lambda: [], "first": lambda: None})()
+            return DummyResult()
+        def scalar(self, *args, **kwargs):
+            return None
+
     main_module._register_event_handlers()
     fake_bus.publish("news.created_batch", {"news_ids": [999]})
+
+    qw = BackgroundQueueWorker(session_factory=lambda: DummySession())
+    monkeypatch.setattr(qw, "_record_success", lambda *args, **kwargs: None)
+    qw.run_cycle()
 
     assert notification_service.news_payloads == [
         {
@@ -1288,11 +1325,269 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
         def process_news_ids(self, news_ids: list[int]):
             return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
 
+    from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
+    from datetime import datetime, timezone
+    from typing import Any
+
+    while not analysis_queue.empty():
+        try:
+            analysis_queue.get_nowait()
+        except Exception:
+            break
+
+    class FakeNewsItem:
+        def __init__(self, item_id: int):
+            self.id = item_id
+            self.title = "title"
+            self.summary = "summary"
+            self.source_name = "source"
+            self.market = "us"
+            self.published_at = datetime(2025, 3, 17, 9, 0, tzinfo=timezone.utc)
+            self.fetched_at = datetime(2025, 3, 17, 9, 1, tzinfo=timezone.utc)
+
+    class FakeNewsRepositoryForProcessed:
+        def __init__(self, session) -> None:
+            self.session = session
+        def get_by_ids(self, news_ids: list[int]) -> list[Any]:
+            return [FakeNewsItem(nid) for nid in news_ids]
+
+    class FakeNotificationService:
+        def on_news_created(self, payload: dict) -> None: pass
+
     fake_bus = FakeBus()
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
     monkeypatch.setattr(main_module, "NewsSignalPipelineService", FakePipelineService)
+    monkeypatch.setattr("app.workers.queue_worker.NewsSignalPipelineService", FakePipelineService)
+    monkeypatch.setattr("app.workers.queue_worker.NewsRepository", FakeNewsRepositoryForProcessed)
+    monkeypatch.setattr(main_module, "get_notification_service", lambda: FakeNotificationService())
+
+    class DummySession:
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc_val, exc_tb): pass
+        def commit(self): pass
+        def close(self): pass
+        def execute(self, *args, **kwargs):
+            class DummyResult:
+                def scalars(self):
+                    return type("Scalar", (), {"all": lambda: [], "first": lambda: None})()
+            return DummyResult()
+        def scalar(self, *args, **kwargs):
+            return None
 
     main_module._register_event_handlers()
     fake_bus.publish("news.created_batch", {"news_ids": [11, 12]})
 
+    qw = BackgroundQueueWorker(session_factory=lambda: DummySession())
+    monkeypatch.setattr(qw, "_record_success", lambda *args, **kwargs: None)
+    qw.run_cycle()
+
     assert ("news.signals_processed", {"news_ids": [11, 12], "processed_count": 2}) in fake_bus.published
+
+
+def test_refresh_source_deduplicates_across_hour_boundary(monkeypatch) -> None:
+    """23:58 与 00:02 跨自然小时的同题新闻必须判重(滑动窗口修复回归)。"""
+
+    class FakeResponse:
+        text = json.dumps(
+            {
+                "data": [
+                    {
+                        "uuid": "story-1",
+                        "title": "Fed signals rate cut in July",
+                        "description": "Wire one.",
+                        "snippet": "Body one.",
+                        "url": "https://news.example.com/boundary-1",
+                        "published_at": "2026-03-26T01:58:00Z",
+                    },
+                    {
+                        "uuid": "story-2",
+                        "title": "Fed signals rate cut in July.",
+                        "description": "Wire two.",
+                        "snippet": "Body two.",
+                        "url": "https://news.example.com/boundary-2",
+                        "published_at": "2026-03-26T02:02:00Z",
+                    },
+                ]
+            }
+        )
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    source = SourceDefinition(
+        name="The News API",
+        source_type="api",
+        url="https://api.thenewsapi.com/v1/news/top",
+        market="us",
+        language="en",
+        tier="secondary",
+        parser="the_news_api_json",
+    )
+    url_hashes = [
+        sha256("https://news.example.com/boundary-1".encode("utf-8")).hexdigest(),
+        sha256("https://news.example.com/boundary-2".encode("utf-8")).hexdigest(),
+    ]
+
+    def _cleanup() -> None:
+        with SessionLocal() as session:
+            session.execute(
+                delete(ArticleContent).where(
+                    ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes)))
+                )
+            )
+            session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+            session.commit()
+
+    _cleanup()
+    try:
+        with SessionLocal() as session:
+            result = NewsIngestionService(session)._refresh_source(source)
+            stored_items = session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))).all()
+
+            assert result.status == "ok"
+            assert result.fetched_count == 2
+            assert result.inserted_count == 1
+            assert len(stored_items) == 1
+    finally:
+        _cleanup()
+
+
+def test_ema_latency_smooths_average() -> None:
+    from app.services.news_ingestion import _ema_latency
+
+    assert _ema_latency(None, 120.0) == 120.0
+    # alpha=0.3: 0.3*200 + 0.7*100 = 130
+    assert _ema_latency(100.0, 200.0) == 130.0
+
+
+def test_refresh_all_limits_to_given_sources(monkeypatch) -> None:
+    class FakeResponse:
+        text = "<rss><channel></channel></rss>"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    source = SourceDefinition(
+        name="Only Source",
+        source_type="rss",
+        url="https://feeds.example.com/only.xml",
+        market="us",
+    )
+
+    with SessionLocal() as session:
+        summary = NewsIngestionService(session).refresh_all(sources=[source])
+
+    assert [result.source_name for result in summary.results] == ["Only Source"]
+    assert summary.results[0].status == "ok"
+
+
+def test_refresh_source_deduplicates_cross_source_similar_titles(monkeypatch) -> None:
+    """不同主机、同窗口、近重复标题 → SimHash 跨源判重。"""
+
+    class FakeResponse:
+        text = json.dumps(
+            {
+                "data": [
+                    {
+                        "uuid": "story-1",
+                        "title": "Nvidia tops quarterly revenue expectations again",
+                        "description": "Wire one.",
+                        "snippet": "Body one.",
+                        "url": "https://wire-a.example.com/cross-1",
+                        "published_at": "2026-03-26T05:00:00Z",
+                    },
+                    {
+                        "uuid": "story-2",
+                        "title": "NVIDIA tops quarterly revenue expectations, again",
+                        "description": "Wire two.",
+                        "snippet": "Body two.",
+                        "url": "https://wire-b.example.com/cross-2",
+                        "published_at": "2026-03-26T05:30:00Z",
+                    },
+                ]
+            }
+        )
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str) -> FakeResponse:
+            return FakeResponse()
+
+    class FakeHttpClientFactory:
+        def create(self) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    source = SourceDefinition(
+        name="The News API",
+        source_type="api",
+        url="https://api.thenewsapi.com/v1/news/top",
+        market="us",
+        language="en",
+        tier="secondary",
+        parser="the_news_api_json",
+    )
+    url_hashes = [
+        sha256("https://wire-a.example.com/cross-1".encode("utf-8")).hexdigest(),
+        sha256("https://wire-b.example.com/cross-2".encode("utf-8")).hexdigest(),
+    ]
+
+    def _cleanup() -> None:
+        with SessionLocal() as session:
+            session.execute(
+                delete(ArticleContent).where(
+                    ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes)))
+                )
+            )
+            session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+            session.commit()
+
+    _cleanup()
+    try:
+        with SessionLocal() as session:
+            result = NewsIngestionService(session)._refresh_source(source)
+            stored_items = session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))).all()
+
+            assert result.status == "ok"
+            assert result.inserted_count == 1
+            assert len(stored_items) == 1
+    finally:
+        _cleanup()

@@ -16,6 +16,7 @@ import type {
   NewsEventDetail,
   NewsFeedLayout,
   NewsItem,
+  NewsListPage,
   NewsQuery,
   NewsRuntimeStatus,
   NewsRefreshResult,
@@ -46,6 +47,7 @@ import {
   mockFeishuTestResult,
   mockHealth,
   mockLlmConfig,
+  mockLlmConfigs,
   mockMarketSnapshots,
   mockNewsAnalyses,
   mockNews,
@@ -101,7 +103,7 @@ export const apiClient = {
     return withMockFallback<HealthStatus>(() => getJson('/api/health'), () => mockHealth);
   },
   getNews(query: NewsQuery = {}) {
-    return withMockFallback<NewsItem[]>(
+    return withMockFallback<NewsListPage>(
       () => getJson(withQuery('/api/news', query)),
       () => {
         const filtered = mockNews.filter((item) => {
@@ -112,7 +114,17 @@ export const apiClient = {
           const searchOk = !searchText || `${item.title} ${item.summary ?? ''}`.toLowerCase().includes(searchText);
           return marketOk && sentimentOk && sourceOk && searchOk;
         });
-        return filtered.slice(0, query.limit ?? filtered.length);
+        const pageSize = query.limit ?? filtered.length;
+        const startIndex = query.cursor
+          ? filtered.findIndex((item) => String(item.id) === query.cursor.split('|').pop())
+          : -1;
+        const sliceStart = startIndex >= 0 ? startIndex + 1 : 0;
+        const items = filtered.slice(sliceStart, sliceStart + pageSize);
+        const nextStart = sliceStart + pageSize;
+        return {
+          items,
+          next_cursor: nextStart < filtered.length ? String(items.at(-1)?.id ?? '') : null,
+        };
       },
     );
   },
@@ -151,6 +163,54 @@ export const apiClient = {
   },
   testLlmConnection() {
     return postJson<LLMConnectionTestResponse>('/api/llm/test', {}).then((data) => ({ data, degraded: false }));
+  },
+  getAllLlmConfigs() {
+    return withMockFallback<LLMConfigSummary[]>(
+      () => getJson('/api/llm/config/all'),
+      () => mockLlmConfigs,
+    );
+  },
+  deleteLlmConfig(id: number) {
+    return withMockFallback<void>(
+      () => deleteJson(`/api/llm/config/${id}`),
+      () => {
+        const index = mockLlmConfigs.findIndex(c => c.id === id);
+        if (index >= 0) {
+          mockLlmConfigs.splice(index, 1);
+        }
+      }
+    );
+  },
+  setDefaultLlmConfig(id: number) {
+    return withMockFallback<LLMConfigSummary>(
+      () => postJson(`/api/llm/config/${id}/default`, {}),
+      () => {
+        mockLlmConfigs.forEach(c => {
+          c.is_default = c.id === id;
+          if (c.is_default) {
+            c.is_active = true;
+          }
+        });
+        const target = mockLlmConfigs.find(c => c.id === id);
+        return target ? { ...target } : { ...mockLlmConfig };
+      }
+    );
+  },
+  toggleLlmConfigActive(id: number, is_active: boolean) {
+    return withMockFallback<LLMConfigSummary>(
+      () => postJson(withQuery(`/api/llm/config/${id}/active`, { is_active }), {}),
+      () => {
+        const target = mockLlmConfigs.find(c => c.id === id);
+        if (target) {
+          target.is_active = is_active;
+          if (!is_active && target.is_default) {
+            target.is_default = false;
+          }
+          return { ...target };
+        }
+        return { ...mockLlmConfig };
+      }
+    );
   },
   translateText(payload: LLMTranslateRequest) {
     return postJson<LLMTranslateResponse>('/api/llm/translate', payload)

@@ -29,8 +29,9 @@ const navItems = [
   { label: 'Dashboard', to: '/dashboard', index: '02' },
   { label: 'Watchlist', to: '/watchlist', index: '03' },
   { label: 'X Monitor', to: '/x-monitor', index: '04' },
-  { label: 'LLM Settings', to: '/settings/llm', index: '05' },
-  { label: 'Notify', to: '/settings/notify', index: '06' },
+  { label: 'AI Chat', to: '/chat', index: '05' },
+  { label: 'LLM Settings', to: '/settings/llm', index: '06' },
+  { label: 'Notify', to: '/settings/notify', index: '07' },
 ];
 
 const connectionSummary = computed(() => {
@@ -56,7 +57,7 @@ const shellStatusRail = computed(() => {
     return {
       label: 'SSE LIVE',
       detail: 'Stream strong',
-      signalClass: 'bg-positive shadow-[0_0_10px_rgba(57,200,132,0.38)]',
+      signalClass: 'bg-success shadow-[0_0_10px_rgba(57,200,132,0.38)]',
     } as const;
   }
   if (connectionStore.state === 'degraded') {
@@ -70,7 +71,7 @@ const shellStatusRail = computed(() => {
     return {
       label: 'SSE OFF',
       detail: 'Reconnect idle',
-      signalClass: 'bg-negative shadow-[0_0_10px_rgba(255,111,134,0.32)]',
+      signalClass: 'bg-danger shadow-[0_0_10px_rgba(255,111,134,0.32)]',
     } as const;
   }
   return {
@@ -94,7 +95,7 @@ const marketWorkerSummary = computed(() => {
     return {
       label: `${status.name} OK`,
       detail: `Last success ${formatMarketTime(status.last_success_at ?? status.last_heartbeat_at ?? '', 'hk')} HKT`,
-      toneClass: 'positive',
+      toneClass: 'success',
       error: null,
     } as const;
   }
@@ -125,13 +126,13 @@ const runtimeDiagnostic = computed(() =>
 
 function runtimeDiagnosticToneClass(tone: 'success' | 'warning' | 'danger' | 'default') {
   if (tone === 'danger') {
-    return 'text-negative';
+    return 'text-danger';
   }
   if (tone === 'warning') {
     return 'text-warning';
   }
   if (tone === 'success') {
-    return 'text-positive';
+    return 'text-success';
   }
   return 'text-text-soft';
 }
@@ -316,7 +317,7 @@ onBeforeUnmount(() => {
         <div class="grid gap-2.5 rounded-[16px] border border-border bg-white/[0.03] p-3.5 text-xs text-muted">
           <div class="grid grid-cols-1 gap-2" data-role="system-status-unit">
             <strong class="text-[11px] uppercase tracking-[0.16em] text-text">System Status</strong>
-            <span class="pill w-full justify-start text-left leading-tight" :class="isLiveConnection ? 'positive' : 'neutral'">
+            <span class="pill w-full justify-start text-left leading-tight" :class="isLiveConnection ? 'success' : 'neutral'">
               {{ connectionSummary }}
             </span>
           </div>
@@ -338,7 +339,7 @@ onBeforeUnmount(() => {
               </span>
             </div>
             <small class="uppercase tracking-[0.08em]">{{ marketWorkerSummary.detail }}</small>
-            <small v-if="marketWorkerSummary.error" class="uppercase tracking-[0.08em] text-negative">
+            <small v-if="marketWorkerSummary.error" class="uppercase tracking-[0.08em] text-danger">
               Error: {{ marketWorkerSummary.error }}
             </small>
             <div class="grid gap-1 border-t border-border/60 pt-2">

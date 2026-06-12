@@ -9,7 +9,7 @@ class NewsStockMention(TimestampMixin, Base):
     __tablename__ = "news_stock_mention"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id"), index=True)
+    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id", ondelete="CASCADE"), index=True)
     symbol: Mapped[str] = mapped_column(String(32), index=True)
     market: Mapped[str] = mapped_column(String(16), index=True)
     mention_type: Mapped[str] = mapped_column(String(16), default="body")

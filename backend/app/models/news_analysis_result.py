@@ -10,7 +10,7 @@ class NewsAnalysisResult(Base):
     __tablename__ = "news_analysis_result"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id"), unique=True, index=True)
+    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id", ondelete="CASCADE"), unique=True, index=True)
     provider_name: Mapped[str] = mapped_column(String(64), index=True)
     model_name: Mapped[str] = mapped_column(String(128))
     analysis_status: Mapped[str] = mapped_column(String(32), default="success")

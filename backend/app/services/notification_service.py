@@ -40,24 +40,24 @@ class NotificationService:
         self._watchlist_state_lock = threading.Lock()
         self._poll_interval_seconds = poll_interval_seconds
         self._lease_seconds = lease_seconds
-        self._delivery_thread: threading.Thread | None = None
-        self._running = False
+        self._worker: Any = None
 
     def start(self) -> None:
-        if self._running:
+        if self._worker is not None:
             return
-        self._running = True
-        self._delivery_thread = threading.Thread(
-            target=self._delivery_loop, daemon=True, name="notify-delivery"
+        from app.workers.notification_delivery_worker import NotificationDeliveryWorker
+        self._worker = NotificationDeliveryWorker(
+            session_factory=SessionLocal,
+            notification_service=self,
+            poll_interval_seconds=self._poll_interval_seconds,
         )
-        self._delivery_thread.start()
+        self._worker.start()
         logger.info("notification delivery scheduler started")
 
     def stop(self) -> None:
-        self._running = False
-        thread = self._delivery_thread
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=1.0)
+        if self._worker is not None:
+            self._worker.stop()
+            self._worker = None
 
     def on_news_created(self, payload: dict[str, Any]) -> None:
         config = self._load_config()
@@ -122,15 +122,10 @@ class NotificationService:
                 payload=payload,
             )
 
-    def _delivery_loop(self) -> None:
-        while self._running:
-            self._delivery_tick()
-            time.sleep(self._poll_interval_seconds)
-
-    def _delivery_tick(self, *, now: datetime | None = None) -> None:
+    def _delivery_tick(self, *, now: datetime | None = None) -> int:
         config = self._load_config()
         if not config:
-            return
+            return 0
 
         current_time = now or _utc_now()
         if config.news_enabled:
@@ -138,6 +133,7 @@ class NotificationService:
         else:
             self._discard_pending_news_jobs()
 
+        processed_count = 0
         for _ in range(50):
             with SessionLocal() as session:
                 repo = NotificationJobRepository(session)
@@ -147,8 +143,10 @@ class NotificationService:
                     now=current_time,
                 )
             if job is None:
-                return
+                break
             self._deliver_job(config=config, job=job, now=current_time)
+            processed_count += 1
+        return processed_count
 
     def _materialize_news_batch_jobs(self, config: FeishuNotifyConfig, *, now: datetime) -> None:
         cutoff = now - timedelta(minutes=config.news_batch_interval_minutes)

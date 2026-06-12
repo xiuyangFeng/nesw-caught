@@ -147,20 +147,26 @@ export interface NewsUpdateEvent extends NewsItem {
 
 export interface LLMConfigSummary {
   configured: boolean;
+  id?: number | null;
   provider_name: string | null;
   display_name: string | null;
   model_name: string | null;
   base_url: string | null;
   api_key_set: boolean;
+  is_active?: boolean;
+  is_default?: boolean;
   updated_at: string | null;
 }
 
 export interface LLMConfigUpdateRequest {
+  id?: number | null;
   provider_name: string;
   model_name: string;
   display_name?: string | null;
   base_url?: string | null;
   api_key?: string;
+  is_active?: boolean;
+  is_default?: boolean;
 }
 
 export interface LLMTranslateRequest {
@@ -500,6 +506,12 @@ export interface NewsQuery {
   source_name?: string;
   sentiment_label?: SentimentLabel | '';
   limit?: number;
+  cursor?: string;
+}
+
+export interface NewsListPage {
+  items: NewsItem[];
+  next_cursor: string | null;
 }
 
 export interface XAccount {

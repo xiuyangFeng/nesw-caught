@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import HeroMetrics from '../components/dashboard/HeroMetrics.vue';
+import SourceHealthGrid from '../components/dashboard/SourceHealthGrid.vue';
 import TopicBoard from '../components/dashboard/TopicBoard.vue';
+import SentimentGauge from '../components/dashboard/SentimentGauge.vue';
+import SentimentTrendChart from '../components/dashboard/SentimentTrendChart.vue';
+import BreakingNewsSpotlight from '../components/dashboard/BreakingNewsSpotlight.vue';
+import NewsDetailDrawer from '../components/news/NewsDetailDrawer.vue';
 import { useConnectionStore } from '../stores/connectionStore';
 import { useMarketStore } from '../stores/marketStore';
 import { useNewsStore } from '../stores/newsStore';
@@ -20,8 +25,26 @@ const marketStore = useMarketStore();
 const topicStore = useTopicStore();
 const router = useRouter();
 
-const moverPreviewItems = computed(() => marketStore.abnormalMovers.slice(0, 2));
-const dashboardFeedItems = computed(() => newsStore.dashboardItems.slice(0, 8));
+// 交互式过滤器状态
+const selectedMarket = ref<Market | null>(null);
+const selectedSentiment = ref<string | null>(null);
+
+// 新闻预览抽屉状态
+const drawerVisible = ref(false);
+const selectedNewsId = ref<number | null>(null);
+
+const markets = [
+  { label: '全部', value: null },
+  { label: 'A股', value: 'cn' as const },
+  { label: '港股', value: 'hk' as const },
+  { label: '美股', value: 'us' as const },
+];
+
+const sentiments = [
+  { label: '全部', value: null },
+  { label: '偏利好', value: 'positive' },
+  { label: '偏利空', value: 'negative' },
+];
 
 const marketLabelMap: Record<Market, string> = {
   hk: '港股',
@@ -35,10 +58,47 @@ const abnormalReasonLabelMap: Record<string, string> = {
   volume_spike: '量能放大',
 };
 
+// 1. 过滤新闻流
+const filteredDashboardItems = computed(() => {
+  return newsStore.dashboardItems.filter((item) => {
+    if (selectedMarket.value && item.market !== selectedMarket.value) {
+      return false;
+    }
+    if (selectedSentiment.value && item.sentiment_label !== selectedSentiment.value) {
+      return false;
+    }
+    return true;
+  });
+});
+
+// 2. 抽屉所用的 ID 映射
+const filteredNewsIds = computed(() => {
+  return filteredDashboardItems.value.map((item) => item.id);
+});
+
+// 3. 过滤自选股异动
+const filteredMovers = computed(() => {
+  if (!selectedMarket.value) {
+    return marketStore.abnormalMovers;
+  }
+  return marketStore.abnormalMovers.filter((item) => item.market === selectedMarket.value);
+});
+
+const moverPreviewItems = computed(() => filteredMovers.value.slice(0, 2));
+const dashboardFeedItems = computed(() => filteredDashboardItems.value.slice(0, 8));
+
+// 4. 过滤主题
+const filteredTopics = computed(() => {
+  if (!selectedMarket.value) {
+    return topicStore.topTopics;
+  }
+  return topicStore.topTopics.filter((item) => item.market === selectedMarket.value);
+});
+
 const moverMarketSummary = computed(() => {
   const counts: Record<Market, number> = { hk: 0, us: 0, cn: 0 };
 
-  for (const item of marketStore.abnormalMovers) {
+  for (const item of filteredMovers.value) {
     counts[item.market] += 1;
   }
 
@@ -51,7 +111,7 @@ const moverMarketSummary = computed(() => {
 const topMoverReason = computed(() => {
   const reasonCounts = new Map<string, number>();
 
-  for (const item of marketStore.abnormalMovers) {
+  for (const item of filteredMovers.value) {
     const reason = item.abnormal_reason ?? 'unknown';
     reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
   }
@@ -69,12 +129,31 @@ function getAbnormalReasonLabel(reason: string | null) {
   return abnormalReasonLabelMap[reason] ?? reason;
 }
 
-function getDashboardNewsTimestampLabel(timestamp: string, market: Market) {
+function getDashboardNewsTimestampLabel(timestamp: string | null, market: Market) {
   return `${formatMarketTime(timestamp, market)} ${getMarketTimezoneLabel(market)}`;
 }
 
-function openDashboardStory(id: number) {
-  router.push({ name: 'news-detail', params: { id } });
+// 抽屉交互函数
+function openNewsDrawer(id: number) {
+  selectedNewsId.value = id;
+  drawerVisible.value = true;
+}
+
+// 24小时情绪走势计算数据
+const positive24hTrend = computed(() =>
+  hourlyTrend((item) => item.sentiment_label === 'positive', 24)
+);
+const negative24hTrend = computed(() =>
+  hourlyTrend((item) => item.sentiment_label === 'negative', 24)
+);
+
+function closeNewsDrawer() {
+  drawerVisible.value = false;
+  selectedNewsId.value = null;
+}
+
+function changeNewsInDrawer(id: number) {
+  selectedNewsId.value = id;
 }
 
 const dashboardStatus = computed(() => {
@@ -106,35 +185,77 @@ const dashboardStatus = computed(() => {
   } as const;
 });
 
+function hourlyTrend(
+  predicate?: (item: (typeof newsStore.dashboardItems)[number]) => boolean,
+  hours = 12
+) {
+  const buckets = new Array<number>(hours).fill(0);
+  const now = Date.now();
+  // 使用过滤后的新闻列表重新绘折线图
+  for (const item of filteredDashboardItems.value) {
+    if (predicate && !predicate(item)) {
+      continue;
+    }
+    const rawTimestamp = getNewsDisplayTimestamp(item);
+    if (!rawTimestamp) {
+      continue;
+    }
+    const timestamp = new Date(rawTimestamp).getTime();
+    if (Number.isNaN(timestamp)) {
+      continue;
+    }
+    const bucketIndex = Math.floor((now - timestamp) / 3_600_000);
+    if (bucketIndex >= 0 && bucketIndex < hours) {
+      buckets[hours - 1 - bucketIndex] += 1;
+    }
+  }
+  return buckets;
+}
+
+const sourceHealthItems = computed(() => newsStore.newsRuntimeStatus?.sources ?? []);
+
+const positiveCount = computed(() => {
+  return filteredDashboardItems.value.filter((item) => item.sentiment_label === 'positive').length;
+});
+
+const negativeCount = computed(() => {
+  return filteredDashboardItems.value.filter((item) => item.sentiment_label === 'negative').length;
+});
+
 const metrics = computed(() => {
-  const positive = newsStore.dashboardItems.filter((item) => item.sentiment_label === 'positive').length;
-  const negative = newsStore.dashboardItems.filter((item) => item.sentiment_label === 'negative').length;
+  const totalCount = filteredDashboardItems.value.length;
+  const positive = positiveCount.value;
+  const negative = negativeCount.value;
+  const moverCount = filteredMovers.value.length;
   return [
     {
       label: '新闻总量',
-      value: String(newsStore.dashboardItems.length),
-      note: '当前已加载新闻',
+      value: String(totalCount),
+      note: '当前过滤新闻数',
       tone: 'default' as const,
+      trend: hourlyTrend(),
     },
     {
       label: '偏利好',
       value: String(positive),
-      note: '情绪标签入口',
+      note: '利好情感量',
       tone: 'positive' as const,
       to: '/news/sentiment/positive',
+      trend: hourlyTrend((item) => item.sentiment_label === 'positive'),
     },
     {
       label: '偏利空',
       value: String(negative),
-      note: '风险侧新闻入口',
+      note: '风险侧消息量',
       tone: 'negative' as const,
       to: '/news/sentiment/negative',
+      trend: hourlyTrend((item) => item.sentiment_label === 'negative'),
     },
     {
       label: '异动股票',
-      value: String(marketStore.abnormalMovers.length),
-      note: '自选股异动入口',
-      tone: marketStore.abnormalMovers.length ? 'negative' : 'default',
+      value: String(moverCount),
+      note: '自选股波动计数',
+      tone: moverCount ? ('negative' as const) : ('default' as const),
       to: '/watchlist',
     },
   ];
@@ -148,7 +269,7 @@ const metrics = computed(() => {
         <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Secondary Overview</p>
         <h1 class="page-title">Dashboard</h1>
         <p class="page-subtitle">
-          Overview Snapshot：为最新事件页提供连接状态、主题聚合和自选股异动的次级总览。
+          Overview Snapshot：为最新事件页提供连接状态、主题舆情和自选股异动的多维交互控制台。
         </p>
       </div>
       <div class="flex items-center gap-2 self-start">
@@ -165,9 +286,48 @@ const metrics = computed(() => {
       </div>
     </header>
 
-    <div data-role="dashboard-hero">
-      <p class="mb-2.5 text-[11px] uppercase tracking-[0.18em] text-system">Overview Snapshot</p>
-      <HeroMetrics :metrics="metrics" />
+    <!-- 顶部突发利好/利空警报横幅 -->
+    <BreakingNewsSpotlight :newsItems="filteredDashboardItems" @selectNews="openNewsDrawer" />
+
+    <!-- 舆情偏好罗盘与指标网格 -->
+    <div data-role="dashboard-hero" class="grid gap-3.5 xl:grid-cols-[1.1fr_1.8fr_2.1fr]">
+      <SentimentGauge :positiveCount="positiveCount" :negativeCount="negativeCount" />
+      
+      <SentimentTrendChart :positiveTrend="positive24hTrend" :negativeTrend="negative24hTrend" />
+      
+      <div class="flex flex-col justify-between gap-3.5">
+        <div class="surface rounded-[14px] border border-border/80 bg-panel-soft/60 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-muted uppercase tracking-wider font-semibold mr-1.5">市场范围</span>
+            <button
+              v-for="m in markets"
+              :key="m.value"
+              class="text-[11px] font-semibold px-3 py-1.5 rounded-full border transition duration-150"
+              :class="selectedMarket === m.value ? 'bg-accent/10 border-accent/40 text-accent font-bold' : 'bg-white/[0.02] border-border/60 text-muted hover:text-text hover:bg-white/[0.04]'"
+              type="button"
+              @click="selectedMarket = m.value"
+            >
+              {{ m.label }}
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <span class="text-[11px] text-muted uppercase tracking-wider font-semibold mr-1.5">舆情过滤</span>
+            <button
+              v-for="s in sentiments"
+              :key="s.value"
+              class="text-[11px] font-semibold px-3 py-1.5 rounded-full border transition duration-150"
+              :class="selectedSentiment === s.value ? 'bg-accent/10 border-accent/40 text-accent font-bold' : 'bg-white/[0.02] border-border/60 text-muted hover:text-text hover:bg-white/[0.04]'"
+              type="button"
+              @click="selectedSentiment = s.value"
+            >
+              {{ s.label }}
+            </button>
+          </div>
+        </div>
+
+        <HeroMetrics :metrics="metrics" class="flex-grow" />
+      </div>
     </div>
 
     <section class="grid gap-[14px] xl:grid-cols-[1.35fr_1fr_0.72fr]" data-role="dashboard-columns">
@@ -178,18 +338,28 @@ const metrics = computed(() => {
         subtitle="新闻主列，保持紧凑扫描密度"
         data-role="dashboard-column-feed"
       >
-        <LoadingBlock :loading="newsStore.dashboardLoading" :empty="newsStore.dashboardItems.length === 0">
+        <LoadingBlock :loading="newsStore.dashboardLoading" :empty="filteredDashboardItems.length === 0">
           <div class="grid gap-3">
             <div class="dashboard-column-scroller" data-role="dashboard-column-scroller">
               <button
                 v-for="item in dashboardFeedItems"
                 :key="item.id"
                 class="dashboard-feed-item"
+                :class="{
+                  'dashboard-feed-item--breaking': (item as any).editorial_score >= 8.5,
+                  'positive': item.sentiment_label === 'positive',
+                  'negative': item.sentiment_label === 'negative'
+                }"
                 data-role="dashboard-feed-item"
                 type="button"
-                @click="openDashboardStory(item.id)"
+                @click="openNewsDrawer(item.id)"
               >
                 <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted">
+                  <span
+                    v-if="(item as any).editorial_score >= 8.5"
+                    class="inline-flex h-2 w-2 rounded-full shrink-0 animate-pulse"
+                    :class="item.sentiment_label === 'positive' ? 'bg-positive' : 'bg-negative'"
+                  />
                   <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
                   <span>{{ item.source_name }}</span>
                   <span>{{ getDashboardNewsTimestampLabel(getNewsDisplayTimestamp(item), item.market) }}</span>
@@ -216,9 +386,9 @@ const metrics = computed(() => {
         subtitle="按重要度排序，保留股票和情绪入口"
         data-role="dashboard-column-topics"
       >
-        <LoadingBlock :loading="topicStore.loading" :empty="topicStore.topTopics.length === 0">
+        <LoadingBlock :loading="topicStore.loading" :empty="filteredTopics.length === 0">
           <div class="dashboard-column-scroller dashboard-topic-column" data-role="dashboard-column-scroller">
-            <TopicBoard :topics="topicStore.topTopics" />
+            <TopicBoard :topics="filteredTopics" />
           </div>
         </LoadingBlock>
       </SectionCard>
@@ -230,7 +400,7 @@ const metrics = computed(() => {
         subtitle="盘中优先观察异常波动和量能变化"
         data-role="dashboard-column-movers"
       >
-        <LoadingBlock :loading="marketStore.loading" :empty="marketStore.abnormalMovers.length === 0" empty-text="暂无异动">
+        <LoadingBlock :loading="marketStore.loading" :empty="filteredMovers.length === 0" empty-text="暂无异动">
           <div class="grid gap-3">
             <section
               class="grid gap-1.5 rounded-[16px] border border-[#ff9f2f33] bg-[linear-gradient(160deg,rgba(19,26,37,0.96),rgba(8,16,26,0.98))] px-3.5 py-3"
@@ -239,7 +409,7 @@ const metrics = computed(() => {
               <div class="flex items-end justify-between gap-3">
                 <div>
                   <p class="mb-1 text-[10px] uppercase tracking-[0.16em] text-system">Signal Count</p>
-                  <strong class="block text-[24px] leading-none">{{ marketStore.abnormalMovers.length }} 只异动</strong>
+                  <strong class="block text-[24px] leading-none">{{ filteredMovers.length }} 只异动</strong>
                 </div>
                 <span class="rounded-full border border-border bg-white/[0.05] px-2.5 py-1 text-[11px] text-muted">
                   主因 {{ topMoverReason }}
@@ -279,6 +449,24 @@ const metrics = computed(() => {
         </LoadingBlock>
       </SectionCard>
     </section>
+
+    <SectionCard
+      eyebrow="Source Health"
+      title="来源健康"
+      subtitle="按状态排序:故障源置顶,EMA 时延与连续失败可见"
+      data-role="dashboard-source-health"
+    >
+      <SourceHealthGrid :sources="sourceHealthItems" />
+    </SectionCard>
+
+    <!-- 极速右侧滑出预览抽屉 -->
+    <NewsDetailDrawer
+      :newsId="selectedNewsId"
+      :visible="drawerVisible"
+      :filteredNewsIds="filteredNewsIds"
+      @close="closeNewsDrawer"
+      @changeNews="changeNewsInDrawer"
+    />
   </div>
 </template>
 
@@ -419,5 +607,40 @@ const metrics = computed(() => {
   gap: 8px;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.dashboard-feed-item--breaking {
+  position: relative;
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-left-color: var(--accent);
+}
+
+.dashboard-feed-item--breaking.positive {
+  border-left-color: var(--positive);
+  box-shadow: 0 0 16px rgba(255, 111, 134, 0.08);
+  background: linear-gradient(90deg, rgba(255, 111, 134, 0.04) 0%, rgba(255, 111, 134, 0.01) 30%, rgba(255, 255, 255, 0.025) 100%);
+}
+
+.dashboard-feed-item--breaking.negative {
+  border-left-color: var(--negative);
+  box-shadow: 0 0 16px rgba(57, 200, 132, 0.08);
+  background: linear-gradient(90deg, rgba(57, 200, 132, 0.04) 0%, rgba(57, 200, 132, 0.01) 30%, rgba(255, 255, 255, 0.025) 100%);
+}
+
+.dashboard-feed-item--breaking:hover {
+  transform: translateY(-1px);
+}
+
+.dashboard-feed-item--breaking.positive:hover {
+  border-color: var(--positive);
+  box-shadow: 0 0 20px rgba(255, 111, 134, 0.16);
+  background: linear-gradient(90deg, rgba(255, 111, 134, 0.06) 0%, rgba(255, 111, 134, 0.02) 40%, rgba(255, 255, 255, 0.05) 100%);
+}
+
+.dashboard-feed-item--breaking.negative:hover {
+  border-color: var(--negative);
+  box-shadow: 0 0 20px rgba(57, 200, 132, 0.16);
+  background: linear-gradient(90deg, rgba(57, 200, 132, 0.06) 0%, rgba(57, 200, 132, 0.02) 40%, rgba(255, 255, 255, 0.05) 100%);
 }
 </style>

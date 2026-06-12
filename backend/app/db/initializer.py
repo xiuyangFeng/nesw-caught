@@ -1,5 +1,8 @@
+import os
 from datetime import datetime, timedelta, timezone
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import inspect, text
 from sqlalchemy import select
 
@@ -26,109 +29,6 @@ from app.models.x_signal_post_link import XSignalPostLink
 from app.models.x_source_health import XSourceHealth
 
 
-def ensure_price_snapshot_columns() -> None:
-    inspector = inspect(engine)
-    if "price_snapshot" not in inspector.get_table_names():
-        return
-
-    existing = {column["name"] for column in inspector.get_columns("price_snapshot")}
-    required_columns = {
-        "open_price": "ALTER TABLE price_snapshot ADD COLUMN open_price FLOAT",
-        "previous_close": "ALTER TABLE price_snapshot ADD COLUMN previous_close FLOAT",
-        "day_high": "ALTER TABLE price_snapshot ADD COLUMN day_high FLOAT",
-        "day_low": "ALTER TABLE price_snapshot ADD COLUMN day_low FLOAT",
-        "provider_name": "ALTER TABLE price_snapshot ADD COLUMN provider_name VARCHAR(64)",
-        "provider_symbol": "ALTER TABLE price_snapshot ADD COLUMN provider_symbol VARCHAR(32)",
-        "quote_status": "ALTER TABLE price_snapshot ADD COLUMN quote_status VARCHAR(32)",
-        "status_message": "ALTER TABLE price_snapshot ADD COLUMN status_message VARCHAR(255)",
-    }
-
-    with engine.begin() as connection:
-        for column_name, statement in required_columns.items():
-            if column_name not in existing:
-                connection.execute(text(statement))
-
-
-def ensure_news_item_columns() -> None:
-    inspector = inspect(engine)
-    if "news_item" not in inspector.get_table_names():
-        return
-
-    existing = {column["name"] for column in inspector.get_columns("news_item")}
-    required_columns = {
-        "signal_status": "ALTER TABLE news_item ADD COLUMN signal_status VARCHAR(32)",
-        "signal_error": "ALTER TABLE news_item ADD COLUMN signal_error TEXT",
-        "signal_updated_at": "ALTER TABLE news_item ADD COLUMN signal_updated_at DATETIME",
-    }
-
-    with engine.begin() as connection:
-        for column_name, statement in required_columns.items():
-            if column_name not in existing:
-                connection.execute(text(statement))
-
-
-def ensure_topic_cluster_columns() -> None:
-    inspector = inspect(engine)
-    if "topic_cluster" not in inspector.get_table_names():
-        return
-
-    existing = {column["name"] for column in inspector.get_columns("topic_cluster")}
-    required_columns = {
-        "topic_key": "ALTER TABLE topic_cluster ADD COLUMN topic_key VARCHAR(255)",
-        "cluster_version": "ALTER TABLE topic_cluster ADD COLUMN cluster_version INTEGER DEFAULT 1",
-        "llm_refined_at": "ALTER TABLE topic_cluster ADD COLUMN llm_refined_at DATETIME",
-    }
-
-    with engine.begin() as connection:
-        for column_name, statement in required_columns.items():
-            if column_name not in existing:
-                connection.execute(text(statement))
-
-
-def ensure_x_account_columns() -> None:
-    inspector = inspect(engine)
-    if "x_account" not in inspector.get_table_names():
-        return
-
-    existing = {column["name"] for column in inspector.get_columns("x_account")}
-    required_columns = {
-        "tier": "ALTER TABLE x_account ADD COLUMN tier VARCHAR(16) DEFAULT 'watch'",
-        "source": "ALTER TABLE x_account ADD COLUMN source VARCHAR(32) DEFAULT 'manual'",
-    }
-
-    with engine.begin() as connection:
-        for column_name, statement in required_columns.items():
-            if column_name not in existing:
-                connection.execute(text(statement))
-        connection.execute(text("UPDATE x_account SET tier = 'watch' WHERE tier IS NULL OR tier = ''"))
-        connection.execute(text("UPDATE x_account SET source = 'manual' WHERE source IS NULL OR source = ''"))
-
-
-def ensure_notification_job_columns() -> None:
-    inspector = inspect(engine)
-    if "notification_job" not in inspector.get_table_names():
-        return
-
-    existing = {column["name"] for column in inspector.get_columns("notification_job")}
-    required_columns = {
-        "lease_token": "ALTER TABLE notification_job ADD COLUMN lease_token VARCHAR(64)",
-    }
-
-    with engine.begin() as connection:
-        for column_name, statement in required_columns.items():
-            if column_name not in existing:
-                connection.execute(text(statement))
-
-
-def _source_health_markets_by_source_name() -> dict[str, str]:
-    from app.services.news_ingestion import load_sources
-
-    markets: dict[str, str] = {}
-    for source in load_sources():
-        markets.setdefault(source.name, source.market)
-    return markets
-
-
 def _legacy_source_health_market(connection, source_name: str, source_markets: dict[str, str]) -> str:
     market = connection.execute(
         text(
@@ -151,23 +51,20 @@ def _legacy_source_health_market(connection, source_name: str, source_markets: d
     return "unknown"
 
 
-def ensure_source_health_columns() -> None:
+def _migrate_legacy_source_health() -> None:
     inspector = inspect(engine)
     if "source_health" not in inspector.get_table_names():
         return
 
     columns = {column["name"] for column in inspector.get_columns("source_health")}
-    unique_sets = {tuple(constraint["column_names"]) for constraint in inspector.get_unique_constraints("source_health")}
-    unique_sets.update(
-        tuple(index["column_names"])
-        for index in inspector.get_indexes("source_health")
-        if index.get("unique")
-    )
-
-    if "market" in columns and ("source_name", "market") in unique_sets and ("source_name",) not in unique_sets:
+    if "market" in columns:
         return
 
-    source_markets = _source_health_markets_by_source_name()
+    from app.services.news_ingestion import load_sources
+    source_markets: dict[str, str] = {}
+    for source in load_sources():
+        source_markets.setdefault(source.name, source.market)
+
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE IF EXISTS source_health_new"))
         connection.execute(
@@ -244,14 +141,57 @@ def ensure_source_health_columns() -> None:
 
 
 def initialize_database() -> None:
-    Base.metadata.create_all(bind=engine)
-    ensure_price_snapshot_columns()
-    ensure_news_item_columns()
-    ensure_topic_cluster_columns()
-    ensure_x_account_columns()
-    ensure_notification_job_columns()
-    ensure_source_health_columns()
+    # 0. Migrate legacy source_health table if needed
+    _migrate_legacy_source_health()
 
+    # 1. SQLAlchemy create_all ensures all defined tables exist
+    Base.metadata.create_all(bind=engine)
+
+    # 2. Handle Alembic migration/stamping
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    
+    # Locate alembic.ini path robustly
+    ini_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../alembic.ini"))
+    if not os.path.exists(ini_path):
+        ini_path = "alembic.ini"
+        
+    alembic_cfg = Config(ini_path)
+    
+    # Locate alembic script location robustly
+    script_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../backend/alembic"))
+    if not os.path.exists(script_location):
+        script_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "../alembic"))
+    alembic_cfg.set_main_option("script_location", script_location)
+
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if "alembic_version" not in tables:
+        logger.info("Initializing alembic version to head...")
+        try:
+            command.stamp(alembic_cfg, "head")
+            logger.info("Alembic stamped to head successfully.")
+        except Exception as e:
+            logger.warning(f"Failed to stamp database with Alembic: {e}")
+    else:
+        logger.info("Running pending Alembic migrations...")
+        try:
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Alembic upgrade completed successfully.")
+        except Exception as e:
+            logger.warning(f"Failed to run Alembic migrations: {e}")
+
+    try:
+        _do_initialize_db_seeds()
+    except Exception as exc:
+        logger.warning(
+            f"Database initialization encountered a database conflict (likely concurrency/lock): {exc}. "
+            "Skipping initialization as another process likely already populated seed data."
+        )
+
+
+def _do_initialize_db_seeds() -> None:
     with SessionLocal() as session:
         has_watchlist = session.scalar(select(WatchlistItem.id).limit(1)) is not None
         has_news = session.scalar(select(NewsItem.id).limit(1)) is not None
@@ -289,6 +229,12 @@ def initialize_database() -> None:
             )
 
         if not has_news:
+            # Clear dangling child tables to prevent foreign key or unique constraint errors on fresh ids
+            session.query(ArticleContent).delete()
+            session.query(NewsStockMention).delete()
+            session.query(NewsItem).delete()
+            session.commit()
+
             news_items = [
                 NewsItem(
                     source_name="Reuters",

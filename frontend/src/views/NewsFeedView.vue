@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
@@ -19,7 +19,10 @@ const newsStore = useNewsStore();
 const connectionStore = useConnectionStore();
 const router = useRouter();
 const VIRTUAL_LIST_THRESHOLD = 30;
+const FEED_PAGE_SIZE = 50;
 const FEED_LAYOUT_STREAM_LIMIT = 100;
+const loadMoreSentinelRef = ref<HTMLElement | null>(null);
+let loadMoreObserver: IntersectionObserver | null = null;
 const filters = reactive<{
   market: Market | '';
   sentiment_label: SentimentLabel | '';
@@ -207,7 +210,8 @@ watch(
       }),
       newsStore.loadFeedNews({
         ...filters,
-        limit: 300,
+        source_name: selectedSource.value || undefined,
+        limit: FEED_PAGE_SIZE,
       }),
     ]);
     await hydrateEditorialDetails();
@@ -225,8 +229,24 @@ function openEvent(eventKey: string) {
 onMounted(async () => {
   await Promise.all([
     newsStore.loadFeedLayout({ limit_events: 6, limit_topics: 6, limit_stream: FEED_LAYOUT_STREAM_LIMIT }),
-    newsStore.loadFeedNews({ limit: 300 }),
+    newsStore.loadFeedNews({ limit: FEED_PAGE_SIZE }),
   ]);
+  loadMoreObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        void newsStore.loadMoreFeedNews();
+      }
+    },
+    { rootMargin: '240px 0px' },
+  );
+  if (loadMoreSentinelRef.value) {
+    loadMoreObserver.observe(loadMoreSentinelRef.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  loadMoreObserver?.disconnect();
+  loadMoreObserver = null;
 });
 
 watch(hydrationCandidateIds, async (ids) => {
@@ -241,6 +261,15 @@ watch(useVirtualScrolling, (enabled) => {
     visibleStreamIds.value = [];
   }
 }, { immediate: true });
+
+watch(loadMoreSentinelRef, (node, previous) => {
+  if (previous) {
+    loadMoreObserver?.unobserve(previous);
+  }
+  if (node) {
+    loadMoreObserver?.observe(node);
+  }
+});
 </script>
 
 <template>
@@ -364,6 +393,14 @@ watch(useVirtualScrolling, (enabled) => {
               variant="stream-compact"
               @open="openStory"
             />
+          </div>
+          <div
+            v-if="newsStore.feedHasMore"
+            ref="loadMoreSentinelRef"
+            class="py-4 text-center text-sm text-muted"
+            data-role="news-stream-load-more"
+          >
+            {{ newsStore.feedLoadingMore ? '加载更多历史新闻…' : '继续下滑加载更多' }}
           </div>
         </SectionCard>
       </LoadingBlock>

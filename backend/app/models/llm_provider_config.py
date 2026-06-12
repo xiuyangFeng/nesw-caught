@@ -16,6 +16,7 @@ class LLMProviderConfig(Base):
     model_name: Mapped[str] = mapped_column(String(128))
     api_key: Mapped[str] = mapped_column(Text())
     is_active: Mapped[bool] = mapped_column(Boolean(), default=True, index=True)
+    is_default: Mapped[bool] = mapped_column(Boolean(), default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -24,3 +25,9 @@ class LLMProviderConfig(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    @property
+    def decrypted_api_key(self) -> str:
+        from app.core.crypto import decrypt_key
+        return decrypt_key(self.api_key)
+

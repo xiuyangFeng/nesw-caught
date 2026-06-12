@@ -382,11 +382,12 @@ def test_notification_service_start_is_idempotent_for_delivery_thread():
 
     service = NotificationService(poll_interval_seconds=1)
     service.start()
-    first_thread = service._delivery_thread
+    first_worker = service._worker
     service.start()
 
-    assert service._delivery_thread is first_thread
-    assert first_thread is not None
-    assert first_thread.is_alive()
+    assert service._worker is first_worker
+    assert first_worker is not None
+    assert first_worker._thread is not None
+    assert first_worker._thread.is_alive()
 
     service.stop()

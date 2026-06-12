@@ -24,6 +24,6 @@ class NewsItem(TimestampMixin, Base):
     signal_status: Mapped[str | None] = mapped_column(String(32), default=None)
     signal_error: Mapped[str | None] = mapped_column(Text(), default=None)
     signal_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     ingest_status: Mapped[str] = mapped_column(String(32), default="ingested")

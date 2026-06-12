@@ -12,6 +12,7 @@ from app.services.quote_provider import (
     NormalizedSymbol,
     QuoteRecord,
     YahooFinanceQuoteProvider,
+    TencentQuoteProvider,
     equivalent_symbol_candidates,
     normalize_symbol,
 )
@@ -22,11 +23,107 @@ class QuoteService:
         settings = get_settings()
         self.cache_ttl = timedelta(seconds=settings.market_quote_cache_ttl_seconds)
         self.provider = YahooFinanceQuoteProvider()
+        self.fallback_provider = TencentQuoteProvider()
 
     def refresh_watchlist_quotes(self, session: Session) -> list[dict]:
         repository = WatchlistRepository(session)
         items = repository.list_all()
-        return [self._get_quote_payload(session, item.symbol, item.market, item.display_name) for item in items]
+        if not items:
+            return []
+
+        market_repo = MarketRepository(session)
+
+        # 1. Batch lookup normalization and cache snapshots
+        symbols_to_lookup = []
+        normalized_map = {}
+        for item in items:
+            try:
+                ns = normalize_symbol(item.symbol, item.market)
+                normalized_map[item.symbol] = ns
+                symbols_to_lookup.append(ns.symbol)
+            except ValueError as exc:
+                normalized_map[item.symbol] = exc
+
+        symbols_to_lookup = list(set(symbols_to_lookup))
+        cached_snapshots = market_repo.list_latest_by_symbols(symbols_to_lookup)
+
+        # 2. Categorize items into cache hits or need refresh
+        to_fetch_yahoo = []
+        results = {}
+
+        for item in items:
+            ns_or_exc = normalized_map.get(item.symbol)
+            if isinstance(ns_or_exc, ValueError):
+                results[item.symbol] = self._build_unavailable_payload(
+                    item.symbol, item.market or "unknown", item.display_name, "symbol_not_supported", str(ns_or_exc)
+                )
+                continue
+
+            ns = ns_or_exc
+            cached = cached_snapshots.get(ns.symbol)
+            if cached and self._is_fresh(cached):
+                results[item.symbol] = self._snapshot_to_payload(cached, item.display_name)
+            else:
+                to_fetch_yahoo.append((item, ns, cached))
+
+        # 3. Batch fetch with Yahoo Finance
+        if to_fetch_yahoo:
+            yahoo_ns_list = [ns for _, ns, _ in to_fetch_yahoo]
+            yahoo_records = self.provider.fetch_quotes_batch(yahoo_ns_list)
+            yahoo_records_map = {r.symbol: r for r in yahoo_records}
+
+            to_fetch_tencent = []
+
+            for item, ns, cached in to_fetch_yahoo:
+                record = yahoo_records_map.get(ns.symbol)
+
+                # Check if it failed and is eligible for tencent fallback (cn/hk)
+                if (not record or record.status != "ok") and ns.market in ("cn", "hk"):
+                    to_fetch_tencent.append((item, ns, cached, record))
+                else:
+                    if record and record.status == "ok":
+                        snapshot = self._save_live_quote(session, market_repo, record)
+                        results[item.symbol] = self._snapshot_to_payload(snapshot, item.display_name)
+                    else:
+                        exc_msg = record.message if record else "fetch returned empty"
+                        if cached:
+                            payload = self._snapshot_to_payload(cached, item.display_name)
+                            payload["status"] = "delayed"
+                            payload["message"] = exc_msg
+                            results[item.symbol] = payload
+                        else:
+                            results[item.symbol] = self._build_unavailable_payload(
+                                item.symbol, ns.market, item.display_name, "fetch_failed", exc_msg, ns.provider_symbol
+                            )
+
+            # 4. Batch fetch with Tencent Finance for fallbacks
+            if to_fetch_tencent:
+                tencent_ns_list = [ns for _, ns, _, _ in to_fetch_tencent]
+                tencent_records = self.fallback_provider.fetch_quotes_batch(tencent_ns_list)
+                tencent_records_map = {r.symbol: r for r in tencent_records}
+
+                for item, ns, cached, yahoo_record in to_fetch_tencent:
+                    record = tencent_records_map.get(ns.symbol)
+                    if record and record.status == "ok":
+                        snapshot = self._save_live_quote(session, market_repo, record)
+                        results[item.symbol] = self._snapshot_to_payload(snapshot, item.display_name)
+                    else:
+                        yahoo_msg = yahoo_record.message if yahoo_record else "Yahoo fetch failed"
+                        tencent_msg = record.message if record else "Tencent fetch failed"
+                        merged_msg = f"Yahoo: {yahoo_msg}; Fallback Tencent: {tencent_msg}"
+
+                        if cached:
+                            payload = self._snapshot_to_payload(cached, item.display_name)
+                            payload["status"] = "delayed"
+                            payload["message"] = merged_msg
+                            results[item.symbol] = payload
+                        else:
+                            results[item.symbol] = self._build_unavailable_payload(
+                                item.symbol, ns.market, item.display_name, "fetch_failed", merged_msg, ns.provider_symbol
+                            )
+
+        return [results[item.symbol] for item in items]
+
 
     def get_cached_watchlist_quotes(self, session: Session) -> list[dict]:
         repository = WatchlistRepository(session)

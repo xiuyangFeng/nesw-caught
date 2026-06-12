@@ -2,8 +2,8 @@
 import type { NewsEventMarker } from '../../types/api';
 
 const SENTIMENT_COLORS: Record<string, string> = {
-  positive: '#22c55e',
-  negative: '#ef4444',
+  positive: '#ff6f86',
+  negative: '#39c884',
   neutral: '#3b82f6',
   mixed: '#a855f7',
   unknown: '#94a3b8',

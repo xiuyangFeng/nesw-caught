@@ -172,13 +172,20 @@ export const mockNewsDetails: Record<number, NewsDetail> = {
 
 export const mockLlmConfig: LLMConfigSummary = {
   configured: true,
+  id: 1,
   provider_name: 'openai_compatible',
   display_name: 'OpenAI Compatible',
   model_name: 'deepseek-chat',
   base_url: 'https://example-llm.test/v1',
   api_key_set: true,
+  is_active: true,
+  is_default: true,
   updated_at: isoMinutesAgo(5),
 };
+
+export const mockLlmConfigs: LLMConfigSummary[] = [
+  { ...mockLlmConfig }
+];
 
 export const buildMockTranslation = (text: string): LLMTranslateResponse => ({
   provider_name: mockLlmConfig.provider_name ?? 'openai_compatible',

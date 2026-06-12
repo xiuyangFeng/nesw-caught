@@ -11,10 +11,10 @@ function toneClasses(tone?: 'default' | 'warning' | 'danger' | 'success') {
     return 'border-system/20 bg-[linear-gradient(180deg,rgba(15,27,40,0.96),rgba(11,20,31,0.96))]';
   }
   if (tone === 'danger') {
-    return 'border-negative/30 bg-[linear-gradient(180deg,rgba(31,17,24,0.92),rgba(18,11,17,0.94))]';
+    return 'border-danger/30 bg-[linear-gradient(180deg,rgba(31,17,24,0.92),rgba(18,11,17,0.94))]';
   }
   if (tone === 'success') {
-    return 'border-positive/25 bg-[linear-gradient(180deg,rgba(11,28,22,0.92),rgba(10,18,15,0.94))]';
+    return 'border-success/25 bg-[linear-gradient(180deg,rgba(11,28,22,0.92),rgba(10,18,15,0.94))]';
   }
   return 'border-border bg-panel-soft';
 }

@@ -45,6 +45,11 @@ def _language_for_market(market: str) -> str:
     return "zh" if market in ("cn", "hk") else "en"
 
 
+from concurrent.futures import ThreadPoolExecutor
+
+_search_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="stock-news-search")
+
+
 class StockNewsSearchService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -107,12 +112,12 @@ class StockNewsSearchService:
         display_name: str,
         market: str,
     ) -> None:
-        thread = threading.Thread(
-            target=self._run_external_search,
-            args=(symbol, display_name, market),
-            daemon=True,
+        _search_executor.submit(
+            self._run_external_search,
+            symbol,
+            display_name,
+            market,
         )
-        thread.start()
 
     def _run_external_search(
         self,
@@ -205,13 +210,13 @@ class _ExternalSearchWorker:
             )
 
             base_url = (config.base_url or "").rstrip("/")
-            if not base_url or not config.api_key:
+            if not base_url or not config.decrypted_api_key:
                 return None
 
             with httpx.Client(
                 timeout=15.0,
                 headers={
-                    "Authorization": f"Bearer {config.api_key}",
+                    "Authorization": f"Bearer {config.decrypted_api_key}",
                     "Content-Type": "application/json",
                 },
             ) as client:

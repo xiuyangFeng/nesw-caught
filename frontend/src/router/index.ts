@@ -58,6 +58,11 @@ const router = createRouter({
       component: () => import('../views/NotifySettingsView.vue'),
     },
     {
+      path: '/chat',
+      name: 'ai-chat',
+      component: () => import('../views/ChatView.vue'),
+    },
+    {
       path: '/topics/:id',
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),

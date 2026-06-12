@@ -106,16 +106,25 @@ watch(
               <span>{{ detail.source_name }}</span>
               <span>{{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
             </div>
-            <a
-              v-if="detail.canonical_url"
-              :href="detail.canonical_url"
-              target="_blank"
-              rel="noreferrer"
-              class="detail-primary-action"
-              data-role="open-source-link"
-            >
-              打开原文
-            </a>
+            <div class="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
+              <button
+                class="detail-ai-action"
+                type="button"
+                @click="router.push({ path: '/chat', query: { news_id: newsId } })"
+              >
+                关于此新闻问 AI
+              </button>
+              <a
+                v-if="detail.canonical_url"
+                :href="detail.canonical_url"
+                target="_blank"
+                rel="noreferrer"
+                class="detail-primary-action"
+                data-role="open-source-link"
+              >
+                打开原文
+              </a>
+            </div>
           </div>
         </SectionCard>
 
@@ -272,12 +281,33 @@ watch(
   box-shadow: 0 10px 24px rgba(17, 94, 177, 0.24);
 }
 
+.detail-ai-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #7c3aed, #db2777);
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.detail-ai-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.35);
+}
+
 @media (max-width: 720px) {
   .detail-header-actions {
     align-items: stretch;
   }
 
-  .detail-primary-action {
+  .detail-primary-action,
+  .detail-ai-action {
     width: 100%;
   }
 }

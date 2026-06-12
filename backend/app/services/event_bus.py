@@ -29,6 +29,7 @@ class EventBusStatus:
 class InMemoryEventBus:
     def __init__(self) -> None:
         self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
+        self.last_error: str | None = None
 
     def subscribe(self, event_name: str, handler: EventHandler) -> None:
         self._handlers[event_name].append(handler)
@@ -42,8 +43,18 @@ class InMemoryEventBus:
             self._handlers.pop(event_name, None)
 
     def publish(self, event_name: str, payload: dict[str, Any]) -> None:
+        import logging
+        logger = logging.getLogger(__name__)
+        self.last_error = None
         for handler in self._handlers[event_name]:
-            handler(payload)
+            try:
+                handler(payload)
+            except Exception as exc:
+                handler_name = getattr(handler, "__name__", str(handler))
+                logger.exception(
+                    f"EventBus handler '{handler_name}' failed on event '{event_name}'"
+                )
+                self.last_error = f"Handler '{handler_name}' failed on event '{event_name}': {exc}"
 
 
 class HybridEventBus:
@@ -88,6 +99,9 @@ class HybridEventBus:
                     self._status.last_error = str(exc)
 
         self.local_bus.publish(event_name, payload)
+        if self.local_bus.last_error:
+            self._status.status = "degraded"
+            self._status.last_error = self.local_bus.last_error
 
     def get_status(self) -> EventBusStatus:
         return EventBusStatus(

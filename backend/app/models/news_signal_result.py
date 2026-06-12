@@ -10,7 +10,7 @@ class NewsSignalResult(Base):
     __tablename__ = "news_signal_result"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id"), unique=True, index=True)
+    news_id: Mapped[int] = mapped_column(ForeignKey("news_item.id", ondelete="CASCADE"), unique=True, index=True)
     classifier_type: Mapped[str] = mapped_column(String(32), default="rule")
     signal_confidence: Mapped[float | None] = mapped_column(Float(), default=None)
     topic_key: Mapped[str | None] = mapped_column(String(255), default=None)

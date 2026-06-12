@@ -128,7 +128,7 @@ onMounted(() => {
           >
             {{ notifyStore.testing ? '正在发送…' : '发送测试消息' }}
           </button>
-          <p v-if="notifyStore.testResult" :class="notifyStore.testResult.success ? 'text-positive' : 'text-negative'">
+          <p v-if="notifyStore.testResult" :class="notifyStore.testResult.success ? 'text-success' : 'text-danger'">
             {{ notifyStore.testResult.message }}
           </p>
         </div>
@@ -242,8 +242,8 @@ onMounted(() => {
             >
               {{ notifyStore.saving ? '正在保存…' : '保存配置' }}
             </button>
-            <p v-if="notifyStore.saveSuccess" class="text-xs text-positive">{{ notifyStore.saveSuccess }}</p>
-            <p v-else-if="notifyStore.saveError" class="text-xs text-negative">{{ notifyStore.saveError }}</p>
+            <p v-if="notifyStore.saveSuccess" class="text-xs text-success">{{ notifyStore.saveSuccess }}</p>
+            <p v-else-if="notifyStore.saveError" class="text-xs text-danger">{{ notifyStore.saveError }}</p>
           </div>
         </form>
       </SectionCard>

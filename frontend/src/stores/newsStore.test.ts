@@ -36,46 +36,52 @@ describe('newsStore', () => {
 
     apiClient.getNews
       .mockResolvedValueOnce({
-        data: [
-          {
-            id: 1,
-            title: 'Dashboard story',
-            summary: 'Overview summary',
-            source_name: 'Bloomberg',
-            canonical_url: null,
-            market: 'us',
-            sentiment_label: 'positive',
-            published_at: '2026-03-21T08:00:00Z',
-            fetched_at: '2026-03-21T08:01:00Z',
-          },
-          {
-            id: 2,
-            title: 'Risk story',
-            summary: 'Risk summary',
-            source_name: 'Reuters',
-            canonical_url: null,
-            market: 'us',
-            sentiment_label: 'negative',
-            published_at: '2026-03-21T07:00:00Z',
-            fetched_at: '2026-03-21T07:01:00Z',
-          },
-        ],
+        data: {
+          items: [
+            {
+              id: 1,
+              title: 'Dashboard story',
+              summary: 'Overview summary',
+              source_name: 'Bloomberg',
+              canonical_url: null,
+              market: 'us',
+              sentiment_label: 'positive',
+              published_at: '2026-03-21T08:00:00Z',
+              fetched_at: '2026-03-21T08:01:00Z',
+            },
+            {
+              id: 2,
+              title: 'Risk story',
+              summary: 'Risk summary',
+              source_name: 'Reuters',
+              canonical_url: null,
+              market: 'us',
+              sentiment_label: 'negative',
+              published_at: '2026-03-21T07:00:00Z',
+              fetched_at: '2026-03-21T07:01:00Z',
+            },
+          ],
+          next_cursor: null,
+        },
         degraded: false,
       })
       .mockResolvedValueOnce({
-        data: [
-          {
-            id: 2,
-            title: 'Risk story',
-            summary: 'Risk summary',
-            source_name: 'Reuters',
-            canonical_url: null,
-            market: 'us',
-            sentiment_label: 'negative',
-            published_at: '2026-03-21T07:00:00Z',
-            fetched_at: '2026-03-21T07:01:00Z',
-          },
-        ],
+        data: {
+          items: [
+            {
+              id: 2,
+              title: 'Risk story',
+              summary: 'Risk summary',
+              source_name: 'Reuters',
+              canonical_url: null,
+              market: 'us',
+              sentiment_label: 'negative',
+              published_at: '2026-03-21T07:00:00Z',
+              fetched_at: '2026-03-21T07:01:00Z',
+            },
+          ],
+          next_cursor: null,
+        },
         degraded: false,
       });
 
@@ -256,7 +262,7 @@ describe('newsStore', () => {
     expect((store as any).feedLoading).toBe(true);
 
     resolveNews?.({
-      data: [],
+      data: { items: [], next_cursor: null },
       degraded: false,
     });
     await newsPromise;
@@ -371,41 +377,100 @@ describe('newsStore', () => {
     const secondPromise = (store as any).loadFeedNews({ limit: 5, q: 'second' });
 
     resolveSecond?.({
-      data: [
-        {
-          id: 2,
-          title: 'Second response',
-          summary: 'second',
-          source_name: 'Reuters',
-          canonical_url: 'https://example.com/second',
-          market: 'us',
-          sentiment_label: 'neutral',
-          published_at: '2026-03-25T02:40:00Z',
-          fetched_at: '2026-03-25T02:41:00Z',
-        },
-      ],
+      data: {
+        items: [
+          {
+            id: 2,
+            title: 'Second response',
+            summary: 'second',
+            source_name: 'Reuters',
+            canonical_url: 'https://example.com/second',
+            market: 'us',
+            sentiment_label: 'neutral',
+            published_at: '2026-03-25T02:40:00Z',
+            fetched_at: '2026-03-25T02:41:00Z',
+          },
+        ],
+        next_cursor: null,
+      },
       degraded: false,
     });
     await secondPromise;
 
     resolveFirst?.({
-      data: [
-        {
-          id: 1,
-          title: 'First response',
-          summary: 'first',
-          source_name: 'Bloomberg',
-          canonical_url: 'https://example.com/first',
-          market: 'us',
-          sentiment_label: 'neutral',
-          published_at: '2026-03-25T02:30:00Z',
-          fetched_at: '2026-03-25T02:31:00Z',
-        },
-      ],
+      data: {
+        items: [
+          {
+            id: 1,
+            title: 'First response',
+            summary: 'first',
+            source_name: 'Bloomberg',
+            canonical_url: 'https://example.com/first',
+            market: 'us',
+            sentiment_label: 'neutral',
+            published_at: '2026-03-25T02:30:00Z',
+            fetched_at: '2026-03-25T02:31:00Z',
+          },
+        ],
+        next_cursor: null,
+      },
       degraded: false,
     });
     await firstPromise;
 
     expect((store as any).feedItems[0].id).toBe(2);
+  });
+
+  it('appends older feed items when loadMoreFeedNews is called', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.getNews
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              id: 2,
+              title: 'Latest',
+              summary: 'latest',
+              source_name: 'Reuters',
+              canonical_url: 'https://example.com/latest',
+              market: 'us',
+              sentiment_label: 'neutral',
+              published_at: '2026-03-25T02:40:00Z',
+              fetched_at: '2026-03-25T02:41:00Z',
+            },
+          ],
+          next_cursor: 'cursor-2',
+        },
+        degraded: false,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              id: 1,
+              title: 'Older',
+              summary: 'older',
+              source_name: 'Bloomberg',
+              canonical_url: 'https://example.com/older',
+              market: 'us',
+              sentiment_label: 'neutral',
+              published_at: '2026-03-25T02:30:00Z',
+              fetched_at: '2026-03-25T02:31:00Z',
+            },
+          ],
+          next_cursor: null,
+        },
+        degraded: false,
+      });
+
+    await (store as any).loadFeedNews({ limit: 1 });
+    await (store as any).loadMoreFeedNews();
+
+    expect((store as any).feedItems.map((item: any) => item.id)).toEqual([2, 1]);
+    expect((store as any).feedNextCursor).toBeNull();
   });
 });

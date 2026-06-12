@@ -10,7 +10,7 @@ class XPost(Base):
     __tablename__ = "x_post"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    account_id: Mapped[int] = mapped_column(ForeignKey("x_account.id"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("x_account.id", ondelete="CASCADE"), index=True)
     external_post_id: Mapped[str | None] = mapped_column(String(64), unique=True, default=None)
     canonical_url: Mapped[str | None] = mapped_column(String(500), unique=True, default=None)
     content_text: Mapped[str] = mapped_column(Text())

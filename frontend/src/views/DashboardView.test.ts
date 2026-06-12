@@ -1,3 +1,7 @@
+vi.mock('@vue/devtools-api', () => ({
+  setupDevtoolsPlugin: () => undefined,
+}));
+
 import { mount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +32,13 @@ const newsStore = reactive({
   ],
   dashboardLoading: false,
   dashboardStale: false,
+  loadDetail: vi.fn().mockResolvedValue(undefined),
+  loadAnalysis: vi.fn().mockResolvedValue(undefined),
+  detailLoading: false,
+  detailMap: {} as Record<number, any>,
+  analysisMap: {} as Record<number, any>,
+  analysisLoadingMap: {} as Record<number, boolean>,
+  analysisErrorMap: {} as Record<number, string | null>,
 });
 
 const marketStore = reactive({
@@ -106,6 +117,13 @@ vi.mock('../stores/topicStore', () => ({
   useTopicStore: () => topicStore,
 }));
 
+vi.mock('../stores/llmStore', () => ({
+  useLlmStore: () => ({
+    config: { configured: true, provider_name: 'OpenAI', model_name: 'gpt-4' },
+    loadConfig: vi.fn(),
+  }),
+}));
+
 describe('DashboardView', () => {
   beforeEach(() => {
     mockPush.mockReset();
@@ -179,11 +197,46 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('1');
   });
 
-  it('routes dashboard news preview rows to the news detail page on click', async () => {
+  it('opens the news preview drawer on clicking preview rows', async () => {
     const wrapper = mount(DashboardView);
 
     await wrapper.get('[data-role="dashboard-feed-item"]').trigger('click');
 
-    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 1 } });
+    expect(wrapper.vm.drawerVisible).toBe(true);
+    expect(wrapper.vm.selectedNewsId).toBe(1);
+  });
+
+  it('highlights high-weight breaking news in the news feed list and displays the trend chart', async () => {
+    // 塞入一条高权重突发新闻
+    newsStore.dashboardItems.push({
+      id: 2,
+      title: 'Breaking Critical News Alert',
+      summary: 'Critical news summary',
+      source_name: 'Reuters',
+      canonical_url: null,
+      market: 'cn',
+      sentiment_label: 'positive',
+      published_at: '2026-03-18T08:10:00Z',
+      fetched_at: '2026-03-18T08:12:00Z',
+      editorial_score: 9.0,
+    } as any);
+
+    const wrapper = mount(DashboardView);
+    await nextTick();
+
+    // 验证舆情趋势组件渲染
+    expect(wrapper.find('[data-role="sentiment-trend-card"]').exists()).toBe(true);
+
+    // 验证有高危突发新闻样式类和闪烁呼吸点
+    const feedItems = wrapper.findAll('[data-role="dashboard-feed-item"]');
+    const breakingItem = feedItems.find((node) =>
+      node.text().includes('Breaking Critical News Alert')
+    );
+    expect(breakingItem).toBeDefined();
+    expect(breakingItem?.classes()).toContain('dashboard-feed-item--breaking');
+    expect(breakingItem?.find('.animate-pulse').exists()).toBe(true);
+
+    // 清理数据
+    newsStore.dashboardItems = newsStore.dashboardItems.filter((i) => i.id !== 2);
   });
 });

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
 
+import Sparkline from '../common/Sparkline.vue';
+
 defineProps<{
   metrics: Array<{
     label: string;
@@ -8,6 +10,7 @@ defineProps<{
     note: string;
     tone: 'default' | 'positive' | 'negative';
     to?: string;
+    trend?: number[];
   }>;
 }>();
 
@@ -19,6 +22,16 @@ function metricToneClasses(tone: 'default' | 'positive' | 'negative') {
     return 'text-negative';
   }
   return 'text-text';
+}
+
+function sparklineTone(tone: 'default' | 'positive' | 'negative') {
+  if (tone === 'positive') {
+    return 'positive' as const;
+  }
+  if (tone === 'negative') {
+    return 'negative' as const;
+  }
+  return 'accent' as const;
 }
 </script>
 
@@ -37,12 +50,13 @@ function metricToneClasses(tone: 'default' | 'positive' | 'negative') {
           {{ metric.label }}
         </p>
         <strong
-          class="mb-1.5 mt-2 block text-[32px] tracking-[-0.05em] font-semibold"
+          class="mb-1.5 mt-2 block text-[32px] tracking-[-0.05em] font-semibold tabular-nums"
           :class="metricToneClasses(metric.tone)"
           data-role="metric-value"
         >
           {{ metric.value }}
         </strong>
+        <Sparkline v-if="metric.trend" :values="metric.trend" :tone="sparklineTone(metric.tone)" class="mb-1.5 block" />
         <span class="m-0 text-[11px] uppercase tracking-[0.12em] text-muted" data-role="metric-note">{{ metric.note }}</span>
         </div>
       </RouterLink>
@@ -58,12 +72,13 @@ function metricToneClasses(tone: 'default' | 'positive' | 'negative') {
           {{ metric.label }}
         </p>
         <strong
-          class="mb-1.5 mt-2 block text-[32px] tracking-[-0.05em] font-semibold"
+          class="mb-1.5 mt-2 block text-[32px] tracking-[-0.05em] font-semibold tabular-nums"
           :class="metricToneClasses(metric.tone)"
           data-role="metric-value"
         >
           {{ metric.value }}
         </strong>
+        <Sparkline v-if="metric.trend" :values="metric.trend" :tone="sparklineTone(metric.tone)" class="mb-1.5 block" />
         <span class="m-0 text-[11px] uppercase tracking-[0.12em] text-muted" data-role="metric-note">{{ metric.note }}</span>
         </div>
       </article>

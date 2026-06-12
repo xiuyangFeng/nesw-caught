@@ -14,11 +14,17 @@ from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import NewsItemSummary
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
 from app.services.market_quote_producer import MarketQuoteProducer
+from app.services.news_ingest_scheduler import NewsIngestScheduler
 from app.services.news_signal_pipeline import NewsSignalPipelineService
 from app.services.notification_service import get_notification_service
 from app.services.quote_service import QuoteService
+from app.services.cleanup import build_data_cleanup_worker
+from app.services.news_dedup import configure_secondary_judge_from_settings
 
 logger = logging.getLogger(__name__)
+
+
+from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
 
 
 def get_quote_service() -> QuoteService:
@@ -35,55 +41,12 @@ def _register_event_handlers() -> None:
         news_ids = [int(item) for item in raw_ids]
         if not news_ids:
             return
-        with SessionLocal() as session:
-            summary = NewsSignalPipelineService(session).process_news_ids(news_ids)
-            news_repo = NewsRepository(session)
-            update_payloads: list[dict[str, object]] = []
-            for news_id in summary.news_ids:
-                item = news_repo.get_by_id(news_id)
-                if item is None:
-                    continue
-                payload = NewsItemSummary.model_validate(item, from_attributes=True).model_dump(mode="json")
-                payload["updated_fields"] = ["sentiment_label"]
-                update_payloads.append(payload)
-            session.commit()
-        for payload in update_payloads:
-            event_bus.publish("news.updated", payload)
-        if summary.processed_count > 0:
-            event_bus.publish(
-                "news.signals_processed",
-                {"news_ids": summary.news_ids, "processed_count": summary.processed_count},
-            )
-
-    def handle_news_created_notifications(payload: dict[str, object]) -> None:
-        raw_ids = payload.get("news_ids") if isinstance(payload, dict) else None
-        if not isinstance(raw_ids, list):
-            return
-        news_ids = [int(item) for item in raw_ids]
-        if not news_ids:
-            return
-        with SessionLocal() as session:
-            repo = NewsRepository(session)
-            notification_service = get_notification_service()
-            for news_id in news_ids:
-                item = repo.get_by_id(news_id)
-                if item is None:
-                    continue
-                notification_service.on_news_created(
-                    {
-                        "title": item.title,
-                        "summary": item.summary,
-                        "source_name": item.source_name,
-                        "market": item.market,
-                        "published_at": item.published_at.isoformat() if item.published_at else None,
-                    }
-                )
+        analysis_queue.put(news_ids)
 
     def handle_news_analysis_completed(payload: dict[str, object]) -> None:
         get_notification_service().on_analysis_completed(payload)
 
     event_bus.subscribe("news.created_batch", handle_news_created_batch)
-    event_bus.subscribe("news.created_batch", handle_news_created_notifications)
     event_bus.subscribe("news.analysis_completed", handle_news_analysis_completed)
     set_event_bus(event_bus)
 
@@ -132,10 +95,34 @@ def build_market_quote_producer(event_bus: Any | None = None) -> MarketQuoteProd
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     initialize_database()
+    configure_secondary_judge_from_settings()
     _register_event_handlers()
     notification_service = get_notification_service()
     notification_service.start()
+
+    # Start queue worker for async pipeline processing
+    queue_worker = BackgroundQueueWorker(session_factory=SessionLocal)
+    queue_worker.start()
+
+    settings = get_settings()
+    news_scheduler: NewsIngestScheduler | None = None
+    cleanup_worker = None
+    if settings.news_scheduler_enabled:
+        news_scheduler = NewsIngestScheduler(
+            session_factory=SessionLocal,
+            tick_seconds=settings.news_scheduler_tick_seconds,
+            max_backoff_multiplier=settings.news_backoff_max_multiplier,
+        )
+        news_scheduler.start()
+    if settings.data_cleanup_enabled:
+        cleanup_worker = build_data_cleanup_worker(SessionLocal)
+        cleanup_worker.start()
     yield
+    if cleanup_worker is not None:
+        cleanup_worker.stop()
+    if news_scheduler is not None:
+        news_scheduler.stop()
+    queue_worker.stop()
     notification_service.stop()
 
 

@@ -5,7 +5,16 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
-from app.schemas.news import NewsArticleView, NewsDetailView, NewsEventDetailView, NewsFeedLayoutView, NewsItemSummary, NewsMentionView, NewsTopicRefView
+from app.schemas.news import (
+    NewsArticleView,
+    NewsDetailView,
+    NewsEventDetailView,
+    NewsFeedLayoutView,
+    NewsItemSummary,
+    NewsListPageView,
+    NewsMentionView,
+    NewsTopicRefView,
+)
 from app.schemas.llm import NewsAnalysisView
 from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView, NewsRuntimeView
 from app.services.event_bus import get_event_bus
@@ -19,24 +28,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("", response_model=list[NewsItemSummary])
+@router.get("", response_model=NewsListPageView)
 def list_news(
     market: str | None = Query(default=None),
     q: str | None = Query(default=None),
     source_name: str | None = Query(default=None),
     sentiment_label: str | None = Query(default=None),
+    cursor: str | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=500),
     session: Session = Depends(get_db_session),
-) -> list[NewsItemSummary]:
+) -> NewsListPageView:
     repository = NewsRepository(session)
-    items = repository.list_recent(
+    items, next_cursor = repository.list_recent_page(
         limit=limit,
+        cursor=cursor,
         market=market,
         source_name=source_name,
         sentiment_label=sentiment_label,
         query=q,
     )
-    return [NewsItemSummary.model_validate(item, from_attributes=True) for item in items]
+    return NewsListPageView(
+        items=[NewsItemSummary.model_validate(item, from_attributes=True) for item in items],
+        next_cursor=next_cursor,
+    )
 
 
 @router.post("/refresh", response_model=NewsRefreshResponse)

@@ -18,6 +18,7 @@ from app.schemas.news import (
     NewsItemSummary,
 )
 from app.schemas.topic import TopicItemView
+from app.services.news_priority import has_official_signal
 
 EVENT_TYPE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
@@ -167,6 +168,13 @@ SOURCE_TIER_WEIGHTS: dict[str, float] = {
 DEFAULT_SOURCE_WEIGHT = 1.0
 
 DECAY_LAMBDA = 0.03
+
+# editorial 评分权重(集中声明,便于调参与灰度)
+EDITORIAL_TOPIC_WEIGHT = 0.4
+EDITORIAL_SOURCE_WEIGHT = 0.25
+EDITORIAL_FRESHNESS_WEIGHT = 0.2
+EDITORIAL_MENTION_BONUS = 0.15
+EDITORIAL_OFFICIAL_BONUS = 0.1
 
 
 def _source_weight_map() -> dict[str, float]:
@@ -464,12 +472,14 @@ class NewsFeedLayoutService:
             topic_importance, topic_symbols = news_to_topic.get(item.id, (0.0, []))
             source_weight = weight_map.get(item.source_name, DEFAULT_SOURCE_WEIGHT)
             freshness = _decayed_importance(1.0, item.published_at or item.fetched_at)
-            has_mentions = 0.15 if topic_symbols else 0.0
+            has_mentions = EDITORIAL_MENTION_BONUS if topic_symbols else 0.0
+            official_bonus = EDITORIAL_OFFICIAL_BONUS if has_official_signal(item.source_name) else 0.0
             editorial_score = round(
-                topic_importance * 0.4
-                + (source_weight / 1.2) * 0.25
-                + freshness * 0.2
-                + has_mentions,
+                topic_importance * EDITORIAL_TOPIC_WEIGHT
+                + (source_weight / 1.2) * EDITORIAL_SOURCE_WEIGHT
+                + freshness * EDITORIAL_FRESHNESS_WEIGHT
+                + has_mentions
+                + official_bonus,
                 4,
             )
             item.editorial_score = editorial_score

@@ -65,7 +65,7 @@ const filteredRows = computed(() => {
           刷新
         </button>
       </div>
-      <p v-if="deleteError" class="mt-2 text-sm text-negative">{{ deleteError }}</p>
+      <p v-if="deleteError" class="mt-2 text-sm text-danger">{{ deleteError }}</p>
     </div>
 
     <div class="grid gap-2.5" data-role="watchlist-compact-list">

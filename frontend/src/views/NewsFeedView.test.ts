@@ -145,8 +145,12 @@ const newsStore = reactive({
     },
   ],
   lastIncrementalAt: '2026-03-25T02:39:55Z',
+  feedNextCursor: null,
+  feedHasMore: false,
+  feedLoadingMore: false,
   loadFeedNews: vi.fn(async () => undefined),
   loadFeedLayout: vi.fn(async () => undefined),
+  loadMoreFeedNews: vi.fn(async () => false),
   loadDetail: vi.fn(async () => undefined),
 });
 
@@ -166,6 +170,14 @@ vi.mock('../stores/newsStore', () => ({
 
 describe('NewsFeedView', () => {
   beforeEach(() => {
+    class MockIntersectionObserver {
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      constructor(public callback: IntersectionObserverCallback) {}
+    }
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver as unknown as typeof IntersectionObserver);
+
     mockPush.mockReset();
     connectionStore.state = 'live';
     newsStore.loadFeedNews.mockClear();

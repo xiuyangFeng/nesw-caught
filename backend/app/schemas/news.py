@@ -16,6 +16,11 @@ class NewsItemSummary(BaseModel):
     editorial_score: float | None = None
 
 
+class NewsListPageView(BaseModel):
+    items: list[NewsItemSummary]
+    next_cursor: str | None = None
+
+
 class NewsMentionView(BaseModel):
     symbol: str
     market: str

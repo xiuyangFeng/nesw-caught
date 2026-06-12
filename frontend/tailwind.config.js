@@ -19,6 +19,8 @@ export default {
         muted: 'var(--muted)',
         positive: 'var(--positive)',
         negative: 'var(--negative)',
+        success: 'var(--success)',
+        danger: 'var(--danger)',
         neutral: 'var(--neutral)',
         warning: 'var(--warning)',
         accent: 'var(--accent)',

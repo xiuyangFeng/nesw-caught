@@ -146,7 +146,7 @@ onMounted(async () => {
       <p v-if="watchlistStore.lastManualRefreshResult" class="m-0 text-text-soft">
         最近手动刷新：{{ formatMarketTime(watchlistStore.lastManualRefreshResult.triggered_at, 'us') }}
       </p>
-      <p v-if="watchlistStore.refreshError" class="m-0 text-negative">{{ watchlistStore.refreshError }}</p>
+      <p v-if="watchlistStore.refreshError" class="m-0 text-danger">{{ watchlistStore.refreshError }}</p>
     </section>
 
     <section>
