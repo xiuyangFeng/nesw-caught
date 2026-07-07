@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import WatchlistAddModal from '../components/watchlist/WatchlistAddModal.vue';
 import WatchlistSidebar from '../components/watchlist/WatchlistSidebar.vue';
+import LoadingBlock from '../components/common/LoadingBlock.vue';
 import { useRuntimeStatusStore } from '../stores/runtimeStatusStore';
 import { useWatchlistStore } from '../stores/watchlistStore';
 import type { WatchlistCandidate } from '../types/api';
@@ -179,18 +180,20 @@ onMounted(async () => {
     </section>
 
     <section>
-      <WatchlistSidebar
-        :items="watchlistStore.items"
-        :quotes="watchlistStore.quotes"
-        :selected-symbol="watchlistStore.selectedSymbol"
-        :sparklines="watchlistStore.sparklines"
-        :delete-error="watchlistStore.deleteError"
-        :delete-loading-symbol="watchlistStore.deleteLoadingSymbol"
-        @select="handleSelectSymbol"
-        @open-add-modal="openAddModal"
-        @delete="handleDeleteSymbol"
-        @refresh="handleManualRefresh"
-      />
+      <LoadingBlock :loading="watchlistStore.loading" :empty="watchlistStore.items.length === 0" :skeletonType="'watchlist'" :skeletonCount="3">
+        <WatchlistSidebar
+          :items="watchlistStore.items"
+          :quotes="watchlistStore.quotes"
+          :selected-symbol="watchlistStore.selectedSymbol"
+          :sparklines="watchlistStore.sparklines"
+          :delete-error="watchlistStore.deleteError"
+          :delete-loading-symbol="watchlistStore.deleteLoadingSymbol"
+          @select="handleSelectSymbol"
+          @open-add-modal="openAddModal"
+          @delete="handleDeleteSymbol"
+          @refresh="handleManualRefresh"
+        />
+      </LoadingBlock>
     </section>
 
     <WatchlistAddModal

@@ -16,7 +16,7 @@ function dispatchTouchEvent(
       },
 ) {
   const inputTouches = 'touches' in options ? options.touches : [options];
-  const inputChangedTouches = 'changedTouches' in options ? (options.changedTouches ?? options.touches) : [options];
+  const inputChangedTouches = 'touches' in options ? (options.changedTouches ?? options.touches) : [options];
   const buildTouchPoint = (touch: { clientX: number; clientY: number }) => ({
     clientX: touch.clientX,
     clientY: touch.clientY,

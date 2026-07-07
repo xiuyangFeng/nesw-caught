@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.common import UTCDateTime
@@ -83,6 +85,23 @@ class XPostSummaryView(BaseModel):
     captured_at: UTCDateTime
     symbols: list[str]
 
+    @classmethod
+    def from_post(cls, post: Any, account: Any, symbols: list[str]) -> "XPostSummaryView":
+        """Build the API view for one persisted post joined with its account and symbols."""
+        return cls(
+            id=post.id,
+            account_handle=account.handle,
+            account_display_name=account.display_name,
+            content_text=post.content_text,
+            canonical_url=post.canonical_url,
+            market=post.market,
+            sentiment_label=post.sentiment_label,
+            relevance_score=post.relevance_score,
+            posted_at=post.posted_at,
+            captured_at=post.captured_at,
+            symbols=symbols,
+        )
+
 
 class XRefreshResponse(BaseModel):
     started_at: UTCDateTime
@@ -110,6 +129,25 @@ class XRadarSignalView(BaseModel):
     source_count: int
     first_seen_at: UTCDateTime
     last_seen_at: UTCDateTime
+
+    @classmethod
+    def from_signal(cls, signal: Any) -> "XRadarSignalView":
+        """Build the API view for one persisted radar signal."""
+        return cls(
+            id=signal.id,
+            signal_type=signal.signal_type,
+            title=signal.title,
+            summary=signal.summary,
+            market=signal.market,
+            topic_tag=signal.topic_tag,
+            macro_tag=signal.macro_tag,
+            primary_symbol=signal.primary_symbol,
+            priority_score=signal.priority_score,
+            confidence_score=signal.confidence_score,
+            source_count=signal.source_count,
+            first_seen_at=signal.first_seen_at,
+            last_seen_at=signal.last_seen_at,
+        )
 
 
 class XRadarMacroClusterView(BaseModel):

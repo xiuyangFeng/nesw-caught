@@ -232,8 +232,8 @@ describe('newsStore', () => {
     setActivePinia(createPinia());
     const store = useNewsStore();
 
-    let resolveLayout: ((value: any) => void) | null = null;
-    let resolveNews: ((value: any) => void) | null = null;
+    let resolveLayout: (value: any) => void = () => {};
+    let resolveNews: (value: any) => void = () => {};
 
     apiClient.getNewsFeedLayout.mockImplementation(
       () =>
@@ -253,7 +253,7 @@ describe('newsStore', () => {
 
     expect((store as any).feedLoading).toBe(true);
 
-    resolveLayout?.({
+    resolveLayout({
       data: { events: [], topics: [], stream: [] },
       degraded: false,
     });
@@ -261,7 +261,7 @@ describe('newsStore', () => {
 
     expect((store as any).feedLoading).toBe(true);
 
-    resolveNews?.({
+    resolveNews({
       data: { items: [], next_cursor: null },
       degraded: false,
     });
@@ -276,8 +276,8 @@ describe('newsStore', () => {
     setActivePinia(createPinia());
     const store = useNewsStore();
 
-    let resolveFirst: ((value: any) => void) | null = null;
-    let resolveSecond: ((value: any) => void) | null = null;
+    let resolveFirst: (value: any) => void = () => {};
+    let resolveSecond: (value: any) => void = () => {};
 
     apiClient.getNewsFeedLayout
       .mockImplementationOnce(
@@ -296,7 +296,7 @@ describe('newsStore', () => {
     const firstPromise = (store as any).loadFeedLayout({ limit_stream: 5 });
     const secondPromise = (store as any).loadFeedLayout({ limit_stream: 5 });
 
-    resolveSecond?.({
+    resolveSecond({
       data: {
         events: [{
           event_key: 'second',
@@ -321,7 +321,7 @@ describe('newsStore', () => {
     });
     await secondPromise;
 
-    resolveFirst?.({
+    resolveFirst({
       data: {
         events: [{
           event_key: 'first',
@@ -356,8 +356,8 @@ describe('newsStore', () => {
     setActivePinia(createPinia());
     const store = useNewsStore();
 
-    let resolveFirst: ((value: any) => void) | null = null;
-    let resolveSecond: ((value: any) => void) | null = null;
+    let resolveFirst: (value: any) => void = () => {};
+    let resolveSecond: (value: any) => void = () => {};
 
     apiClient.getNews
       .mockImplementationOnce(
@@ -376,7 +376,7 @@ describe('newsStore', () => {
     const firstPromise = (store as any).loadFeedNews({ limit: 5, q: 'first' });
     const secondPromise = (store as any).loadFeedNews({ limit: 5, q: 'second' });
 
-    resolveSecond?.({
+    resolveSecond({
       data: {
         items: [
           {
@@ -397,7 +397,7 @@ describe('newsStore', () => {
     });
     await secondPromise;
 
-    resolveFirst?.({
+    resolveFirst({
       data: {
         items: [
           {
@@ -472,5 +472,154 @@ describe('newsStore', () => {
 
     expect((store as any).feedItems.map((item: any) => item.id)).toEqual([2, 1]);
     expect((store as any).feedNextCursor).toBeNull();
+  });
+
+  it('does not truncate paginated feed items back to the base limit on SSE upserts', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    const makeItem = (id: number) => ({
+      id,
+      title: `Item ${id}`,
+      summary: `summary ${id}`,
+      source_name: 'Reuters',
+      canonical_url: `https://example.com/${id}`,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-25T02:30:00Z',
+      fetched_at: '2026-03-25T02:31:00Z',
+    });
+
+    apiClient.getNews
+      .mockResolvedValueOnce({
+        data: { items: [makeItem(3)], next_cursor: 'cursor-1' },
+        degraded: false,
+      })
+      .mockResolvedValueOnce({
+        data: { items: [makeItem(2), makeItem(1)], next_cursor: null },
+        degraded: false,
+      });
+
+    await (store as any).loadFeedNews({ limit: 1 });
+    await (store as any).loadMoreFeedNews();
+    expect((store as any).feedItems.map((item: any) => item.id)).toEqual([3, 2, 1]);
+
+    (store as any).upsertNews(makeItem(4));
+
+    // The list keeps its expanded length instead of collapsing to limit=1.
+    expect((store as any).feedItems.map((item: any) => item.id)).toEqual([4, 3, 2]);
+  });
+
+  it('caps the layout stream with the layout stream limit, not the feed query limit', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    const makeItem = (id: number) => ({
+      id,
+      title: `Item ${id}`,
+      summary: `summary ${id}`,
+      source_name: 'Reuters',
+      canonical_url: `https://example.com/${id}`,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-25T02:30:00Z',
+      fetched_at: '2026-03-25T02:31:00Z',
+    });
+
+    apiClient.getNewsFeedLayout.mockResolvedValue({
+      data: { events: [], topics: [], stream: [makeItem(2), makeItem(1)] },
+      degraded: false,
+    });
+
+    await (store as any).loadFeedLayout({ limit_stream: 3 });
+    (store as any).feedQuery = { limit: 1 };
+
+    (store as any).upsertNews(makeItem(3));
+    expect((store as any).feedLayout.stream.map((item: any) => item.id)).toEqual([3, 2, 1]);
+
+    (store as any).upsertNews(makeItem(4));
+    expect((store as any).feedLayout.stream.map((item: any) => item.id)).toEqual([4, 3, 2]);
+  });
+
+  it('resets scoped loading state when a load fails', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.getNews.mockRejectedValue(new Error('backend offline'));
+
+    await expect((store as any).loadDashboardNews({ limit: 5 })).rejects.toThrow('backend offline');
+    expect((store as any).dashboardLoading).toBe(false);
+
+    await expect((store as any).loadSentimentNews({ limit: 5 })).rejects.toThrow('backend offline');
+    expect((store as any).sentimentLoading).toBe(false);
+  });
+
+  it('keeps only the latest dashboard response when requests resolve out of order', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    const makeItem = (id: number, title: string) => ({
+      id,
+      title,
+      summary: title,
+      source_name: 'Reuters',
+      canonical_url: `https://example.com/${id}`,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-25T02:30:00Z',
+      fetched_at: '2026-03-25T02:31:00Z',
+    });
+
+    const createDeferred = () => {
+      let resolve!: (value: any) => void;
+      const promise = new Promise((res) => {
+        resolve = res;
+      });
+      return { promise, resolve };
+    };
+
+    const first = createDeferred();
+    const second = createDeferred();
+
+    apiClient.getNews
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+
+    const firstPromise = (store as any).loadDashboardNews({ limit: 5, q: 'first' });
+    const secondPromise = (store as any).loadDashboardNews({ limit: 5, q: 'second' });
+
+    second.resolve({
+      data: { items: [makeItem(2, 'Second response')], next_cursor: null },
+      degraded: false,
+    });
+    await secondPromise;
+
+    first.resolve({
+      data: { items: [makeItem(1, 'First response')], next_cursor: null },
+      degraded: false,
+    });
+    await firstPromise;
+
+    expect((store as any).dashboardItems.map((item: any) => item.id)).toEqual([2]);
+    expect((store as any).dashboardLoading).toBe(false);
+  });
+
+  it('returns false from refreshDashboardNews when the refresh request fails', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.refreshNews.mockRejectedValue(new Error('backend offline'));
+
+    await expect((store as any).refreshDashboardNews()).resolves.toBe(false);
   });
 });

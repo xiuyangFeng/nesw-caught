@@ -67,7 +67,7 @@ def test_post_llm_config_persists_active_provider_without_exposing_raw_key() -> 
     assert follow_up_payload["api_key"] != "sk-test-secret"
 
 
-def test_post_llm_config_preserves_existing_key_when_update_omits_new_key() -> None:
+def test_post_llm_config_preserves_existing_key_when_base_url_unchanged() -> None:
     _cleanup_llm_config_table()
     client = TestClient(app)
 
@@ -87,8 +87,8 @@ def test_post_llm_config_preserves_existing_key_when_update_omits_new_key() -> N
         "/api/llm/config",
         json={
             "provider_name": "openai_compatible",
-            "display_name": "OpenAI Compatible",
-            "base_url": "https://example-llm.test/v2",
+            "display_name": "OpenAI Compatible New Name",
+            "base_url": "https://example-llm.test/v1",
             "model_name": "deepseek-reasoner",
             "api_key": "",
         },
@@ -98,8 +98,53 @@ def test_post_llm_config_preserves_existing_key_when_update_omits_new_key() -> N
     payload = updated.json()
     assert payload["configured"] is True
     assert payload["model_name"] == "deepseek-reasoner"
-    assert payload["base_url"] == "https://example-llm.test/v2"
+    assert payload["display_name"] == "OpenAI Compatible New Name"
     assert payload["api_key_set"] is True
+
+
+def test_post_llm_config_blocks_update_when_base_url_changed_and_api_key_omitted() -> None:
+    _cleanup_llm_config_table()
+    client = TestClient(app)
+
+    initial = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+    assert initial.status_code == 200
+
+    # 1. 尝试修改 base_url，但 api_key 为空 (即未重新提供明文)
+    updated_empty = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v2",
+            "model_name": "deepseek-chat",
+            "api_key": "",
+        },
+    )
+    assert updated_empty.status_code == 400
+    assert "base_url" in updated_empty.json()["detail"]
+
+    # 2. 尝试修改 base_url，但 api_key 包含星号掩码
+    updated_masked = client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v2",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-***cret",
+        },
+    )
+    assert updated_masked.status_code == 400
+    assert "base_url" in updated_masked.json()["detail"]
 
 
 def test_post_llm_config_normalizes_known_deepseek_typo_host() -> None:

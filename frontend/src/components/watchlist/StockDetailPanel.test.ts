@@ -98,10 +98,9 @@ describe('StockDetailPanel', () => {
           day_low: 199.8,
           volume: 10342,
           status: 'ok',
+          has_hot_alert: false,
           source: 'yahoo_finance',
           message: null,
-          is_abnormal: false,
-          abnormal_reason: null,
           fetched_at: '2026-03-18T11:25:00Z',
         },
         klineData: {
@@ -119,7 +118,7 @@ describe('StockDetailPanel', () => {
             kdj: [],
             bollinger: [],
           },
-          news_events: [{ time: '2026-03-19', items: [{ id: 101, title: 'Apple update', sentiment: 'neutral' }] }],
+          news_events: [{ time: '2026-03-19', items: [{ id: 101, title: 'Apple update', sentiment: 'neutral', summary: 'Product news' }] }],
         },
         detailNews: [
           {
@@ -157,7 +156,7 @@ describe('StockDetailPanel', () => {
 
     expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(false);
     expect(wrapper.get('[data-role="kline-current-period"]').text()).toBe('1D');
-    expect(wrapper.get('[data-role="research-brief-panel-stub"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="research-brief-panel-stub"]').exists()).toBe(true);
     expect(wrapper.get('[data-role="research-brief-symbol"]').text()).toBe('AAPL');
 
     await wrapper.get('[data-role="kline-event-chip-2026-03-19"]').trigger('click');

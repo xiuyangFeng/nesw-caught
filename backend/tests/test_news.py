@@ -490,6 +490,106 @@ def test_news_list_orders_by_published_at_before_fetched_at() -> None:
             session.commit()
 
 
+def test_news_list_orders_null_published_at_last() -> None:
+    client = TestClient(app)
+    now = datetime.now(timezone.utc)
+    url_hashes = [
+        "test-null-order-published-new",
+        "test-null-order-published-old",
+        "test-null-order-null-published",
+    ]
+
+    with SessionLocal() as session:
+        session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+        session.add_all(
+            [
+                NewsItem(
+                    source_name="Null Order Test",
+                    source_url="https://example.com/null-order",
+                    title="Has newer publish time",
+                    summary="published recently",
+                    canonical_url="https://example.com/null-order-1",
+                    url_hash=url_hashes[0],
+                    market="us",
+                    language="en",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=now - timedelta(minutes=1),
+                    fetched_at=now - timedelta(minutes=30),
+                    ingest_status="ingested",
+                ),
+                NewsItem(
+                    source_name="Null Order Test",
+                    source_url="https://example.com/null-order",
+                    title="Has older publish time",
+                    summary="published earlier",
+                    canonical_url="https://example.com/null-order-2",
+                    url_hash=url_hashes[1],
+                    market="us",
+                    language="en",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=now - timedelta(minutes=10),
+                    fetched_at=now - timedelta(minutes=30),
+                    ingest_status="ingested",
+                ),
+                NewsItem(
+                    source_name="Null Order Test",
+                    source_url="https://example.com/null-order",
+                    title="Missing publish time",
+                    summary="no published_at",
+                    canonical_url="https://example.com/null-order-3",
+                    url_hash=url_hashes[2],
+                    market="us",
+                    language="en",
+                    sentiment_label=None,
+                    sentiment_score=None,
+                    published_at=None,
+                    fetched_at=now,
+                    ingest_status="ingested",
+                ),
+            ]
+        )
+        session.commit()
+
+    try:
+        response = client.get("/api/news", params={"source_name": "Null Order Test", "limit": 3})
+        assert response.status_code == 200
+        payload = response.json()
+        assert [item["title"] for item in payload["items"]] == [
+            "Has newer publish time",
+            "Has older publish time",
+            "Missing publish time",
+        ]
+
+        # Keyset pagination must also cross the non-null -> null boundary.
+        first_page = client.get("/api/news", params={"source_name": "Null Order Test", "limit": 2})
+        assert first_page.status_code == 200
+        first_payload = first_page.json()
+        assert [item["title"] for item in first_payload["items"]] == [
+            "Has newer publish time",
+            "Has older publish time",
+        ]
+        assert first_payload["next_cursor"]
+
+        second_page = client.get(
+            "/api/news",
+            params={
+                "source_name": "Null Order Test",
+                "limit": 2,
+                "cursor": first_payload["next_cursor"],
+            },
+        )
+        assert second_page.status_code == 200
+        second_payload = second_page.json()
+        assert [item["title"] for item in second_payload["items"]] == ["Missing publish time"]
+        assert second_payload["next_cursor"] is None
+    finally:
+        with SessionLocal() as session:
+            session.execute(delete(NewsItem).where(NewsItem.url_hash.in_(url_hashes)))
+            session.commit()
+
+
 def test_news_list_keyset_pagination_returns_next_cursor() -> None:
     client = TestClient(app)
     now = datetime.now(timezone.utc)

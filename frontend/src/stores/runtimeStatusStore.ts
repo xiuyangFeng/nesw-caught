@@ -29,7 +29,7 @@ export const useRuntimeStatusStore = defineStore('runtimeStatusStore', () => {
     try {
       const response = await apiClient.getStreamStatus();
       streamStatus.value = response.data;
-      marketWorkerStatus.value = response.data.market_worker;
+      marketWorkerStatus.value = response.data.market_worker ?? null;
       usingMock.value = response.degraded;
       lastLoadedAt.value = new Date().toISOString();
     } catch {

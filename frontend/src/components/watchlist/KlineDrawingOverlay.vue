@@ -98,19 +98,21 @@ function touchPointFromEvent(event: TouchEvent) {
 }
 
 function eventClientPoint(event: MouseEvent | WheelEvent | TouchEvent) {
-  if ('touches' in event || 'changedTouches' in event) {
-    const touch = touchPointFromEvent(event);
-    if (!touch) {
-      return null;
-    }
+  // MouseEvent/WheelEvent 自带 clientX；TouchEvent（含测试里手工构造的
+  // touch 事件对象）没有 clientX，只能从 touches/changedTouches 取坐标。
+  if ('clientX' in event) {
     return {
-      clientX: touch.clientX,
-      clientY: touch.clientY,
+      clientX: event.clientX,
+      clientY: event.clientY,
     };
   }
+  const touch = touchPointFromEvent(event);
+  if (!touch) {
+    return null;
+  }
   return {
-    clientX: event.clientX,
-    clientY: event.clientY,
+    clientX: touch.clientX,
+    clientY: touch.clientY,
   };
 }
 

@@ -31,7 +31,7 @@ class WorkerRuntimeStatusRepository:
         status.success_count += 1
         status.last_quotes_count = quotes_count
         self.session.add(status)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(status)
         return status
 
@@ -45,7 +45,7 @@ class WorkerRuntimeStatusRepository:
         status.cycle_count += 1
         status.failure_count += 1
         self.session.add(status)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(status)
         return status
 

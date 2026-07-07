@@ -88,7 +88,8 @@ async function runAnalysis() {
   }
 }
 
-function sentimentText(label: string) {
+// 后端 sentiment_label 为可空 string,空值按未分析展示
+function sentimentText(label: string | null | undefined) {
   const map: Record<string, string> = {
     positive: '偏利好',
     negative: '偏利空',
@@ -96,7 +97,7 @@ function sentimentText(label: string) {
     mixed: '多空交织',
     unknown: '未分析',
   };
-  return map[label] || label;
+  return map[label ?? 'unknown'] || label || '未分析';
 }
 </script>
 

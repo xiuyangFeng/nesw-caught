@@ -240,8 +240,9 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
                 handler(payload)
 
     class FakePipelineService:
-        def __init__(self, session) -> None:
+        def __init__(self, session, session_factory=None) -> None:
             self.session = session
+            self.session_factory = session_factory
 
         def process_news_ids(self, news_ids: list[int]):
             assert news_ids == [news_id]

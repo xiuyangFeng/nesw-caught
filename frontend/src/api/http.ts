@@ -1,3 +1,25 @@
+declare const __APP_TOKEN__: string;
+
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch;
+  window.fetch = function (input, init) {
+    if (typeof __APP_TOKEN__ !== 'undefined' && __APP_TOKEN__) {
+      init = init || {};
+      const headers = new Headers(init.headers || {});
+      const urlStr = typeof input === 'string'
+        ? input
+        : (input && typeof input === 'object' && 'url' in input ? (input as any).url : '');
+      const isApiCall = urlStr.startsWith('/api') || urlStr.includes('/api/');
+
+      if (isApiCall && !headers.has('X-App-Token')) {
+        headers.set('X-App-Token', __APP_TOKEN__);
+      }
+      init.headers = headers;
+    }
+    return originalFetch.call(this, input, init);
+  };
+}
+
 const JSON_HEADERS = {
   Accept: 'application/json',
   'Content-Type': 'application/json',

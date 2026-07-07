@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "test": "vitest",
-    "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
+    "preview": "vite preview",
+    "generate:api": "node scripts/generate-api.mjs",
+    "check:api-drift": "node scripts/generate-api.mjs --check"
   },
   "dependencies": {
     "lightweight-charts": "^5.1.0",
@@ -21,6 +24,7 @@
     "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.27",
     "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.2",

@@ -1,474 +1,128 @@
-import os
-from datetime import datetime, timedelta, timezone
+"""Database startup initialization.
+
+Schema evolution is single-tracked through Alembic:
+
+- Fresh database (no application tables yet): ``Base.metadata.create_all``
+  followed by ``alembic stamp head`` — the standard fast path for brand-new
+  databases.
+- Existing database that was never stamped (created by the legacy
+  ``create_all``-based initializer): ``create_all`` to add any tables that
+  are missing, ``alembic stamp`` to the legacy baseline revision, then
+  ``alembic upgrade head`` so repair migrations newer than the baseline
+  (e.g. the source_health market backfill) still run.
+- Existing stamped database: ``alembic upgrade head`` only.
+
+Any migration failure raises and aborts startup (fail fast) so that
+``alembic_version`` can never silently drift from the actual schema.
+
+Demo seed data lives in ``scripts/seed_demo_data.py`` and is only applied
+when the ``seed_demo_data`` setting is true.
+"""
+import logging
+from importlib import util as importlib_util
+from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect, text
-from sqlalchemy import select
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import inspect
 
+from app.core.config import get_settings
 from app.db.base import Base
-from app.db.session import SessionLocal, engine
-from app.models.article_content import ArticleContent
-from app.models.feishu_notify_config import FeishuNotifyConfig
-from app.models.llm_provider_config import LLMProviderConfig
-from app.models.llm_token_usage import LLMTokenUsage
-from app.models.news_analysis_result import NewsAnalysisResult
-from app.models.news_item import NewsItem
-from app.models.notification_job import NotificationJob
-from app.models.news_stock_mention import NewsStockMention
-from app.models.price_snapshot import PriceSnapshot
-from app.models.source_health import SourceHealth
-from app.models.topic_cluster import TopicCluster
-from app.models.topic_news_link import TopicNewsLink
-from app.models.watchlist_item import WatchlistItem
-from app.models.worker_runtime_status import WorkerRuntimeStatus
-from app.models.x_account import XAccount
-from app.models.x_post import XPost
-from app.models.x_post_symbol_mention import XPostSymbolMention
-from app.models.x_signal import XSignal
-from app.models.x_signal_post_link import XSignalPostLink
-from app.models.x_source_health import XSourceHealth
+from app.db.session import engine
+
+# Import all models so Base.metadata registers every table for create_all.
+from app.models.article_content import ArticleContent  # noqa: F401
+from app.models.feishu_notify_config import FeishuNotifyConfig  # noqa: F401
+from app.models.llm_provider_config import LLMProviderConfig  # noqa: F401
+from app.models.llm_token_usage import LLMTokenUsage  # noqa: F401
+from app.models.news_analysis_result import NewsAnalysisResult  # noqa: F401
+from app.models.news_item import NewsItem  # noqa: F401
+from app.models.notification_job import NotificationJob  # noqa: F401
+from app.models.news_stock_mention import NewsStockMention  # noqa: F401
+from app.models.price_snapshot import PriceSnapshot  # noqa: F401
+from app.models.source_health import SourceHealth  # noqa: F401
+from app.models.topic_cluster import TopicCluster  # noqa: F401
+from app.models.topic_news_link import TopicNewsLink  # noqa: F401
+from app.models.watchlist_item import WatchlistItem  # noqa: F401
+from app.models.worker_runtime_status import WorkerRuntimeStatus  # noqa: F401
+from app.models.x_account import XAccount  # noqa: F401
+from app.models.x_post import XPost  # noqa: F401
+from app.models.x_post_symbol_mention import XPostSymbolMention  # noqa: F401
+from app.models.x_signal import XSignal  # noqa: F401
+from app.models.x_signal_post_link import XSignalPostLink  # noqa: F401
+from app.models.x_source_health import XSourceHealth  # noqa: F401
+
+logger = logging.getLogger(__name__)
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Databases created by the legacy create_all-based initializer carry no
+# alembic_version table. Their ORM tables already match what the historical
+# migration chain up to this revision produces (the old initializer ran
+# create_all and hand-written repairs, then stamped head), so we baseline
+# them here and let `upgrade head` run only the newer repair migrations.
+_LEGACY_BASELINE_REVISION = "ec84dec88ae5"
 
 
-def _legacy_source_health_market(connection, source_name: str, source_markets: dict[str, str]) -> str:
-    market = connection.execute(
-        text(
-            """
-            SELECT market
-            FROM news_item
-            WHERE source_name = :source_name AND market IS NOT NULL
-            ORDER BY fetched_at DESC, id DESC
-            LIMIT 1
-            """
-        ),
-        {"source_name": source_name},
-    ).scalar_one_or_none()
-    if market:
-        return str(market)
+def _build_alembic_config() -> Config:
+    ini_path = _REPO_ROOT / "alembic.ini"
+    config = Config(str(ini_path)) if ini_path.exists() else Config("alembic.ini")
 
-    if source_name in source_markets:
-        return source_markets[source_name]
-
-    return "unknown"
+    script_location = _REPO_ROOT / "backend" / "alembic"
+    if not script_location.exists():
+        script_location = Path(__file__).resolve().parents[2] / "alembic"
+    config.set_main_option("script_location", str(script_location))
+    return config
 
 
-def _migrate_legacy_source_health() -> None:
-    inspector = inspect(engine)
-    if "source_health" not in inspector.get_table_names():
-        return
-
-    columns = {column["name"] for column in inspector.get_columns("source_health")}
-    if "market" in columns:
-        return
-
-    from app.services.news_ingestion import load_sources
-    source_markets: dict[str, str] = {}
-    for source in load_sources():
-        source_markets.setdefault(source.name, source.market)
-
-    with engine.begin() as connection:
-        connection.execute(text("DROP TABLE IF EXISTS source_health_new"))
-        connection.execute(
-            text(
-                """
-                CREATE TABLE source_health_new (
-                    id INTEGER PRIMARY KEY,
-                    source_name VARCHAR(120) NOT NULL,
-                    market VARCHAR(16) NOT NULL,
-                    source_type VARCHAR(16) NOT NULL,
-                    last_success_at DATETIME,
-                    last_failure_at DATETIME,
-                    consecutive_failures INTEGER NOT NULL DEFAULT 0,
-                    total_fetches INTEGER NOT NULL DEFAULT 0,
-                    total_failures INTEGER NOT NULL DEFAULT 0,
-                    avg_latency_ms FLOAT,
-                    is_disabled BOOLEAN NOT NULL DEFAULT 0,
-                    CONSTRAINT uq_source_health_source_market UNIQUE (source_name, market)
-                )
-                """
-            )
-        )
-        rows = list(connection.execute(text("SELECT * FROM source_health")).mappings())
-        for row in rows:
-            market = row.get("market") or _legacy_source_health_market(connection, str(row["source_name"]), source_markets)
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO source_health_new (
-                        id,
-                        source_name,
-                        market,
-                        source_type,
-                        last_success_at,
-                        last_failure_at,
-                        consecutive_failures,
-                        total_fetches,
-                        total_failures,
-                        avg_latency_ms,
-                        is_disabled
-                    ) VALUES (
-                        :id,
-                        :source_name,
-                        :market,
-                        :source_type,
-                        :last_success_at,
-                        :last_failure_at,
-                        :consecutive_failures,
-                        :total_fetches,
-                        :total_failures,
-                        :avg_latency_ms,
-                        :is_disabled
-                    )
-                    """
-                ),
-                {
-                    "id": row["id"],
-                    "source_name": row["source_name"],
-                    "market": market,
-                    "source_type": row["source_type"],
-                    "last_success_at": row["last_success_at"],
-                    "last_failure_at": row["last_failure_at"],
-                    "consecutive_failures": row["consecutive_failures"],
-                    "total_fetches": row["total_fetches"],
-                    "total_failures": row["total_failures"],
-                    "avg_latency_ms": row["avg_latency_ms"],
-                    "is_disabled": row["is_disabled"],
-                },
-            )
-        connection.execute(text("DROP TABLE source_health"))
-        connection.execute(text("ALTER TABLE source_health_new RENAME TO source_health"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_source_health_source_name ON source_health (source_name)"))
-        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_source_health_market ON source_health (market)"))
+def _current_alembic_revision() -> str | None:
+    with engine.connect() as connection:
+        return MigrationContext.configure(connection).get_current_revision()
 
 
 def initialize_database() -> None:
-    # 0. Migrate legacy source_health table if needed
-    _migrate_legacy_source_health()
-
-    # 1. SQLAlchemy create_all ensures all defined tables exist
-    Base.metadata.create_all(bind=engine)
-
-    # 2. Handle Alembic migration/stamping
     inspector = inspect(engine)
-    tables = inspector.get_table_names()
-    
-    # Locate alembic.ini path robustly
-    ini_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../alembic.ini"))
-    if not os.path.exists(ini_path):
-        ini_path = "alembic.ini"
-        
-    alembic_cfg = Config(ini_path)
-    
-    # Locate alembic script location robustly
-    script_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../backend/alembic"))
-    if not os.path.exists(script_location):
-        script_location = os.path.abspath(os.path.join(os.path.dirname(__file__), "../alembic"))
-    alembic_cfg.set_main_option("script_location", script_location)
+    application_tables = set(inspector.get_table_names()) - {"alembic_version"}
+    alembic_cfg = _build_alembic_config()
 
-    import logging
-    logger = logging.getLogger(__name__)
-
-    if "alembic_version" not in tables:
-        logger.info("Initializing alembic version to head...")
-        try:
-            command.stamp(alembic_cfg, "head")
-            logger.info("Alembic stamped to head successfully.")
-        except Exception as e:
-            logger.warning(f"Failed to stamp database with Alembic: {e}")
+    if not application_tables:
+        logger.info("Fresh database detected: creating schema and stamping Alembic head.")
+        Base.metadata.create_all(bind=engine)
+        command.stamp(alembic_cfg, "head")
+    elif _current_alembic_revision() is None:
+        logger.info(
+            "Legacy database without Alembic baseline detected: creating missing tables, "
+            "stamping %s, then upgrading to head.",
+            _LEGACY_BASELINE_REVISION,
+        )
+        Base.metadata.create_all(bind=engine)
+        command.stamp(alembic_cfg, _LEGACY_BASELINE_REVISION)
+        command.upgrade(alembic_cfg, "head")
     else:
-        logger.info("Running pending Alembic migrations...")
-        try:
-            command.upgrade(alembic_cfg, "head")
-            logger.info("Alembic upgrade completed successfully.")
-        except Exception as e:
-            logger.warning(f"Failed to run Alembic migrations: {e}")
+        logger.info("Existing database detected: running Alembic upgrade to head.")
+        command.upgrade(alembic_cfg, "head")
 
+    if get_settings().seed_demo_data:
+        _apply_demo_seeds()
+
+
+def _apply_demo_seeds() -> None:
     try:
-        _do_initialize_db_seeds()
+        _load_seed_module().seed_demo_data()
     except Exception as exc:
         logger.warning(
-            f"Database initialization encountered a database conflict (likely concurrency/lock): {exc}. "
-            "Skipping initialization as another process likely already populated seed data."
+            "Demo seed step skipped: %s (likely concurrent initialization already "
+            "populated seed data, or scripts/seed_demo_data.py is unavailable).",
+            exc,
         )
 
 
-def _do_initialize_db_seeds() -> None:
-    with SessionLocal() as session:
-        has_watchlist = session.scalar(select(WatchlistItem.id).limit(1)) is not None
-        has_news = session.scalar(select(NewsItem.id).limit(1)) is not None
-        has_snapshots = session.scalar(select(PriceSnapshot.id).limit(1)) is not None
-        has_topics = session.scalar(select(TopicCluster.id).limit(1)) is not None
-        has_x_accounts = session.scalar(select(XAccount.id).limit(1)) is not None
-        has_x_posts = session.scalar(select(XPost.id).limit(1)) is not None
-        has_x_health = session.scalar(select(XSourceHealth.id).limit(1)) is not None
-
-        if has_watchlist and has_news and has_snapshots and has_topics and has_x_accounts and has_x_posts and has_x_health:
-            return
-
-        now = datetime.now(timezone.utc)
-
-        if not has_watchlist:
-            session.add_all(
-                [
-                    WatchlistItem(
-                        symbol="0700.HK",
-                        market="hk",
-                        display_name="Tencent",
-                        is_active=True,
-                        alert_threshold=3.0,
-                        alert_mode="fixed",
-                    ),
-                    WatchlistItem(
-                        symbol="AAPL",
-                        market="us",
-                        display_name="Apple",
-                        is_active=True,
-                        alert_threshold=2.0,
-                        alert_mode="fixed",
-                    ),
-                ]
-            )
-
-        if not has_news:
-            # Clear dangling child tables to prevent foreign key or unique constraint errors on fresh ids
-            session.query(ArticleContent).delete()
-            session.query(NewsStockMention).delete()
-            session.query(NewsItem).delete()
-            session.commit()
-
-            news_items = [
-                NewsItem(
-                    source_name="Reuters",
-                    source_url="https://example.com/reuters/tencent",
-                    title="Tencent expands enterprise AI product suite",
-                    summary="Tencent pushes deeper into enterprise AI workflows and cloud integration.",
-                    canonical_url="https://example.com/tencent-ai-suite",
-                    url_hash="seed-tencent-ai-suite",
-                    market="hk",
-                    language="en",
-                    sentiment_label="positive",
-                    sentiment_score=0.78,
-                    published_at=now - timedelta(minutes=25),
-                    fetched_at=now - timedelta(minutes=20),
-                    ingest_status="ingested",
-                ),
-                NewsItem(
-                    source_name="Bloomberg",
-                    source_url="https://example.com/bloomberg/apple-supplier",
-                    title="Apple supplier flags softer near-term demand",
-                    summary="Supply chain commentary weighs on smartphone sentiment heading into the next cycle.",
-                    canonical_url="https://example.com/apple-supplier-demand",
-                    url_hash="seed-apple-supplier-demand",
-                    market="us",
-                    language="en",
-                    sentiment_label="negative",
-                    sentiment_score=-0.55,
-                    published_at=now - timedelta(minutes=18),
-                    fetched_at=now - timedelta(minutes=15),
-                    ingest_status="ingested",
-                ),
-            ]
-            session.add_all(news_items)
-            session.flush()
-            session.add_all(
-                [
-                    ArticleContent(
-                        news_id=news_items[0].id,
-                        content_text="Tencent highlighted enterprise AI agents and workflow tooling in its latest update.",
-                        content_html=None,
-                        extract_status="success",
-                        extract_error=None,
-                        extracted_at=now - timedelta(minutes=19),
-                    ),
-                    ArticleContent(
-                        news_id=news_items[1].id,
-                        content_text="Supplier commentary suggests short-term softness in handset component orders.",
-                        content_html=None,
-                        extract_status="success",
-                        extract_error=None,
-                        extracted_at=now - timedelta(minutes=14),
-                    ),
-                    NewsStockMention(
-                        news_id=news_items[0].id,
-                        symbol="0700.HK",
-                        market="hk",
-                        mention_type="primary",
-                        confidence=0.96,
-                    ),
-                    NewsStockMention(
-                        news_id=news_items[1].id,
-                        symbol="AAPL",
-                        market="us",
-                        mention_type="primary",
-                        confidence=0.93,
-                    ),
-                ]
-            )
-            session.flush()
-
-        if not has_topics:
-            news_by_hash = {
-                item.url_hash: item
-                for item in session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(["seed-tencent-ai-suite", "seed-apple-supplier-demand"])))
-            }
-            topics = [
-                TopicCluster(
-                    topic_title="China internet AI monetization",
-                    topic_summary="Platform companies are extending enterprise AI and cloud monetization narratives.",
-                    keywords="AI,cloud,enterprise,Tencent",
-                    sentiment_score=0.78,
-                    importance_score=0.83,
-                    last_seen_at=now - timedelta(minutes=20),
-                ),
-                TopicCluster(
-                    topic_title="US smartphone demand softness",
-                    topic_summary="Supplier commentary points to softer near-term smartphone and component demand.",
-                    keywords="Apple,demand,supply chain,smartphone",
-                    sentiment_score=-0.55,
-                    importance_score=0.74,
-                    last_seen_at=now - timedelta(minutes=15),
-                ),
-            ]
-            session.add_all(topics)
-            session.flush()
-            if news_by_hash.get("seed-tencent-ai-suite"):
-                session.add(
-                    TopicNewsLink(
-                        topic_cluster_id=topics[0].id,
-                        news_id=news_by_hash["seed-tencent-ai-suite"].id,
-                    )
-                )
-            if news_by_hash.get("seed-apple-supplier-demand"):
-                session.add(
-                    TopicNewsLink(
-                        topic_cluster_id=topics[1].id,
-                        news_id=news_by_hash["seed-apple-supplier-demand"].id,
-                    )
-                )
-
-        if not has_snapshots:
-            session.add_all(
-                [
-                    PriceSnapshot(
-                        symbol="0700.HK",
-                        market="hk",
-                        price=332.4,
-                        change_amount=10.7,
-                        change_percent=3.33,
-                        open_price=325.0,
-                        previous_close=321.7,
-                        day_high=334.8,
-                        day_low=323.2,
-                        volume=18233000,
-                        provider_name="seed",
-                        provider_symbol="0700.HK",
-                        quote_status="ok",
-                        fetched_at=now - timedelta(minutes=2),
-                    ),
-                    PriceSnapshot(
-                        symbol="AAPL",
-                        market="us",
-                        price=215.32,
-                        change_amount=-2.84,
-                        change_percent=-1.30,
-                        open_price=217.1,
-                        previous_close=218.16,
-                        day_high=219.4,
-                        day_low=214.8,
-                        volume=18230000,
-                        provider_name="seed",
-                        provider_symbol="AAPL",
-                        quote_status="ok",
-                        fetched_at=now - timedelta(minutes=4),
-                    ),
-                ]
-            )
-
-        if not has_x_accounts:
-            session.add_all(
-                [
-                    XAccount(
-                        handle="DeItaone",
-                        display_name="Delta One",
-                        market_focus="us",
-                        is_active=True,
-                        priority=100,
-                        tier="core",
-                        source="manual",
-                        notes="Macro and breaking market headlines",
-                    ),
-                    XAccount(
-                        handle="SawyerMerritt",
-                        display_name="Sawyer Merritt",
-                        market_focus="us",
-                        is_active=True,
-                        priority=80,
-                        tier="watch",
-                        source="manual",
-                        notes="Tech and EV market chatter",
-                    ),
-                ]
-            )
-            session.flush()
-
-        if not has_x_posts:
-            account_by_handle = {
-                item.handle: item
-                for item in session.scalars(select(XAccount).where(XAccount.handle.in_(["DeItaone", "SawyerMerritt"])))
-            }
-            x_posts: list[XPost] = []
-            if account_by_handle.get("DeItaone"):
-                x_posts.append(
-                    XPost(
-                        account_id=account_by_handle["DeItaone"].id,
-                        external_post_id="190001",
-                        canonical_url="https://x.com/DeItaone/status/190001",
-                        content_text="NVIDIA suppliers remain in focus as AI infrastructure demand signals stay firm into the next quarter.",
-                        market="us",
-                        sentiment_label="positive",
-                        relevance_score=0.92,
-                        posted_at=now - timedelta(minutes=13),
-                        captured_at=now - timedelta(minutes=5),
-                        raw_payload_json='{"account_handle":"DeItaone"}',
-                        dedupe_hash="seed-x-post-deltaone-190001",
-                    )
-                )
-            if account_by_handle.get("SawyerMerritt"):
-                x_posts.append(
-                    XPost(
-                        account_id=account_by_handle["SawyerMerritt"].id,
-                        external_post_id="190002",
-                        canonical_url="https://x.com/SawyerMerritt/status/190002",
-                        content_text="Tesla supply chain comments are weighing on near-term EV sentiment after softer delivery expectations.",
-                        market="us",
-                        sentiment_label="negative",
-                        relevance_score=0.84,
-                        posted_at=now - timedelta(minutes=18),
-                        captured_at=now - timedelta(minutes=6),
-                        raw_payload_json='{"account_handle":"SawyerMerritt"}',
-                        dedupe_hash="seed-x-post-sawyermerritt-190002",
-                    )
-                )
-            session.add_all(x_posts)
-            session.flush()
-            mentions: list[XPostSymbolMention] = []
-            for item in x_posts:
-                if item.external_post_id == "190001":
-                    mentions.append(XPostSymbolMention(x_post_id=item.id, symbol="NVDA", market="us", confidence=0.8))
-                if item.external_post_id == "190002":
-                    mentions.append(XPostSymbolMention(x_post_id=item.id, symbol="TSLA", market="us", confidence=0.8))
-            session.add_all(mentions)
-
-        if not has_x_health:
-            session.add(
-                XSourceHealth(
-                    provider_name="twitterapi.io",
-                    total_fetches=0,
-                    total_failures=0,
-                    consecutive_failures=0,
-                    avg_latency_ms=None,
-                    last_error=None,
-                )
-            )
-
-        session.commit()
+def _load_seed_module():
+    seed_path = _REPO_ROOT / "scripts" / "seed_demo_data.py"
+    spec = importlib_util.spec_from_file_location("news_caught_seed_demo_data", seed_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load seed module from {seed_path}")
+    module = importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

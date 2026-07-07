@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -11,7 +12,7 @@ from app.services.news_signal_pipeline import NewsSignalPipelineService
 from app.repositories.news_repository import NewsRepository
 from app.schemas.news import NewsItemSummary
 from app.services.event_bus import get_event_bus
-from app.services.notification_service import NotificationService
+from app.services.notification_service import NotificationService, get_notification_service
 
 
 # 全局内存分析任务队列
@@ -26,13 +27,29 @@ class BackgroundQueueWorker(BaseWorker):
         *,
         session_factory: Callable[[], Session],
         poll_interval_seconds: float = 1.0,
+        fallback_scan_interval_seconds: float = 30.0,
+        heartbeat_interval_seconds: float = 30.0,
         logger: logging.Logger | None = None,
     ) -> None:
         super().__init__(session_factory=session_factory, logger=logger)
         self.poll_interval_seconds = poll_interval_seconds
+        # 兜底扫描是无索引可用的 Pending 全表查询,不需要每秒执行一次。
+        self.fallback_scan_interval_seconds = fallback_scan_interval_seconds
+        # 空转周期的心跳写事务降频,避免每秒一次的无意义写放大。
+        self.heartbeat_interval_seconds = heartbeat_interval_seconds
+        self._next_fallback_scan_at = 0.0
+        self._last_heartbeat_at = float("-inf")
 
     def get_interval(self) -> float:
         return self.poll_interval_seconds
+
+    def _record_success(self, processed_count: Any = 0) -> None:
+        count = processed_count if isinstance(processed_count, int) else 0
+        now = time.monotonic()
+        if count == 0 and now - self._last_heartbeat_at < self.heartbeat_interval_seconds:
+            return
+        self._last_heartbeat_at = now
+        super()._record_success(processed_count)
 
     def do_cycle(self) -> int:
         """异步消化分析队列。"""
@@ -46,20 +63,30 @@ class BackgroundQueueWorker(BaseWorker):
             except queue.Empty:
                 break
 
+        # 自愈兜底：如果内存队列为空，定期(而非每个轮询周期)去数据库拉取 Pending 新闻
+        if not batch_ids:
+            now = time.monotonic()
+            if now < self._next_fallback_scan_at:
+                return 0
+            self._next_fallback_scan_at = now + self.fallback_scan_interval_seconds
+            with self.session_factory() as session:
+                pipeline = NewsSignalPipelineService(session, session_factory=self.session_factory)
+                pending = pipeline.list_pending_news_ids(limit=50)
+                batch_ids.update(pending)
+
         if not batch_ids:
             return 0
 
         target_ids = list(batch_ids)
         self.logger.info("Background queue processing analysis for news IDs: %s", target_ids)
 
-        # 动态导入，避免循环引用
-        from app.main import get_notification_service
         event_bus = get_event_bus()
         notification_service = get_notification_service()
 
         with self.session_factory() as session:
-            # 1. 执行重负载管线 (包含大模型调用)
-            summary = NewsSignalPipelineService(session).process_news_ids(target_ids)
+            # 1. 执行重负载管线 (LLM 调用在写事务之外的纯内存阶段完成)
+            pipeline = NewsSignalPipelineService(session, session_factory=self.session_factory)
+            summary = pipeline.process_news_ids(target_ids)
 
             # 2. 批量加载新闻实体 (N+1 修复)
             news_repo = NewsRepository(session)

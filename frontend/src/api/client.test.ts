@@ -2,53 +2,80 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from './client';
 import { HttpError } from './http';
-import { mockFeishuConfig, mockLlmConfig } from './mock';
+import { mockLlmConfig } from './mock';
 
-describe('apiClient.saveFeishuConfig', () => {
+describe('apiClient write operations', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    mockFeishuConfig.configured = false;
-    mockFeishuConfig.app_id = null;
-    mockFeishuConfig.app_secret_set = false;
-    mockFeishuConfig.target_type = null;
-    mockFeishuConfig.target_id = null;
-    mockFeishuConfig.news_enabled = true;
-    mockFeishuConfig.news_keywords = null;
-    mockFeishuConfig.news_batch_interval_minutes = 60;
-    mockFeishuConfig.alert_enabled = true;
-    mockFeishuConfig.analysis_enabled = true;
-    mockFeishuConfig.is_active = true;
-    mockFeishuConfig.updated_at = null;
-    mockLlmConfig.configured = true;
-    mockLlmConfig.provider_name = 'openai_compatible';
-    mockLlmConfig.display_name = 'OpenAI Compatible';
-    mockLlmConfig.model_name = 'deepseek-chat';
-    mockLlmConfig.base_url = 'https://example-llm.test/v1';
-    mockLlmConfig.api_key_set = true;
   });
 
-  it('preserves app_secret_set in mock mode when secret is omitted', async () => {
+  it('rejects saveFeishuConfig when the backend is unavailable instead of faking success', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(
+      apiClient.saveFeishuConfig({
+        app_id: 'cli_test123',
+        target_type: 'chat',
+        target_id: 'oc_test_chat_id',
+        news_enabled: true,
+        news_keywords: null,
+        news_batch_interval_minutes: 30,
+        alert_enabled: true,
+        analysis_enabled: true,
+        is_active: true,
+      }),
+    ).rejects.toThrow('backend offline');
+  });
+
+  it('rejects delete operations with the backend error instead of mutating mock data', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockRejectedValue(new Error('backend offline')),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ detail: 'internal error' }),
+      }),
     );
-    mockFeishuConfig.configured = true;
-    mockFeishuConfig.app_secret_set = true;
 
-    const response = await apiClient.saveFeishuConfig({
-      app_id: 'cli_test123',
-      target_type: 'chat',
-      target_id: 'oc_test_chat_id',
-      news_enabled: true,
-      news_keywords: null,
-      news_batch_interval_minutes: 30,
-      alert_enabled: true,
-      analysis_enabled: true,
-      is_active: true,
-    });
+    await expect(apiClient.deleteLlmConfig(1)).rejects.toMatchObject({ status: 500, message: 'internal error' });
+    await expect(apiClient.deleteWatchlist('NVDA')).rejects.toMatchObject({ status: 500, message: 'internal error' });
+    await expect(apiClient.deleteXAccount('elonmusk')).rejects.toMatchObject({ status: 500, message: 'internal error' });
+  });
 
-    expect(response.degraded).toBe(true);
-    expect(response.data.app_secret_set).toBe(true);
+  it('rejects account and config mutations when the backend is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.setDefaultLlmConfig(1)).rejects.toThrow('backend offline');
+    await expect(apiClient.toggleLlmConfigActive(1, false)).rejects.toThrow('backend offline');
+    await expect(
+      apiClient.createXAccount({
+        handle: 'tester',
+        display_name: 'Tester',
+        market_focus: 'us',
+        is_active: true,
+        priority: 0,
+        tier: 'watch',
+        notes: null,
+      }),
+    ).rejects.toThrow('backend offline');
+    await expect(apiClient.updateXAccount('tester', { is_active: false })).rejects.toThrow('backend offline');
+    await expect(apiClient.refreshNews()).rejects.toThrow('backend offline');
+    await expect(apiClient.analyzeNews(1)).rejects.toThrow('backend offline');
+  });
+});
+
+describe('apiClient read fallbacks in production builds', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('propagates read failures instead of serving mock data when not in dev', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.getWatchlistCandidates()).rejects.toThrow('backend offline');
+    await expect(apiClient.getNews()).rejects.toThrow('backend offline');
   });
 });
 
@@ -131,6 +158,8 @@ describe('apiClient llm config requests', () => {
         display_name: 'DeepSeek',
         base_url: 'https://api.deepseek.com/v1',
         model_name: 'deepseek-chat',
+        is_active: true,
+        is_default: false,
       }),
     ).rejects.toThrow('backend offline');
   });

@@ -1,6 +1,10 @@
 .DS_Store
 .env
 .env.*
+**/.env*
+**/.secret_key
+**/.app_token
+**/news_caught.db
 
 # Python
 __pycache__/
@@ -29,3 +33,7 @@ frontend/dist/
 .vscode/
 .idea/
 .claude/
+
+# Test outputs
+test_output.txt
+**/test_output.txt

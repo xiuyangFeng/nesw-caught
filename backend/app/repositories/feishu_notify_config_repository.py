@@ -39,12 +39,14 @@ class FeishuNotifyConfigRepository:
         existing = self.get_first()
         now = datetime.now(timezone.utc)
 
+        from app.core.crypto import encrypt_key
+
         if existing is None:
             if not app_secret:
                 raise ValueError("app_secret is required for initial configuration")
             config = FeishuNotifyConfig(
                 app_id=app_id,
-                app_secret=app_secret,
+                app_secret=encrypt_key(app_secret),
                 target_type=target_type,
                 target_id=target_id,
                 news_enabled=news_enabled,
@@ -56,13 +58,13 @@ class FeishuNotifyConfigRepository:
                 updated_at=now,
             )
             self.session.add(config)
-            self.session.commit()
+            self.session.flush()
             self.session.refresh(config)
             return config
 
         existing.app_id = app_id
         if app_secret:
-            existing.app_secret = app_secret
+            existing.app_secret = encrypt_key(app_secret)
         existing.target_type = target_type
         existing.target_id = target_id
         existing.news_enabled = news_enabled
@@ -72,6 +74,6 @@ class FeishuNotifyConfigRepository:
         existing.analysis_enabled = analysis_enabled
         existing.is_active = is_active
         existing.updated_at = now
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(existing)
         return existing

@@ -94,4 +94,61 @@ describe('xMonitorStore', () => {
 
     expect(apiClient.getXRadar).toHaveBeenCalledTimes(4);
   });
+
+  it('records mutation errors and resets loading when write requests fail', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useXMonitorStore } = await import('./xMonitorStore');
+    setActivePinia(createPinia());
+    const store = useXMonitorStore();
+
+    apiClient.createXAccount.mockRejectedValue(new Error('create failed'));
+
+    const created = await store.createAccount({
+      handle: 'foo',
+      display_name: 'Foo',
+      market_focus: 'us',
+      is_active: true,
+      priority: 1,
+      tier: 'watch',
+      notes: null,
+    });
+
+    expect(created).toBe(false);
+    expect(store.accountMutationLoading).toBe(false);
+    expect(store.accountMutationError).toBe('create failed');
+
+    // 成功的写操作会清空上一次的错误状态
+    apiClient.updateXAccount.mockResolvedValue({ data: {}, degraded: false });
+    apiClient.getXAccounts.mockResolvedValue({ data: [], degraded: false });
+    apiClient.getXRadar.mockResolvedValue({
+      data: { priority_signals: [], macro_clusters: [], evidence_stream: [] },
+      degraded: false,
+    });
+    await store.updateAccount('foo', { priority: 2 });
+    expect(store.accountMutationError).toBeNull();
+  });
+
+  it('records refresh and import errors without leaking rejections', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useXMonitorStore } = await import('./xMonitorStore');
+    setActivePinia(createPinia());
+    const store = useXMonitorStore();
+
+    apiClient.refreshXPosts.mockRejectedValue(new Error('refresh failed'));
+    await store.refreshPosts();
+    expect(store.refreshLoading).toBe(false);
+    expect(store.refreshError).toBe('refresh failed');
+
+    apiClient.importXAccounts.mockRejectedValue(new Error('import failed'));
+    const imported = await store.importAccounts();
+    expect(imported).toBeNull();
+    expect(store.importExportLoading).toBe(false);
+    expect(store.importExportError).toBe('import failed');
+
+    apiClient.exportXAccounts.mockRejectedValue(new Error('export failed'));
+    const exported = await store.exportAccounts();
+    expect(exported).toBeNull();
+    expect(store.importExportLoading).toBe(false);
+    expect(store.importExportError).toBe('export failed');
+  });
 });

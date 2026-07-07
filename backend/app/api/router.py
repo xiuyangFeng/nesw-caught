@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.routes import health, llm, market, news, notify, stream, topics, watchlist, x_monitor
+from app.core.auth import verify_app_token
 
-api_router = APIRouter()
+api_router = APIRouter(dependencies=[Depends(verify_app_token)])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
 api_router.include_router(news.router, prefix="/news", tags=["news"])

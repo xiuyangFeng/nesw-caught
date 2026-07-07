@@ -8,13 +8,13 @@ import {
 } from 'lightweight-charts';
 import { computed, type ComputedRef, type Ref } from 'vue';
 
-import type { KlineSubIndicator, StockKlineResponse } from '../types/api';
+import type { KlineCandle, KlineSubIndicator, StockKlineResponse } from '../types/api';
 import { calculateRsi, type RenderedOverlayLine } from '../utils/klineIndicators';
 
 type UseKlineChartLifecycleOptions = {
   mainChartRef: Ref<HTMLElement | null>;
   subChartRef: Ref<HTMLElement | null>;
-  candles: ComputedRef<Array<{ time: string; open: number; high: number; low: number; close: number; volume?: number }>>;
+  candles: ComputedRef<KlineCandle[]>;
   activeLines: ComputedRef<RenderedOverlayLine[]>;
   activeSubIndicator: ComputedRef<KlineSubIndicator>;
   klineData: ComputedRef<StockKlineResponse | null>;
@@ -206,19 +206,22 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         })),
       );
     } else if (activeSubIndicator.value === 'MACD') {
+      // 后端 IndicatorSeriesView.macd/kdj 为可选字段(缺省即空序列),兜底为空数组
+      const macd = klineData.value.indicators.macd ?? [];
       macdHistogramSeries?.setData(
-        klineData.value.indicators.macd.map((point) => ({
+        macd.map((point) => ({
           time: point.time,
           value: point.histogram,
           color: point.histogram >= 0 ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.4)',
         })),
       );
-      macdDifSeries?.setData(klineData.value.indicators.macd.map((point) => ({ time: point.time, value: point.dif })));
-      macdDeaSeries?.setData(klineData.value.indicators.macd.map((point) => ({ time: point.time, value: point.dea })));
+      macdDifSeries?.setData(macd.map((point) => ({ time: point.time, value: point.dif })));
+      macdDeaSeries?.setData(macd.map((point) => ({ time: point.time, value: point.dea })));
     } else if (activeSubIndicator.value === 'KDJ') {
-      kSeries?.setData(klineData.value.indicators.kdj.map((point) => ({ time: point.time, value: point.k })));
-      dSeries?.setData(klineData.value.indicators.kdj.map((point) => ({ time: point.time, value: point.d })));
-      jSeries?.setData(klineData.value.indicators.kdj.map((point) => ({ time: point.time, value: point.j })));
+      const kdj = klineData.value.indicators.kdj ?? [];
+      kSeries?.setData(kdj.map((point) => ({ time: point.time, value: point.k })));
+      dSeries?.setData(kdj.map((point) => ({ time: point.time, value: point.d })));
+      jSeries?.setData(kdj.map((point) => ({ time: point.time, value: point.j })));
     } else {
       rsiSeries?.setData(
         calculateRsi(klineData.value.candles, 14)

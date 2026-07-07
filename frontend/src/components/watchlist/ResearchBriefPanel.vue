@@ -8,9 +8,12 @@ const props = defineProps<{
   researchBrief: WatchlistResearchBrief;
 }>();
 
+// 后端 WatchlistResearchBriefView.drivers 为可选字段(缺省即空列表),兜底为空数组。
+const drivers = computed(() => props.researchBrief.drivers ?? []);
+
 const groupedDrivers = computed(() => {
-  const groups = new Map<ResearchDriverCategory, typeof props.researchBrief.drivers>();
-  for (const driver of props.researchBrief.drivers) {
+  const groups = new Map<ResearchDriverCategory, typeof drivers.value>();
+  for (const driver of drivers.value) {
     const existing = groups.get(driver.category) ?? [];
     existing.push(driver);
     groups.set(driver.category, existing);
@@ -52,11 +55,11 @@ function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
         </p>
       </div>
       <span class="text-[11px] uppercase tracking-[0.14em] text-text-faint">
-        {{ researchBrief.drivers.length }} drivers · {{ formatMarketTime(researchBrief.generated_at, researchBrief.market) }}
+        {{ drivers.length }} drivers · {{ formatMarketTime(researchBrief.generated_at, researchBrief.market) }}
       </span>
     </div>
 
-    <div v-if="!researchBrief.drivers.length" class="rounded-[14px] border border-border bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-text-soft" data-role="research-brief-empty">
+    <div v-if="!drivers.length" class="rounded-[14px] border border-border bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-text-soft" data-role="research-brief-empty">
       暂无可归因驱动，继续关注价格和原始新闻流。
     </div>
 

@@ -9,7 +9,7 @@ setup:
 	$(NPM) install
 
 backend:
-	conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000
+	conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
 
 frontend:
 	$(NPM) run dev

@@ -21,3 +21,6 @@ class SourceHealth(Base):
     total_failures: Mapped[int] = mapped_column(Integer(), default=0)
     avg_latency_ms: Mapped[float | None] = mapped_column(Float(), default=None)
     is_disabled: Mapped[bool] = mapped_column(Boolean(), default=False)
+    last_etag: Mapped[str | None] = mapped_column(String(256), default=None)
+    last_modified: Mapped[str | None] = mapped_column(String(128), default=None)
+

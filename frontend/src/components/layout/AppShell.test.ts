@@ -43,8 +43,8 @@ const watchlistStore = {
 };
 
 const runtimeStatusStore = {
-  loadRuntimeStatus: vi.fn(async () => undefined),
-  loadRuntimeStatusIfStale: vi.fn(async () => undefined),
+  loadRuntimeStatus: vi.fn(async (): Promise<void> => undefined),
+  loadRuntimeStatusIfStale: vi.fn(async (): Promise<void> => undefined),
   usingMock: false,
   streamStatus: {
     mode: 'sse',
@@ -281,7 +281,7 @@ describe('AppShell', () => {
   it('does not start runtime polling after unmount if bootstrap resolves late', async () => {
     vi.useFakeTimers();
 
-    let resolveRuntimeStatusLoad: (() => void) | null = null;
+    let resolveRuntimeStatusLoad: () => void = () => {};
     runtimeStatusStore.loadRuntimeStatus.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
@@ -292,7 +292,7 @@ describe('AppShell', () => {
     const wrapper = mount(AppShell);
     wrapper.unmount();
 
-    resolveRuntimeStatusLoad?.();
+    resolveRuntimeStatusLoad();
     await flushPromises();
     await vi.advanceTimersByTimeAsync(60_000);
 

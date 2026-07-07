@@ -33,7 +33,7 @@ const spotlightItems = computed(() => {
 
   // 1. 优先提取重要度 >= 8.5 的新闻
   const importantItems = recentItems.filter((item) => {
-    const score = (item as any).editorial_score ?? 0.0;
+    const score = item.editorial_score ?? 0.0;
     return score >= 8.5;
   });
 
@@ -41,14 +41,27 @@ const spotlightItems = computed(() => {
     return importantItems.slice(0, 5);
   }
 
-  // 2. 如果没有重要度 >= 8.5 的，寻找具有最极端情感的新闻
+  // 2. 如果没有重要度 >= 8.5 的，退而选取情绪鲜明（非中性）的新闻。
+  // 列表接口（NewsItemSummary）没有 sentiment_score，只能用 sentiment_label
+  // 判定情绪强度，并在同等强度下按 editorial_score 优先。
+  const sentimentIntensity = (item: NewsItem) => {
+    if (item.sentiment_label === 'positive' || item.sentiment_label === 'negative') {
+      return 1;
+    }
+    if (item.sentiment_label === 'mixed') {
+      return 0.5;
+    }
+    return 0;
+  };
   const extremeItems = [...recentItems].sort((left, right) => {
-    const scoreA = Math.abs(left.sentiment_score ?? 0.0);
-    const scoreB = Math.abs(right.sentiment_score ?? 0.0);
-    return scoreB - scoreA;
+    const intensityDiff = sentimentIntensity(right) - sentimentIntensity(left);
+    if (intensityDiff !== 0) {
+      return intensityDiff;
+    }
+    return (right.editorial_score ?? 0.0) - (left.editorial_score ?? 0.0);
   });
 
-  if (extremeItems.length > 0 && Math.abs(extremeItems[0].sentiment_score ?? 0.0) >= 0.5) {
+  if (extremeItems.length > 0 && sentimentIntensity(extremeItems[0]) >= 0.5) {
     return extremeItems.slice(0, 3);
   }
 

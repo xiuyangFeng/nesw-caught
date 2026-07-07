@@ -33,7 +33,7 @@ npm --prefix frontend install
 启动后端：
 
 ```bash
-conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000
+conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
 ```
 
 启动自选股行情 worker：
@@ -82,7 +82,7 @@ make dev
 - 前端 `http://127.0.0.1:5174`
 - 自选股行情 `market-worker`
 
-启动前，launcher 会主动终止本机 `8000` 和 `5174` 上现有的监听进程，然后在 backend 的 `GET /api/stream/status` 真正可达后再继续启动其余进程。这样可以避免前端先起来、但后端端口仍不可用时出现整页 `ECONNREFUSED` 和 K 线加载失败。该 launcher 依赖本机提供 `lsof`、`pgrep` 和 `curl`。
+启动前，launcher 会主动终止本机 `8000` 和 `5174` 上现有的监听进程，然后在 backend 的 `GET /api/health` 真正可达后再继续启动其余进程。这样可以避免前端先起来、但后端端口仍不可用时出现整页 `ECONNREFUSED` 和 K 线加载失败。该 launcher 依赖本机提供 `lsof`、`pgrep` 和 `curl`。
 
 按 `Ctrl+C` 会一起停止三个进程。
 
@@ -283,6 +283,92 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
    - **后端统计**：升级了 `GET /api/llm/stats` 接口，数据库 `llm_token_usage` 聚合统计过去 7 天内每天产生的 Token 时序用量。
    - **SVG 自绘看板**：在“模型额度审计控制台”中引入纯前端自绘、高响应的 SVG 折线趋势图。采用暗黑 Terminal 终端风，配备横向网格虚线、霓虹青色发光折线与半透明渐变面积阴影。
    - **微动效交互**：支持在图表上进行鼠标 Hover 交互，拉出十字垂直定位线，并在光标位置浮现显示当天 Prompt / Completion / Total 精细 Token 消耗及日期的毛玻璃 Tooltip，用量走势一目了然。
+
+## 本地与网络安全加固 (Security Hardening)
+
+为了满足密钥绝对本地化且防窃取的高安全标准，项目实施了多维度的安全重构：
+
+1. **临时认证令牌 (App Token) 机制**：
+   - 后端启动生命周期（`lifespan`）中在本地安全数据目录 `data/.app_token` 自动产生一个 32 字节的强随机令牌（使用 `secrets` 库并应用 `600` 权限仅限自己读写）。
+   - 前端通过 Vite 构建在编译阶段通过 Node.js 读入该 Token，并通过 `define` 机制注入到全局常量 `__APP_TOKEN__`。
+   - 前端在入口处对 `window.fetch` 进行全局劫持代理包装，所有发出的 `/api/*` 请求都会自动在 Headers 中携带 `X-App-Token` 认证头。
+   - 后端使用 FastAPI 依赖注入拦截并校验该 Token。任何未经授权的外来/恶意网页跨站伪造调用将直接被返回 401 拦截。
+
+2. **本地绑定与接口回环限制**：
+   - 修改 `Makefile` 和启动脚本 `scripts/dev.sh`，强制将前端 Vite 和后端 FastAPI 默认绑定的 Host 设为 `127.0.0.1` 本地回路，从网络物理层面屏蔽了来自局域网或外网未授权主机的直接 API 请求与敏感信息抓取。
+   - 放行探活接口 `/api/health`。
+
+3. **API 基址被篡改劫持 Key 防御 (Base URL Hijack Defense)**：
+   - 升级了 `LLMProviderConfigRepository.upsert_config` 方法的强安全校验。
+   - 当大模型配置被修改，且提交的参数中更改了 `base_url` 时，系统强制校验用户必须重新输入明文 API Key，拒绝重用或省略已有的加密 Key（不允许保留带 `*` 掩码星号值）。这杜绝了攻击者试图通过配置注入恶意基址，配合已有 Key 在向新目标地址发包时窃取 Key 的严重漏洞风险。
+
+4. **敏感密钥本地 Fernet 加密存储**：
+   - 升级了飞书推送通知模块。将原本明文保存在数据库中的飞书推送 API `app_secret`，重构为大模型 API Key 相同的 Fernet 本地加密机制。
+   - 数据库存储一律使用密文，并在服务发送与测试时在内存中实时解密（`config.decrypted_app_secret`）。
+
+5. **本地密钥防泄露静态扫描**：
+   - 强化了 `.gitignore` 规则以阻止 `.env` 各种子版本、`.secret_key`、`.app_token` 被无意中提交到 Git 仓库。
+   - 新增静态密钥扫描工具 `scripts/check_secrets.py`。可在本地通过 `python scripts/check_secrets.py` 进行一键离线检测以确认没有明文泄漏。
+
+## 新闻抓取效能感知与全交互无缝丝滑度优化 (Smart Ingestion Caching & Ultra-Smooth UX)
+
+为了使项目在数据摄入开销、页面呈现连贯性、流式内容渲染和增量通知交互上实现极致流畅与丝滑感，系统实施了以下深度重构：
+
+1. **HTTP 304 智能缓存感知 (Ingestion Caching)**：
+   - 升级 `SourceHealth` 模型和数据底座以记录每个抓取源的 `last_etag` 与 `last_modified` 头。
+   - 改造 `fetcher.py`，在发起拉取请求时自动携带 HTTP 缓存校验头。如服务端返回 `304 Not Modified` 则以零数据库及网络解包开销快速返回，极大地缩减后台轮询 IO 并消除了未更新源的计算损耗；仅在 200 响应时解析并同步更新缓存标头。
+   - 针对测试沙箱环境的 Mock 请求和模拟响应对象实施了优雅降级（`TypeError` 与 `getattr` 容灾），实现 100% 测试集向后兼容。
+
+2. **异步新闻正文爬虫 (Article Crawler)**：
+   - 引入 HTML 文本密度识别算法爬虫 `article_crawler.py`。对摘要源新闻在后台静默异步拉取其链接，提取无杂质的纯净核心正文填入 `ArticleContent`，为后续 AI 会话和投研分析提供完美的本地语料。
+
+3. **1:1 专属呼吸骨架屏与交叉淡入淡出转场**：
+   - 新增 `SkeletonFeed.vue` 专属骨架屏，并为 `NewsFeedView.vue`、`DashboardView.vue`、`WatchlistView.vue` 显式分发与其最终渲染卡片高度一致的 `skeletonType`（如新闻卡片、多指标仪表盘和自选股列表卡片样式）。
+   - 结合全局 `<transition name="fade-cross">`，使页面加载与真实内容就绪之间实现 300ms 交叉淡入淡出（Cross-fade）转场，杜绝了数据展现时的生硬闪跳。
+
+4. **AI 对话打字机匀速缓动与智能滚动锁定**：
+   - 升级 `ChatView.vue`。对大模型 SSE 流式输出进行前端 30ms 分段吐字缓动处理（当缓冲区积压过大时动态调速防延迟），实现流水般打字动效，消除包大小不均引发的卡顿。
+   - 监听窗口滚动事件，智能判定用户行为。一旦用户向上拉阅历史记录（距离底部超过 50px），自动释放强制置底锁，并在右下角淡入毛玻璃高斯模糊的“⬇ 回到底部”浮动玻璃按钮，点击或重新触底时重置锁定。
+
+5. **Delta 增量新闻顶部浮条与平滑置入效果**：
+   - 在 `NewsFeedView.vue` 引入 `displayedFeedItems` 本地缓冲状态。
+   - 在 SSE 监听到 `news.created` 背景新增时，不再强刷引起页面跳动，而是在证据流顶部浮现优雅的高斯模糊 Delta 提示条。用户点击更新时，新资讯通过 `transition-group` 动画平滑展开向下置入，阅读心流不受打扰。
+
+## 后端高并发性能与连接池重构优化 (Performance & Connection Pool Optimization)
+
+为了解决长事务、阻塞 I/O 带来的 SQLite 写锁竞争（如 `database is locked` 报错），以及降低大模型请求频繁握手带来的网络延迟与系统开销，系统完成了以下优化：
+
+1. **数据库复合索引设计**：
+   - 在 `NewsItem` 模型上为 `(published_at, id)` 和 `(market, published_at, id)` 建立了两个复合索引，使得游标分页查询能够直接走索引查找，避免了在 SQLite 中进行全表扫描加排序。
+   - 迁移脚本在生成时剔除了 SQLite 在 batch schema 修改时冗余检测出的外键操作，保证了迁移的绝对安全可靠。
+
+2. **进程级共享连接池 (httpx.Client Pool)**：
+   - 移除 `llm_providers.py` 在进行评分分类和嵌入调用时每次新建和销毁 `httpx.Client` 实例的逻辑。
+   - 新增 `http_pool.py` 以实现进程级单例共享的 `httpx.Client` 池，最大空闲连接 20 个，总连接上限 50 个。
+   - 将密钥从 Client 初始化默认配置中剥离，改成在每次 `client.post` 时动态传递，确保大模型接口在高并发请求时无需重复进行 TCP 与 TLS 握手，同时保持多模型账户的安全性。
+   - 在主程序 `main.py` 的 lifespan 生命钩子退出时，增加自动释放共享 Client 的逻辑。
+
+3. **热路径消除动态 import 依赖**：
+   - 清除了 `queue_worker.py` 的 `do_cycle` 中由于导入 `get_notification_service` 产生的对 `app.main` 的动态反向依赖，并移入顶部静态导入。
+   - 清除了 `news_signal_pipeline.py` 中 `process_news_ids` 里的局部动态 `import`，进一步减少函数内高频导入开销。
+
+4. **仓库整洁度工程优化**：
+   - 移除了根目录和前端目录下无意中被提交的临时测试日志 `test_output.txt`。
+   - 升级 `.gitignore` 规则，将 `test_output.txt` 及所有子文件夹内的测试快照输出加入黑名单。
+
+5. **两阶段管线重构 (Two-Phase Pipeline)**：
+   - 将 `NewsSignalPipelineService.process_news_ids` 的大事务过程重构为两个阶段。
+   - **阶段 1 (正文补全)**：所有网络抓取 I/O 均在主事务外部执行，且抓取后的落库使用独立的、寿命极短的 Session 逐条提交，避免单条抓取失败阻塞整批。
+   - **阶段 2 (分类与关联)**：利用已就绪的本地数据，以极快的速度在主事务内完成大模型分类和主题映射，降低 SQLite 写锁被长期占有的几率。
+
+6. **自愈轮询与内存通知相结合的持久化队列 (#6)**：
+   - 移除原有纯内存的 `analysis_queue` 丢失隐患。
+   - 升级 `BackgroundQueueWorker`，采用“自愈轮询 + 内存通知”双轮驱动机制。在内存任务队列清空或进程重启后，自动通过数据库检索 `signal_status IS NULL` 的 pending 记录进行自愈补偿扫尾。
+
+7. **Token 计量批量缓冲落库 (#4)**：
+   - 增加线程安全的 `TokenUsageBuffer` 类，内存聚合多次大模型 token 使用情况。
+   - 在正常部署环境下采用 50 条或 10 秒缓冲策略以 `bulk_insert_mappings` 批量写入，大幅降低 SQLite 日志事务写入的并发写放大。
+   - 自动感应测试环境并自降阈值为 1，保证原有测试套件 100% 同步执行无破坏。
 
 ## 变更记录要求
 

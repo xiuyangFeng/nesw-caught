@@ -20,12 +20,18 @@ async def mock_generate_text(*args, **kwargs):
     return "This is a mock response from async generate text."
 
 
+async def mock_complete(*args, **kwargs):
+    from app.services.llm_providers import CompletionResult
+
+    return CompletionResult(content="This is a mock response from async generate text.")
+
+
 async def mock_chat_stream(*args, **kwargs):
-    yield "Hello"
-    yield " "
-    yield "async"
-    yield " "
-    yield "world"
+    yield ("token", "Hello")
+    yield ("token", " ")
+    yield ("token", "async")
+    yield ("token", " ")
+    yield ("token", "world")
 
 
 def test_llm_multi_config_management_flow() -> None:
@@ -112,7 +118,7 @@ def test_llm_multi_config_management_flow() -> None:
 
 @patch("app.services.llm_providers.AsyncOpenAICompatibleProvider.generate_text", new=mock_generate_text)
 @patch("app.services.llm_providers.AsyncOpenAICompatibleProvider.chat_stream", new=mock_chat_stream)
-@patch("app.services.llm_providers.AsyncOpenAICompatibleProvider._request_completion", new=mock_generate_text)
+@patch("app.services.llm_providers.AsyncOpenAICompatibleProvider.complete", new=mock_complete)
 def test_llm_chat_flow() -> None:
     _cleanup_llm_config_table()
     client = TestClient(app)
@@ -194,9 +200,9 @@ def test_llm_chat_stream_disconnect_generator() -> None:
         mock_provider = MockBuildProvider.return_value
 
         async def mock_stream(*args, **kwargs):
-            yield "Chunk1"
-            yield "Chunk2"
-            yield "Chunk3"
+            yield ("token", "Chunk1")
+            yield ("token", "Chunk2")
+            yield ("token", "Chunk3")
 
         mock_provider.chat_stream.side_effect = mock_stream
 

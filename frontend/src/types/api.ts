@@ -1,401 +1,133 @@
+/**
+ * API 类型适配层。
+ *
+ * 所有与后端 HTTP API 对应的类型一律从 `src/types/generated/api.d.ts`
+ * (由 `npm run generate:api` 从 FastAPI OpenAPI schema 自动生成)取别名,
+ * 保持既有导入路径与导出名不变;禁止在本文件手写与后端重复的结构。
+ *
+ * 仅以下两类允许保留手写定义,且每处必须注释原因:
+ *   1. SSE 带内协议(/api/stream/events 的事件信封),OpenAPI 不覆盖;
+ *   2. 前端 UI 专用类型(视图态、本地持久化、查询表单状态等)。
+ */
+import type { components, operations } from './generated/api';
+
+type Schemas = components['schemas'];
+
+// ---------------------------------------------------------------------------
+// 前端 UI 专用:后端 schema 中 market / sentiment 等字段为普通 string,
+// 以下窄化联合仅用于前端筛选表单、路由参数等 UI 状态,不代表后端契约。
+// ---------------------------------------------------------------------------
 export type Market = 'hk' | 'us' | 'cn';
 export type SentimentLabel = 'positive' | 'negative' | 'neutral' | 'mixed' | 'unknown';
 export type ExtractStatus = 'pending' | 'success' | 'failed' | 'not_requested';
 
-export interface HealthStatus {
-  status: string;
-  app_name: string;
-  environment: string;
-  now_utc: string;
-  database: string;
-  stream_mode: string;
-  ai_enabled: boolean;
-  x_monitor_enabled?: boolean;
-  x_monitor_healthy?: boolean;
-}
+// ---------------------------------------------------------------------------
+// Health / 运行时状态
+// ---------------------------------------------------------------------------
+export type HealthStatus = Schemas['HealthResponse'];
+export type NewsRuntimeSource = Schemas['NewsRuntimeSourceView'];
+export type NewsRuntimeMarket = Schemas['NewsRuntimeMarketView'];
+export type NewsRuntimeStatus = Schemas['NewsRuntimeView'];
 
-export interface NewsItem {
-  id: number;
-  title: string;
-  summary: string | null;
-  source_name: string;
-  canonical_url: string | null;
-  market: Market;
-  sentiment_label: SentimentLabel;
-  published_at: string | null;
-  fetched_at: string;
-  editorial_score?: number | null;
-}
+// ---------------------------------------------------------------------------
+// 新闻
+// ---------------------------------------------------------------------------
+export type NewsItem = Schemas['NewsItemSummary'];
+export type NewsMention = Schemas['NewsMentionView'];
+export type NewsTopicRef = Schemas['NewsTopicRefView'];
+export type NewsArticle = Schemas['NewsArticleView'];
+export type NewsDetail = Schemas['NewsDetailView'];
+export type NewsFeedEventCard = Schemas['NewsFeedEventCardView'];
+export type NewsEventDetail = Schemas['NewsEventDetailView'];
+export type NewsFeedTopic = Schemas['NewsFeedTopicView'];
+export type NewsFeedLayout = Schemas['NewsFeedLayoutView'];
+export type NewsListPage = Schemas['NewsListPageView'];
+export type NewsRefreshResult = Schemas['NewsRefreshResponse'];
 
-export interface NewsMention {
-  symbol: string;
-  market: Market;
-  mention_type: string;
-  confidence: number;
-}
-
-export interface NewsTopicRef {
-  id: number;
-  topic_title: string;
-  importance_score: number;
-  last_seen_at: string;
-}
-
-export interface NewsArticle {
-  content_text: string | null;
-  extract_status: ExtractStatus;
-  extract_error: string | null;
-  extracted_at: string | null;
-}
-
-export interface NewsDetail extends NewsItem {
-  sentiment_score: number | null;
-  article: NewsArticle | null;
-  mentions: NewsMention[];
-  topic: NewsTopicRef | null;
-}
-
-export interface NewsFeedEventCard {
-  event_key: string;
-  event_title: string;
-  event_summary: string | null;
-  event_type: string;
-  market: Market;
-  sentiment_label: SentimentLabel;
-  importance_score: number;
-  last_seen_at: string | null;
-  primary_symbol: string | null;
-  related_symbols: string[];
-  watchlist_hits?: string[] | null;
-  source_count: number;
-  news_count: number;
-  news_items: NewsItem[];
-}
-
-export interface NewsEventDetail {
-  event_key: string;
-  event_title: string;
-  event_summary: string | null;
-  event_type: string;
-  market: Market;
-  sentiment_label: SentimentLabel;
-  importance_score: number;
-  last_seen_at: string | null;
-  primary_symbol: string | null;
-  related_symbols: string[];
-  watchlist_hits?: string[] | null;
-  source_count: number;
-  news_count: number;
-  news_items: NewsItem[];
-}
-
-export interface NewsFeedTopic {
-  id: number;
-  topic_title: string;
-  topic_summary: string | null;
-  keywords: string[];
-  market: Market;
-  sentiment_label: SentimentLabel;
-  importance_score: number;
-  news_count: number;
-  last_seen_at: string;
-  related_symbols: string[];
-}
-
-export interface NewsFeedLayout {
-  events: NewsFeedEventCard[];
-  topics: NewsFeedTopic[];
-  stream: NewsItem[];
-}
-
-export interface NewsRuntimeSource {
-  source_name: string;
-  market: Market;
-  tier: string;
-  status: 'ok' | 'delayed' | 'degraded' | 'offline';
-  last_attempt_at: string | null;
-  last_success_at: string | null;
-  consecutive_failures: number;
-  avg_fetch_latency_ms: number | null;
-  latest_news_published_at: string | null;
-  latest_news_fetched_at: string | null;
-  last_error: string | null;
-}
-
-export interface NewsRuntimeMarket {
-  market: Market;
-  status: 'live' | 'delayed' | 'degraded' | 'offline';
-  mode: 'primary' | 'secondary' | 'fallback' | 'none';
-  last_primary_success_at: string | null;
-  last_news_created_at: string | null;
-  degraded_reason: string | null;
-}
-
-export interface NewsRuntimeStatus {
-  feed_status: 'live' | 'delayed' | 'degraded';
-  last_refresh_finished_at: string | null;
-  last_news_created_at: string | null;
-  last_incremental_event_at: string | null;
-  degraded_market_count: number;
-  markets: NewsRuntimeMarket[];
-  sources: NewsRuntimeSource[];
-}
-
+// SSE 带内协议:news.updated 事件负载在 NewsItemSummary 之上附加
+// updated_fields,由 stream 路由手工组装,OpenAPI 不覆盖。
 export interface NewsUpdateEvent extends NewsItem {
   updated_fields: string[];
 }
 
-export interface LLMConfigSummary {
-  configured: boolean;
-  id?: number | null;
-  provider_name: string | null;
-  display_name: string | null;
-  model_name: string | null;
-  base_url: string | null;
-  api_key_set: boolean;
-  is_active?: boolean;
-  is_default?: boolean;
-  updated_at: string | null;
-}
+// ---------------------------------------------------------------------------
+// LLM 配置与分析
+// ---------------------------------------------------------------------------
+export type LLMConfigSummary = Schemas['LLMConfigView'];
+export type LLMConfigUpdateRequest = Schemas['LLMConfigUpsertRequest'];
+export type LLMTranslateRequest = Schemas['LLMTranslateRequest'];
+export type LLMTranslateResponse = Schemas['LLMTranslateView'];
+export type LLMConnectionTestResponse = Schemas['LLMConnectionTestView'];
+export type NewsAnalysisCandidate = Schemas['LLMAnalysisCandidate'];
+export type NewsAnalysis = Schemas['NewsAnalysisView'];
 
-export interface LLMConfigUpdateRequest {
-  id?: number | null;
-  provider_name: string;
-  model_name: string;
-  display_name?: string | null;
-  base_url?: string | null;
-  api_key?: string;
-  is_active?: boolean;
-  is_default?: boolean;
-}
+// ---------------------------------------------------------------------------
+// 行情 / 自选股
+// ---------------------------------------------------------------------------
+export type MarketSnapshot = Schemas['PriceSnapshotView'];
+export type WatchlistQuoteSummary = Schemas['QuoteSummaryView'];
+export type StockQuoteDetail = Schemas['QuoteDetailView'];
+export type WatchlistItem = Schemas['WatchlistItemView'];
+export type WatchlistItemCreate = Schemas['WatchlistItemCreate'];
+export type WatchlistCandidate = Schemas['WatchlistCandidateView'];
+export type MarketRefreshResult = Schemas['MarketRefreshResultView'];
 
-export interface LLMTranslateRequest {
-  text: string;
-}
+export type WatchlistResearchDriver = Schemas['WatchlistResearchDriverView'];
+export type WatchlistResearchBrief = Schemas['WatchlistResearchBriefView'];
+export type ResearchDriverCategory = WatchlistResearchDriver['category'];
+export type ResearchActionLevel = WatchlistResearchDriver['action_level'];
+export type ResearchTopActionLevel = WatchlistResearchBrief['top_action_level'];
 
-export interface LLMTranslateResponse {
-  provider_name: string;
-  model_name: string;
-  translated_text: string;
-}
-
-export interface LLMConnectionTestResponse {
-  provider_name: string;
-  model_name: string;
-  message: string;
-}
-
-export interface NewsAnalysisCandidate {
-  symbol: string;
-  market: Market;
-  company_name: string | null;
-  confidence: number | null;
+export type WatchlistAiInsight = Schemas['WatchlistAiInsightView'];
+// 前端 UI 专用:后端 WatchlistAiInsightView.failover 在 schema 中是无结构的
+// dict[str, str],此接口是前端对其约定字段的窄化描述,仅供展示层使用。
+export interface LlmFailoverInfo {
+  from_model: string;
+  to_model: string;
   reason: string;
 }
 
-export interface NewsAnalysis {
-  news_id: number;
-  provider_name: string;
-  model_name: string;
-  analysis_status: string;
-  top_pick: NewsAnalysisCandidate | null;
-  candidates: NewsAnalysisCandidate[];
-  summary: string | null;
-  risk_notes: string | null;
-  sentiment: SentimentLabel | string | null;
-  context_limitations: string | null;
-  analyzed_at: string;
-  analysis_error: string | null;
-}
+// ---------------------------------------------------------------------------
+// 话题
+// ---------------------------------------------------------------------------
+export type TopicItem = Schemas['TopicItemView'];
+export type TopicDetail = Schemas['TopicDetailView'];
 
-export interface MarketSnapshot {
-  symbol: string;
-  market: Market;
-  display_name: string | null;
-  provider_symbol: string | null;
-  price: number | null;
-  change_amount: number | null;
-  change_percent: number | null;
-  open_price: number | null;
-  previous_close: number | null;
-  day_high: number | null;
-  day_low: number | null;
-  volume: number | null;
-  status: 'ok' | 'delayed' | 'unavailable' | 'symbol_not_supported' | 'fetch_failed';
-  source: string | null;
-  message: string | null;
-  is_abnormal: boolean;
-  abnormal_reason: string | null;
-  fetched_at: string;
-  has_hot_alert?: boolean;
-}
+// ---------------------------------------------------------------------------
+// Stream 状态(REST 部分)
+// ---------------------------------------------------------------------------
+export type StreamStatus = Schemas['StreamStatusResponse'];
+export type MarketWorkerStatus = Schemas['MarketWorkerStatusView'];
 
-export interface WatchlistQuoteSummary extends MarketSnapshot {}
+// ---------------------------------------------------------------------------
+// K 线
+// ---------------------------------------------------------------------------
+export type KlineCandle = Schemas['CandlePointView'];
+export type KlineValuePoint = Schemas['ValuePointView'];
+export type KlineMacdPoint = Schemas['MacdPointView'];
+export type KlineKdjPoint = Schemas['KdjPointView'];
+export type KlineBollingerPoint = Schemas['BollingerPointView'];
+export type NewsEventMarkerItem = Schemas['NewsEventItemView'];
+export type NewsEventMarker = Schemas['NewsEventGroupView'];
+export type KlineIndicators = Schemas['IndicatorSeriesView'];
+export type StockKlineResponse = Schemas['MarketKlineView'];
 
-export interface StockQuoteDetail extends WatchlistQuoteSummary {}
+// ---------------------------------------------------------------------------
+// Sparkline
+// ---------------------------------------------------------------------------
+export type SparklineSeries = Schemas['SparklineSeriesView'];
+export type WatchlistSparklineMap =
+  operations['get_watchlist_sparklines_api_market_sparklines_post']['responses']['200']['content']['application/json'];
 
-export interface WatchlistItem {
-  id: number;
-  symbol: string;
-  market: Market;
-  display_name: string;
-  is_active: boolean;
-  alert_threshold: number | null;
-  alert_mode: string;
-}
-
-export interface WatchlistItemCreate {
-  symbol: string;
-  market: Market;
-  display_name: string;
-  alert_threshold: number | null;
-  alert_mode: string;
-}
-
-export interface WatchlistCandidate {
-  symbol: string;
-  market: Market;
-  display_name: string;
-  aliases: string[];
-}
-
-export type ResearchDriverCategory = 'policy_macro' | 'company_action' | 'supply_chain' | 'price_action';
-export type ResearchActionLevel = 'act_now' | 'watch_today' | 'know_only';
-export type ResearchTopActionLevel = ResearchActionLevel | 'none';
-
-export interface WatchlistResearchDriver {
-  category: ResearchDriverCategory;
-  action_level: ResearchActionLevel;
-  reason: string;
-  news_item: NewsItem;
-}
-
-export interface WatchlistResearchBrief {
-  symbol: string;
-  market: Market;
-  generated_at: string;
-  window_days: number;
-  top_action_level: ResearchTopActionLevel;
-  has_unexplained_price_move: boolean;
-  drivers: WatchlistResearchDriver[];
-}
-
-export interface TopicItem {
-  id: number;
-  topic_title: string;
-  topic_summary: string | null;
-  keywords: string[];
-  market: Market;
-  sentiment_label: SentimentLabel;
-  importance_score: number;
-  news_count: number;
-  last_seen_at: string;
-  related_symbols: string[];
-}
-
-export interface TopicDetail extends TopicItem {
-  sources: NewsItem[];
-}
-
-export interface StreamStatus {
-  mode: string;
-  status: string;
-  backend: string;
-  redis_enabled: boolean;
-  last_published_at: string | null;
-  last_event_name: string | null;
-  last_error: string | null;
-  market_worker: MarketWorkerStatus | null;
-}
-
-export interface MarketWorkerStatus {
-  name: string;
-  status: string;
-  last_heartbeat_at: string | null;
-  last_success_at: string | null;
-  last_failure_at: string | null;
-  last_error: string | null;
-  cycle_count: number;
-  success_count: number;
-  failure_count: number;
-  last_quotes_count: number;
-}
-
-export interface MarketRefreshResult {
-  quotes_count: number;
-  symbols: string[];
-  triggered_at: string;
-}
-
+// ---------------------------------------------------------------------------
+// 前端 UI 专用:自选股仪表盘周期切换的视图态。
+// ---------------------------------------------------------------------------
 export type WatchlistDashboardPeriod = '1D' | '1W' | '1M' | '1Y';
 
-export interface KlineCandle {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number | null;
-}
-
-export interface KlineValuePoint {
-  time: string;
-  value: number;
-}
-
-export interface KlineMacdPoint {
-  time: string;
-  dif: number;
-  dea: number;
-  histogram: number;
-}
-
-export interface KlineKdjPoint {
-  time: string;
-  k: number;
-  d: number;
-  j: number;
-}
-
-export interface KlineBollingerPoint {
-  time: string;
-  upper: number;
-  middle: number;
-  lower: number;
-}
-
-export interface NewsEventMarkerItem {
-  id: number;
-  title: string;
-  sentiment: SentimentLabel | string;
-  summary: string;
-}
-
-export interface NewsEventMarker {
-  time: string;
-  items: NewsEventMarkerItem[];
-}
-
-export interface KlineIndicators {
-  ma5: KlineValuePoint[];
-  ma10: KlineValuePoint[];
-  ma20: KlineValuePoint[];
-  ma60: KlineValuePoint[];
-  macd: KlineMacdPoint[];
-  kdj: KlineKdjPoint[];
-  bollinger: KlineBollingerPoint[];
-}
-
-export interface StockKlineResponse {
-  symbol: string;
-  interval: string;
-  range: string;
-  stale: boolean;
-  candles: KlineCandle[];
-  indicators: KlineIndicators;
-  news_events: NewsEventMarker[];
-}
-
+// ---------------------------------------------------------------------------
+// 前端 UI 专用:K 线画图工具的本地状态与 localStorage 持久化结构,
+// 纯前端能力,后端无对应 API。
+// ---------------------------------------------------------------------------
 export type KlineDrawingTool =
   | 'select'
   | 'trend_line'
@@ -433,12 +165,16 @@ export interface KlineDrawing {
   payload: KlineDrawingPayload;
 }
 
+// 前端 UI 专用:本地持久化通用信封(localStorage 版本迁移用)。
 export interface VersionedPersistedValue<T> {
   version: number;
   savedAt: string;
   payload: T;
 }
 
+// ---------------------------------------------------------------------------
+// 前端 UI 专用:K 线指标工作台的模板/叠加指标视图态,纯前端配置。
+// ---------------------------------------------------------------------------
 export type OverlayIndicatorKind = 'MA' | 'EMA' | 'BOLL';
 export type KlineSubIndicator = 'VOL' | 'MACD' | 'KDJ' | 'RSI';
 
@@ -479,12 +215,10 @@ export interface KlineIndicatorTemplate {
   subIndicator: KlineSubIndicator;
 }
 
-export interface SparklineSeries {
-  prices: number[];
-}
-
-export type WatchlistSparklineMap = Record<string, SparklineSeries>;
-
+// ---------------------------------------------------------------------------
+// SSE 带内协议:/api/stream/events 是 text/event-stream,事件信封与
+// 事件负载映射不在 OpenAPI 内,以下手写定义与后端 stream 路由约定对齐。
+// ---------------------------------------------------------------------------
 export interface StreamEventMap {
   'news.created': NewsItem;
   'news.updated': NewsUpdateEvent;
@@ -495,193 +229,58 @@ export interface StreamEventMap {
 
 export type StreamEventType = keyof StreamEventMap;
 
-export interface StreamEnvelope<T extends StreamEventType = StreamEventType> {
-  type: T;
-  occurred_at: string;
-  payload: StreamEventMap[T];
-}
+// Distributive over StreamEventType so `envelope.type === 'news.created'`
+// narrows `envelope.payload` like a discriminated union.
+export type StreamEnvelope<T extends StreamEventType = StreamEventType> = T extends StreamEventType
+  ? {
+      type: T;
+      occurred_at: string;
+      payload: StreamEventMap[T];
+    }
+  : never;
 
-export interface NewsQuery {
+// ---------------------------------------------------------------------------
+// 前端 UI 专用:GET 查询参数的表单状态(含 '' 空选项哨兵值),
+// 与 OpenAPI 的 query parameters 并非同构,保留手写。
+// Type alias (not interface) so it satisfies the index-signature constraint of
+// query-string helpers like withQuery.
+// ---------------------------------------------------------------------------
+export type NewsQuery = {
   market?: Market | '';
   q?: string;
   source_name?: string;
   sentiment_label?: SentimentLabel | '';
   limit?: number;
   cursor?: string;
-}
+};
 
-export interface NewsListPage {
-  items: NewsItem[];
-  next_cursor: string | null;
-}
+// ---------------------------------------------------------------------------
+// X 监控
+// ---------------------------------------------------------------------------
+export type XAccount = Schemas['XAccountView'];
+export type XAccountCreatePayload = Schemas['XAccountCreateRequest'];
+export type XAccountUpdatePayload = Schemas['XAccountUpdateRequest'];
+export type XAccountsImportResult = Schemas['XAccountsImportResult'];
+export type XAccountsExportResult = Schemas['XAccountsExportResult'];
+export type XPost = Schemas['XPostSummaryView'];
+export type XRadarSignal = Schemas['XRadarSignalView'];
+export type XRadarMacroCluster = Schemas['XRadarMacroClusterView'];
+export type XRadarResponse = Schemas['XRadarResponse'];
+export type XRefreshResult = Schemas['XRefreshResponse'];
+export type XHealth = Schemas['XHealthResponse'];
 
-export interface XAccount {
-  id: number;
-  handle: string;
-  display_name: string;
-  market_focus: string | null;
-  is_active: boolean;
-  priority: number;
-  tier: 'core' | 'watch' | 'muted';
-  source: string;
-  notes: string | null;
-}
-
-export interface XAccountCreatePayload {
-  handle: string;
-  display_name: string;
-  market_focus: string | null;
-  is_active: boolean;
-  priority: number;
-  tier: 'core' | 'watch' | 'muted';
-  notes: string | null;
-}
-
-export interface XAccountUpdatePayload {
-  display_name?: string | null;
-  market_focus?: string | null;
-  is_active?: boolean;
-  priority?: number;
-  tier?: 'core' | 'watch' | 'muted';
-  notes?: string | null;
-}
-
-export interface XAccountsImportResult {
-  created_count: number;
-  updated_count: number;
-  skipped_count: number;
-}
-
-export interface XAccountsExportResult {
-  exported_count: number;
-}
-
-export interface XPost {
-  id: number;
-  account_handle: string;
-  account_display_name: string;
-  content_text: string;
-  canonical_url: string | null;
-  market: Market;
-  sentiment_label: SentimentLabel;
-  relevance_score: number | null;
-  posted_at: string | null;
-  captured_at: string;
-  symbols: string[];
-}
-
-export interface XRadarSignal {
-  id: number;
-  signal_type: 'account_post' | 'macro_event' | 'multi_account_resonance' | string;
-  title: string;
-  summary: string;
-  market: Market;
-  topic_tag: string | null;
-  macro_tag: string | null;
-  primary_symbol: string | null;
-  priority_score: number;
-  confidence_score: number;
-  source_count: number;
-  first_seen_at: string;
-  last_seen_at: string;
-}
-
-export interface XRadarMacroCluster {
-  macro_tag: string;
-  title: string;
-  signal_count: number;
-  source_count: number;
-  top_signal_ids: number[];
-}
-
-export interface XRadarResponse {
-  priority_signals: XRadarSignal[];
-  macro_clusters: XRadarMacroCluster[];
-  evidence_stream: XPost[];
-}
-
-export interface XRefreshResult {
-  started_at: string;
-  finished_at: string;
-  fetched_count: number;
-  inserted_count: number;
-  error: string | null;
-  latency_ms: number;
-  skipped: boolean;
-  skip_reason: string | null;
-  next_refresh_at: string | null;
-}
-
-export interface NewsRefreshResult {
-  started_at: string;
-  finished_at: string;
-  fetched_count: number;
-  inserted_count: number;
-  results: Array<{
-    source_name: string;
-    source_type: string;
-    status: string;
-    fetched_count: number;
-    inserted_count: number;
-    error: string | null;
-    latency_ms: number;
-  }>;
-}
-
-export interface XHealth {
-  enabled: boolean;
-  configured: boolean;
-  healthy: boolean;
-  status: string;
-  provider_name: string;
-  min_interval_seconds: number;
-  refresh_cooldown_hours: number;
-  last_success_at: string | null;
-  last_failure_at: string | null;
-  consecutive_failures: number;
-  total_fetches: number;
-  total_failures: number;
-  avg_latency_ms: number | null;
-  last_error: string | null;
-}
-
-export interface XPostQuery {
+// 前端 UI 专用:X 帖子查询表单状态(含 '' 哨兵值),理由同 NewsQuery。
+export type XPostQuery = {
   account_handle?: string;
   market?: Market | '';
   q?: string;
   symbol?: string;
   limit?: number;
-}
+};
 
-export interface FeishuNotifyConfig {
-  configured: boolean;
-  app_id: string | null;
-  app_secret_set: boolean;
-  target_type: string | null;
-  target_id: string | null;
-  news_enabled: boolean;
-  news_keywords: string | null;
-  news_batch_interval_minutes: number;
-  alert_enabled: boolean;
-  analysis_enabled: boolean;
-  is_active: boolean;
-  updated_at: string | null;
-}
-
-export interface FeishuNotifyConfigUpdate {
-  app_id: string;
-  app_secret?: string;
-  target_type: string;
-  target_id: string;
-  news_enabled: boolean;
-  news_keywords?: string | null;
-  news_batch_interval_minutes: number;
-  alert_enabled: boolean;
-  analysis_enabled: boolean;
-  is_active: boolean;
-}
-
-export interface FeishuTestResult {
-  success: boolean;
-  message: string;
-}
+// ---------------------------------------------------------------------------
+// 飞书通知
+// ---------------------------------------------------------------------------
+export type FeishuNotifyConfig = Schemas['FeishuConfigView'];
+export type FeishuNotifyConfigUpdate = Schemas['FeishuConfigUpsertRequest'];
+export type FeishuTestResult = Schemas['FeishuTestResult'];

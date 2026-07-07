@@ -6,7 +6,7 @@ import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import { useTopicStore } from '../stores/topicStore';
-import { sentimentText } from '../utils/format';
+import { normalizeSentimentLabel, sentimentText } from '../utils/format';
 import { compareNewsTimestamps, formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
 
 const route = useRoute();
@@ -64,7 +64,8 @@ const sourceGroups = computed(() => {
       if (compareNewsTimestamps({ published_at: itemTimestamp }, { published_at: existing.firstPublishedAt }) > 0) {
         existing.firstPublishedAt = itemTimestamp;
       }
-      existing.sentimentCounts[item.sentiment_label] = (existing.sentimentCounts[item.sentiment_label] ?? 0) + 1;
+      const label = normalizeSentimentLabel(item.sentiment_label);
+      existing.sentimentCounts[label] = (existing.sentimentCounts[label] ?? 0) + 1;
     } else {
       const timestamp = getNewsDisplayTimestamp(item) ?? '';
       groups.set(item.source_name, {
@@ -73,7 +74,7 @@ const sourceGroups = computed(() => {
         items: [item],
         latestPublishedAt: timestamp,
         firstPublishedAt: timestamp,
-        sentimentCounts: { [item.sentiment_label]: 1 },
+        sentimentCounts: { [normalizeSentimentLabel(item.sentiment_label)]: 1 },
       });
     }
   }
@@ -100,7 +101,7 @@ function openNews(newsId: number) {
   router.push({ name: 'news-detail', params: { id: newsId } });
 }
 
-function isHighlighted(item: { title: string; summary: string | null }) {
+function isHighlighted(item: { title: string; summary?: string | null }) {
   return symbolFilter.value !== 'all' && (`${item.title} ${item.summary ?? ''}`).includes(symbolFilter.value);
 }
 

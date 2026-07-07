@@ -22,7 +22,7 @@ def test_dev_script_cleans_conflicting_ports_and_waits_for_backend() -> None:
     assert 'kill_listeners_for_port 5174' in script
     assert "terminate_process_tree()" in script
     assert "wait_for_http()" in script
-    assert 'wait_for_http "http://127.0.0.1:8000/api/stream/status"' in script
+    assert 'wait_for_http "http://127.0.0.1:8000/api/health"' in script
     assert "wait_for_process_start()" in script
     assert 'wait_for_process_start "${BACKEND_PID}" "backend"' in script
     assert "require_command()" in script

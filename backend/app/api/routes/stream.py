@@ -1,7 +1,8 @@
 import json
 from queue import Empty, Queue
+import anyio
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
@@ -59,7 +60,7 @@ def stream_status(session: Session = Depends(get_db_session)) -> StreamStatusRes
 
 
 @router.get("/events")
-def stream_events(limit: int | None = None) -> StreamingResponse:
+async def stream_events(request: Request, limit: int | None = None) -> StreamingResponse:
     event_bus = get_event_bus()
     queue: Queue[tuple[str, dict[str, object], datetime]] = Queue()
     handlers: dict[str, object] = {}
@@ -71,25 +72,37 @@ def stream_events(limit: int | None = None) -> StreamingResponse:
         handlers[event_name] = _handler
         event_bus.subscribe(event_name, _handler)
 
-    def _event_stream():
+    async def _event_stream():
         sent = 0
+        last_keepalive = _utc_now()
         try:
             while limit is None or sent < limit:
+                if await request.is_disconnected():
+                    break
                 try:
-                    event_name, payload, occurred_at = queue.get(timeout=STREAM_KEEPALIVE_SECONDS)
+                    # 使用 anyio 线程池非阻塞地等待队列，超时设为1秒，避免长期占用资源
+                    event_name, payload, occurred_at = await anyio.to_thread.run_sync(
+                        lambda: queue.get(timeout=1.0)
+                    )
                     envelope = {
                         "type": event_name,
                         "occurred_at": _serialize_timestamp(occurred_at),
                         "payload": payload,
                     }
+                    yield f"data: {json.dumps(envelope, separators=(',', ':'))}\n\n"
+                    sent += 1
                 except Empty:
-                    envelope = {
-                        "type": "stream.keepalive",
-                        "occurred_at": _serialize_timestamp(_utc_now()),
-                        "payload": {"status": "ok"},
-                    }
-                yield f"data: {json.dumps(envelope, separators=(',', ':'))}\n\n"
-                sent += 1
+                    # 只有达到 keepalive 周期时才发送
+                    now = _utc_now()
+                    if (now - last_keepalive).total_seconds() >= STREAM_KEEPALIVE_SECONDS:
+                        envelope = {
+                            "type": "stream.keepalive",
+                            "occurred_at": _serialize_timestamp(now),
+                            "payload": {"status": "ok"},
+                        }
+                        yield f"data: {json.dumps(envelope, separators=(',', ':'))}\n\n"
+                        last_keepalive = now
+                        sent += 1
         finally:
             for event_name, handler in handlers.items():
                 unsubscribe = getattr(event_bus, "unsubscribe", None)

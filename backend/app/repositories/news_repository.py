@@ -1,4 +1,4 @@
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.models.article_content import ArticleContent
@@ -53,13 +53,38 @@ class NewsRepository:
             stmt = stmt.where(NewsItem.sentiment_label == sentiment_label)
 
         if query:
-            keyword = f"%{query.strip().lower()}%"
-            stmt = stmt.where(
-                or_(
-                    func.lower(NewsItem.title).like(keyword),
-                    func.lower(func.coalesce(NewsItem.summary, "")).like(keyword),
-                )
-            )
+            safe_query = " ".join([w for w in query.strip().split() if w])
+            if safe_query:
+                try:
+                    # Probe with LIMIT 1 to keep the LIKE fallback when FTS has no hits
+                    # (e.g. tokenizer misses CJK terms), without pulling all rowids into Python.
+                    probe_stmt = text("SELECT rowid FROM news_fts WHERE news_fts MATCH :q LIMIT 1").bindparams(
+                        q=safe_query
+                    )
+                    has_fts_hit = self.session.execute(probe_stmt).first() is not None
+                    if has_fts_hit:
+                        # Filter via a SQL-level subquery so SQLite resolves the FTS match
+                        # itself instead of materializing every rowid into an IN clause.
+                        fts_subquery = text("SELECT rowid FROM news_fts WHERE news_fts MATCH :q").bindparams(
+                            q=safe_query
+                        )
+                        stmt = stmt.where(NewsItem.id.in_(fts_subquery))
+                    else:
+                        keyword = f"%{query.strip().lower()}%"
+                        stmt = stmt.where(
+                            or_(
+                                func.lower(NewsItem.title).like(keyword),
+                                func.lower(func.coalesce(NewsItem.summary, "")).like(keyword),
+                            )
+                        )
+                except Exception:
+                    keyword = f"%{query.strip().lower()}%"
+                    stmt = stmt.where(
+                        or_(
+                            func.lower(NewsItem.title).like(keyword),
+                            func.lower(func.coalesce(NewsItem.summary, "")).like(keyword),
+                        )
+                    )
 
         if cursor:
             cursor_published_at, cursor_id = decode_cursor(cursor)
@@ -80,8 +105,11 @@ class NewsRepository:
                     )
                 )
 
+        # In SQLite NULL sorts lowest, so `published_at DESC` already puts NULL
+        # published_at rows last. Avoid an `IS NULL` ordering prefix here: it defeats
+        # ix_news_published_id / ix_news_market_published_id and forces a full scan
+        # with a temp B-tree sort.
         stmt = stmt.order_by(
-            NewsItem.published_at.is_(None).asc(),
             NewsItem.published_at.desc(),
             NewsItem.id.desc(),
         ).limit(limit + 1)

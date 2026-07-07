@@ -61,6 +61,10 @@ class SourceFetchOutcome:
     items: list[SourceItem]
     error: str | None
     latency_ms: float
+    etag: str | None = None
+    last_modified: str | None = None
+    is_not_modified: bool = False
+
 
 
 @dataclass(frozen=True)

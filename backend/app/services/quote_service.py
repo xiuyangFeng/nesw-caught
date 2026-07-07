@@ -244,7 +244,12 @@ class QuoteService:
             status_message=quote.message,
             fetched_at=quote.fetched_at,
         )
-        return market_repo.save_snapshot(snapshot)
+        saved = market_repo.save_snapshot(snapshot)
+        # 立即提交快照：本方法在 worker 与请求两种上下文中被调用，且调用方
+        # 随后可能继续执行慢速网络抓取（Yahoo/Tencent 批量回退），必须避免
+        # 把 SQLite 写事务悬挂在网络 IO 期间（repository 层只 flush 不提交）。
+        session.commit()
+        return saved
 
     def _snapshot_to_payload(self, snapshot: PriceSnapshot, display_name: str | None, hot_symbols: set[str] | None = None) -> dict:
         is_abnormal = abs(snapshot.change_percent or 0.0) >= 3

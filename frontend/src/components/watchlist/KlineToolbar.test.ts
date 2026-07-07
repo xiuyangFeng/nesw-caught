@@ -16,7 +16,7 @@ describe('KlineToolbar', () => {
       },
     });
 
-    expect(wrapper.get('[data-role="kline-toolbar-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="kline-toolbar-shell"]').exists()).toBe(true);
     expect(wrapper.get('[data-role="kline-toolbar-period-group"]').text()).toContain('日K');
     expect(wrapper.get('[data-role="kline-toolbar-action-group"]').text()).toContain('清空画线');
     expect(wrapper.get('[data-role="kline-toolbar-action-group"]').text()).toContain('撤销');

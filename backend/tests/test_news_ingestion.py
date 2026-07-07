@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
@@ -556,8 +556,16 @@ def test_initialize_database_prefers_news_item_market_when_backfilling_source_he
         )
         session.commit()
 
+    # The legacy database has tables but no alembic_version, so
+    # initialize_database baselines it and runs `alembic upgrade head`,
+    # which executes the source_health market backfill migration.
+    # Alembic (env.py) resolves the database from settings, so point it
+    # at the temporary legacy database; disable demo seeding as this
+    # test only cares about the schema repair.
+    test_settings = Settings(database_url=f"sqlite:///{db_path}", seed_demo_data=False)
+    monkeypatch.setattr("app.core.config.get_settings", lambda: test_settings)
+    monkeypatch.setattr("app.db.initializer.get_settings", lambda: test_settings)
     monkeypatch.setattr("app.db.initializer.engine", engine)
-    monkeypatch.setattr("app.db.initializer.SessionLocal", testing_session)
     monkeypatch.setattr(
         "app.services.news_ingestion.load_sources",
         lambda: [
@@ -1062,10 +1070,12 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
     monkeypatch.setattr(main_module, "NewsRepository", FakeNewsRepository)
     monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
+    monkeypatch.setattr("app.workers.queue_worker.get_notification_service", lambda: notification_service)
 
     class FakePipelineService:
-        def __init__(self, session) -> None:
+        def __init__(self, session, session_factory=None) -> None:
             self.session = session
+            self.session_factory = session_factory
         def process_news_ids(self, news_ids: list[int]):
             return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
 
@@ -1319,8 +1329,9 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
                 handler(payload)
 
     class FakePipelineService:
-        def __init__(self, session) -> None:
+        def __init__(self, session, session_factory=None) -> None:
             self.session = session
+            self.session_factory = session_factory
 
         def process_news_ids(self, news_ids: list[int]):
             return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()

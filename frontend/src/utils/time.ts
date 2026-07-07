@@ -17,6 +17,16 @@ const MARKET_LABEL: Record<Market, string> = {
   us: 'ET',
 };
 
+// 后端 schema 中 market 是普通 string,这里做运行时窄化;
+// 未知市场按 us(美东时区)兜底,避免因脏数据抛错。
+export function isMarket(value: string | null | undefined): value is Market {
+  return value === 'cn' || value === 'hk' || value === 'us';
+}
+
+export function normalizeMarket(value: string | null | undefined): Market {
+  return isMarket(value) ? value : 'us';
+}
+
 function parseUtcDate(utcIso: string): Date {
   const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(utcIso) ? utcIso : `${utcIso}Z`;
   return new Date(normalized);
@@ -39,7 +49,7 @@ export function compareNewsTimestamps(left: NewsTimestampCarrier, right: NewsTim
   return toEpochMs(getNewsDisplayTimestamp(right)) - toEpochMs(getNewsDisplayTimestamp(left));
 }
 
-export function formatMarketTime(utcIso: string | null | undefined, market: Market): string {
+export function formatMarketTime(utcIso: string | null | undefined, market: string): string {
   if (!utcIso) {
     return '--';
   }
@@ -51,12 +61,12 @@ export function formatMarketTime(utcIso: string | null | undefined, market: Mark
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-    timeZone: MARKET_TIMEZONE[market],
+    timeZone: MARKET_TIMEZONE[normalizeMarket(market)],
   }).format(date);
 }
 
-export function getMarketTimezoneLabel(market: Market): string {
-  return MARKET_LABEL[market];
+export function getMarketTimezoneLabel(market: string): string {
+  return MARKET_LABEL[normalizeMarket(market)];
 }
 
 export function minutesSince(utcIso: string | null | undefined): number | null {

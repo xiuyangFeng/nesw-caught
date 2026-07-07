@@ -84,6 +84,8 @@ def test_llm_provider_failover() -> None:
             is_active=True,
             is_default=False,
         )
+        # repository 只 flush：failover 会用独立会话读取备份配置，需先提交。
+        session.commit()
 
         provider = OpenAICompatibleProvider(c1)
         
@@ -102,17 +104,19 @@ def test_llm_provider_failover() -> None:
             }
             
             mock_post.side_effect = [mock_response_fail, mock_response_ok]
-            
-            content = provider._request_completion(
+
+            result = provider.complete(
                 messages=[{"role": "user", "content": "ping"}],
                 operation_type="chat"
             )
-            
-            assert content == "Succeeded on backup"
+
+            assert result.content == "Succeeded on backup"
             assert mock_post.call_count == 2
-            assert hasattr(provider, "failover_triggered")
+            assert provider.failover_triggered is not None
             assert provider.failover_triggered["from_model"] == "primary-model"
             assert provider.failover_triggered["to_model"] == "backup-model"
+            # Structured result carries the same failover info for callers
+            assert result.failover == provider.failover_triggered
     finally:
         session.close()
 
@@ -135,6 +139,8 @@ def test_llm_ping_api() -> None:
             is_active=True,
             is_default=True,
         )
+        # repository 只 flush：ping API 使用独立请求会话，需先提交。
+        session.commit()
 
         with patch("app.services.llm_providers.OpenAICompatibleProvider.generate_text") as mock_gen:
             mock_gen.return_value = "pong"
@@ -203,8 +209,8 @@ def test_llm_chat_failover_sse() -> None:
         mock_provider = MockBuildProvider.return_value
 
         async def mock_stream(*args, **kwargs):
-            yield "[FAILOVER_SIGNAL]:{\"from_model\": \"gpt-4o\", \"to_model\": \"deepseek-chat\", \"reason\": \"HTTP 502\"}"
-            yield "Hello"
+            yield ("failover", {"from_model": "gpt-4o", "to_model": "deepseek-chat", "reason": "HTTP 502"})
+            yield ("token", "Hello")
 
         mock_provider.chat_stream.side_effect = mock_stream
 

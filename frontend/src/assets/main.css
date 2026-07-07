@@ -175,3 +175,14 @@
     min-width: 0;
   }
 }
+
+/* 交叉淡入淡出转场动画 */
+.fade-cross-enter-active,
+.fade-cross-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-cross-enter-from,
+.fade-cross-leave-to {
+  opacity: 0;
+}

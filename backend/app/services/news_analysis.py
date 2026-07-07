@@ -52,6 +52,8 @@ class NewsAnalysisService:
                 model_name=config.model_name,
                 error=str(exc),
             )
+            # 失败记录必须在异常上抛（触发请求级 rollback）之前提交落库。
+            self.session.commit()
             raise NewsAnalysisError(str(exc)) from exc
 
         if not isinstance(payload, dict):
@@ -61,6 +63,8 @@ class NewsAnalysisService:
                 model_name=config.model_name,
                 error="llm provider returned invalid analysis payload",
             )
+            # 失败记录必须在异常上抛（触发请求级 rollback）之前提交落库。
+            self.session.commit()
             raise NewsAnalysisError("llm provider returned invalid analysis payload")
 
         normalized_payload = dict(payload)

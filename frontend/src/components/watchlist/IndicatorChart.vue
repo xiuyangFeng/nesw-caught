@@ -13,10 +13,17 @@ const emit = defineEmits<{
   switchIndicator: [indicator: 'MACD' | 'KDJ' | 'BOLL'];
 }>();
 
+// 后端 IndicatorSeriesView 中各序列字段为可选(缺省即空序列),统一兜底为空数组。
+const series = computed(() => ({
+  macd: props.indicators?.macd ?? [],
+  kdj: props.indicators?.kdj ?? [],
+  bollinger: props.indicators?.bollinger ?? [],
+}));
+
 const indicatorState = computed(() => ({
-  MACD: (props.indicators?.macd.length ?? 0) > 0,
-  KDJ: (props.indicators?.kdj.length ?? 0) > 0,
-  BOLL: (props.indicators?.bollinger.length ?? 0) > 0,
+  MACD: series.value.macd.length > 0,
+  KDJ: series.value.kdj.length > 0,
+  BOLL: series.value.bollinger.length > 0,
 }));
 
 const chartRef = ref<HTMLElement | null>(null);
@@ -68,24 +75,25 @@ function renderIndicator() {
     return;
   }
   clearSeries();
+  const { macd, kdj, bollinger } = series.value;
   if (props.activeIndicator === 'MACD') {
-    primarySeries.setData(props.indicators.macd.map((item) => ({ time: item.time, value: item.dif })));
-    secondarySeries.setData(props.indicators.macd.map((item) => ({ time: item.time, value: item.dea })));
+    primarySeries.setData(macd.map((item) => ({ time: item.time, value: item.dif })));
+    secondarySeries.setData(macd.map((item) => ({ time: item.time, value: item.dea })));
     histogramSeries.setData(
-      props.indicators.macd.map((item) => ({
+      macd.map((item) => ({
         time: item.time,
         value: item.histogram,
         color: item.histogram >= 0 ? 'rgba(249,115,22,0.38)' : 'rgba(34,197,94,0.32)',
       })),
     );
   } else if (props.activeIndicator === 'KDJ') {
-    primarySeries.setData(props.indicators.kdj.map((item) => ({ time: item.time, value: item.k })));
-    secondarySeries.setData(props.indicators.kdj.map((item) => ({ time: item.time, value: item.d })));
-    tertiarySeries.setData(props.indicators.kdj.map((item) => ({ time: item.time, value: item.j })));
+    primarySeries.setData(kdj.map((item) => ({ time: item.time, value: item.k })));
+    secondarySeries.setData(kdj.map((item) => ({ time: item.time, value: item.d })));
+    tertiarySeries.setData(kdj.map((item) => ({ time: item.time, value: item.j })));
   } else {
-    primarySeries.setData(props.indicators.bollinger.map((item) => ({ time: item.time, value: item.upper })));
-    secondarySeries.setData(props.indicators.bollinger.map((item) => ({ time: item.time, value: item.middle })));
-    tertiarySeries.setData(props.indicators.bollinger.map((item) => ({ time: item.time, value: item.lower })));
+    primarySeries.setData(bollinger.map((item) => ({ time: item.time, value: item.upper })));
+    secondarySeries.setData(bollinger.map((item) => ({ time: item.time, value: item.middle })));
+    tertiarySeries.setData(bollinger.map((item) => ({ time: item.time, value: item.lower })));
   }
   chart.timeScale().fitContent();
 }

@@ -76,7 +76,7 @@ class NotificationJobRepository:
             dedupe_key=normalized_dedupe_key,
         )
         self.session.add(job)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(job)
         return _normalize_job(job)
 
@@ -151,7 +151,7 @@ class NotificationJobRepository:
                     lease_token=lease_token,
                 )
             )
-            self.session.commit()
+            self.session.flush()
             if result.rowcount:
                 claimed = self.get_by_id(candidate.id)
                 if claimed is not None:
@@ -193,7 +193,7 @@ class NotificationJobRepository:
             job.lease_token = None
             self.session.add(job)
 
-        self.session.commit()
+        self.session.flush()
         for job in jobs:
             self.session.refresh(job)
         return [_normalize_job(job) for job in jobs]
@@ -267,7 +267,7 @@ class NotificationJobRepository:
         if event_type:
             conditions.append(NotificationJob.event_type == event_type)
         result = self.session.execute(delete(NotificationJob).where(and_(*conditions)))
-        self.session.commit()
+        self.session.flush()
         return int(result.rowcount or 0)
 
     def _require(self, job_id: int) -> NotificationJob:
@@ -290,7 +290,7 @@ class NotificationJobRepository:
                 NotificationJob.lease_token == lease_token,
             ])
         result = self.session.execute(update(NotificationJob).where(and_(*conditions)).values(**values))
-        self.session.commit()
+        self.session.flush()
         if not result.rowcount:
             return self._require(job_id)
         return self._require(job_id)

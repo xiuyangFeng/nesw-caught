@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import DateTime, Float, String, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -9,6 +9,10 @@ from app.models.mixins import TimestampMixin
 
 class NewsItem(TimestampMixin, Base):
     __tablename__ = "news_item"
+    __table_args__ = (
+        Index("ix_news_published_id", "published_at", "id"),
+        Index("ix_news_market_published_id", "market", "published_at", "id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     source_name: Mapped[str] = mapped_column(String(120), index=True)

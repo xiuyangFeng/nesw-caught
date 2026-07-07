@@ -26,8 +26,18 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, clas
 
 
 def get_db_session() -> Generator[Session, None, None]:
+    """FastAPI 请求级会话依赖：统一事务边界。
+
+    - 请求成功结束时 commit（repository 层只 flush，提交权收口在这里）；
+    - 请求抛出异常（含 HTTPException）时 rollback，保证组合写操作原子回滚；
+    - 非请求上下文（worker/scheduler/后台线程）不经过本依赖，需自行 commit。
+    """
     session = SessionLocal()
     try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()

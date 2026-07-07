@@ -41,11 +41,38 @@ class NewsIngestionService:
         active_sources = [
             source for source in (sources if sources is not None else news_ingestion.load_sources()) if not source.disabled
         ]
+        
+        # 预先查出每个活跃源的本地 ETag / Last-Modified 缓存标志
+        source_caches = {}
+        if active_sources:
+            for s in active_sources:
+                health = self.source_health_repository.get_or_create(
+                    source_name=s.name,
+                    source_type=s.source_type,
+                    market=s.market,
+                )
+                source_caches[s.name] = {
+                    "etag": health.last_etag,
+                    "last_modified": health.last_modified
+                }
+            self.session.commit() # 释放数据库锁以防止多线程等待时锁表
+
         outcomes = []
         if active_sources:
             max_workers = min(MAX_FETCH_WORKERS, len(active_sources))
             with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="news-fetch") as pool:
-                outcomes = list(pool.map(fetch_source_items, active_sources))
+                futures = []
+                for s in active_sources:
+                    cache = source_caches.get(s.name, {"etag": None, "last_modified": None})
+                    futures.append(
+                        pool.submit(
+                            fetch_source_items,
+                            s,
+                            etag=cache.get("etag"),
+                            last_modified=cache.get("last_modified")
+                        )
+                    )
+                outcomes = [f.result() for f in futures]
 
         for outcome in outcomes:
             result = self.persister.persist_outcome(outcome)
@@ -82,7 +109,13 @@ class NewsIngestionService:
 
     def _refresh_source(self, source: SourceDefinition) -> SourceFetchResult:
         """单源同步刷新:抓取 + 落库。保留作测试与一次性脚本入口。"""
-        return self.persister.persist_outcome(fetch_source_items(source))
+        health = self.source_health_repository.get_or_create(
+            source_name=source.name,
+            source_type=source.source_type,
+            market=source.market,
+        )
+        outcome = fetch_source_items(source, etag=health.last_etag, last_modified=health.last_modified)
+        return self.persister.persist_outcome(outcome)
 
     def _persist_item(self, source: SourceDefinition, item: SourceItem) -> NewsItem | None:
         return self.persister.persist_item(source, item)

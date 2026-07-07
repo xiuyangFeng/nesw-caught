@@ -19,7 +19,8 @@ export const useNewsStore = defineStore('newsStore', () => {
   const dashboardItems = ref<NewsItem[]>([]);
   const dashboardLoading = ref(false);
   const dashboardLastLoadedAt = ref<string | null>(null);
-  const dashboardQuery = ref<NewsQuery>({ limit: 200 });
+  const dashboardQuery = ref<NewsQuery>({ limit: 50 });
+  const dashboardRequestId = ref(0);
 
   const feedItems = ref<NewsItem[]>([]);
   const feedLoading = ref(false);
@@ -30,18 +31,20 @@ export const useNewsStore = defineStore('newsStore', () => {
   const feedNewsRequestId = ref(0);
   const feedLayoutRequestId = ref(0);
   const feedLastLoadedAt = ref<string | null>(null);
-  const feedQuery = ref<NewsQuery>({ limit: 300 });
+  const feedQuery = ref<NewsQuery>({ limit: 50 });
   const feedLayout = ref<NewsFeedLayout>({
     events: [],
     topics: [],
     stream: [],
   });
   const feedLayoutDegraded = ref(false);
+  const feedLayoutStreamLimit = ref<number | null>(null);
 
   const sentimentItems = ref<NewsItem[]>([]);
   const sentimentLoading = ref(false);
   const sentimentLastLoadedAt = ref<string | null>(null);
-  const sentimentQuery = ref<NewsQuery>({ limit: 300 });
+  const sentimentQuery = ref<NewsQuery>({ limit: 50 });
+  const sentimentRequestId = ref(0);
 
   const dashboardStale = computed(() => isStale(dashboardLastLoadedAt.value, 5));
   const feedStale = computed(() => isStale(feedLastLoadedAt.value, 5));
@@ -74,15 +77,24 @@ export const useNewsStore = defineStore('newsStore', () => {
       loading: typeof dashboardLoading;
       lastLoadedAt: typeof dashboardLastLoadedAt;
       queryRef: typeof dashboardQuery;
+      requestId: typeof dashboardRequestId;
     },
   ) {
+    const requestId = ++options.requestId.value;
     options.loading.value = true;
     options.queryRef.value = { ...query };
-    const response = await apiClient.getNews(options.queryRef.value);
-    options.items.value = response.data.items;
-    usingMock.value = usingMock.value || response.degraded;
-    options.lastLoadedAt.value = new Date().toISOString();
-    options.loading.value = false;
+    try {
+      const response = await apiClient.getNews(options.queryRef.value);
+      if (requestId === options.requestId.value) {
+        options.items.value = response.data.items;
+        usingMock.value = usingMock.value || response.degraded;
+        options.lastLoadedAt.value = new Date().toISOString();
+      }
+    } finally {
+      if (requestId === options.requestId.value) {
+        options.loading.value = false;
+      }
+    }
   }
 
   async function loadDashboardNews(query: NewsQuery = dashboardQuery.value) {
@@ -91,6 +103,7 @@ export const useNewsStore = defineStore('newsStore', () => {
       loading: dashboardLoading,
       lastLoadedAt: dashboardLastLoadedAt,
       queryRef: dashboardQuery,
+      requestId: dashboardRequestId,
     });
   }
 
@@ -103,7 +116,7 @@ export const useNewsStore = defineStore('newsStore', () => {
       const response = await apiClient.getNews(feedQuery.value);
       if (requestId === feedNewsRequestId.value) {
         feedItems.value = response.data.items;
-        feedNextCursor.value = response.data.next_cursor;
+        feedNextCursor.value = response.data.next_cursor ?? null;
         usingMock.value = usingMock.value || response.degraded;
         feedLastLoadedAt.value = new Date().toISOString();
       }
@@ -130,7 +143,7 @@ export const useNewsStore = defineStore('newsStore', () => {
       const existingIds = new Set(feedItems.value.map((item) => item.id));
       const appended = response.data.items.filter((item) => !existingIds.has(item.id));
       feedItems.value = [...feedItems.value, ...appended];
-      feedNextCursor.value = response.data.next_cursor;
+      feedNextCursor.value = response.data.next_cursor ?? null;
       usingMock.value = usingMock.value || response.degraded;
       feedLastLoadedAt.value = new Date().toISOString();
       return appended.length > 0;
@@ -143,6 +156,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     feedPendingRequests.value += 1;
     feedLoading.value = true;
     const requestId = ++feedLayoutRequestId.value;
+    feedLayoutStreamLimit.value = query.limit_stream ?? feedLayoutStreamLimit.value;
     try {
       const response = await apiClient.getNewsFeedLayout(query);
       if (requestId === feedLayoutRequestId.value) {
@@ -163,13 +177,14 @@ export const useNewsStore = defineStore('newsStore', () => {
       loading: sentimentLoading,
       lastLoadedAt: sentimentLastLoadedAt,
       queryRef: sentimentQuery,
+      requestId: sentimentRequestId,
     });
   }
 
   async function loadNewsRuntime() {
     const response = await apiClient.getNewsRuntime();
     newsRuntimeStatus.value = response.data;
-    lastIncrementalAt.value = response.data.last_incremental_event_at;
+    lastIncrementalAt.value = response.data.last_incremental_event_at ?? null;
     sourceHealth.value = response.data.sources;
     usingMock.value = usingMock.value || response.degraded;
   }
@@ -183,11 +198,17 @@ export const useNewsStore = defineStore('newsStore', () => {
     if (existingIndex >= 0) {
       itemsRef.value.splice(existingIndex, 1, item);
     } else {
-      itemsRef.value.unshift(item);
-      const limit = query.limit ?? itemsRef.value.length;
-      if (itemsRef.value.length > limit) {
-        itemsRef.value.length = limit;
-      }
+      insertScopedItem(itemsRef, query, item);
+    }
+  }
+
+  function insertScopedItem(itemsRef: typeof dashboardItems, query: NewsQuery, item: NewsItem) {
+    // Pagination (loadMoreFeedNews) can grow the list far beyond query.limit,
+    // so the cap must never shrink the list back to the base page size.
+    const maxLength = Math.max(query.limit ?? 0, itemsRef.value.length);
+    itemsRef.value.unshift(item);
+    if (maxLength > 0 && itemsRef.value.length > maxLength) {
+      itemsRef.value.length = maxLength;
     }
   }
 
@@ -203,11 +224,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     if (existingIndex >= 0) {
       itemsRef.value.splice(existingIndex, 1, item);
     } else {
-      itemsRef.value.unshift(item);
-      const limit = query.limit ?? itemsRef.value.length;
-      if (itemsRef.value.length > limit) {
-        itemsRef.value.length = limit;
-      }
+      insertScopedItem(itemsRef, query, item);
     }
   }
 
@@ -217,11 +234,13 @@ export const useNewsStore = defineStore('newsStore', () => {
     if (existingIndex >= 0) {
       nextStream.splice(existingIndex, 1, item);
     } else {
+      // Cap by the layout stream limit (not the raw feed query limit), and
+      // never shrink below what has already been loaded.
+      const maxLength = Math.max(feedLayoutStreamLimit.value ?? 0, nextStream.length);
       nextStream.unshift(item);
-    }
-    const limit = feedQuery.value.limit ?? nextStream.length;
-    if (nextStream.length > limit) {
-      nextStream.length = limit;
+      if (maxLength > 0 && nextStream.length > maxLength) {
+        nextStream.length = maxLength;
+      }
     }
     feedLayout.value = {
       ...feedLayout.value,
@@ -231,10 +250,13 @@ export const useNewsStore = defineStore('newsStore', () => {
 
   async function loadDetail(id: number) {
     detailLoading.value = true;
-    const response = await apiClient.getNewsDetail(id);
-    detailMap.value[id] = response.data;
-    usingMock.value = usingMock.value || response.degraded;
-    detailLoading.value = false;
+    try {
+      const response = await apiClient.getNewsDetail(id);
+      detailMap.value[id] = response.data;
+      usingMock.value = usingMock.value || response.degraded;
+    } finally {
+      detailLoading.value = false;
+    }
   }
 
   async function loadAnalysis(id: number) {
@@ -273,14 +295,19 @@ export const useNewsStore = defineStore('newsStore', () => {
   }
 
   async function refreshDashboardNews() {
-    const response = await apiClient.refreshNews();
-    usingMock.value = usingMock.value || response.degraded;
-    if (response.degraded) {
+    try {
+      const response = await apiClient.refreshNews();
+      usingMock.value = usingMock.value || response.degraded;
+      if (response.degraded) {
+        return false;
+      }
+
+      await loadDashboardNews(dashboardQuery.value);
+      return true;
+    } catch {
+      // Refresh is a background convenience; callers only need success/failure.
       return false;
     }
-
-    await loadDashboardNews(dashboardQuery.value);
-    return true;
   }
 
   function upsertNews(item: NewsItem) {
@@ -319,6 +346,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     feedItems,
     feedLayout,
     feedLayoutDegraded,
+    feedLayoutStreamLimit,
     feedLoading,
     feedLoadingMore,
     feedHasMore,

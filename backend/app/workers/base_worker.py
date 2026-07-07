@@ -93,6 +93,8 @@ class BaseWorker:
                     worker_name=self.worker_name,
                     quotes_count=count,
                 )
+                # 非请求上下文：repository 只 flush，提交边界在这里。
+                session.commit()
         except Exception:
             self.logger.exception("Failed to record worker '%s' success status", self.worker_name)
 
@@ -103,5 +105,7 @@ class BaseWorker:
                     worker_name=self.worker_name,
                     error=error,
                 )
+                # 非请求上下文：repository 只 flush，提交边界在这里。
+                session.commit()
         except Exception:
             self.logger.exception("Failed to record worker '%s' failure status", self.worker_name)

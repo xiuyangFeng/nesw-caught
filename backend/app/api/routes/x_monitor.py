@@ -12,9 +12,29 @@ from app.schemas.x_monitor import (
     XRadarResponse,
     XRefreshResponse,
 )
-from app.services.x_monitor import XMonitorService
+from app.services.x_monitor import (
+    XAccountAlreadyExistsError,
+    XAccountNotFoundError,
+    XMonitorDisabledError,
+    XMonitorService,
+)
 
 router = APIRouter()
+
+# Single place mapping domain errors to HTTP status codes. Unmatched
+# ValueError (e.g. malformed accounts file) falls back to 400.
+_ERROR_STATUS_CODES: tuple[tuple[type[ValueError], int], ...] = (
+    (XMonitorDisabledError, 503),
+    (XAccountNotFoundError, 404),
+    (XAccountAlreadyExistsError, 409),
+)
+
+
+def _http_error(exc: ValueError) -> HTTPException:
+    for error_type, status_code in _ERROR_STATUS_CODES:
+        if isinstance(exc, error_type):
+            return HTTPException(status_code=status_code, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
 
 
 def _service(session: Session) -> XMonitorService:
@@ -25,14 +45,14 @@ def _enabled(service: XMonitorService) -> None:
     try:
         service.ensure_enabled()
     except ValueError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        raise _http_error(exc) from exc
 
 
 @router.get("/accounts", response_model=list[XAccountView])
 def list_accounts(session: Session = Depends(get_db_session)) -> list[XAccountView]:
     service = _service(session)
     _enabled(service)
-    return [XAccountView.model_validate(item, from_attributes=True) for item in service.accounts.list_all()]
+    return [XAccountView.model_validate(item, from_attributes=True) for item in service.list_accounts()]
 
 
 @router.post("/accounts", response_model=XAccountView)
@@ -45,7 +65,7 @@ def create_account(
     try:
         account = service.create_account(payload)
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _http_error(exc) from exc
     return XAccountView.model_validate(account, from_attributes=True)
 
 
@@ -60,7 +80,7 @@ def update_account(
     try:
         account = service.update_account(handle, payload)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise _http_error(exc) from exc
     return XAccountView.model_validate(account, from_attributes=True)
 
 
@@ -71,7 +91,7 @@ def delete_account(handle: str, session: Session = Depends(get_db_session)) -> R
     try:
         service.delete_account(handle)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise _http_error(exc) from exc
     return Response(status_code=204)
 
 
@@ -82,7 +102,7 @@ def import_accounts(session: Session = Depends(get_db_session)) -> XAccountsImpo
     try:
         result = service.import_accounts_from_file()
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise _http_error(exc) from exc
     return XAccountsImportResult.model_validate(result, from_attributes=True)
 
 
@@ -93,7 +113,7 @@ def export_accounts(session: Session = Depends(get_db_session)) -> XAccountsExpo
     try:
         result = service.export_accounts_to_file()
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise _http_error(exc) from exc
     return XAccountsExportResult.model_validate(result, from_attributes=True)
 
 
@@ -108,29 +128,13 @@ def list_posts(
 ) -> list[XPostSummaryView]:
     service = _service(session)
     _enabled(service)
-    rows = service.posts.list_posts(
+    return service.list_posts(
         account_handle=account_handle,
         symbol=symbol,
         market=market,
         query=q,
         limit=limit,
     )
-    return [
-        XPostSummaryView(
-            id=post.id,
-            account_handle=account.handle,
-            account_display_name=account.display_name,
-            content_text=post.content_text,
-            canonical_url=post.canonical_url,
-            market=post.market,
-            sentiment_label=post.sentiment_label,
-            relevance_score=post.relevance_score,
-            posted_at=post.posted_at,
-            captured_at=post.captured_at,
-            symbols=symbols,
-        )
-        for post, account, symbols in rows
-    ]
 
 
 @router.get("/search", response_model=list[XPostSummaryView])

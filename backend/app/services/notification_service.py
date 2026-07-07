@@ -76,6 +76,7 @@ class NotificationService:
         with SessionLocal() as session:
             repo = NotificationJobRepository(session)
             repo.enqueue_source_event(payload=payload, dedupe_key=dedupe_key)
+            session.commit()
 
     def on_watchlist_alert(self, payload: dict[str, Any]) -> None:
         symbol = payload.get("symbol")
@@ -103,6 +104,7 @@ class NotificationService:
                     event_type="watchlist_alert",
                     payload=payload,
                 )
+                session.commit()
             self._watchlist_state[symbol] = True
 
     def on_analysis_completed(self, payload: dict[str, Any]) -> None:
@@ -121,6 +123,7 @@ class NotificationService:
                 event_type="analysis_result",
                 payload=payload,
             )
+            session.commit()
 
     def _delivery_tick(self, *, now: datetime | None = None) -> int:
         config = self._load_config()
@@ -142,6 +145,8 @@ class NotificationService:
                     lease_seconds=self._lease_seconds,
                     now=current_time,
                 )
+                # 租约必须在慢速外部发送开始前落库。
+                session.commit()
             if job is None:
                 break
             self._deliver_job(config=config, job=job, now=current_time)
@@ -170,12 +175,15 @@ class NotificationService:
             )
             for job in due_source_events:
                 repo.mark_sent(job.id, sent_at=now, lease_token=job.lease_token)
+            # 批次落库与源事件标记在同一事务内提交。
+            session.commit()
 
     def _discard_pending_news_jobs(self) -> None:
         with SessionLocal() as session:
             repo = NotificationJobRepository(session)
             repo.discard_pending(channel="news", event_type="news_source_event")
             repo.discard_pending(channel="feishu", event_type="news_batch")
+            session.commit()
 
     def _load_config(self) -> FeishuNotifyConfig | None:
         try:
@@ -195,9 +203,10 @@ class NotificationService:
                     error=f"unsupported event_type: {job.event_type}",
                     lease_token=getattr(job, "lease_token", None),
                 )
+                session.commit()
             return
 
-        sender = get_shared_feishu_sender(app_id=config.app_id, app_secret=config.app_secret)
+        sender = get_shared_feishu_sender(app_id=config.app_id, app_secret=config.decrypted_app_secret)
         try:
             sender.send_card(
                 target_type=config.target_type,
@@ -210,6 +219,7 @@ class NotificationService:
                     sent_at=now,
                     lease_token=getattr(job, "lease_token", None),
                 )
+                session.commit()
         except FeishuClientError as exc:
             logger.exception("feishu notification send failed")
             self._mark_failure(job=job, error=str(exc), retryable=exc.retryable, now=now)
@@ -227,10 +237,12 @@ class NotificationService:
                     next_retry_at=now + timedelta(seconds=self._retry_delay_seconds(job.attempt_count)),
                     lease_token=getattr(job, "lease_token", None),
                 )
+                session.commit()
                 if job.event_type == "watchlist_alert":
                     return
                 return
             repo.mark_failed(job.id, error=error, lease_token=getattr(job, "lease_token", None))
+            session.commit()
         if job.event_type == "watchlist_alert":
             self._release_watchlist_state(job)
 

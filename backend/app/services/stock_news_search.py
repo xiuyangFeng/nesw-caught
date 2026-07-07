@@ -103,7 +103,9 @@ class StockNewsSearchService:
                 created_count += 1
 
         if created_count > 0:
-            self.session.commit()
+            # 只 flush 不提交：与调用方（如 watchlist 创建）处于同一请求事务，
+            # 由请求边界统一 commit/rollback，保证组合操作原子性。
+            self.session.flush()
         return len(matched_news)
 
     def trigger_async_external_search(

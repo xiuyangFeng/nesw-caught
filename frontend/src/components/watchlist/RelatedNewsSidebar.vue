@@ -12,7 +12,8 @@ defineEmits<{
   focusNews: [item: NewsItem];
 }>();
 
-function itemTone(sentiment: string) {
+// 后端 sentiment_label 为可空 string
+function itemTone(sentiment: string | null | undefined) {
   if (sentiment === 'positive') return 'text-positive';
   if (sentiment === 'negative') return 'text-negative';
   return 'text-text-soft';

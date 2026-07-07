@@ -56,8 +56,8 @@ const emit = defineEmits<{
           <td>{{ formatNumber(row.day_low) }}</td>
           <td>{{ formatNumber(row.volume, 0) }}</td>
           <td>
-            <span v-if="row.is_abnormal" class="pill negative">{{ row.abnormal_reason ?? 'abnormal' }}</span>
-            <span v-else>{{ row.status }}</span>
+            <!-- 后端 /api/market/watchlist(QuoteSummaryView)不含 is_abnormal 字段，异常态以 status 表达 -->
+            <span :class="{ 'pill negative': row.status !== 'ok' }">{{ row.status }}</span>
           </td>
           <td>
             {{

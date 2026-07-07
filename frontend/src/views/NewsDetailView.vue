@@ -53,7 +53,12 @@ function openSibling(newsIdToOpen: number) {
 }
 
 async function runAnalysis() {
-  await newsStore.analyzeNews(newsId.value);
+  try {
+    await newsStore.analyzeNews(newsId.value);
+  } catch (e) {
+    // 错误信息已写入 newsStore.analysisErrorMap 供模板展示，这里只吞掉 rejection。
+    console.error(e);
+  }
 }
 
 onMounted(async () => {

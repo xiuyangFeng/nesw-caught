@@ -239,17 +239,13 @@ async def chat_with_llm(
     if payload.stream:
         async def event_generator():
             try:
-                async for token in provider.chat_stream(messages=messages):
+                async for event_type, data in provider.chat_stream(messages=messages):
                     if await request.is_disconnected():
                         break
-                    if token.startswith("[FAILOVER_SIGNAL]:"):
-                        try:
-                            failover_data = json.loads(token[len("[FAILOVER_SIGNAL]:"):])
-                            yield f"data: {json.dumps({'failover': failover_data})}\n\n"
-                        except Exception:
-                            pass
+                    if event_type == "failover":
+                        yield f"data: {json.dumps({'failover': data})}\n\n"
                     else:
-                        yield f"data: {json.dumps({'text': token})}\n\n"
+                        yield f"data: {json.dumps({'text': data})}\n\n"
             except asyncio.CancelledError:
                 pass
             except LLMProviderError as exc:
@@ -271,10 +267,10 @@ async def chat_with_llm(
     else:
         try:
             # 拼接历史会话
-            response_text = await provider._request_completion(messages=messages)
-            res_payload = {"text": response_text}
-            if hasattr(provider, "failover_triggered"):
-                res_payload["failover"] = provider.failover_triggered
+            result = await provider.complete(messages=messages)
+            res_payload = {"text": result.content}
+            if result.failover is not None:
+                res_payload["failover"] = result.failover
             return res_payload
         except LLMProviderError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc

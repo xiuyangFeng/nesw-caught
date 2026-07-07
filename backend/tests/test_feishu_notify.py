@@ -391,3 +391,20 @@ def test_notification_service_start_is_idempotent_for_delivery_thread():
     assert first_worker._thread.is_alive()
 
     service.stop()
+
+
+def test_feishu_config_secret_is_encrypted():
+    from app.db.session import SessionLocal
+    from app.models.feishu_notify_config import FeishuNotifyConfig
+    
+    # 插入配置
+    _create_config(app_secret="super_secret_token_123")
+    
+    # 从数据库直接读取原始的记录
+    with SessionLocal() as session:
+        config = session.query(FeishuNotifyConfig).first()
+        assert config is not None
+        # 数据库中存储的 app_secret 应该不等于原文，即被加密过
+        assert config.app_secret != "super_secret_token_123"
+        # 通过属性解密后能够获取明文
+        assert config.decrypted_app_secret == "super_secret_token_123"

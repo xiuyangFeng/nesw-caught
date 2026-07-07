@@ -44,6 +44,8 @@ export const mockHealth: HealthStatus = {
   database: 'configured',
   stream_mode: 'sse',
   ai_enabled: false,
+  x_monitor_enabled: false,
+  x_monitor_healthy: false,
 };
 
 export const mockNews: NewsItem[] = [
@@ -250,6 +252,7 @@ export const mockMarketSnapshots: MarketSnapshot[] = [
     message: null,
     is_abnormal: true,
     abnormal_reason: 'volume_spike',
+    has_hot_alert: false,
     fetched_at: isoMinutesAgo(2),
   },
   {
@@ -270,6 +273,7 @@ export const mockMarketSnapshots: MarketSnapshot[] = [
     message: null,
     is_abnormal: false,
     abnormal_reason: null,
+    has_hot_alert: false,
     fetched_at: isoMinutesAgo(3),
   },
   {
@@ -290,6 +294,7 @@ export const mockMarketSnapshots: MarketSnapshot[] = [
     message: null,
     is_abnormal: false,
     abnormal_reason: null,
+    has_hot_alert: false,
     fetched_at: isoMinutesAgo(4),
   },
   {
@@ -310,6 +315,7 @@ export const mockMarketSnapshots: MarketSnapshot[] = [
     message: null,
     is_abnormal: true,
     abnormal_reason: 'price_breakout',
+    has_hot_alert: false,
     fetched_at: isoMinutesAgo(1),
   },
 ];
@@ -332,8 +338,7 @@ export const mockWatchlistQuotes: WatchlistQuoteSummary[] = [
     status: 'ok',
     source: 'yahoo_finance',
     message: null,
-    is_abnormal: false,
-    abnormal_reason: null,
+    has_hot_alert: false,
     fetched_at: isoMinutesAgo(2),
   },
   {
@@ -352,15 +357,15 @@ export const mockWatchlistQuotes: WatchlistQuoteSummary[] = [
     status: 'ok',
     source: 'yahoo_finance',
     message: null,
-    is_abnormal: false,
-    abnormal_reason: null,
+    has_hot_alert: false,
     fetched_at: isoMinutesAgo(2),
   },
   mockMarketSnapshots[2],
 ];
 
+// QuoteDetailView 比 QuoteSummaryView 多 is_abnormal/abnormal_reason 字段,这里补默认值
 export const mockStockQuoteDetails: Record<string, StockQuoteDetail> = Object.fromEntries(
-  mockWatchlistQuotes.map((item) => [item.symbol, item]),
+  mockWatchlistQuotes.map((item) => [item.symbol, { is_abnormal: false, abnormal_reason: null, ...item }]),
 );
 
 export const mockWatchlist: WatchlistItem[] = [
@@ -654,7 +659,7 @@ export const mockWatchlistResearchBriefs: Record<string, WatchlistResearchBrief>
 const buildMockNewsEvents = (symbol: string): NewsEventMarker[] =>
   (mockRelatedNews[symbol] ?? []).slice(0, 2).map((item) => ({
     time: (item.published_at ?? item.fetched_at).slice(0, 10),
-    items: [{ id: item.id, title: item.title, sentiment: item.sentiment_label }],
+    items: [{ id: item.id, title: item.title, sentiment: item.sentiment_label ?? 'unknown', summary: item.summary ?? '' }],
   }));
 
 export const mockStockKlines: Record<string, StockKlineResponse> = Object.fromEntries(
@@ -698,9 +703,13 @@ export const mockWatchlistSparklines: Record<string, SparklineSeries> = Object.f
 
 export const mockStreamStatus: StreamStatus = {
   mode: 'sse',
-  status: 'planned',
-  last_event_at: isoMinutesAgo(1),
-  retry_interval_ms: 3000,
+  status: 'ok',
+  backend: 'memory',
+  redis_enabled: false,
+  last_published_at: isoMinutesAgo(1),
+  last_event_name: 'news.created',
+  last_error: null,
+  market_worker: null,
 };
 
 export const mockXHealth: XHealth = {

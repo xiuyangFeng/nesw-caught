@@ -26,6 +26,7 @@ import type {
   TopicDetail,
   TopicItem,
   WatchlistCandidate,
+  WatchlistAiInsight,
   WatchlistItem,
   WatchlistItemCreate,
   WatchlistQuoteSummary,
@@ -42,39 +43,10 @@ import type {
   XRefreshResult,
 } from '../types/api';
 import { HttpError, deleteJson, getJson, patchJson, postJson } from './http';
-import {
-  mockFeishuConfig,
-  mockFeishuTestResult,
-  mockHealth,
-  mockLlmConfig,
-  mockLlmConfigs,
-  mockMarketSnapshots,
-  mockNewsAnalyses,
-  mockNews,
-  mockNewsDetails,
-  mockNewsFeedLayout,
-  mockNewsRefreshResult,
-  mockNewsRuntimeStatus,
-  mockRelatedNews,
-  mockStockQuoteDetails,
-  mockStreamStatus,
-  mockTopicDetails,
-  mockTopics,
-  mockWatchlistCandidates,
-  mockWatchlist,
-  mockWatchlistQuotes,
-  mockWatchlistResearchBriefs,
-  mockWatchlistSparklines,
-  buildMockTranslation,
-  mockXAccounts,
-  mockWatchlistAiInsights,
-  mockXHealth,
-  mockXPosts,
-  mockXRadar,
-  mockXRefreshResult,
-} from './mock';
 
-const withQuery = (base: string, query?: Record<string, string | number | undefined>) => {
+type MockModule = typeof import('./mock');
+
+const withQuery = (base: string, query?: Record<string, string | number | boolean | undefined>) => {
   if (!query) {
     return base;
   }
@@ -90,24 +62,36 @@ const withQuery = (base: string, query?: Record<string, string | number | undefi
   return suffix ? `${base}?${suffix}` : base;
 };
 
-async function withMockFallback<T>(request: () => Promise<T>, fallback: () => T): Promise<{ data: T; degraded: boolean }> {
+// Read-only endpoints may fall back to bundled mock data in dev builds so the
+// UI stays usable without a backend. In production builds failures always
+// propagate to the caller. Never use this helper for mutating requests
+// (POST/PATCH/DELETE writes): a mock fallback would fake a successful write.
+// The mock module is imported lazily so production bundles can tree-shake it.
+async function withMockFallback<T>(
+  request: () => Promise<T>,
+  fallback: (mock: MockModule) => T,
+): Promise<{ data: T; degraded: boolean }> {
   try {
     const data = await request();
     return { data, degraded: false };
-  } catch {
-    return { data: fallback(), degraded: true };
+  } catch (error) {
+    if (!import.meta.env.DEV) {
+      throw error;
+    }
+    const mock = await import('./mock');
+    return { data: fallback(mock), degraded: true };
   }
 }
 
 export const apiClient = {
   getHealth() {
-    return withMockFallback<HealthStatus>(() => getJson('/api/health'), () => mockHealth);
+    return withMockFallback<HealthStatus>(() => getJson('/api/health'), (mock) => mock.mockHealth);
   },
   getNews(query: NewsQuery = {}) {
     return withMockFallback<NewsListPage>(
       () => getJson(withQuery('/api/news', query)),
-      () => {
-        const filtered = mockNews.filter((item) => {
+      (mock) => {
+        const filtered = mock.mockNews.filter((item) => {
           const marketOk = !query.market || item.market === query.market;
           const sentimentOk = !query.sentiment_label || item.sentiment_label === query.sentiment_label;
           const sourceOk = !query.source_name || item.source_name === query.source_name;
@@ -116,9 +100,8 @@ export const apiClient = {
           return marketOk && sentimentOk && sourceOk && searchOk;
         });
         const pageSize = query.limit ?? filtered.length;
-        const startIndex = query.cursor
-          ? filtered.findIndex((item) => String(item.id) === query.cursor.split('|').pop())
-          : -1;
+        const cursorId = query.cursor?.split('|').pop();
+        const startIndex = cursorId ? filtered.findIndex((item) => String(item.id) === cursorId) : -1;
         const sliceStart = startIndex >= 0 ? startIndex + 1 : 0;
         const items = filtered.slice(sliceStart, sliceStart + pageSize);
         const nextStart = sliceStart + pageSize;
@@ -132,7 +115,7 @@ export const apiClient = {
   getNewsFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}) {
     return withMockFallback<NewsFeedLayout>(
       () => getJson(withQuery('/api/news/feed-layout', query)),
-      () => mockNewsFeedLayout,
+      (mock) => mock.mockNewsFeedLayout,
     );
   },
   getNewsEventDetail(eventKey: string) {
@@ -153,7 +136,7 @@ export const apiClient = {
   getNewsDetail(id: number) {
     return withMockFallback<NewsDetail | null>(
       () => getJson(`/api/news/${id}`),
-      () => mockNewsDetails[id] ?? null,
+      (mock) => mock.mockNewsDetails[id] ?? null,
     );
   },
   getLlmConfig() {
@@ -168,50 +151,20 @@ export const apiClient = {
   getAllLlmConfigs() {
     return withMockFallback<LLMConfigSummary[]>(
       () => getJson('/api/llm/config/all'),
-      () => mockLlmConfigs,
+      (mock) => mock.mockLlmConfigs,
     );
   },
   deleteLlmConfig(id: number) {
-    return withMockFallback<void>(
-      () => deleteJson(`/api/llm/config/${id}`),
-      () => {
-        const index = mockLlmConfigs.findIndex(c => c.id === id);
-        if (index >= 0) {
-          mockLlmConfigs.splice(index, 1);
-        }
-      }
-    );
+    return deleteJson(`/api/llm/config/${id}`).then((data) => ({ data, degraded: false }));
   },
   setDefaultLlmConfig(id: number) {
-    return withMockFallback<LLMConfigSummary>(
-      () => postJson(`/api/llm/config/${id}/default`, {}),
-      () => {
-        mockLlmConfigs.forEach(c => {
-          c.is_default = c.id === id;
-          if (c.is_default) {
-            c.is_active = true;
-          }
-        });
-        const target = mockLlmConfigs.find(c => c.id === id);
-        return target ? { ...target } : { ...mockLlmConfig };
-      }
-    );
+    return postJson<LLMConfigSummary>(`/api/llm/config/${id}/default`, {}).then((data) => ({ data, degraded: false }));
   },
   toggleLlmConfigActive(id: number, is_active: boolean) {
-    return withMockFallback<LLMConfigSummary>(
-      () => postJson(withQuery(`/api/llm/config/${id}/active`, { is_active }), {}),
-      () => {
-        const target = mockLlmConfigs.find(c => c.id === id);
-        if (target) {
-          target.is_active = is_active;
-          if (!is_active && target.is_default) {
-            target.is_default = false;
-          }
-          return { ...target };
-        }
-        return { ...mockLlmConfig };
-      }
-    );
+    return postJson<LLMConfigSummary>(withQuery(`/api/llm/config/${id}/active`, { is_active }), {}).then((data) => ({
+      data,
+      degraded: false,
+    }));
   },
   getLlmStats() {
     return withMockFallback<any>(
@@ -247,51 +200,42 @@ export const apiClient = {
   translateText(payload: LLMTranslateRequest) {
     return postJson<LLMTranslateResponse>('/api/llm/translate', payload)
       .then((data) => ({ data, degraded: false }))
-      .catch((error) => {
-        if (error instanceof HttpError) {
+      .catch(async (error) => {
+        if (error instanceof HttpError || !import.meta.env.DEV) {
           throw error;
         }
+        const { buildMockTranslation } = await import('./mock');
         return { data: buildMockTranslation(payload.text), degraded: true };
       });
   },
   getNewsAnalysis(id: number) {
     return withMockFallback<NewsAnalysis | null>(
       () => getJson(`/api/news/${id}/analysis`),
-      () => mockNewsAnalyses[id] ?? null,
+      (mock) => mock.mockNewsAnalyses[id] ?? null,
     );
   },
   analyzeNews(id: number) {
-    return withMockFallback<NewsAnalysis>(
-      () => postJson(`/api/news/${id}/analyze`, {}),
-      () => mockNewsAnalyses[id],
-    );
+    return postJson<NewsAnalysis>(`/api/news/${id}/analyze`, {}).then((data) => ({ data, degraded: false }));
   },
   refreshNews() {
-    return withMockFallback<NewsRefreshResult>(() => postJson('/api/news/refresh', {}), () => mockNewsRefreshResult);
+    return postJson<NewsRefreshResult>('/api/news/refresh', {}).then((data) => ({ data, degraded: false }));
   },
   getNewsRuntime() {
-    return withMockFallback<NewsRuntimeStatus>(() => getJson('/api/news/runtime'), () => mockNewsRuntimeStatus);
+    return withMockFallback<NewsRuntimeStatus>(() => getJson('/api/news/runtime'), (mock) => mock.mockNewsRuntimeStatus);
   },
   refreshMarketQuotes() {
-    return withMockFallback<MarketRefreshResult>(
-      () => postJson('/api/market/refresh', {}),
-      () => ({
-        quotes_count: mockWatchlistQuotes.length,
-        symbols: mockWatchlistQuotes.map((item) => item.symbol),
-        triggered_at: new Date().toISOString(),
-      }),
-    );
+    return postJson<MarketRefreshResult>('/api/market/refresh', {}).then((data) => ({ data, degraded: false }));
   },
   getMarketSnapshots() {
-    return withMockFallback<MarketSnapshot[]>(() => getJson('/api/market/snapshots'), () => mockMarketSnapshots);
+    return withMockFallback<MarketSnapshot[]>(() => getJson('/api/market/snapshots'), (mock) => mock.mockMarketSnapshots);
   },
   getWatchlistQuotes() {
-    return withMockFallback<WatchlistQuoteSummary[]>(() => getJson('/api/market/watchlist'), () => mockWatchlistQuotes);
+    return withMockFallback<WatchlistQuoteSummary[]>(() => getJson('/api/market/watchlist'), (mock) => mock.mockWatchlistQuotes);
   },
   getStockQuoteDetail(symbol: string) {
     return withMockFallback<StockQuoteDetail | null>(
       () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}`),
-      () => mockStockQuoteDetails[symbol] ?? null,
+      (mock) => mock.mockStockQuoteDetails[symbol] ?? null,
     );
   },
   getStockKline(symbol: string, interval: string, range: string) {
@@ -302,40 +246,28 @@ export const apiClient = {
   getWatchlistSparklines(symbols: string[]) {
     return withMockFallback<WatchlistSparklineMap>(
       () => postJson('/api/market/sparklines', { symbols }),
-      () =>
+      (mock) =>
         Object.fromEntries(
-          symbols.map((symbol) => [symbol, mockWatchlistSparklines[symbol] ?? { prices: [] }]),
+          symbols.map((symbol) => [symbol, mock.mockWatchlistSparklines[symbol] ?? { prices: [] }]),
         ),
     );
   },
   getWatchlist() {
-    return withMockFallback<WatchlistItem[]>(() => getJson('/api/watchlist'), () => mockWatchlist);
+    return withMockFallback<WatchlistItem[]>(() => getJson('/api/watchlist'), (mock) => mock.mockWatchlist);
   },
   getWatchlistCandidates() {
-    return withMockFallback<WatchlistCandidate[]>(() => getJson('/api/watchlist/candidates'), () => mockWatchlistCandidates);
+    return withMockFallback<WatchlistCandidate[]>(() => getJson('/api/watchlist/candidates'), (mock) => mock.mockWatchlistCandidates);
   },
   createWatchlist(payload: WatchlistItemCreate) {
     return postJson<WatchlistItem>('/api/watchlist', payload);
   },
   deleteWatchlist(symbol: string) {
-    return withMockFallback<void>(
-      () => deleteJson(`/api/watchlist/${encodeURIComponent(symbol)}`),
-      () => {
-        const watchlistIndex = mockWatchlist.findIndex((item) => item.symbol === symbol);
-        if (watchlistIndex >= 0) {
-          mockWatchlist.splice(watchlistIndex, 1);
-        }
-        const quoteIndex = mockWatchlistQuotes.findIndex((item) => item.symbol === symbol);
-        if (quoteIndex >= 0) {
-          mockWatchlistQuotes.splice(quoteIndex, 1);
-        }
-      },
-    );
+    return deleteJson(`/api/watchlist/${encodeURIComponent(symbol)}`).then((data) => ({ data, degraded: false }));
   },
   getRelatedNews(symbol: string) {
     return withMockFallback<NewsItem[]>(
       () => getJson(`/api/watchlist/${encodeURIComponent(symbol)}/related-news`),
-      () => mockRelatedNews[symbol] ?? [],
+      (mock) => mock.mockRelatedNews[symbol] ?? [],
     );
   },
   getWatchlistResearchBrief(symbol: string) {
@@ -345,9 +277,9 @@ export const apiClient = {
     }));
   },
   getWatchlistAiInsight(symbol: string) {
-    return withMockFallback<{ symbol: string; insight_text: string; generated_at: string }>(
+    return withMockFallback<WatchlistAiInsight>(
       () => postJson(`/api/watchlist/${encodeURIComponent(symbol)}/ai-insight`, {}),
-      () => mockWatchlistAiInsights[symbol] || {
+      (mock) => mock.mockWatchlistAiInsights[symbol] || {
         symbol,
         insight_text: `这是关于 ${symbol} 的模拟 AI 洞察报告。该个股近期展现了一定的增长潜力。`,
         generated_at: new Date().toISOString(),
@@ -355,84 +287,46 @@ export const apiClient = {
     );
   },
   getTopics() {
-    return withMockFallback<TopicItem[]>(() => getJson('/api/topics'), () => mockTopics);
+    return withMockFallback<TopicItem[]>(() => getJson('/api/topics'), (mock) => mock.mockTopics);
   },
   getTopicDetail(id: number) {
-    return withMockFallback<TopicDetail | null>(() => getJson(`/api/topics/${id}`), () => mockTopicDetails[id] ?? null);
+    return withMockFallback<TopicDetail | null>(() => getJson(`/api/topics/${id}`), (mock) => mock.mockTopicDetails[id] ?? null);
   },
   getStreamStatus() {
-    return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), () => mockStreamStatus);
+    return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), (mock) => mock.mockStreamStatus);
   },
   getXHealth() {
-    return withMockFallback<XHealth>(() => getJson('/api/health/x'), () => mockXHealth);
+    return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);
   },
   getXAccounts() {
-    return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), () => mockXAccounts);
+    return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), (mock) => mock.mockXAccounts);
   },
   getXRadar(limit = 50) {
-    return withMockFallback<XRadarResponse>(() => getJson(`/api/x/radar?limit=${limit}`), () => mockXRadar);
+    return withMockFallback<XRadarResponse>(() => getJson(`/api/x/radar?limit=${limit}`), (mock) => mock.mockXRadar);
   },
   createXAccount(payload: XAccountCreatePayload) {
-    return withMockFallback<XAccount>(
-      () => postJson('/api/x/accounts', payload),
-      () => {
-        const created: XAccount = {
-          id: Math.max(0, ...mockXAccounts.map((item) => item.id)) + 1,
-          handle: payload.handle.replace(/^@+/, ''),
-          display_name: payload.display_name,
-          market_focus: payload.market_focus,
-          is_active: payload.is_active,
-          priority: payload.priority,
-          tier: payload.tier,
-          source: 'manual',
-          notes: payload.notes,
-        };
-        mockXAccounts.unshift(created);
-        return created;
-      },
-    );
+    return postJson<XAccount>('/api/x/accounts', payload).then((data) => ({ data, degraded: false }));
   },
   updateXAccount(handle: string, payload: XAccountUpdatePayload) {
-    return withMockFallback<XAccount>(
-      () => patchJson(`/api/x/accounts/${encodeURIComponent(handle)}`, payload),
-      () => {
-        const existing = mockXAccounts.find((item) => item.handle === handle);
-        if (!existing) {
-          throw new Error(`x account not found: ${handle}`);
-        }
-        Object.assign(existing, payload);
-        return { ...existing };
-      },
-    );
+    return patchJson<XAccount>(`/api/x/accounts/${encodeURIComponent(handle)}`, payload).then((data) => ({
+      data,
+      degraded: false,
+    }));
   },
   deleteXAccount(handle: string) {
-    return withMockFallback<void>(
-      () => deleteJson(`/api/x/accounts/${encodeURIComponent(handle)}`),
-      () => {
-        const index = mockXAccounts.findIndex((item) => item.handle === handle);
-        if (index >= 0) {
-          mockXAccounts.splice(index, 1);
-        }
-      },
-    );
+    return deleteJson(`/api/x/accounts/${encodeURIComponent(handle)}`).then((data) => ({ data, degraded: false }));
   },
   importXAccounts() {
-    return withMockFallback<XAccountsImportResult>(
-      () => postJson('/api/x/accounts/import', {}),
-      () => ({ created_count: 0, updated_count: mockXAccounts.length, skipped_count: 0 }),
-    );
+    return postJson<XAccountsImportResult>('/api/x/accounts/import', {}).then((data) => ({ data, degraded: false }));
   },
   exportXAccounts() {
-    return withMockFallback<XAccountsExportResult>(
-      () => postJson('/api/x/accounts/export', {}),
-      () => ({ exported_count: mockXAccounts.length }),
-    );
+    return postJson<XAccountsExportResult>('/api/x/accounts/export', {}).then((data) => ({ data, degraded: false }));
   },
   getXPosts(query: XPostQuery = {}) {
     return withMockFallback<XPost[]>(
       () => getJson(withQuery('/api/x/posts', query)),
-      () => {
-        const filtered = mockXPosts.filter((item) => {
+      (mock) => {
+        const filtered = mock.mockXPosts.filter((item) => {
           const accountOk = !query.account_handle || item.account_handle === query.account_handle;
           const marketOk = !query.market || item.market === query.market;
           const searchText = query.q?.toLowerCase();
@@ -447,9 +341,9 @@ export const apiClient = {
   getXSearchResults(query: { q: string; limit?: number }) {
     return withMockFallback<XPost[]>(
       () => getJson(withQuery('/api/x/search', query)),
-      () => {
+      (mock) => {
         const searchText = query.q.toLowerCase();
-        const filtered = mockXPosts.filter((item) => {
+        const filtered = mock.mockXPosts.filter((item) => {
           return (
             item.content_text.toLowerCase().includes(searchText) ||
             item.symbols.some((symbol) => symbol.toLowerCase().includes(searchText))
@@ -460,42 +354,18 @@ export const apiClient = {
     );
   },
   refreshXPosts() {
-    return withMockFallback<XRefreshResult>(() => postJson('/api/x/refresh', {}), () => mockXRefreshResult);
+    return postJson<XRefreshResult>('/api/x/refresh', {}).then((data) => ({ data, degraded: false }));
   },
   getFeishuConfig() {
     return withMockFallback<FeishuNotifyConfig>(
       () => getJson('/api/notify/feishu/config'),
-      () => mockFeishuConfig,
+      (mock) => mock.mockFeishuConfig,
     );
   },
   saveFeishuConfig(payload: FeishuNotifyConfigUpdate) {
-    return withMockFallback<FeishuNotifyConfig>(
-      () => postJson('/api/notify/feishu/config', payload),
-      () => {
-        const updated = {
-          ...mockFeishuConfig,
-          configured: true,
-          app_id: payload.app_id,
-          app_secret_set: payload.app_secret ? true : mockFeishuConfig.app_secret_set,
-          target_type: payload.target_type,
-          target_id: payload.target_id,
-          news_enabled: payload.news_enabled,
-          news_keywords: payload.news_keywords ?? null,
-          news_batch_interval_minutes: payload.news_batch_interval_minutes,
-          alert_enabled: payload.alert_enabled,
-          analysis_enabled: payload.analysis_enabled,
-          is_active: payload.is_active,
-          updated_at: new Date().toISOString(),
-        };
-        Object.assign(mockFeishuConfig, updated);
-        return { ...mockFeishuConfig };
-      },
-    );
+    return postJson<FeishuNotifyConfig>('/api/notify/feishu/config', payload).then((data) => ({ data, degraded: false }));
   },
   testFeishuNotify() {
-    return withMockFallback<FeishuTestResult>(
-      () => postJson('/api/notify/feishu/test', {}),
-      () => mockFeishuTestResult,
-    );
+    return postJson<FeishuTestResult>('/api/notify/feishu/test', {}).then((data) => ({ data, degraded: false }));
   },
 };

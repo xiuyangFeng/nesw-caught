@@ -6,6 +6,7 @@ import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import { useXMonitorStore } from '../stores/xMonitorStore';
+import type { XPost } from '../types/api';
 import { sentimentText } from '../utils/format';
 import { formatMarketTime, getMarketTimezoneLabel } from '../utils/time';
 
@@ -71,7 +72,7 @@ const feedSummaryDetail = computed(() => {
   return detailParts.join(' · ');
 });
 
-function translationState(post: { account_handle: string; posted_at: string | null; captured_at: string; content_text: string; canonical_url: string | null }) {
+function translationState(post: XPost) {
   const key = xMonitorStore.getTranslationKey(post);
   return (
     xMonitorStore.translationsByKey[key] ?? {
@@ -89,7 +90,7 @@ function tierTone(tier: string) {
 }
 
 async function submitCreateAccount() {
-  await xMonitorStore.createAccount({
+  const created = await xMonitorStore.createAccount({
     handle: createForm.handle.trim().replace(/^@+/, ''),
     display_name: createForm.display_name.trim(),
     market_focus: createForm.market_focus || null,
@@ -98,6 +99,9 @@ async function submitCreateAccount() {
     tier: createForm.tier as 'core' | 'watch' | 'muted',
     notes: createForm.notes.trim() || null,
   });
+  if (!created) {
+    return;
+  }
   createForm.handle = '';
   createForm.display_name = '';
   createForm.market_focus = 'us';
@@ -147,6 +151,7 @@ onMounted(async () => {
         {{ xMonitorStore.refreshLoading ? '刷新中...' : '手动刷新' }}
       </button>
     </StatusBanner>
+    <p v-if="xMonitorStore.refreshError" class="-mt-1 text-sm text-danger" data-role="x-refresh-error">{{ xMonitorStore.refreshError }}</p>
     <p v-if="policySummary" class="-mt-1 text-sm text-text-faint">{{ policySummary }}</p>
     <p v-if="xMonitorStore.lastRefresh?.skipped && nextRefreshText" class="-mt-1 text-sm text-text-faint">
       冷却中，下次可刷新：{{ nextRefreshText }}
@@ -336,6 +341,13 @@ onMounted(async () => {
               </button>
             </div>
           </div>
+
+          <p v-if="xMonitorStore.importExportError" class="m-0 text-sm text-danger" data-role="x-import-export-error">
+            {{ xMonitorStore.importExportError }}
+          </p>
+          <p v-if="xMonitorStore.accountMutationError" class="m-0 text-sm text-danger" data-role="x-account-mutation-error">
+            {{ xMonitorStore.accountMutationError }}
+          </p>
 
           <form class="grid gap-2 rounded-2xl border border-border bg-panel-stronger p-3" data-role="account-create-form" @submit.prevent="submitCreateAccount">
             <div class="grid gap-2 md:grid-cols-2">

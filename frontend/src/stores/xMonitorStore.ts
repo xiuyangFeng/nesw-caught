@@ -34,6 +34,9 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
   const searchLoading = ref(false);
   const accountMutationLoading = ref(false);
   const importExportLoading = ref(false);
+  const refreshError = ref<string | null>(null);
+  const accountMutationError = ref<string | null>(null);
+  const importExportError = ref<string | null>(null);
   const usingMock = ref(false);
   const lastLoadedAt = ref<string | null>(null);
   const lastRefresh = ref<XRefreshResult | null>(null);
@@ -118,16 +121,25 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     radarLoading.value = false;
   }
 
+  // 写操作失败会抛错（client.ts 不做 mock 兜底），store 层负责捕获：
+  // 记录错误信息供视图展示，并用 finally 复位 loading，避免 loading 卡死
+  // 和 unhandled rejection。
   async function refreshPosts() {
     if (health.value && !health.value.enabled) {
       return;
     }
     refreshLoading.value = true;
-    const response = await apiClient.refreshXPosts();
-    lastRefresh.value = response.data;
-    usingMock.value = usingMock.value || response.degraded;
-    refreshLoading.value = false;
-    await Promise.all([loadHealth(), loadPosts(), loadRadar()]);
+    refreshError.value = null;
+    try {
+      const response = await apiClient.refreshXPosts();
+      lastRefresh.value = response.data;
+      usingMock.value = usingMock.value || response.degraded;
+      await Promise.all([loadHealth(), loadPosts(), loadRadar()]);
+    } catch (error) {
+      refreshError.value = error instanceof Error ? error.message : '手动刷新失败，请稍后重试';
+    } finally {
+      refreshLoading.value = false;
+    }
   }
 
   async function searchPosts() {
@@ -145,43 +157,81 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
 
   async function createAccount(payload: XAccountCreatePayload) {
     accountMutationLoading.value = true;
-    const response = await apiClient.createXAccount(payload);
-    usingMock.value = usingMock.value || response.degraded;
-    accountMutationLoading.value = false;
-    await Promise.all([loadAccounts(), loadRadar()]);
+    accountMutationError.value = null;
+    try {
+      const response = await apiClient.createXAccount(payload);
+      usingMock.value = usingMock.value || response.degraded;
+      await Promise.all([loadAccounts(), loadRadar()]);
+      return true;
+    } catch (error) {
+      accountMutationError.value = error instanceof Error ? error.message : '新增账号失败，请稍后重试';
+      return false;
+    } finally {
+      accountMutationLoading.value = false;
+    }
   }
 
   async function updateAccount(handle: string, payload: XAccountUpdatePayload) {
     accountMutationLoading.value = true;
-    const response = await apiClient.updateXAccount(handle, payload);
-    usingMock.value = usingMock.value || response.degraded;
-    accountMutationLoading.value = false;
-    await Promise.all([loadAccounts(), loadRadar()]);
+    accountMutationError.value = null;
+    try {
+      const response = await apiClient.updateXAccount(handle, payload);
+      usingMock.value = usingMock.value || response.degraded;
+      await Promise.all([loadAccounts(), loadRadar()]);
+      return true;
+    } catch (error) {
+      accountMutationError.value = error instanceof Error ? error.message : '更新账号失败，请稍后重试';
+      return false;
+    } finally {
+      accountMutationLoading.value = false;
+    }
   }
 
   async function deleteAccount(handle: string) {
     accountMutationLoading.value = true;
-    const response = await apiClient.deleteXAccount(handle);
-    usingMock.value = usingMock.value || response.degraded;
-    accountMutationLoading.value = false;
-    await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
+    accountMutationError.value = null;
+    try {
+      const response = await apiClient.deleteXAccount(handle);
+      usingMock.value = usingMock.value || response.degraded;
+      await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
+      return true;
+    } catch (error) {
+      accountMutationError.value = error instanceof Error ? error.message : '删除账号失败，请稍后重试';
+      return false;
+    } finally {
+      accountMutationLoading.value = false;
+    }
   }
 
   async function importAccounts() {
     importExportLoading.value = true;
-    const response = await apiClient.importXAccounts();
-    usingMock.value = usingMock.value || response.degraded;
-    importExportLoading.value = false;
-    await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
-    return response.data;
+    importExportError.value = null;
+    try {
+      const response = await apiClient.importXAccounts();
+      usingMock.value = usingMock.value || response.degraded;
+      await Promise.all([loadAccounts(), loadPosts(), loadRadar()]);
+      return response.data;
+    } catch (error) {
+      importExportError.value = error instanceof Error ? error.message : '导入账号失败，请稍后重试';
+      return null;
+    } finally {
+      importExportLoading.value = false;
+    }
   }
 
   async function exportAccounts() {
     importExportLoading.value = true;
-    const response = await apiClient.exportXAccounts();
-    usingMock.value = usingMock.value || response.degraded;
-    importExportLoading.value = false;
-    return response.data;
+    importExportError.value = null;
+    try {
+      const response = await apiClient.exportXAccounts();
+      usingMock.value = usingMock.value || response.degraded;
+      return response.data;
+    } catch (error) {
+      importExportError.value = error instanceof Error ? error.message : '导出账号失败，请稍后重试';
+      return null;
+    } finally {
+      importExportLoading.value = false;
+    }
   }
 
   async function translatePost(post: XPost) {
@@ -236,6 +286,9 @@ export const useXMonitorStore = defineStore('xMonitorStore', () => {
     searchLoading,
     accountMutationLoading,
     importExportLoading,
+    refreshError,
+    accountMutationError,
+    importExportError,
     usingMock,
     lastLoadedAt,
     lastRefresh,

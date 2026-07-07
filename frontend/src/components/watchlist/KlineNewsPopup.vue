@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from 'vue';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
 import type { NewsEventMarker } from '../../types/api';
 
 const SENTIMENT_COLORS: Record<string, string> = {
@@ -29,6 +29,13 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+// window 不能在模板表达式里直接访问（会被编译成 _ctx.window 而在运行时报错），
+// 所以在 script 里计算好弹层位置。
+const popupStyle = computed(() => ({
+  left: `${Math.min(props.x, window.innerWidth - 340)}px`,
+  top: `${Math.min(props.y, window.innerHeight - 380)}px`,
+}));
+
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && props.visible) {
     emit('close');
@@ -54,7 +61,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
         v-if="visible"
         data-role="kline-news-popup"
         class="fixed z-50 max-h-[360px] w-[320px] overflow-y-auto rounded-[14px] border border-border/70 bg-[rgba(7,12,22,0.96)] px-3.5 py-3 shadow-xl"
-        :style="{ left: `${Math.min(x, window.innerWidth - 340)}px`, top: `${Math.min(y, window.innerHeight - 380)}px` }"
+        :style="popupStyle"
       >
         <header class="mb-2 flex items-center justify-between">
           <span class="text-[11px] uppercase tracking-[0.16em] text-[#ffb77d]">{{ event.time }}</span>

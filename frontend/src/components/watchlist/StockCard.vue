@@ -75,7 +75,8 @@ const toneClass = computed(() => {
         <span class="text-sm font-semibold leading-none" :class="toneClass">
           {{ formatPercent(row.change_percent) }}
         </span>
-        <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ row.is_abnormal ? 'Abnormal' : 'Stable' }}</span>
+        <!-- 后端 QuoteSummaryView 不含 is_abnormal 字段，改以 status 表达异常态 -->
+        <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ row.status === 'ok' ? 'Stable' : row.status }}</span>
       </div>
     </div>
 

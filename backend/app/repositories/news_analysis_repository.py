@@ -55,7 +55,7 @@ class NewsAnalysisRepository:
         item.analysis_error = None
         item.raw_response_json = json.dumps(payload, ensure_ascii=False)
         item.analyzed_at = _utc_now()
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(item)
         return item
 
@@ -77,7 +77,7 @@ class NewsAnalysisRepository:
         item.analysis_status = "error"
         item.analysis_error = error
         item.analyzed_at = _utc_now()
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(item)
         return item
 

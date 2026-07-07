@@ -17,7 +17,7 @@ import { useMarketStore } from '../stores/marketStore';
 import { useNewsStore } from '../stores/newsStore';
 import { useTopicStore } from '../stores/topicStore';
 import type { Market } from '../types/api';
-import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
+import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp, isMarket, normalizeMarket } from '../utils/time';
 
 const connectionStore = useConnectionStore();
 const newsStore = useNewsStore();
@@ -99,7 +99,10 @@ const moverMarketSummary = computed(() => {
   const counts: Record<Market, number> = { hk: 0, us: 0, cn: 0 };
 
   for (const item of filteredMovers.value) {
-    counts[item.market] += 1;
+    // 后端 market 字段为普通 string,仅统计已知市场
+    if (isMarket(item.market)) {
+      counts[item.market] += 1;
+    }
   }
 
   return (Object.entries(counts) as Array<[Market, number]>)
@@ -122,14 +125,14 @@ const topMoverReason = computed(() => {
   return abnormalReasonLabelMap[topReason ?? ''] ?? '异动信号';
 });
 
-function getAbnormalReasonLabel(reason: string | null) {
+function getAbnormalReasonLabel(reason: string | null | undefined) {
   if (!reason) {
     return '异动信号';
   }
   return abnormalReasonLabelMap[reason] ?? reason;
 }
 
-function getDashboardNewsTimestampLabel(timestamp: string | null, market: Market) {
+function getDashboardNewsTimestampLabel(timestamp: string | null, market: string) {
   return `${formatMarketTime(timestamp, market)} ${getMarketTimezoneLabel(market)}`;
 }
 
@@ -301,7 +304,7 @@ const metrics = computed(() => {
             <span class="text-[11px] text-muted uppercase tracking-wider font-semibold mr-1.5">市场范围</span>
             <button
               v-for="m in markets"
-              :key="m.value"
+              :key="m.value ?? 'all'"
               class="text-[11px] font-semibold px-3 py-1.5 rounded-full border transition duration-150"
               :class="selectedMarket === m.value ? 'bg-accent/10 border-accent/40 text-accent font-bold' : 'bg-white/[0.02] border-border/60 text-muted hover:text-text hover:bg-white/[0.04]'"
               type="button"
@@ -315,7 +318,7 @@ const metrics = computed(() => {
             <span class="text-[11px] text-muted uppercase tracking-wider font-semibold mr-1.5">舆情过滤</span>
             <button
               v-for="s in sentiments"
-              :key="s.value"
+              :key="s.value ?? 'all'"
               class="text-[11px] font-semibold px-3 py-1.5 rounded-full border transition duration-150"
               :class="selectedSentiment === s.value ? 'bg-accent/10 border-accent/40 text-accent font-bold' : 'bg-white/[0.02] border-border/60 text-muted hover:text-text hover:bg-white/[0.04]'"
               type="button"
@@ -338,7 +341,7 @@ const metrics = computed(() => {
         subtitle="新闻主列，保持紧凑扫描密度"
         data-role="dashboard-column-feed"
       >
-        <LoadingBlock :loading="newsStore.dashboardLoading" :empty="filteredDashboardItems.length === 0">
+        <LoadingBlock :loading="newsStore.dashboardLoading" :empty="filteredDashboardItems.length === 0" :skeletonType="'news'" :skeletonCount="3">
           <div class="grid gap-3">
             <div class="dashboard-column-scroller" data-role="dashboard-column-scroller">
               <button
@@ -386,7 +389,7 @@ const metrics = computed(() => {
         subtitle="按重要度排序，保留股票和情绪入口"
         data-role="dashboard-column-topics"
       >
-        <LoadingBlock :loading="topicStore.loading" :empty="filteredTopics.length === 0">
+        <LoadingBlock :loading="topicStore.loading" :empty="filteredTopics.length === 0" :skeletonType="'watchlist'" :skeletonCount="2">
           <div class="dashboard-column-scroller dashboard-topic-column" data-role="dashboard-column-scroller">
             <TopicBoard :topics="filteredTopics" />
           </div>
@@ -400,7 +403,7 @@ const metrics = computed(() => {
         subtitle="盘中优先观察异常波动和量能变化"
         data-role="dashboard-column-movers"
       >
-        <LoadingBlock :loading="marketStore.loading" :empty="filteredMovers.length === 0" empty-text="暂无异动">
+        <LoadingBlock :loading="marketStore.loading" :empty="filteredMovers.length === 0" :skeletonType="'watchlist'" :skeletonCount="2" empty-text="暂无异动">
           <div class="grid gap-3">
             <section
               class="grid gap-1.5 rounded-[16px] border border-[#ff9f2f33] bg-[linear-gradient(160deg,rgba(19,26,37,0.96),rgba(8,16,26,0.98))] px-3.5 py-3"
@@ -430,7 +433,7 @@ const metrics = computed(() => {
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <strong class="block truncate text-[13px]">{{ item.display_name ?? item.symbol }}</strong>
-                    <span class="text-[10px] uppercase tracking-[0.14em] text-[#ffb77d]">{{ marketLabelMap[item.market] }}</span>
+                    <span class="text-[10px] uppercase tracking-[0.14em] text-[#ffb77d]">{{ marketLabelMap[normalizeMarket(item.market)] }}</span>
                   </div>
                   <span class="block truncate text-[11px] text-muted">{{ item.symbol }}</span>
                 </div>

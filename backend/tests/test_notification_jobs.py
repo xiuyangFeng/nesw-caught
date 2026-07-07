@@ -125,6 +125,9 @@ def test_notification_job_repository_reclaims_expired_sending_leases() -> None:
         assert claimed.id == job.id
         assert claimed.status == "sending"
 
+        # repository 只 flush：先提交释放写事务，下面才能用独立连接改写租约。
+        session.commit()
+
         with engine.begin() as connection:
             connection.execute(
                 text("UPDATE notification_job SET lease_until = :lease_until WHERE id = :id"),

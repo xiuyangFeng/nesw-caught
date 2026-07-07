@@ -188,7 +188,7 @@ describe('KlineChart', () => {
     const { default: KlineToolbar } = await import('./KlineToolbar.vue');
     const { useWatchlistChartStore } = await import('../../stores/watchlistChartStore');
     const chartStore = useWatchlistChartStore();
-    const event = { time: '2026-03-19', items: [{ id: 1, title: 'Mainland buyers lift sentiment', sentiment: 'positive' }] };
+    const event = { time: '2026-03-19', items: [{ id: 1, title: 'Mainland buyers lift sentiment', sentiment: 'positive', summary: 'Southbound inflows accelerate' }] };
     const wrapper = mount(KlineChart, {
       props: {
         currentPeriod: '1W',

@@ -8,18 +8,22 @@ const templates: KlineIndicatorTemplate[] = [
   {
     id: 'preset-classic',
     name: '经典均线',
+    scope: 'global',
     source: 'preset',
+    version: 1,
     overlayIndicators: [
-      { kind: 'MA', params: { periods: [5, 10, 20, 60] } },
-      { kind: 'BOLL', params: { period: 20, stdDev: 2 } },
+      { kind: 'MA', visible: true, params: { periods: [5, 10, 20, 60] } },
+      { kind: 'BOLL', visible: true, params: { period: 20, stdDev: 2 } },
     ],
     subIndicator: 'VOL',
   },
   {
     id: 'custom-trend',
     name: '趋势跟随',
+    scope: 'global',
     source: 'custom',
-    overlayIndicators: [{ kind: 'MA', params: { periods: [8, 21, 55] } }],
+    version: 1,
+    overlayIndicators: [{ kind: 'MA', visible: true, params: { periods: [8, 21, 55] } }],
     subIndicator: 'MACD',
   },
 ];
@@ -34,7 +38,7 @@ describe('KlineIndicatorWorkbench', () => {
       },
     });
 
-    expect(wrapper.get('[data-role="kline-indicator-workbench"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="kline-indicator-workbench"]').exists()).toBe(true);
     expect(wrapper.get('[data-role="workbench-template-header"]').text()).toContain('趋势跟随');
     expect(wrapper.get('[data-role="active-template-summary"]').text()).toContain('MA8/21/55');
     expect(wrapper.get('[data-role="workbench-template-library"]').text()).toContain('经典均线');

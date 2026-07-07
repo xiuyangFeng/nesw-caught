@@ -1,7 +1,15 @@
 import logging
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.core.simple_cache import SimpleTTLCache
+
+_route_cache_enabled = get_settings().route_cache_enabled
+_feed_layout_cache = SimpleTTLCache(ttl=10.0, enabled=_route_cache_enabled)
+_runtime_cache = SimpleTTLCache(ttl=5.0, enabled=_route_cache_enabled)
 
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
@@ -54,7 +62,27 @@ def list_news(
 
 
 @router.post("/refresh", response_model=NewsRefreshResponse)
-def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefreshResponse:
+def refresh_news_sources(
+    background_tasks: BackgroundTasks,
+    async_mode: bool = Query(default=False),
+    session: Session = Depends(get_db_session)
+) -> Any:
+    if async_mode:
+        def do_async_refresh():
+            from app.db.session import SessionLocal
+            with SessionLocal() as s:
+                try:
+                    NewsIngestionService(s).refresh_all()
+                except Exception as exc:
+                    logger.warning(f"Background ingestion refresh failed: {exc}")
+        
+        background_tasks.add_task(do_async_refresh)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=202,
+            content={"status": "accepted", "message": "News refresh started in background"}
+        )
+
     summary = NewsIngestionService(session).refresh_all()
 
     return NewsRefreshResponse(
@@ -79,7 +107,13 @@ def refresh_news_sources(session: Session = Depends(get_db_session)) -> NewsRefr
 
 @router.get("/runtime", response_model=NewsRuntimeView)
 def get_news_runtime(session: Session = Depends(get_db_session)) -> NewsRuntimeView:
-    return NewsRuntimeService(session).build()
+    cache_key = "runtime"
+    cached = _runtime_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    view = NewsRuntimeService(session).build()
+    _runtime_cache.set(cache_key, view)
+    return view
 
 
 @router.get("/feed-layout", response_model=NewsFeedLayoutView)
@@ -90,12 +124,18 @@ def get_news_feed_layout(
     limit_stream: int = Query(default=24, ge=1, le=100),
     session: Session = Depends(get_db_session),
 ) -> NewsFeedLayoutView:
-    return NewsFeedLayoutService(session).build(
+    cache_key = (market, limit_events, limit_topics, limit_stream)
+    cached = _feed_layout_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    view = NewsFeedLayoutService(session).build(
         market=market,
         limit_events=limit_events,
         limit_topics=limit_topics,
         limit_stream=limit_stream,
     )
+    _feed_layout_cache.set(cache_key, view)
+    return view
 
 
 @router.get("/events/{event_key}", response_model=NewsEventDetailView)
@@ -186,3 +226,20 @@ def get_news_detail(news_id: int, session: Session = Depends(get_db_session)) ->
             else None
         ),
     )
+
+
+def _clear_routing_caches(payload: Any) -> None:
+    _feed_layout_cache.clear()
+    _runtime_cache.clear()
+
+
+def register_cache_invalidation(event_bus: Any) -> None:
+    """Subscribe cache invalidation handlers on the given event bus.
+
+    Must be called after the application's event bus singleton is finalized
+    (see app.main._register_event_handlers), otherwise the handlers would be
+    registered on a stale bus instance and never fire.
+    """
+    event_bus.subscribe("news.signals_processed", _clear_routing_caches)
+    event_bus.subscribe("news.created_batch", _clear_routing_caches)
+    event_bus.subscribe("news.updated", _clear_routing_caches)

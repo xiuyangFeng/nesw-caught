@@ -5,6 +5,7 @@ import { apiClient } from '../api/client';
 import { HttpError } from '../api/http';
 import { useRuntimeStatusStore } from './runtimeStatusStore';
 import type {
+  LlmFailoverInfo,
   NewsItem,
   StockKlineResponse,
   StockQuoteDetail,
@@ -16,6 +17,15 @@ import type {
   WatchlistResearchBrief,
 } from '../types/api';
 import { isStale } from '../utils/time';
+
+// 后端 WatchlistAiInsightView.failover 是无结构 dict[str, str],
+// 这里做运行时校验并窄化为前端约定的 LlmFailoverInfo。
+function toFailoverInfo(raw: Record<string, string> | null | undefined): LlmFailoverInfo | null {
+  if (raw && typeof raw.from_model === 'string' && typeof raw.to_model === 'string') {
+    return { from_model: raw.from_model, to_model: raw.to_model, reason: raw.reason ?? '' };
+  }
+  return null;
+}
 
 const PERIOD_QUERY_MAP: Record<WatchlistDashboardPeriod, { interval: string; range: string }> = {
   '1D': { interval: '1d', range: '1y' },
@@ -106,7 +116,10 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
       }
     }
     const sparklineData = sparklineResponse?.data ?? {};
-    sparklines.value = Object.fromEntries(Object.entries(sparklineData).map(([symbol, series]) => [symbol, series.prices]));
+    // 后端 SparklineSeriesView.prices 为可选字段(缺省即空序列),兜底为空数组
+    sparklines.value = Object.fromEntries(
+      Object.entries(sparklineData).map(([symbol, series]) => [symbol, series.prices ?? []]),
+    );
     usingMock.value = response.degraded || quotesResponse.degraded || Boolean(sparklineResponse?.degraded);
     lastLoadedAt.value = new Date().toISOString();
     if (!selectedSymbol.value && items.value.length > 0) {
@@ -296,7 +309,7 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
         loading: false,
         text: response.data.insight_text,
         error: null,
-        failover: response.data.failover || null,
+        failover: toFailoverInfo(response.data.failover),
       };
     } catch (error) {
       aiInsights.value[symbol] = {

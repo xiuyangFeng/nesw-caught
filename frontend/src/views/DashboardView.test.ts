@@ -7,6 +7,7 @@ import { nextTick, reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DashboardView from './DashboardView.vue';
+import NewsDetailDrawer from '../components/news/NewsDetailDrawer.vue';
 
 const mockPush = vi.fn();
 
@@ -202,8 +203,9 @@ describe('DashboardView', () => {
 
     await wrapper.get('[data-role="dashboard-feed-item"]').trigger('click');
 
-    expect(wrapper.vm.drawerVisible).toBe(true);
-    expect(wrapper.vm.selectedNewsId).toBe(1);
+    const drawer = wrapper.findComponent(NewsDetailDrawer);
+    expect(drawer.props('visible')).toBe(true);
+    expect(drawer.props('newsId')).toBe(1);
   });
 
   it('highlights high-weight breaking news in the news feed list and displays the trend chart', async () => {

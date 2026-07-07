@@ -33,7 +33,8 @@ const filters = reactive<{
   q: '',
 });
 
-function matchesFilters(item: { market: Market; sentiment_label: SentimentLabel; source_name?: string; title?: string; summary?: string | null }) {
+// market/sentiment_label 以后端 schema 为准是普通(可空)string,过滤时直接与选中值比较
+function matchesFilters(item: { market: string; sentiment_label?: string | null; source_name?: string; title?: string; summary?: string | null }) {
   if (filters.market && item.market !== filters.market) {
     return false;
   }
@@ -135,8 +136,62 @@ const layoutStreamScoreMap = computed(() => {
       .map((item) => [item.id, item.editorial_score ?? null]),
   );
 });
+const displayedFeedItems = ref<any[]>([...newsStore.feedItems]);
+const pendingNewItems = ref<any[]>([]);
+
+watch(() => newsStore.feedItems, (newVal) => {
+  if (newsStore.feedLoading || newsStore.feedLoadingMore) {
+    displayedFeedItems.value = [...newVal];
+    pendingNewItems.value = [];
+    return;
+  }
+
+  const existingIds = new Set(displayedFeedItems.value.map(item => item.id));
+  const added = newVal.filter(item => !existingIds.has(item.id));
+
+  if (added.length > 0) {
+    const latestDisplayedTime = displayedFeedItems.value[0]?.published_at 
+      ? new Date(displayedFeedItems.value[0].published_at).getTime() 
+      : 0;
+
+    const newPending: any[] = [];
+    const toImmediatelyInsert: any[] = [];
+
+    added.forEach(item => {
+      const itemTime = new Date(item.published_at ?? item.fetched_at).getTime();
+      if (itemTime > latestDisplayedTime) {
+        newPending.push(item);
+      } else {
+        toImmediatelyInsert.push(item);
+      }
+    });
+
+    if (newPending.length > 0) {
+      const pendingIds = new Set(pendingNewItems.value.map(x => x.id));
+      newPending.forEach(item => {
+        if (!pendingIds.has(item.id)) {
+          pendingNewItems.value.push(item);
+        }
+      });
+      pendingNewItems.value.sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+    }
+
+    if (toImmediatelyInsert.length > 0) {
+      displayedFeedItems.value = newVal.filter(item => !pendingNewItems.value.some(p => p.id === item.id));
+    }
+  } else {
+    displayedFeedItems.value = [...newVal];
+  }
+}, { deep: true, flush: 'sync' });
+
+function applyPendingNews() {
+  if (pendingNewItems.value.length === 0) return;
+  displayedFeedItems.value = [...pendingNewItems.value, ...displayedFeedItems.value];
+  pendingNewItems.value = [];
+}
+
 const rankedFeedItems = computed(() =>
-  newsStore.feedItems.map((item) => {
+  displayedFeedItems.value.map((item) => {
     const editorialScore = layoutStreamScoreMap.value.get(item.id);
     if (editorialScore == null) {
       return item;
@@ -328,7 +383,7 @@ watch(loadMoreSentinelRef, (node, previous) => {
         </div>
       </div>
 
-      <LoadingBlock :loading="newsStore.feedLoading" :empty="!hasVisibleFeedContent">
+      <LoadingBlock :loading="newsStore.feedLoading" :empty="!hasVisibleFeedContent" :skeletonType="'news'" :skeletonCount="3">
         <SectionCard
           eyebrow="Lead Layer"
           title="Event Radar"
@@ -379,6 +434,21 @@ watch(loadMoreSentinelRef, (node, previous) => {
           compact
           data-role="news-stream-shell"
         >
+          <!-- Delta Banner for incremental updates -->
+          <transition name="fade-in">
+            <div
+              v-if="pendingNewItems.length > 0"
+              class="mb-3.5 flex items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-[rgba(59,130,246,0.12)] px-4 py-2.5 text-xs text-blue-300 backdrop-blur-md transition hover:bg-[rgba(59,130,246,0.18)] hover:border-blue-500/50 shadow-[0_4px_12px_rgba(59,130,246,0.1)] cursor-pointer select-none"
+              @click="applyPendingNews"
+            >
+              <div class="flex items-center gap-2">
+                <span class="animate-pulse">💡</span>
+                <span>发现 <strong>{{ pendingNewItems.length }}</strong> 条最新资讯</span>
+              </div>
+              <span class="font-bold underline hover:text-white">点击置入 ⬇</span>
+            </div>
+          </transition>
+
           <NewsVirtualList
             v-if="useVirtualScrolling"
             :entries="orderedEntries"
@@ -386,13 +456,15 @@ watch(loadMoreSentinelRef, (node, previous) => {
             @visible-ids="visibleStreamIds = $event"
           />
           <div v-else class="grid grid-cols-1 gap-[14px]" data-role="news-stream-list">
-            <NewsCard
-              v-for="entry in orderedEntries"
-              :key="entry.item.id"
-              :entry="entry"
-              variant="stream-compact"
-              @open="openStory"
-            />
+            <transition-group name="list-fade-in" tag="div" class="grid grid-cols-1 gap-[14px]">
+              <NewsCard
+                v-for="entry in orderedEntries"
+                :key="entry.item.id"
+                :entry="entry"
+                variant="stream-compact"
+                @open="openStory"
+              />
+            </transition-group>
           </div>
           <div
             v-if="newsStore.feedHasMore"
@@ -407,3 +479,29 @@ watch(loadMoreSentinelRef, (node, previous) => {
     </section>
   </div>
 </template>
+
+<style scoped>
+/* 渐显动画 */
+.fade-in-enter-active,
+.fade-in-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fade-in-enter-from,
+.fade-in-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 列表条目置入动效 */
+.list-fade-in-enter-active {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.list-fade-in-enter-from {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+.list-fade-in-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+</style>

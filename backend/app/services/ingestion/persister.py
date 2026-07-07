@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
-from app.services import news_ingestion
 from app.services.ingestion.dedup_gate import DuplicateGate
 from app.services.ingestion.parser import _parse_minimax_detail_html
 from app.services.ingestion.sources import _should_promote_source_metadata
@@ -35,20 +34,47 @@ class ItemPersister:
         if outcome.error is not None:
             return self.record_failure(source, error=outcome.error, latency_ms=outcome.latency_ms)
 
+        # 保存最新的 ETag / Last-Modified 缓存标头
+        health.last_etag = outcome.etag
+        health.last_modified = outcome.last_modified
+
+        if outcome.is_not_modified:
+            health.last_success_at = _utc_now()
+            health.consecutive_failures = 0
+            health.avg_latency_ms = _ema_latency(health.avg_latency_ms, outcome.latency_ms)
+            self.session.commit()
+            return SourceFetchResult(
+                source_name=source.name,
+                source_type=source.source_type,
+                status="not_modified",
+                fetched_count=0,
+                inserted_count=0,
+                error=None,
+                latency_ms=outcome.latency_ms,
+                inserted_items=[],
+            )
+
         try:
             items = outcome.items
             if source.name == "MiniMax News":
+                from app.services import news_ingestion
                 # 详情页补全需要读库判断是否已完整,因此放在串行阶段执行。
                 with news_ingestion.HttpClientFactory().create() as client:
                     items = [self.hydrate_minimax_detail_item(client, source, item) for item in items]
 
             inserted_count = 0
             inserted_items: list[NewsItem] = []
-            for item in items:
-                inserted_item = self.persist_item(source, item)
-                if inserted_item is not None:
-                    inserted_count += 1
-                    inserted_items.append(inserted_item)
+            # 按批预取去重候选:一次范围查询建立签名索引,整批复用,
+            # 避免每条 item 触发一次 ±60 分钟窗口的完整 ORM 全量加载。
+            self.duplicate_gate.prime(items)
+            try:
+                for item in items:
+                    inserted_item = self.persist_item(source, item)
+                    if inserted_item is not None:
+                        inserted_count += 1
+                        inserted_items.append(inserted_item)
+            finally:
+                self.duplicate_gate.invalidate()
 
             health.last_success_at = _utc_now()
             health.consecutive_failures = 0
@@ -94,11 +120,14 @@ class ItemPersister:
         existing = self.session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
         if existing is not None:
             self.update_existing_item(existing, item, source=source)
+            # 更新可能回填 published_at / 标题元数据,同步进批内查重索引。
+            self.duplicate_gate.register(existing)
             return None
 
         duplicate = self.duplicate_gate.find_duplicate(item)
         if duplicate is not None:
             self.update_existing_item(duplicate, item, source=source)
+            self.duplicate_gate.register(duplicate)
             return None
 
         news_item = NewsItem(
@@ -118,6 +147,8 @@ class ItemPersister:
         )
         self.session.add(news_item)
         self.session.flush()
+        # 新行加入批内查重索引,供同批后续 item 判重。
+        self.duplicate_gate.register(news_item)
         extract_status = item.extract_status or ("success" if item.content_text else None)
         if extract_status:
             self.session.add(

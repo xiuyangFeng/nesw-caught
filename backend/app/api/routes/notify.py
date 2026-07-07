@@ -78,7 +78,7 @@ def test_feishu_notification(session: Session = Depends(get_db_session)) -> Feis
         raise HTTPException(status_code=400, detail="feishu notification is not configured")
 
     try:
-        client = get_shared_feishu_sender(app_id=config.app_id, app_secret=config.app_secret)
+        client = get_shared_feishu_sender(app_id=config.app_id, app_secret=config.decrypted_app_secret)
         client.send_test(target_type=config.target_type, target_id=config.target_id)
         return FeishuTestResult(success=True, message="测试消息发送成功")
     except FeishuClientError as exc:

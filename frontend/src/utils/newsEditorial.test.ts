@@ -13,7 +13,7 @@ function makeItem(overrides: Partial<NewsItem> & Pick<NewsItem, 'id' | 'title' |
     market: overrides.market ?? 'hk',
     sentiment_label: overrides.sentiment_label ?? 'neutral',
     published_at: overrides.published_at,
-    fetched_at: overrides.fetched_at ?? overrides.published_at,
+    fetched_at: overrides.fetched_at ?? overrides.published_at ?? '2026-01-01T00:00:00Z',
   };
 }
 

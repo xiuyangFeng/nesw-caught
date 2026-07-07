@@ -28,6 +28,6 @@ class MarketRepository:
 
     def save_snapshot(self, snapshot: PriceSnapshot) -> PriceSnapshot:
         self.session.add(snapshot)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(snapshot)
         return snapshot

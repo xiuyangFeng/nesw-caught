@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     event_bus_publish_timeout_seconds: float = 1.0
     ai_enabled: bool = False
     http_timeout_seconds: float = 10.0
+    llm_timeout_seconds: float = 60.0
     news_sources_file: str | None = None
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
@@ -47,6 +48,22 @@ class Settings(BaseSettings):
     article_content_retention_days: int = 90
     price_snapshot_retention_days: int = 30
     dedup_secondary_judge: str | None = None
+    # Seed demo/example data (watchlist, news, X posts...) into an empty database
+    # at startup. Defaults to True so local dev (scripts/dev.sh) and the test
+    # suite keep their out-of-the-box demo experience; set SEED_DEMO_DATA=false
+    # in production. Standalone seeding: `python scripts/seed_demo_data.py`.
+    seed_demo_data: bool = True
+    # Require X-App-Token verification on protected API routes. The test suite
+    # disables this globally in backend/tests/conftest.py (VERIFY_APP_TOKEN=false)
+    # instead of relying on runtime pytest detection.
+    verify_app_token: bool = True
+    # Enable the in-process TTL caches on read-heavy news routes. Disabled by
+    # the test suite (ROUTE_CACHE_ENABLED=false) except in dedicated cache tests.
+    route_cache_enabled: bool = True
+    # Token usage buffer batching: flush to DB every N rows or after this many
+    # seconds. Tests set TOKEN_USAGE_FLUSH_N=1 for synchronous persistence.
+    token_usage_flush_n: int = 50
+    token_usage_flush_secs: float = 10.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

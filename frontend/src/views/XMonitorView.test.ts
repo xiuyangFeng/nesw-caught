@@ -140,6 +140,9 @@ const xMonitorStore = reactive({
   searchLoading: false,
   accountMutationLoading: false,
   importExportLoading: false,
+  refreshError: null as string | null,
+  accountMutationError: null as string | null,
+  importExportError: null as string | null,
   usingMock: false,
   stale: false,
   lastLoadedAt: null,
@@ -159,11 +162,11 @@ const xMonitorStore = reactive({
   loadRadar: vi.fn().mockResolvedValue(undefined),
   refreshPosts: vi.fn().mockResolvedValue(undefined),
   searchPosts: vi.fn().mockResolvedValue(undefined),
-  createAccount: vi.fn().mockResolvedValue(undefined),
-  updateAccount: vi.fn().mockResolvedValue(undefined),
-  deleteAccount: vi.fn().mockResolvedValue(undefined),
-  importAccounts: vi.fn().mockResolvedValue(undefined),
-  exportAccounts: vi.fn().mockResolvedValue(undefined),
+  createAccount: vi.fn().mockResolvedValue(true),
+  updateAccount: vi.fn().mockResolvedValue(true),
+  deleteAccount: vi.fn().mockResolvedValue(true),
+  importAccounts: vi.fn().mockResolvedValue({ created_count: 0, updated_count: 0, skipped_count: 0 }),
+  exportAccounts: vi.fn().mockResolvedValue({ exported_count: 0 }),
   translatePost: vi.fn().mockImplementation(async (post) => {
     const key = post.canonical_url ?? `${post.account_handle}:${post.posted_at ?? post.captured_at}:${post.content_text}`;
     translationState[key] = {

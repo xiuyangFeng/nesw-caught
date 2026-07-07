@@ -15,8 +15,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db.base import Base
 from app.main import app
 from app.models.x_account import XAccount
-from app.services.x_monitor import _normalize_datetime
-from app.services.x_monitor import XMonitorService
+from app.services.x_monitor import (
+    XMonitorDisabledError,
+    XMonitorService,
+    _normalize_account_row,
+    _normalize_datetime,
+    _record_fetch_failure,
+    _record_fetch_success,
+)
 
 
 def _test_session() -> Session:
@@ -288,6 +294,13 @@ def test_x_monitor_refresh_deduplicates_posts_by_tweet_id(monkeypatch, tmp_path:
         assert post.canonical_url == "https://x.com/DeItaone/status/190001"
         assert symbols == ["NVDA"]
 
+        views = service.list_posts(account_handle="DeItaone", symbol="NVDA", market="us", query="suppliers", limit=10)
+        assert len(views) == 1
+        assert views[0].id == post.id
+        assert views[0].account_handle == "DeItaone"
+        assert views[0].account_display_name == "Delta One"
+        assert views[0].symbols == ["NVDA"]
+
 
 def test_x_monitor_refresh_skips_when_cooldown_is_active(monkeypatch, tmp_path: Path) -> None:
     accounts_file = tmp_path / "accounts.json"
@@ -449,8 +462,14 @@ def test_x_monitor_provider_health_reports_unhealthy_when_probe_fails(monkeypatc
 
 
 def test_x_accounts_endpoint_returns_tier_and_source(monkeypatch) -> None:
-    class FakeAccounts:
-        def list_all(self):
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def list_accounts(self):
             return [
                 SimpleNamespace(
                     id=1,
@@ -464,17 +483,6 @@ def test_x_accounts_endpoint_returns_tier_and_source(monkeypatch) -> None:
                     notes="Macro and breaking market headlines",
                 )
             ]
-
-    class FakeService:
-        def __init__(self, session) -> None:
-            self.session = session
-            self.accounts = FakeAccounts()
-
-        def ensure_enabled(self) -> None:
-            return None
-
-        def sync_accounts_from_file(self):
-            return []
 
     monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
 
@@ -833,7 +841,7 @@ def test_x_posts_endpoint_returns_disabled_when_feature_is_off(monkeypatch) -> N
             self.session = session
 
         def ensure_enabled(self) -> None:
-            raise ValueError("x monitor is disabled")
+            raise XMonitorDisabledError("x monitor is disabled")
 
     monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
 
@@ -842,6 +850,53 @@ def test_x_posts_endpoint_returns_disabled_when_feature_is_off(monkeypatch) -> N
 
     assert response.status_code == 503
     assert response.json()["detail"] == "x monitor is disabled"
+
+
+def test_x_posts_endpoint_returns_summary_views(monkeypatch) -> None:
+    now = datetime(2026, 3, 16, 7, 0, tzinfo=timezone.utc)
+
+    class FakeService:
+        def __init__(self, session) -> None:
+            self.session = session
+
+        def ensure_enabled(self) -> None:
+            return None
+
+        def list_posts(self, *, account_handle, symbol, market, query, limit):
+            assert account_handle == "DeItaone"
+            assert symbol == "NVDA"
+            assert market == "us"
+            assert query == "suppliers"
+            assert limit == 10
+            return [
+                SimpleNamespace(
+                    id=7,
+                    account_handle="DeItaone",
+                    account_display_name="Delta One",
+                    content_text="NVDA suppliers remain in focus",
+                    canonical_url="https://x.com/DeItaone/status/190001",
+                    market="us",
+                    sentiment_label="unknown",
+                    relevance_score=None,
+                    posted_at=now,
+                    captured_at=now,
+                    symbols=["NVDA"],
+                )
+            ]
+
+    monkeypatch.setattr("app.api.routes.x_monitor.XMonitorService", FakeService)
+
+    client = TestClient(app)
+    response = client.get(
+        "/api/x/posts",
+        params={"account_handle": "DeItaone", "symbol": "NVDA", "market": "us", "q": "suppliers", "limit": 10},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["id"] == 7
+    assert payload[0]["account_handle"] == "DeItaone"
+    assert payload[0]["symbols"] == ["NVDA"]
 
 
 def test_x_search_endpoint_requires_query(monkeypatch) -> None:
@@ -1400,3 +1455,89 @@ def test_x_monitor_service_honors_radar_limit_for_macro_clusters(monkeypatch, tm
         assert len(radar.priority_signals) == 1
         assert len(radar.macro_clusters) == 1
         assert len(radar.evidence_stream) == 1
+
+
+def test_normalize_account_row_normalizes_handle_and_tier() -> None:
+    row = _normalize_account_row(
+        {
+            "handle": "@DeItaone ",
+            "display_name": "Delta One",
+            "market_focus": "us",
+            "is_active": False,
+            "priority": 100,
+            "tier": " CORE ",
+            "notes": "Macro headlines",
+        }
+    )
+
+    assert row == {
+        "handle": "DeItaone",
+        "display_name": "Delta One",
+        "market_focus": "us",
+        "is_active": False,
+        "priority": 100,
+        "tier": "core",
+        "source": "file_import",
+        "notes": "Macro headlines",
+    }
+
+
+def test_normalize_account_row_applies_defaults_and_falls_back_to_watch_tier() -> None:
+    row = _normalize_account_row({"handle": "DeItaone", "tier": "vip"})
+
+    assert row is not None
+    assert row["display_name"] == "DeItaone"
+    assert row["market_focus"] is None
+    assert row["is_active"] is True
+    assert row["priority"] == 0
+    assert row["tier"] == "watch"
+    assert row["source"] == "file_import"
+    assert row["notes"] is None
+
+
+def test_normalize_account_row_rejects_invalid_entries() -> None:
+    assert _normalize_account_row("DeItaone") is None
+    assert _normalize_account_row(["DeItaone"]) is None
+    assert _normalize_account_row({}) is None
+    assert _normalize_account_row({"handle": "@"}) is None
+
+
+def _health_stub() -> SimpleNamespace:
+    return SimpleNamespace(
+        total_fetches=0,
+        total_failures=0,
+        consecutive_failures=2,
+        last_success_at=None,
+        last_failure_at=None,
+        last_error="previous error",
+        avg_latency_ms=None,
+    )
+
+
+def test_record_fetch_success_resets_failure_state_and_sets_latency() -> None:
+    health = _health_stub()
+    finished_at = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
+
+    _record_fetch_success(health, finished_at=finished_at, latency_ms=120.0)
+
+    assert health.total_fetches == 1
+    assert health.total_failures == 0
+    assert health.consecutive_failures == 0
+    assert health.last_success_at == finished_at
+    assert health.last_error is None
+    assert health.avg_latency_ms == 120.0
+
+
+def test_record_fetch_failure_tracks_error_and_weighted_average_latency() -> None:
+    health = _health_stub()
+    finished_at = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
+
+    _record_fetch_success(health, finished_at=finished_at, latency_ms=100.0)
+    _record_fetch_failure(health, finished_at=finished_at, latency_ms=400.0, error="boom")
+
+    assert health.total_fetches == 2
+    assert health.total_failures == 1
+    assert health.consecutive_failures == 1
+    assert health.last_failure_at == finished_at
+    assert health.last_error == "boom"
+    assert health.avg_latency_ms == 250.0

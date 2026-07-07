@@ -203,7 +203,7 @@ def get_watchlist_ai_insight(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"LLM generation failed: {exc}") from exc
 
-    failover_info = getattr(provider, "failover_triggered", None)
+    failover_info = provider.failover_triggered
     return WatchlistAiInsightView(
         symbol=resolved_symbol,
         insight_text=insight_text,

@@ -63,7 +63,7 @@ class LLMProviderConfigRepository:
         if config is None:
             return False
         self.session.delete(config)
-        self.session.commit()
+        self.session.flush()
         return True
 
     def set_default(self, config_id: int) -> LLMProviderConfig | None:
@@ -74,7 +74,7 @@ class LLMProviderConfigRepository:
         self.session.execute(update(LLMProviderConfig).values(is_default=False))
         config.is_default = True
         config.is_active = True
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(config)
         return config
 
@@ -87,7 +87,7 @@ class LLMProviderConfigRepository:
         if not is_active and config.is_default:
             config.is_default = False
 
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(config)
         return config
 
@@ -108,7 +108,16 @@ class LLMProviderConfigRepository:
         if config_id is not None:
             config = self.get_by_id(config_id)
 
+        # 检查 base_url 是否修改了
+        base_url_changed = False
+        if config is not None and config.base_url != normalized_base_url:
+            base_url_changed = True
+
         from app.core.crypto import encrypt_key
+
+        api_key_is_masked_or_omitted = (not api_key) or (api_key.startswith("*") or "*" in api_key)
+        if base_url_changed and api_key_is_masked_or_omitted:
+            raise ValueError("修改 base_url 时必须重新输入明文 API Key，不能省略或使用掩码 Key，以防止 Key 被窃取")
 
         if api_key and (api_key.startswith("*") or "*" in api_key):
             effective_api_key = config.api_key if config is not None else None
@@ -154,7 +163,7 @@ class LLMProviderConfigRepository:
                 .values(is_default=False)
             )
 
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(config)
         return config
 

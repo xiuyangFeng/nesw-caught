@@ -21,3 +21,8 @@ class FeishuNotifyConfig(Base):
     analysis_enabled: Mapped[bool] = mapped_column(Boolean(), default=True)
     is_active: Mapped[bool] = mapped_column(Boolean(), default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def decrypted_app_secret(self) -> str:
+        from app.core.crypto import decrypt_key
+        return decrypt_key(self.app_secret)

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
@@ -50,6 +51,13 @@ def _register_event_handlers() -> None:
     event_bus.subscribe("news.analysis_completed", handle_news_analysis_completed)
     set_event_bus(event_bus)
 
+    # Register route-level cache invalidation on the finalized bus instance.
+    # Doing this at module import time would bind the handlers to a stale bus
+    # that gets replaced by set_event_bus above.
+    from app.api.routes.news import register_cache_invalidation
+
+    register_cache_invalidation(event_bus)
+
 
 def register_market_watchlist_handlers(event_bus: Any) -> None:
     def handle_market_watchlist_refreshed(payload: dict[str, object]) -> None:
@@ -94,6 +102,8 @@ def build_market_quote_producer(event_bus: Any | None = None) -> MarketQuoteProd
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    from app.core.auth import init_app_token
+    init_app_token()
     initialize_database()
     configure_secondary_judge_from_settings()
     _register_event_handlers()
@@ -117,13 +127,33 @@ async def lifespan(_: FastAPI):
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
+
+    # Periodic fallback flush for the token usage buffer: without it, buffered
+    # rows below flush_n could linger in memory indefinitely on low traffic.
+    from app.services.token_usage_buffer import token_usage_buffer
+
+    async def _flush_token_usage_periodically() -> None:
+        while True:
+            await asyncio.sleep(token_usage_buffer.flush_interval_seconds)
+            token_usage_buffer.flush()
+
+    token_flush_task = asyncio.create_task(_flush_token_usage_periodically())
     yield
+    token_flush_task.cancel()
+    try:
+        await token_flush_task
+    except asyncio.CancelledError:
+        pass
     if cleanup_worker is not None:
         cleanup_worker.stop()
     if news_scheduler is not None:
         news_scheduler.stop()
     queue_worker.stop()
     notification_service.stop()
+    from app.services.http_pool import aclose_async_llm_client, close_llm_client
+    close_llm_client()
+    await aclose_async_llm_client()
+    token_usage_buffer.flush()
 
 
 def create_app() -> FastAPI:

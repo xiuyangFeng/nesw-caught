@@ -26,7 +26,7 @@ class WatchlistRepository:
             alert_mode=alert_mode,
         )
         self.session.add(item)
-        self.session.commit()
+        self.session.flush()
         self.session.refresh(item)
         return item
 
@@ -36,5 +36,5 @@ class WatchlistRepository:
             return False
 
         self.session.delete(item)
-        self.session.commit()
+        self.session.flush()
         return True

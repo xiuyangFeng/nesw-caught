@@ -151,7 +151,7 @@ const newsStore = reactive({
   loadFeedNews: vi.fn(async () => undefined),
   loadFeedLayout: vi.fn(async () => undefined),
   loadMoreFeedNews: vi.fn(async () => false),
-  loadDetail: vi.fn(async () => undefined),
+  loadDetail: vi.fn(async (_id: number): Promise<void> => undefined),
 });
 
 vi.mock('vue-router', () => ({

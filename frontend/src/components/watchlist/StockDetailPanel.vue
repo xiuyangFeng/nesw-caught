@@ -69,7 +69,7 @@ function formatRatio(value: number | null): string {
 }
 
 const amplitude = computed(() => {
-  if (!props.quote?.previous_close || props.quote.day_high === null || props.quote.day_low === null) {
+  if (!props.quote?.previous_close || props.quote.day_high == null || props.quote.day_low == null) {
     return null;
   }
   return ((props.quote.day_high - props.quote.day_low) / props.quote.previous_close) * 100;
