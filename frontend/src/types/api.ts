@@ -84,6 +84,13 @@ export type ResearchDriverCategory = WatchlistResearchDriver['category'];
 export type ResearchActionLevel = WatchlistResearchDriver['action_level'];
 export type ResearchTopActionLevel = WatchlistResearchBrief['top_action_level'];
 
+// 个股 AI 综合研判（本地语料 RAG，结构化研报）
+export type StockResearchReport = Schemas['StockResearchReport'];
+export type StockResearchKeyEvent = Schemas['StockResearchKeyEvent'];
+export type StockResearchReference = Schemas['StockResearchReference'];
+export type StockResearchPriceContext = Schemas['StockResearchPriceContext'];
+export type StockResearchRating = StockResearchReport['overall_rating'];
+
 export type WatchlistAiInsight = Schemas['WatchlistAiInsightView'];
 
 // ---------------------------------------------------------------------------

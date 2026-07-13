@@ -195,6 +195,39 @@
   - 迁移在“已存在库（stamped c9d4f0a2b7e1）”场景 upgrade/downgrade 均验证通过。
   - 前端 `npm run build` 成功；`npm run check:api-drift` OK；`vitest run src/components/llm` 3 passed。
 - 风险/后续事项：`/stats` 预算取默认模型配置的 `monthly_budget_usd`；价格字段一旦设置暂不支持通过表单清空为 null（可清零为 0）。
+## 2026-07-13
+
+- 修改人：Claude（agent worktree）
+- 修改范围：个股 AI 综合研判（本地语料 RAG，结构化研报）—— 后端服务/Schema/路由 + 前端个股详情面板
+- 变更内容：
+  1. **后端研判服务 (Backend)**：
+     - 新增 `backend/app/services/stock_research_synthesis.py`，提供 `synthesize_stock_research(symbol, session, lookback_days=7)`。复用既有能力收集数据：`QuoteService.get_cached_symbol_quote`（无网络的缓存行情 + 符号归一）解析标的与最新价，`NewsMentionsRepository.list_related_news` 取命中新闻，批量查询 `ArticleContent` 取正文，查询 `PriceSnapshot` 汇总窗口内价格走势（区间高低 + 累计涨跌幅）。
+     - 命中新闻超过 top-K（8 条）时，复用 `llm_providers` 的 `embed_text` 与 `news_dedup._cosine_similarity` 做 embedding 相关性排序取 top-K；provider 不可用或 embedding 失败时退回按发布时间倒序，绝不上抛。
+     - 拼装结构化 prompt 调用默认 LLM（`LLMProviderConfigRepository.get_default` + `build_provider().complete(response_format=json_object)`，operation_type=analysis 计量 token），解析 JSON 产出评级/催化剂(bull_case)/风险(bear_case)/关键时间线(key_events)/摘要。**LLM 未配置或调用失败/JSON 非法时优雅降级**为基于新闻情绪的规则要点汇总（mode=rule），字段结构不变，绝不抛未捕获异常、绝不主动联网。
+  2. **后端 Schema (Backend)**：
+     - 新增 `backend/app/schemas/stock_research.py`：`StockResearchReport`（含 symbol/market/mode/overall_rating/summary/bull_case/bear_case/key_events/price_context/references/model_name/llm_error/failover 等）及子模型 `StockResearchKeyEvent`、`StockResearchReference`、`StockResearchPriceContext`。
+  3. **后端路由 (Backend)**：
+     - 新增 `backend/app/api/routes/research.py`：`GET /research/stock/{symbol}`（可选 query `lookback_days`，1~30，默认 7）。
+     - `backend/app/api/router.py` 仅加两行：import `research` 与 `include_router(research.router, prefix="/research", tags=["research"])`，自动继承 `verify_app_token` 鉴权。
+  4. **前端 (Frontend)**：
+     - `frontend/src/views/WatchlistDetailView.vue`（唯一改动的既有 view）：新增“🧠 生成 AI 综合研判”按钮 + 结构化结果面板（评级徽章、摘要、价格走势、催化剂/风险双栏、关键时间线、语料来源、降级/故障接管提示、一键复制、近 7/14/30 天窗口切换），暗色霓虹风格，复用现有 toast。未新增路由与导航。
+     - `frontend/src/api/client.ts`：新增 `getStockResearch(symbol, lookbackDays?)`（复用已 import 的 `getJson` 与 `withQuery`）。
+     - `frontend/src/types/api.ts`：新增 `StockResearchReport` 等类型别名（取自重新生成的 OpenAPI 类型）。
+     - 重新生成 `frontend/openapi.json` 与 `frontend/src/types/generated/api.d.ts`（`npm run generate:api`），纳入新研判 schema/路由。
+- 影响文件：
+  - `backend/app/services/stock_research_synthesis.py`（新）
+  - `backend/app/schemas/stock_research.py`（新）
+  - `backend/app/api/routes/research.py`（新）
+  - `backend/app/api/router.py`（+2 行）
+  - `backend/tests/test_stock_research_synthesis.py`（新）
+  - `frontend/src/views/WatchlistDetailView.vue`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/types/generated/api.d.ts`、`frontend/openapi.json`（自动生成）
+  - `docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/research/stock/{symbol}?lookback_days=` 与 `StockResearchReport` 响应模型；无数据库迁移。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_stock_research_synthesis.py -q` 全绿（6 passed）；前端 `npm run build`（vue-tsc + vite）通过。全量后端测试 391 passed，1 failed 仅为 `test_news_relevance_experiment_runner` 在 git worktree 下的硬编码绝对路径不匹配（与本特性无关）。
+- 风险/后续事项：LLM 综合依赖已配置的默认大模型；未配置时自动规则降级。embedding 排序仅在命中新闻超过 top-K 时触发。
 
 ## 2026-06-13 11:30
 
