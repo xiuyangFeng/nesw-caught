@@ -3,6 +3,7 @@ import { computed, onMounted, provide, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import StaleBadge from '../components/common/StaleBadge.vue';
+import SectionCard from '../components/common/SectionCard.vue';
 import WatchlistAddModal from '../components/watchlist/WatchlistAddModal.vue';
 import WatchlistSidebar from '../components/watchlist/WatchlistSidebar.vue';
 import LoadingBlock from '../components/common/LoadingBlock.vue';
@@ -25,6 +26,55 @@ const addModalAlertThreshold = ref('');
 const dynamicMatches = ref<WatchlistCandidate[]>([]);
 const isSearching = ref(false);
 let searchDebounceTimer: any = null;
+
+// 持仓/组合视图：为每只自选股就地编辑「持仓量 / 成本」。
+// 草稿态以 symbol 为键，保存后调用 setWatchlistPosition 并重载列表。
+const positionDrafts = ref<Record<string, { position_size: string; average_cost: string }>>({});
+const savingSymbol = ref<string | null>(null);
+const positionError = ref<string | null>(null);
+
+function syncPositionDrafts() {
+  const next: Record<string, { position_size: string; average_cost: string }> = {};
+  for (const item of watchlistStore.items) {
+    next[item.symbol] = {
+      position_size: item.position_size !== null && item.position_size !== undefined ? String(item.position_size) : '',
+      average_cost: item.average_cost !== null && item.average_cost !== undefined ? String(item.average_cost) : '',
+    };
+  }
+  positionDrafts.value = next;
+}
+
+watch(() => watchlistStore.items, syncPositionDrafts, { immediate: true });
+
+// 空串 -> null(清空)；非负数字 -> 该数字；非法输入 -> null(不写入脏值)。
+function toNonNegativeNumberOrNull(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const value = Number(trimmed);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+async function savePosition(symbol: string) {
+  const draft = positionDrafts.value[symbol];
+  if (!draft) {
+    return;
+  }
+  savingSymbol.value = symbol;
+  positionError.value = null;
+  try {
+    await apiClient.setWatchlistPosition(symbol, {
+      position_size: toNonNegativeNumberOrNull(draft.position_size),
+      average_cost: toNonNegativeNumberOrNull(draft.average_cost),
+    });
+    await watchlistStore.loadWatchlist();
+  } catch {
+    positionError.value = `保存 ${symbol} 持仓失败，请稍后重试`;
+  } finally {
+    savingSymbol.value = null;
+  }
+}
 
 // 自选股卡片“距财报 N 天”角标数据：symbol -> 最近未来财报的 days_until。
 // 通过 provide 下发给 StockCard（inject），无数据的 symbol 不显示角标。
@@ -216,6 +266,66 @@ onMounted(async () => {
         />
       </LoadingBlock>
     </section>
+
+    <SectionCard
+      v-if="watchlistStore.items.length > 0"
+      title="持仓设置"
+      subtitle="填写持仓量与成本后，可在 Portfolio 组合视图查看实时盈亏与按仓位加权的新闻"
+      eyebrow="Positions"
+      data-role="watchlist-position-panel"
+    >
+      <p v-if="positionError" class="mb-2 text-sm text-danger">{{ positionError }}</p>
+      <div class="grid gap-2">
+        <div
+          v-for="item in watchlistStore.items"
+          v-show="positionDrafts[item.symbol]"
+          :key="item.symbol"
+          class="grid gap-3 rounded-[14px] border border-border bg-white/[0.02] p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-end"
+          data-role="watchlist-position-editor"
+        >
+          <div class="grid gap-0.5">
+            <span class="font-mono text-[13px] text-text">{{ item.symbol }}</span>
+            <span class="text-[11px] text-muted">{{ item.display_name }}</span>
+          </div>
+          <label class="grid gap-1 text-[11px] uppercase tracking-[0.12em] text-muted">
+            持仓量
+            <input
+              v-if="positionDrafts[item.symbol]"
+              v-model="positionDrafts[item.symbol].position_size"
+              type="number"
+              min="0"
+              step="any"
+              inputmode="decimal"
+              placeholder="--"
+              class="w-32 rounded-[10px] border border-border bg-black/20 px-2.5 py-1.5 text-sm text-text outline-none focus:border-system/40"
+              data-role="position-size-input"
+            />
+          </label>
+          <label class="grid gap-1 text-[11px] uppercase tracking-[0.12em] text-muted">
+            成本价
+            <input
+              v-if="positionDrafts[item.symbol]"
+              v-model="positionDrafts[item.symbol].average_cost"
+              type="number"
+              min="0"
+              step="any"
+              inputmode="decimal"
+              placeholder="--"
+              class="w-32 rounded-[10px] border border-border bg-black/20 px-2.5 py-1.5 text-sm text-text outline-none focus:border-system/40"
+              data-role="average-cost-input"
+            />
+          </label>
+          <button
+            class="h-fit rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60"
+            :disabled="savingSymbol === item.symbol"
+            data-role="position-save"
+            @click="savePosition(item.symbol)"
+          >
+            {{ savingSymbol === item.symbol ? '保存中...' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </SectionCard>
 
     <WatchlistAddModal
       :open="isAddModalOpen"

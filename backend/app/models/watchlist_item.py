@@ -14,3 +14,7 @@ class WatchlistItem(Base):
     is_active: Mapped[bool] = mapped_column(Boolean(), default=True)
     alert_threshold: Mapped[float | None] = mapped_column(Float(), default=None)
     alert_mode: Mapped[str] = mapped_column(String(16), default="fixed")
+    # 持仓/组合视图字段：记录该自选股的持仓数量与平均成本（均可空，
+    # 未填写即视为“仅关注、无持仓”，不参与组合盈亏与加权新闻计算）。
+    position_size: Mapped[float | None] = mapped_column(Float(), default=None)
+    average_cost: Mapped[float | None] = mapped_column(Float(), default=None)

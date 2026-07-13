@@ -67,7 +67,13 @@ export type NewsAnalysis = Schemas['NewsAnalysisView'];
 export type MarketSnapshot = Schemas['PriceSnapshotView'];
 export type WatchlistQuoteSummary = Schemas['QuoteSummaryView'];
 export type StockQuoteDetail = Schemas['QuoteDetailView'];
-export type WatchlistItem = Schemas['WatchlistItemView'];
+// 说明:后端 WatchlistItemView 已新增 position_size / average_cost(持仓/组合视图),
+// 但尚未纳入 generate:api 的 OpenAPI 快照(src/types/generated/api.d.ts),此处用交叉
+// 类型补齐;待运行 `npm run generate:api` 后可移除本增补,退回纯别名。
+export type WatchlistItem = Schemas['WatchlistItemView'] & {
+  position_size?: number | null;
+  average_cost?: number | null;
+};
 export type WatchlistItemCreate = Schemas['WatchlistItemCreate'];
 export type WatchlistCandidate = Schemas['WatchlistCandidateView'];
 export type MarketRefreshResult = Schemas['MarketRefreshResultView'];
@@ -79,6 +85,56 @@ export type ResearchActionLevel = WatchlistResearchDriver['action_level'];
 export type ResearchTopActionLevel = WatchlistResearchBrief['top_action_level'];
 
 export type WatchlistAiInsight = Schemas['WatchlistAiInsightView'];
+
+// ---------------------------------------------------------------------------
+// 持仓 / 组合视图（Portfolio）
+// 说明:后端新增 /api/portfolio 接口(app/schemas/portfolio.py)尚未纳入
+// generate:api 的 OpenAPI 快照,此处按后端 schema 手写镜像;待运行
+// `npm run generate:api` 后可替换为 Schemas 别名。
+// ---------------------------------------------------------------------------
+export interface PortfolioPosition {
+  symbol: string;
+  market: string;
+  display_name: string;
+  position_size: number;
+  average_cost: number | null;
+  current_price: number | null;
+  change_percent: number | null;
+  price_status: string;
+  price_message: string | null;
+  quote_fetched_at: string | null;
+  market_value: number | null;
+  cost_basis: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_percent: number | null;
+  weight: number | null;
+}
+
+export interface PortfolioWeightedNews {
+  news_item: NewsItem;
+  symbols: string[];
+  sentiment_score: number | null;
+  signed_impact: number;
+  impact_score: number;
+}
+
+export interface PortfolioSummary {
+  generated_at: string;
+  position_count: number;
+  priced_position_count: number;
+  total_market_value: number;
+  total_cost_basis: number;
+  total_unrealized_pnl: number;
+  total_unrealized_pnl_percent: number | null;
+  positions: PortfolioPosition[];
+  weighted_news: PortfolioWeightedNews[];
+}
+
+// 写入持仓量 / 平均成本的更新载荷(对应后端 WatchlistItemUpdate)。
+export interface WatchlistPositionUpdate {
+  position_size?: number | null;
+  average_cost?: number | null;
+}
 // 前端 UI 专用:后端 WatchlistAiInsightView.failover 在 schema 中是无结构的
 // dict[str, str],此接口是前端对其约定字段的窄化描述,仅供展示层使用。
 export interface LlmFailoverInfo {

@@ -26,6 +26,8 @@ import type {
   NewsRuntimeStatus,
   NewsRefreshResult,
   OpsHealth,
+  PortfolioSummary,
+  WatchlistPositionUpdate,
   WatchlistSparklineMap,
   StockQuoteDetail,
   StreamStatus,
@@ -301,6 +303,15 @@ export const apiClient = {
         generated_at: new Date().toISOString(),
       },
     );
+  },
+  getPortfolio() {
+    return getJson<PortfolioSummary>('/api/portfolio').then((data) => ({ data, degraded: false }));
+  },
+  setWatchlistPosition(symbol: string, payload: WatchlistPositionUpdate) {
+    return patchJson<WatchlistItem>(`/api/watchlist/${encodeURIComponent(symbol)}`, payload).then((data) => ({
+      data,
+      degraded: false,
+    }));
   },
   getTopics() {
     return withMockFallback<TopicItem[]>(() => getJson('/api/topics'), (mock) => mock.mockTopics);
