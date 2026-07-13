@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 新增全应用导航 E2E 冒烟测试（守护「切换模块不崩」），并修复其捕获到的 LLM 设置崩溃
+
+- 修改人：Claude（独立 worktree 开发）
+- 修改范围：前端测试与测试配置为主；附带一处最小前端源码 bug 修复（由冒烟测试发现的真实崩溃）。不动后端 / alembic / notification / router 源逻辑。
+- 背景：项目此前修过「切换模块卡死必须刷新」（根因是路由视图缺错误处理，已加 `RouteErrorBoundary` + `lazyView`）。为防止此类回归，新增一个**确定性、离线可跑**的端到端导航冒烟测试：用**真实 vue-router 路由表** + **真实 `RouteErrorBoundary`** 包裹 `<RouterView>`，逐个访问全部主模块，断言每个都渲染出可辨识节点、且**不触发** `[data-role="route-error-boundary"]`（即视图未崩）。
+- 变更内容：
+  1. 新增 `frontend/src/smoke/app-navigation.test.ts`：整体 mock `../api/client` 的 apiClient（复用 `../api/mock` 的良性夹具，未覆盖方法经 Proxy 兜底返回空数据，全程不联网），stub `lightweight-charts`/`IntersectionObserver`/`ResizeObserver`；用真实 `../router` + 真实 `RouteErrorBoundary` 挂一个 `<RouteErrorBoundary><RouterView/></RouteErrorBoundary>` 外壳，`it.each` 遍历 16 条路由逐个 push→flush→断言。覆盖全部 11 个无参主模块（`/news /dashboard /watchlist /x-monitor /calendar /settings/llm /settings/notify /chat /digest /analytics/backtest /ops`）+ 5 条带参路由示例（`/news/events/:eventKey`、`/news/:id`、`/news/sentiment/:sentiment`、`/watchlist/:symbol`、`/topics/:id`）；另有一条「路由表里每个无参主模块都被冒烟列表覆盖」的自检（新增模块时会提醒同步冒烟列表）。
+  2. 新增 `frontend/vitest.setup.ts` 并在 `frontend/vitest.config.ts` 注册 `setupFiles`：为「原生 Web Storage 会抛错」的环境（Node 22+ 实验性全局 localStorage 未配 `--localstorage-file`，被 Pinia devtools 在真实挂载时读取而崩）提供**条件式**内存兜底；storage 正常时（如 CI 的 Node 20 / jsdom）为无副作用 no-op，不改变既有测试行为。
+  3. 修复 `frontend/src/components/llm/LlmConfigList.vue`：ping 状态徽标的两处守卫由 `?.latency !== null` / `?.error !== null` 改为 `!= null`（松散判等）。原逻辑在**尚未 ping 的默认态**（`pingStatuses[cfg.id]` 为 `undefined`）下，`undefined?.x !== null` 恒为真而进入分支，再无可选链地读 `.latency`/`.error` → `TypeError: Cannot read properties of undefined`，导致**打开「LLM Settings」模块即崩**（正是本冒烟测试要守护的那类「切换模块崩溃」）。改为 `!= null` 后 undefined 态两分支都不进入，正常渲染无徽标；已 ping 成功/失败仍分别显示延迟/连接失败。
+- 影响文件：`frontend/src/smoke/app-navigation.test.ts`(新)、`frontend/vitest.setup.ts`(新)、`frontend/vitest.config.ts`(加 `setupFiles`)、`frontend/src/components/llm/LlmConfigList.vue`(最小 bug 修复)、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（纯前端测试与容错，未改后端与 API；不重复实现 CI 已有的 api-drift）。
+- 验证情况：`npx vitest run src/smoke/app-navigation.test.ts` → **17 passed**；`npm run test -- --run` 全量 → **52 files / 260 passed**（含新增 17 条，既有全绿）；`npm run build`（vue-tsc 严格全检 + vite build）通过。
+- Playwright：本 worktree 未安装 `@playwright/test`，且离线环境无法 `npm install` / `npx playwright install` 下载浏览器，故**按任务约定跳过 Playwright**，只交付 vitest 导航冒烟（已被现有 CI 的 vitest job 自动收录，无需新增 CI job、也不会让主 CI 因缺浏览器变红）。
+- 风险/后续事项：冒烟测试的「文本/`data-role` 锚点」若未来视图改动标题或根节点需同步；自检用例会在新增无参主模块但漏加冒烟条目时失败提醒。另注意到 `SkeletonFeed`/相关模板有 `v-elif` 拼写告警与 SentimentNews 空态提示等**既有 warning**（非崩溃，未在本次范围内处理）。
+
 ## 2026-07-13 修复「切换模块经常卡住必须刷新」（路由视图错误处理基础设施）
 
 - 修改人：Claude（系统化调试）
