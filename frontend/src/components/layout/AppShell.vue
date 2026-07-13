@@ -39,6 +39,7 @@ const navItems = [
   { label: 'Calendar', to: '/calendar', index: '10' },
   { label: 'System Health', to: '/ops', index: '11' },
   { label: 'Portfolio', to: '/portfolio', index: '12' },
+  { label: 'Sentiment Eval', to: '/eval/sentiment', index: '13' },
 ];
 
 const connectionSummary = computed(() => {

@@ -28,6 +28,7 @@ import type {
   OpsHealth,
   PortfolioSummary,
   WatchlistPositionUpdate,
+  SentimentEvalResponse,
   WatchlistSparklineMap,
   StockQuoteDetail,
   StockResearchReport,
@@ -333,6 +334,9 @@ export const apiClient = {
   },
   getOpsHealth() {
     return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
+  },
+  getSentimentEval() {
+    return getJson<SentimentEvalResponse>('/api/eval/sentiment').then((data) => ({ data, degraded: false }));
   },
   getXHealth() {
     return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);

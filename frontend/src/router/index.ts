@@ -94,6 +94,11 @@ const router = createRouter({
       name: 'ops-health',
       component: lazyView(() => import('../views/OpsHealthView.vue')),
     },
+    {
+      path: '/eval/sentiment',
+      name: 'sentiment-eval',
+      component: lazyView(() => import('../views/SentimentEvalView.vue')),
+    },
   ],
 });
 

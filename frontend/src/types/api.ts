@@ -412,3 +412,57 @@ export type FeishuTestResult = Schemas['FeishuTestResult'];
 export type DigestSection = Schemas['DigestSectionView'];
 export type Digest = Schemas['DigestView'];
 export type DigestLatest = Schemas['DigestLatestView'];
+// 情绪/利好利空评测 (Sentiment Eval Harness)
+//
+// 新增的 /api/eval/sentiment 端点,generated/api.d.ts 需重新跑
+// `npm run generate:api` 才会覆盖;在此手写与后端 schemas/sentiment_eval.py
+// 对齐的类型,便于视图直接消费。
+// ---------------------------------------------------------------------------
+export type SentimentEvalLabel = 'positive' | 'negative' | 'neutral';
+
+export interface SentimentLabelMetrics {
+  label: SentimentEvalLabel;
+  precision: number;
+  recall: number;
+  f1: number;
+  support: number;
+}
+
+export interface SentimentEvaluationMetrics {
+  accuracy: number;
+  macro_f1: number;
+  sample_count: number;
+  per_label: SentimentLabelMetrics[];
+  confusion_matrix: Record<string, Record<string, number>>;
+}
+
+export interface SentimentModelRun {
+  model_name: string;
+  metrics: SentimentEvaluationMetrics;
+}
+
+export interface SentimentLabelDelta {
+  label: SentimentEvalLabel;
+  f1_before: number;
+  f1_after: number;
+  f1_delta: number;
+}
+
+export interface SentimentABComparison {
+  model_a: SentimentModelRun;
+  model_b: SentimentModelRun;
+  accuracy_delta: number;
+  macro_f1_delta: number;
+  label_deltas: SentimentLabelDelta[];
+  winner: 'model_a' | 'model_b' | 'tie';
+  reason: string;
+}
+
+export interface SentimentEvalResponse {
+  available: boolean;
+  dataset_path: string;
+  sample_count: number;
+  primary: SentimentModelRun | null;
+  comparison: SentimentABComparison | null;
+  note: string | null;
+}

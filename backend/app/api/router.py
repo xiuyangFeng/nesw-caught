@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 
-from app.api.routes import backtest, calendar, digest, health, llm, market, news, notify, ops, portfolio, research, stream, topics, watchlist, x_monitor
+from app.api.routes import backtest, calendar, digest, eval, health, llm, market, news, notify, ops, portfolio, research, stream, topics, watchlist, x_monitor
 from app.core.auth import verify_app_token
 
 api_router = APIRouter(dependencies=[Depends(verify_app_token)])
+api_router.include_router(eval.router, prefix="/eval", tags=["eval"])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(digest.router, prefix="/digest", tags=["digest"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
