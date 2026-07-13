@@ -1,0 +1,122 @@
+[
+  {
+    "sample_id": "pos-en-01",
+    "text": "Nvidia beats revenue estimates and lifts guidance as AI demand stays strong",
+    "sentiment_label": "positive",
+    "importance": 0.9
+  },
+  {
+    "sample_id": "pos-zh-02",
+    "text": "英伟达业绩超预期，营收强劲增长，市场看好后市",
+    "sentiment_label": "positive",
+    "importance": 0.85
+  },
+  {
+    "sample_id": "pos-zh-03",
+    "text": "科技股集体上涨，市场情绪乐观",
+    "sentiment_label": "positive",
+    "importance": 0.6
+  },
+  {
+    "sample_id": "pos-en-04",
+    "text": "Margins improved and demand looks higher this quarter",
+    "sentiment_label": "positive",
+    "importance": 0.65
+  },
+  {
+    "sample_id": "pos-zh-05",
+    "text": "锂电池板块反弹走高，龙头股突破新高",
+    "sentiment_label": "positive",
+    "importance": 0.7
+  },
+  {
+    "sample_id": "neg-en-06",
+    "text": "Chip demand weakens as customers flag soft orders",
+    "sentiment_label": "negative",
+    "importance": 0.8
+  },
+  {
+    "sample_id": "neg-zh-07",
+    "text": "半导体需求疲软，公司下调全年盈利指引",
+    "sentiment_label": "negative",
+    "importance": 0.85
+  },
+  {
+    "sample_id": "neg-zh-08",
+    "text": "地产板块大跌，违约风险升温",
+    "sentiment_label": "negative",
+    "importance": 0.9
+  },
+  {
+    "sample_id": "neg-en-09",
+    "text": "Earnings pressure builds as guidance turns weaker",
+    "sentiment_label": "negative",
+    "importance": 0.75
+  },
+  {
+    "sample_id": "neg-zh-10",
+    "text": "美股承压下滑，投资者担忧衰退",
+    "sentiment_label": "negative",
+    "importance": 0.7
+  },
+  {
+    "sample_id": "neu-en-11",
+    "text": "The company scheduled its annual shareholder meeting for next month",
+    "sentiment_label": "neutral",
+    "importance": 0.3
+  },
+  {
+    "sample_id": "neu-zh-12",
+    "text": "公司发布公告，将于下周召开董事会审议日常议案",
+    "sentiment_label": "neutral",
+    "importance": 0.25
+  },
+  {
+    "sample_id": "neu-en-13",
+    "text": "Regulators published updated disclosure templates for listed firms",
+    "sentiment_label": "neutral",
+    "importance": 0.4
+  },
+  {
+    "sample_id": "neu-zh-14",
+    "text": "行业协会发布最新统计数据，供市场参考",
+    "sentiment_label": "neutral",
+    "importance": 0.3
+  },
+  {
+    "sample_id": "neu-en-15",
+    "text": "The central bank kept its benchmark interest rate unchanged",
+    "sentiment_label": "neutral",
+    "importance": 0.5
+  },
+  {
+    "sample_id": "mix-zh-16",
+    "text": "营收增长但成本承压，业绩喜忧参半",
+    "sentiment_label": "neutral",
+    "importance": 0.55
+  },
+  {
+    "sample_id": "mix-en-17",
+    "text": "Revenue growth offset by rising risk in key markets",
+    "sentiment_label": "neutral",
+    "importance": 0.5
+  },
+  {
+    "sample_id": "bord-zh-18",
+    "text": "需求回暖，但仍面临一定放缓压力",
+    "sentiment_label": "positive",
+    "importance": 0.6
+  },
+  {
+    "sample_id": "bord-zh-19",
+    "text": "股价短线反弹，但基本面依旧疲软",
+    "sentiment_label": "negative",
+    "importance": 0.6
+  },
+  {
+    "sample_id": "neu-en-20",
+    "text": "The exchange confirmed the ticker will resume trading after the holiday",
+    "sentiment_label": "neutral",
+    "importance": 0.35
+  }
+]

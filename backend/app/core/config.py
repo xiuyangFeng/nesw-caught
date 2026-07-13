@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     article_content_retention_days: int = 90
     price_snapshot_retention_days: int = 30
     dedup_secondary_judge: str | None = None
+    # 情绪/利好利空评测金标集路径；缺省时用 backend/data/research 内置金标。
+    sentiment_eval_dataset_file: str | None = None
     # Seed demo/example data (watchlist, news, X posts...) into an empty database
     # at startup. Defaults to True so local dev (scripts/dev.sh) and the test
     # suite keep their out-of-the-box demo experience; set SEED_DEMO_DATA=false

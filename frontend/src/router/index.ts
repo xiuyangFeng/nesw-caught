@@ -67,6 +67,11 @@ const router = createRouter({
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),
     },
+    {
+      path: '/eval/sentiment',
+      name: 'sentiment-eval',
+      component: () => import('../views/SentimentEvalView.vue'),
+    },
   ],
 });
 

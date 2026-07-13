@@ -2,6 +2,28 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 情绪/利好利空分类评测闭环 + 模型 A/B（Sentiment Eval Harness）
+
+- 修改人：Claude（worktree feat/sentiment-eval-harness）
+- 修改范围：为情绪 / 利好利空三分类（positive/negative/neutral）补齐评测框架，照搬现有「新闻相关性评测」的同构结构，支持金标集 → per-label P/R/F1 → 混淆矩阵 → 两套模型配置 A/B 对比。此前换默认 LLM 时情绪分类质量无从量化，本次补上闭环。
+- 变更内容：
+  1. **后端评测框架（新增，不加数据库表/迁移，指标即时计算）**：
+     - `backend/app/schemas/sentiment_eval.py`：金标样本（text + 人工 sentiment_label，importance 可选）、per-label 指标、混淆矩阵、单模型运行、A/B 对比、`GET /eval/sentiment` 响应等 pydantic 契约。
+     - `backend/app/services/news_sentiment_dataset.py`：加载/校验金标 JSON 数据集（支持顶层数组或 `{"samples": []}`），文件缺失返回空列表（数据缺失降级），非法样本/重复 id 抛领域异常。
+     - `backend/app/services/news_sentiment_evaluator.py`：给定金标+预测标签，计算 per-label precision/recall/F1、混淆矩阵、accuracy、macro-F1；并提供 `build_rule_sentiment_classifier` 把规则分类器按可调阈值包成 text→label 函数。
+     - `backend/app/services/news_sentiment_experiment_runner.py`：跑一次评测（可注入 mock 分类函数），并支持 A/B——对两套配置各评一遍、对比 macro-F1/accuracy/逐标签 F1 并判定胜者。
+     - `backend/app/services/news_sentiment_report.py`：把指标汇总成结构化报告 + Markdown 渲染。
+     - `backend/data/research/sentiment_gold_benchmark.json`：内置 20 条中英混合金标集。
+  2. **后端路由**：新增 `backend/app/api/routes/eval.py`（`GET /sentiment`，对内置金标即时评一遍，用规则分类器的两套阈值配置 ±0.20 / ±0.10 做 A/B；金标缺失降级为 `available=False`）。
+  3. **测试（TDD）**：`backend/tests/test_news_sentiment_evaluator.py`、`backend/tests/test_news_sentiment_experiment_runner.py`，覆盖 P/R/F1/混淆矩阵/准确率、A/B 胜负与持平、长度不一致与空集报错、金标缺失降级；均未硬编码绝对路径。
+  4. **前端（轻量，暗色霓虹风）**：新增 `frontend/src/views/SentimentEvalView.vue`，展示概览指标、per-label P/R/F1、混淆矩阵与 A/B 对比表。
+- 影响文件：
+  - 新增：`backend/app/schemas/sentiment_eval.py`、`backend/app/services/news_sentiment_dataset.py`、`backend/app/services/news_sentiment_evaluator.py`、`backend/app/services/news_sentiment_experiment_runner.py`、`backend/app/services/news_sentiment_report.py`、`backend/app/api/routes/eval.py`、`backend/data/research/sentiment_gold_benchmark.json`、`backend/tests/test_news_sentiment_evaluator.py`、`backend/tests/test_news_sentiment_experiment_runner.py`、`frontend/src/views/SentimentEvalView.vue`
+  - 修改：`backend/app/api/router.py`（+2 行 import 与 include_router）、`backend/app/core/config.py`（新增 `sentiment_eval_dataset_file` 一个字段）、`frontend/src/router/index.ts`（新增 `/eval/sentiment` 懒加载路由）、`frontend/src/components/layout/AppShell.vue`（navItems 增加 Sentiment Eval）、`frontend/src/api/client.ts`（新增 `getSentimentEval`）、`frontend/src/types/api.ts`（新增情绪评测类型）、`docs/code-change-log.md`
+- 接口/数据结构变化：新增只读端点 `GET /api/eval/sentiment`（`SentimentEvalResponse`）。新增可选配置项 `sentiment_eval_dataset_file`（默认 None，用内置金标）。无数据库变更。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news_sentiment_evaluator.py backend/tests/test_news_sentiment_experiment_runner.py -q` 全绿（13 passed）；后端全量 `pytest backend/tests` 398 passed，仅 `test_news_relevance_experiment_runner.py::test_experiment_runner_allows_news_relevance_research_files` 因既有硬编码主仓绝对路径在 worktree 失败（既有坏味道，与本特性无关）。前端 `npm run build`（vue-tsc + vite）通过。
+- 风险/后续事项：内置金标集较小（20 条），仅用于框架自测与演示；正式评测建议通过 `sentiment_eval_dataset_file` 指向更大的人工标注集。A/B 目前是同一规则分类器的两套阈值配置，接入真实 LLM 分类后可扩展为跨模型对比。
+
 ## 2026-06-13 11:30
 
 - 修改人：Antigravity

@@ -20,6 +20,7 @@ import type {
   NewsQuery,
   NewsRuntimeStatus,
   NewsRefreshResult,
+  SentimentEvalResponse,
   WatchlistSparklineMap,
   StockQuoteDetail,
   StreamStatus,
@@ -294,6 +295,9 @@ export const apiClient = {
   },
   getStreamStatus() {
     return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), (mock) => mock.mockStreamStatus);
+  },
+  getSentimentEval() {
+    return getJson<SentimentEvalResponse>('/api/eval/sentiment').then((data) => ({ data, degraded: false }));
   },
   getXHealth() {
     return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);
