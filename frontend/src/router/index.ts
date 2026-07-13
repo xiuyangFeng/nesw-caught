@@ -72,6 +72,11 @@ const router = createRouter({
       name: 'signal-backtest',
       component: () => import('../views/SignalBacktestView.vue'),
     },
+    {
+      path: '/ops',
+      name: 'ops-health',
+      component: () => import('../views/OpsHealthView.vue'),
+    },
   ],
 });
 

@@ -535,6 +535,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ops/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ops Health */
+        get: operations["ops_health_api_ops_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stream/events": {
         parameters: {
             query?: never;
@@ -1552,6 +1569,195 @@ export interface components {
             last_seen_at?: string | null;
             /** Topic Title */
             topic_title: string;
+        };
+        /**
+         * OpsAlert
+         * @description 一条结构化告警。
+         *
+         *     - ``level``：``warning`` 橙色 / ``critical`` 红色；
+         *     - ``code``：稳定的机器可读标识（如 ``source.consecutive_failures``）；
+         *     - ``subject``：出问题的资源标识（源名 / worker 名 / ``database`` / ``event_bus``）；
+         *     - ``message``：面向人的中文说明。
+         */
+        OpsAlert: {
+            /** Code */
+            code: string;
+            /** Level */
+            level: string;
+            /** Message */
+            message: string;
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * OpsDatabaseView
+         * @description SQLite 文件体积快照。
+         */
+        OpsDatabaseView: {
+            /** Exists */
+            exists: boolean;
+            /** Path */
+            path?: string | null;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Size Mb */
+            size_mb: number;
+        };
+        /**
+         * OpsEventBusView
+         * @description 事件层（event bus）状态与降级情况。
+         */
+        OpsEventBusView: {
+            /** Backend */
+            backend: string;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Event Name */
+            last_event_name?: string | null;
+            /** Last Published At */
+            last_published_at?: string | null;
+            /** Redis Enabled */
+            redis_enabled: boolean;
+            /** Status */
+            status: string;
+        };
+        /**
+         * OpsHealthResponse
+         * @description 健康看板聚合出参。
+         *
+         *     ``overall_status`` 由 ``alerts`` 派生：存在 critical 则 critical，
+         *     否则存在 warning 则 warning，否则 ok。
+         */
+        OpsHealthResponse: {
+            /** Alerts */
+            alerts: components["schemas"]["OpsAlert"][];
+            database: components["schemas"]["OpsDatabaseView"];
+            event_bus: components["schemas"]["OpsEventBusView"];
+            /** Generated At */
+            generated_at: string;
+            llm_usage: components["schemas"]["OpsLlmUsageView"];
+            /** Overall Status */
+            overall_status: string;
+            /** Sources */
+            sources: components["schemas"]["OpsSourceView"][];
+            /** Workers */
+            workers: components["schemas"]["OpsWorkerView"][];
+            /** X Sources */
+            x_sources: components["schemas"]["OpsXSourceView"][];
+        };
+        /**
+         * OpsLlmModelUsageView
+         * @description 近窗口内单个模型的调用/token 用量。
+         */
+        OpsLlmModelUsageView: {
+            /** Call Count */
+            call_count: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Model Name */
+            model_name: string;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /**
+         * OpsLlmUsageView
+         * @description 近 ``window_hours`` 小时的 LLM 用量汇总。
+         */
+        OpsLlmUsageView: {
+            /** Call Count */
+            call_count: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Models */
+            models: components["schemas"]["OpsLlmModelUsageView"][];
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+            /** Window Hours */
+            window_hours: number;
+        };
+        /**
+         * OpsSourceView
+         * @description 新闻源健康快照。
+         */
+        OpsSourceView: {
+            /** Avg Latency Ms */
+            avg_latency_ms?: number | null;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Is Disabled */
+            is_disabled: boolean;
+            /** Last Failure At */
+            last_failure_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Market */
+            market: string;
+            /** Source Name */
+            source_name: string;
+            /** Source Type */
+            source_type: string;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Total Failures */
+            total_failures: number;
+            /** Total Fetches */
+            total_fetches: number;
+        };
+        /**
+         * OpsWorkerView
+         * @description 后台 worker 的运行时快照。
+         */
+        OpsWorkerView: {
+            /** Cycle Count */
+            cycle_count: number;
+            /** Failure Count */
+            failure_count: number;
+            /** Heartbeat Age Seconds */
+            heartbeat_age_seconds?: number | null;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Failure At */
+            last_failure_at?: string | null;
+            /** Last Heartbeat At */
+            last_heartbeat_at?: string | null;
+            /** Last Quotes Count */
+            last_quotes_count: number;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Success Count */
+            success_count: number;
+        };
+        /**
+         * OpsXSourceView
+         * @description X（推特）数据源健康快照。
+         */
+        OpsXSourceView: {
+            /** Avg Latency Ms */
+            avg_latency_ms?: number | null;
+            /** Consecutive Failures */
+            consecutive_failures: number;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Failure At */
+            last_failure_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Provider Name */
+            provider_name: string;
+            /** Success Rate */
+            success_rate?: number | null;
+            /** Total Failures */
+            total_failures: number;
+            /** Total Fetches */
+            total_fetches: number;
         };
         /** PriceSnapshotView */
         PriceSnapshotView: {
@@ -3251,6 +3457,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeishuTestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ops_health_api_ops_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsHealthResponse"];
                 };
             };
             /** @description Validation Error */

@@ -22,6 +22,7 @@ import type {
   NewsQuery,
   NewsRuntimeStatus,
   NewsRefreshResult,
+  OpsHealth,
   WatchlistSparklineMap,
   StockQuoteDetail,
   StreamStatus,
@@ -299,6 +300,9 @@ export const apiClient = {
   },
   getBacktestSummary(query: BacktestQuery = {}) {
     return getJson<BacktestSummary>(withQuery('/api/backtest', query)).then((data) => ({ data, degraded: false }));
+  },
+  getOpsHealth() {
+    return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
   },
   getXHealth() {
     return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);
