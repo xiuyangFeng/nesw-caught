@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     x_radar_rules_file: str | None = None
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
+    # 财报/事件日历缓存 TTL：yfinance 日历调用慢，默认 6 小时。
+    calendar_cache_ttl_seconds: int = 21600
     market_quote_producer_enabled: bool = True
     market_quote_poll_interval_seconds: float = 15.0
     tavily_api_key: str | None = None

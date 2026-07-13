@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, provide, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import StaleBadge from '../components/common/StaleBadge.vue';
@@ -25,6 +25,26 @@ const addModalAlertThreshold = ref('');
 const dynamicMatches = ref<WatchlistCandidate[]>([]);
 const isSearching = ref(false);
 let searchDebounceTimer: any = null;
+
+// 自选股卡片“距财报 N 天”角标数据：symbol -> 最近未来财报的 days_until。
+// 通过 provide 下发给 StockCard（inject），无数据的 symbol 不显示角标。
+const earningsCountdown = ref<Record<string, number>>({});
+provide('watchlistEarningsCountdown', earningsCountdown);
+
+async function loadEarningsCountdown() {
+  try {
+    const { data } = await apiClient.getCalendar(90);
+    const nextMap: Record<string, number> = {};
+    for (const summary of data.summaries) {
+      if (summary.next_earnings_days_until !== null && summary.next_earnings_days_until !== undefined) {
+        nextMap[summary.symbol] = summary.next_earnings_days_until;
+      }
+    }
+    earningsCountdown.value = nextMap;
+  } catch {
+    // 财报日历为可选增强，拉取失败时静默降级（不显示角标）。
+  }
+}
 
 function performSearch(queryText: string) {
   if (searchDebounceTimer) {
@@ -138,6 +158,7 @@ onMounted(async () => {
     // Candidate lookup is optional; keep the dashboard loading.
   }
   await watchlistStore.loadWatchlist();
+  void loadEarningsCountdown();
 });
 </script>
 

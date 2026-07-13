@@ -48,6 +48,11 @@ const router = createRouter({
       component: () => import('../views/XMonitorView.vue'),
     },
     {
+      path: '/calendar',
+      name: 'event-calendar',
+      component: () => import('../views/CalendarView.vue'),
+    },
+    {
       path: '/settings/llm',
       name: 'llm-settings',
       component: () => import('../views/LlmSettingsView.vue'),

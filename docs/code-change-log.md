@@ -2,6 +2,34 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 10:40
+
+- 修改人：Claude（独立 worktree 特性开发）
+- 修改范围：财报 / 事件日历（Earnings & Event Calendar）——新特性端到端落地（后端服务 + API + 前端日历页 + 自选股卡片“距财报 N 天”角标）
+- 变更内容：
+  1. **后端日历服务（Backend / 新增）**：
+     - 新增 `backend/app/services/calendar_service.py`。对每个自选股用 yfinance（`Ticker.calendar` / `Ticker.get_earnings_dates`）抓取即将到来的财报日与除息日，对不同版本返回结构（dict / DataFrame）做防御性解析，日期字段宽松归一（date/datetime/Timestamp/字符串，过滤 NaN/NaT）。
+     - 采用**进程内 TTL 缓存**（`SimpleTTLCache` 单例，TTL 从 `settings.calendar_cache_ttl_seconds` 读，默认 6 小时），按 provider_symbol 缓存“原始事件列表”，`days_until` 每次读取时按当前时间重算，避免缓存到过期倒计时；yfinance 出口统一走 `_make_ticker`，便于测试打桩、彻底离线。
+     - 事件 `symbol` 键使用**归一化后的 symbol**（与 `/market/watchlist` 行情载荷对齐），单只 symbol 拉取失败优雅跳过并计数、绝不整体抛错；同时 best-effort 写 JSON 快照到 `backend/data/calendar_snapshot.json`（已被 .gitignore 忽略，失败不影响主流程）。每只 symbol 额外计算“最近一次未来财报”的 days_until，供前端角标使用。
+  2. **配置（Backend）**：`backend/app/core/config.py` 仅新增一个字段 `calendar_cache_ttl_seconds: int = 21600`，风格模仿现有字段，未改动其它部分。
+  3. **Schema / 路由（Backend / 新增）**：
+     - 新增 `backend/app/schemas/calendar.py`（`CalendarEventView` / `CalendarSymbolSummaryView` / `CalendarResponseView`）。
+     - 新增 `backend/app/api/routes/calendar.py`：`GET /`（query `days` 前视天数，默认 30）返回全量自选股即将到来的事件 + 每只最近财报摘要；`GET /{symbol}` 返回单只日历（不在自选股中也可查）。
+     - `backend/app/api/router.py` 仅新增 import 与 `include_router(calendar.router, prefix="/calendar", tags=["calendar"])`，自动继承 App Token 鉴权。
+  4. **前端日历面板（Frontend / 新增）**：
+     - 新增 `frontend/src/views/CalendarView.vue`，暗色霓虹终端风格：按日期分组展示即将到来的财报/除息事件，临近（≤3 天）分组呼吸高亮，支持 14/30/60/90 天窗口切换，点击事件跳转单股详情。
+     - `frontend/src/router/index.ts` 新增路由 `/calendar`（name `event-calendar`，懒加载）；`AppShell.vue` `navItems` 新增 `{ label: 'Calendar', to: '/calendar', index: '11' }`。
+  5. **自选股卡片角标（Frontend）**：
+     - `WatchlistView.vue` 拉取 `/calendar` 摘要并 `provide` symbol→days_until 表；`StockCard.vue` 通过 `inject` 读取，在卡片头部渲染“财报 N 天”角标（无未来财报数据则不显示，≤3 天呼吸高亮）。采用 provide/inject 以避免改动 `WatchlistSidebar.vue`。
+     - `api/client.ts` 新增 `getCalendar` / `getSymbolCalendar`（复用 `getJson`）；`types/api.ts` 新增 `CalendarEvent` / `CalendarSymbolSummary` / `CalendarResponse`（手写镜像，注明待 `generate:api` 后可替换为生成别名）。
+  6. **测试（Backend / TDD）**：新增 `backend/tests/test_calendar_service.py`，monkeypatch `_make_ticker` 与 `WatchlistRepository.list_all` 注入假数据，覆盖事件解析、days_until 计算、按日期升序、窗口过滤、过去事件排除、失败 symbol 跳过并计数、最近财报摘要、TTL 缓存命中（第二次不再调用 yfinance）、单只查询等，绝不联网。
+- 影响文件：
+  - 新增：`backend/app/services/calendar_service.py`、`backend/app/schemas/calendar.py`、`backend/app/api/routes/calendar.py`、`backend/tests/test_calendar_service.py`、`frontend/src/views/CalendarView.vue`
+  - 修改：`backend/app/core/config.py`、`backend/app/api/router.py`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/views/WatchlistView.vue`、`frontend/src/components/watchlist/StockCard.vue`、`frontend/src/api/client.ts`、`frontend/src/types/api.ts`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/calendar` 与 `GET /api/calendar/{symbol}`（继承 App Token 鉴权）；未新增数据库表 / 迁移。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_calendar_service.py -q` 全绿（6 passed）；后端全量 391 passed（唯一 1 例 `test_news_relevance_experiment_runner` 失败为既有问题——其硬编码主仓库绝对路径，在 worktree 下超出允许范围，与本特性无关）；前端 `npm --prefix frontend run build`（含 vue-tsc 类型检查）通过。
+- 风险/后续事项：`types/api.ts` 中日历类型为手写镜像，后续可运行 `npm run generate:api` 替换为 OpenAPI 生成别名；为加角标改动了 `StockCard.vue`（自选股专用组件，additive）。
+
 ## 2026-06-13 11:30
 
 - 修改人：Antigravity
