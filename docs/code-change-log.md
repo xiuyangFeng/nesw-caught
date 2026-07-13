@@ -2,6 +2,39 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 信号有效性回测闭环（Signal Backtest）
+
+- 修改人：Claude（独立 worktree 特性开发）
+- 修改范围：新增"信号有效性回测"闭环——后端回测服务 + 只读 API + 前端展示面板，用于验证利好/利空判断的实际有效性。
+- 变更内容：
+  1. **后端回测服务（Backend）**：
+     - 新增 `backend/app/services/signal_backtest.py`。对每条"窗口内、带方向情绪（positive/negative）、可映射到 symbol"的历史新闻，按 news×symbol 展开：取 published_at 时点/之前最近的 price_snapshot 作为基准价，取"发布时间 + 前视窗（horizon，如 1h/4h/1d）后最接近的一条快照"作为前视价，计算前视收益率。
+     - 聚合输出：利好命中率（后续上涨占比）、利空命中率（后续下跌占比）、按 importance（信号置信度 signal_confidence 分桶 high/medium/low/unknown）的平均前视收益，以及候选样本量 total_signals、可评估 evaluable_count、跳过 skipped_count、可评估率 evaluable_rate。
+     - 快照稀疏（缺基准价或缺前视价）时优雅降级：跳过该样本并计入 skipped，不抛错。库内时间统一按 UTC 对齐（naive datetime 视为 UTC）。全程纯读，不写库、不改 schema、不做迁移。
+     - 新增只读仓储方法：`NewsSignalRepository.list_directional_signal_news` / `get_signal_result_map`、`NewsMentionsRepository.list_mentions_for_news`、`MarketRepository.list_snapshots_by_symbols`。
+  2. **后端 Schema 与路由（Backend）**：
+     - 新增 `backend/app/schemas/backtest.py`（Pydantic 响应模型 BacktestSummaryView / SignalDirectionStatsView / ImportanceBucketStatsView）。
+     - 新增 `backend/app/api/routes/backtest.py`，`GET ""` 返回回测汇总，接受 query：market / window_days / horizon；非法 horizon 返回 400。
+     - `backend/app/api/router.py` 仅新增两行：导入 backtest、`include_router(backtest.router, prefix="/backtest", tags=["backtest"])`，自动继承 verify_app_token 鉴权。
+  3. **前端面板（Frontend）**：
+     - 新增 `frontend/src/views/SignalBacktestView.vue`，暗色霓虹终端风格：过滤器（市场/回看窗口/前视窗）、概览指标卡、利好/利空命中率与平均收益卡、按 importance 分桶收益的自绘 SVG 柱状图（以 0 为基线正负分向）。
+     - `frontend/src/router/index.ts` 新增路由 `/analytics/backtest`（name `signal-backtest`，懒加载）。
+     - `frontend/src/components/layout/AppShell.vue` 的 `navItems` 新增 `{ label: 'Signal Backtest', to: '/analytics/backtest', index: '08' }`。
+     - `frontend/src/api/client.ts` 新增 `getBacktestSummary(query)`（复用 getJson + withQuery）；`frontend/src/types/api.ts` 新增 `BacktestSummary` / `SignalDirectionStats` / `ImportanceBucketStats` 类型别名（取自重生成的 OpenAPI schema）及 UI 专用 `BacktestQuery`。
+     - 运行 `npm run generate:api` 重生成 `frontend/openapi.json` 与 `frontend/src/types/generated/api.d.ts`，纳入新的 /api/backtest 契约。
+- 影响文件：
+  - 新增：`backend/app/services/signal_backtest.py`、`backend/app/schemas/backtest.py`、`backend/app/api/routes/backtest.py`、`backend/tests/test_signal_backtest.py`、`frontend/src/views/SignalBacktestView.vue`
+  - 修改：`backend/app/api/router.py`、`backend/app/repositories/news_signal_repository.py`、`backend/app/repositories/news_mentions_repository.py`、`backend/app/repositories/market_repository.py`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/api/client.ts`、`frontend/src/types/api.ts`、`frontend/src/types/generated/api.d.ts`、`frontend/openapi.json`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增只读接口 `GET /api/backtest`（query：market、window_days、horizon；返回 BacktestSummaryView）。无数据库 schema / 迁移变化。
+- 验证情况：
+  - 后端 `conda run -n news-caught pytest backend/tests/test_signal_backtest.py -q` 全绿（6 passed），覆盖命中率/收益/样本计数、基准价缺失降级、窗口外排除、market 过滤、路由冒烟与非法 horizon 400。
+  - 前端 `npm run build`（vue-tsc + vite build）通过，`npm run check:api-drift` 报告前后端类型一致。
+  - 前端 node_modules 采用软链接主仓库方式完成本地校验，提交前已移除软链接。
+- 风险/后续事项：
+  - importance 分桶基于 `NewsSignalResult.signal_confidence`（news 层无独立 importance_score，选用最贴近的每条信号置信度作为代理），如后续引入 news 级 importance 可平滑替换。
+  - 前视价采用"发布+horizon 之后最接近的一条快照"近似，快照密度低时可评估率偏低属预期；命中率统计只计入可评估样本。
+  - `AppShell.navItems` 的 index '08' 如与其它并行 worktree 冲突，合并时统一顺延即可。
+
 ## 2026-06-13 11:30
 
 - 修改人：Antigravity

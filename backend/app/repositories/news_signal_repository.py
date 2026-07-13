@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from statistics import fmean
 
 from sqlalchemy import select
@@ -32,6 +33,28 @@ class NewsSignalRepository:
 
     def get_article_map(self, news_ids: list[int]) -> dict[int, ArticleContent]:
         stmt = select(ArticleContent).where(ArticleContent.news_id.in_(news_ids))
+        return {item.news_id: item for item in self.session.scalars(stmt)}
+
+    def list_directional_signal_news(self, *, market: str | None, since: datetime) -> list[NewsItem]:
+        """回测候选：窗口内、带方向情绪（positive/negative）的新闻（只读）。"""
+        stmt = (
+            select(NewsItem)
+            .where(
+                NewsItem.published_at.is_not(None),
+                NewsItem.published_at >= since,
+                NewsItem.sentiment_label.in_(["positive", "negative"]),
+            )
+            .order_by(NewsItem.published_at.asc(), NewsItem.id.asc())
+        )
+        if market:
+            stmt = stmt.where(NewsItem.market == market)
+        return list(self.session.scalars(stmt))
+
+    def get_signal_result_map(self, news_ids: list[int]) -> dict[int, NewsSignalResult]:
+        """按 news_id 取信号结果（含 signal_confidence，用于 importance 分桶）。"""
+        if not news_ids:
+            return {}
+        stmt = select(NewsSignalResult).where(NewsSignalResult.news_id.in_(news_ids))
         return {item.news_id: item for item in self.session.scalars(stmt)}
 
     def find_topic(self, *, topic_key: str, keywords: list[str]) -> TopicCluster | None:
