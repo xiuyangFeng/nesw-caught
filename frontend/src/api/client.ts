@@ -1,6 +1,8 @@
 import type {
   BacktestQuery,
   BacktestSummary,
+  Digest,
+  DigestLatest,
   FeishuNotifyConfig,
   FeishuNotifyConfigUpdate,
   FeishuTestResult,
@@ -376,5 +378,14 @@ export const apiClient = {
   },
   testFeishuNotify() {
     return postJson<FeishuTestResult>('/api/notify/feishu/test', {}).then((data) => ({ data, degraded: false }));
+  },
+  getLatestDigest() {
+    return getJson<DigestLatest>('/api/digest/latest').then((data) => ({ data, degraded: false }));
+  },
+  generateDigest(marketScope: string = 'all') {
+    return postJson<Digest>(withQuery('/api/digest/generate', { market_scope: marketScope }), {}).then((data) => ({
+      data,
+      degraded: false,
+    }));
   },
 };

@@ -15,6 +15,7 @@ from app.services.feishu_client import (
     FeishuClientError,
     build_alert_card,
     build_analysis_card,
+    build_digest_card,
     build_news_batch_card,
     get_shared_feishu_sender,
 )
@@ -121,6 +122,23 @@ class NotificationService:
             repo.enqueue(
                 channel="feishu",
                 event_type="analysis_result",
+                payload=payload,
+            )
+            session.commit()
+
+    def on_digest_ready(self, payload: dict[str, Any]) -> None:
+        # 无活跃飞书配置时不入队（无处可推）；与其他事件同构地依赖 get_active 门控。
+        config = self._load_config()
+        if not config:
+            return
+        if not payload.get("sections"):
+            return
+
+        with SessionLocal() as session:
+            repo = NotificationJobRepository(session)
+            repo.enqueue(
+                channel="feishu",
+                event_type="digest",
                 payload=payload,
             )
             session.commit()
@@ -266,6 +284,8 @@ class NotificationService:
                 summary=payload.get("summary"),
                 risk_notes=payload.get("risk_notes"),
             )
+        if job.event_type == "digest":
+            return build_digest_card(payload)
         return None
 
     def _retry_delay_seconds(self, attempt_count: int) -> int:

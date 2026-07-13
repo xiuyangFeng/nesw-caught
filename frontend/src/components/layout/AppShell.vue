@@ -34,6 +34,7 @@ const navItems = [
   { label: 'Notify', to: '/settings/notify', index: '07' },
   { label: 'Signal Backtest', to: '/analytics/backtest', index: '08' },
   { label: 'System Health', to: '/ops', index: '10' },
+  { label: 'Daily Digest', to: '/digest', index: '09' },
 ];
 
 const connectionSummary = computed(() => {

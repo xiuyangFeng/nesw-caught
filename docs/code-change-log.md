@@ -59,6 +59,23 @@
 - 接口/数据结构变化：新增只读 API `GET /api/ops/health`（`OpsHealthResponse`）；不新增数据库表/迁移。
 - 验证情况：`conda run -n news-caught pytest backend/tests/test_ops_health.py -q` 全绿（5 passed）；后端全量 390 passed（唯一 1 failed 为 `test_news_relevance_experiment_runner` 硬编码主检出绝对路径、在任意 worktree 均失败，与本特性无关）；前端 `npm run typecheck`、`npm run build`、`check:api-drift` 均通过，`OpsHealthView` 独立懒加载分块。
 - 风险/后续事项：主动推送为预留扩展点（当前仅日志 + API/UI 暴露）；阈值为模块常量，如需可配置可后续迁入 config。
+## 2026-07-13
+
+- 修改人：Claude（独立 worktree 特性开发）
+- 修改范围：每日盘前/盘后 AI 简报（Daily Digest，定时生成 + 主动推送 + API + 前端页面）
+- 变更内容：
+  1. **简报生成服务（Backend）**：新增 `backend/app/services/digest_service.py`。`generate_digest(market_scope, session)` 收集近 N 小时新闻、自选股命中新闻与情绪标签聚合，拼 prompt 调用默认 LLM provider 生成结构化 4 段简报（隔夜/当日重点、自选股相关、整体情绪方向、风险提示）；LLM 未配置/不可用/返回异常时优雅降级为基于规则的纯文本摘要，绝不向上抛未捕获异常。维护进程内"最新 digest"线程安全单例，并把最新一份写到 `<data>/latest_digest.json`（路径由 settings 的 database_url 推导，写失败只 log）。**不新增数据库表/迁移**。
+  2. **定时 worker（Backend）**：新增 `backend/app/workers/digest_worker.py`（继承 BaseWorker）。用标准库 zoneinfo 按港股 `Asia/Hong_Kong`、美股 `America/New_York` 本地时区，在盘前/盘后时点触发生成推送。采用"每分钟 tick 检查是否到达今天尚未触发时点 + grace 窗口"的幂等方式，每个（市场,阶段,本地日期）当天最多触发一次，避免重复推送与进程晚启后补发陈旧简报。
+  3. **推送通道复用（Backend）**：`feishu_client.py` 新增 `build_digest_card(digest)`；`notification_service.py` 新增 `on_digest_ready(payload)` 入队方法与 `_build_card_for_job` 的 `digest` 分支，复用已有 NotificationJobRepository 持久化队列与投递/重试机制，与 watchlist_alert/analysis_result 分支同构。
+  4. **API（Backend）**：新增 `backend/app/api/routes/digest.py`（`GET /latest` 返回最新简报或空态、`POST /generate` 手动触发生成）与 `backend/app/schemas/digest.py`；`router.py` 注册 `include_router(digest.router, prefix="/digest")`（自动继承鉴权）。
+  5. **配置（Backend）**：`config.py` 新增 `digest_enabled=False`、`digest_premarket_time="08:30"`、`digest_postmarket_time="16:30"`、`digest_lookback_hours=16`。`main.py` lifespan 在 `settings.digest_enabled` 时启动/退出时停止 DigestWorker，触发闭包内 `generate_digest` + `on_digest_ready` 推送。
+  6. **前端**：新增 `frontend/src/views/DigestView.vue`（暗色霓虹终端风格，展示各 section + 市场范围切换 + "立即生成"按钮，section 正文复用 `utils/markdown.ts` 渲染）与 `frontend/src/stores/digestStore.ts`；`router/index.ts` 加 `/digest`（name `daily-digest`，懒加载）；`AppShell.vue` navItems 加 `{ label: 'Daily Digest', to: '/digest', index: '09' }`；`api/client.ts` 加 `getLatestDigest` / `generateDigest`；`types/api.ts` 加 Digest 相关别名（由 `npm run generate:api` 重新生成 `generated/api.d.ts` 与 `openapi.json`）。
+- 影响文件：
+  - 新增：`backend/app/services/digest_service.py`、`backend/app/workers/digest_worker.py`、`backend/app/api/routes/digest.py`、`backend/app/schemas/digest.py`、`backend/tests/test_digest_service.py`、`backend/tests/test_digest_worker.py`、`frontend/src/views/DigestView.vue`、`frontend/src/stores/digestStore.ts`
+  - 修改：`backend/app/core/config.py`、`backend/app/api/router.py`、`backend/app/main.py`、`backend/app/services/notification_service.py`、`backend/app/services/feishu_client.py`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/api/client.ts`、`frontend/src/types/api.ts`、`frontend/src/types/generated/api.d.ts`、`frontend/openapi.json`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/digest/latest`、`POST /api/digest/generate`；新增 pydantic schema `DigestView`/`DigestSectionView`/`DigestLatestView`。无数据库结构变化、无 alembic 迁移。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_digest_service.py backend/tests/test_digest_worker.py -q` 全绿（7 passed）；后端全量 392 passed（唯一 1 failed 为 `test_news_relevance_experiment_runner` 硬编码绝对路径导致的 worktree 既有失败，与本特性无关）；前端 `npm run build`（含 vue-tsc）通过、`npm run check:api-drift` 通过。
+- 风险/后续事项：`digest_enabled` 默认关闭，需显式开启并配置 LLM 与飞书后方会自动推送。navItems index `09` 可能与其他并行分支冲突，待中心统一。
 
 ## 2026-06-13 11:30
 

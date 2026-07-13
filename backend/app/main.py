@@ -117,6 +117,25 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     news_scheduler: NewsIngestScheduler | None = None
     cleanup_worker = None
+    digest_worker = None
+    if settings.digest_enabled:
+        from app.workers.digest_worker import DigestWorker
+
+        def _run_digest(market_scope: str, phase: str) -> None:
+            from app.services.digest_service import generate_digest
+
+            with SessionLocal() as session:
+                digest = generate_digest(market_scope, session)
+            get_notification_service().on_digest_ready(digest.to_payload())
+
+        digest_worker = DigestWorker(
+            session_factory=SessionLocal,
+            trigger_fn=_run_digest,
+            premarket_time=settings.digest_premarket_time,
+            postmarket_time=settings.digest_postmarket_time,
+            logger=logger,
+        )
+        digest_worker.start()
     if settings.news_scheduler_enabled:
         news_scheduler = NewsIngestScheduler(
             session_factory=SessionLocal,
@@ -144,6 +163,8 @@ async def lifespan(_: FastAPI):
         await token_flush_task
     except asyncio.CancelledError:
         pass
+    if digest_worker is not None:
+        digest_worker.stop()
     if cleanup_worker is not None:
         cleanup_worker.stop()
     if news_scheduler is not None:
