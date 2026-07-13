@@ -67,6 +67,11 @@ const router = createRouter({
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),
     },
+    {
+      path: '/analytics/backtest',
+      name: 'signal-backtest',
+      component: () => import('../views/SignalBacktestView.vue'),
+    },
   ],
 });
 

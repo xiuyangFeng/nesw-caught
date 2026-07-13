@@ -1,4 +1,6 @@
 import type {
+  BacktestQuery,
+  BacktestSummary,
   FeishuNotifyConfig,
   FeishuNotifyConfigUpdate,
   FeishuTestResult,
@@ -294,6 +296,9 @@ export const apiClient = {
   },
   getStreamStatus() {
     return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), (mock) => mock.mockStreamStatus);
+  },
+  getBacktestSummary(query: BacktestQuery = {}) {
+    return getJson<BacktestSummary>(withQuery('/api/backtest', query)).then((data) => ({ data, degraded: false }));
   },
   getXHealth() {
     return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);

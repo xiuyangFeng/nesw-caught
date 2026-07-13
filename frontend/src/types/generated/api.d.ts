@@ -6,6 +6,23 @@
  */
 
 export interface paths {
+    "/api/backtest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Backtest Summary */
+        get: operations["get_backtest_summary_api_backtest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -831,6 +848,32 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BacktestSummaryView
+         * @description 回测汇总响应。
+         */
+        BacktestSummaryView: {
+            /** Evaluable Count */
+            evaluable_count: number;
+            /** Evaluable Rate */
+            evaluable_rate?: number | null;
+            /** Generated At */
+            generated_at: string;
+            /** Horizon */
+            horizon: string;
+            /** Importance Buckets */
+            importance_buckets?: components["schemas"]["ImportanceBucketStatsView"][];
+            /** Market */
+            market?: string | null;
+            negative: components["schemas"]["SignalDirectionStatsView"];
+            positive: components["schemas"]["SignalDirectionStatsView"];
+            /** Skipped Count */
+            skipped_count: number;
+            /** Total Signals */
+            total_signals: number;
+            /** Window Days */
+            window_days: number;
+        };
         /** BollingerPointView */
         BollingerPointView: {
             /** Lower */
@@ -981,6 +1024,18 @@ export interface components {
              * @default false
              */
             x_monitor_healthy: boolean;
+        };
+        /**
+         * ImportanceBucketStatsView
+         * @description 按信号置信度分桶（high / medium / low / unknown）的平均前视收益。
+         */
+        ImportanceBucketStatsView: {
+            /** Avg Forward Return */
+            avg_forward_return?: number | null;
+            /** Bucket */
+            bucket: string;
+            /** Sample Count */
+            sample_count: number;
         };
         /** IndicatorSeriesView */
         IndicatorSeriesView: {
@@ -1644,6 +1699,22 @@ export interface components {
             /** Volume */
             volume?: number | null;
         };
+        /**
+         * SignalDirectionStatsView
+         * @description 单个方向（利好 / 利空）的命中统计。
+         */
+        SignalDirectionStatsView: {
+            /** Avg Forward Return */
+            avg_forward_return?: number | null;
+            /** Hit Count */
+            hit_count: number;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Label */
+            label: string;
+            /** Sample Count */
+            sample_count: number;
+        };
         /** SourceFetchResultView */
         SourceFetchResultView: {
             /** Error */
@@ -2102,6 +2173,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_backtest_summary_api_backtest_get: {
+        parameters: {
+            query?: {
+                /** @description 市场过滤：hk/us/cn，缺省为全部 */
+                market?: string | null;
+                /** @description 回看窗口天数 */
+                window_days?: number;
+                /** @description 前视时间窗，如 1h/4h/1d */
+                horizon?: string;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacktestSummaryView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_check_api_health_get: {
         parameters: {
             query?: never;

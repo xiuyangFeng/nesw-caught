@@ -1,6 +1,82 @@
 {
   "components": {
     "schemas": {
+      "BacktestSummaryView": {
+        "description": "回测汇总响应。",
+        "properties": {
+          "evaluable_count": {
+            "title": "Evaluable Count",
+            "type": "integer"
+          },
+          "evaluable_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluable Rate"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "horizon": {
+            "title": "Horizon",
+            "type": "string"
+          },
+          "importance_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ImportanceBucketStatsView"
+            },
+            "title": "Importance Buckets",
+            "type": "array"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "negative": {
+            "$ref": "#/components/schemas/SignalDirectionStatsView"
+          },
+          "positive": {
+            "$ref": "#/components/schemas/SignalDirectionStatsView"
+          },
+          "skipped_count": {
+            "title": "Skipped Count",
+            "type": "integer"
+          },
+          "total_signals": {
+            "title": "Total Signals",
+            "type": "integer"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_days",
+          "horizon",
+          "generated_at",
+          "total_signals",
+          "evaluable_count",
+          "skipped_count",
+          "positive",
+          "negative"
+        ],
+        "title": "BacktestSummaryView",
+        "type": "object"
+      },
       "BollingerPointView": {
         "properties": {
           "lower": {
@@ -323,6 +399,36 @@
           "ai_enabled"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "ImportanceBucketStatsView": {
+        "description": "按信号置信度分桶（high / medium / low / unknown）的平均前视收益。",
+        "properties": {
+          "avg_forward_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Forward Return"
+          },
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket",
+          "sample_count"
+        ],
+        "title": "ImportanceBucketStatsView",
         "type": "object"
       },
       "IndicatorSeriesView": {
@@ -2572,6 +2678,52 @@
         "title": "QuoteSummaryView",
         "type": "object"
       },
+      "SignalDirectionStatsView": {
+        "description": "单个方向（利好 / 利空）的命中统计。",
+        "properties": {
+          "avg_forward_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Forward Return"
+          },
+          "hit_count": {
+            "title": "Hit Count",
+            "type": "integer"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hit Rate"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "sample_count",
+          "hit_count"
+        ],
+        "title": "SignalDirectionStatsView",
+        "type": "object"
+      },
       "SourceFetchResultView": {
         "properties": {
           "error": {
@@ -3887,6 +4039,99 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/backtest": {
+      "get": {
+        "operationId": "get_backtest_summary_api_backtest_get",
+        "parameters": [
+          {
+            "description": "市场过滤：hk/us/cn，缺省为全部",
+            "in": "query",
+            "name": "market",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "市场过滤：hk/us/cn，缺省为全部",
+              "title": "Market"
+            }
+          },
+          {
+            "description": "回看窗口天数",
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "回看窗口天数",
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Window Days",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "前视时间窗，如 1h/4h/1d",
+            "in": "query",
+            "name": "horizon",
+            "required": false,
+            "schema": {
+              "default": "1d",
+              "description": "前视时间窗，如 1h/4h/1d",
+              "title": "Horizon",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestSummaryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backtest Summary",
+        "tags": [
+          "backtest"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "health_check_api_health_get",

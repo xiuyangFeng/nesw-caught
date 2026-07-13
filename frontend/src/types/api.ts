@@ -279,6 +279,20 @@ export type XPostQuery = {
 };
 
 // ---------------------------------------------------------------------------
+// 信号有效性回测（Signal Backtest）
+// ---------------------------------------------------------------------------
+export type BacktestSummary = Schemas['BacktestSummaryView'];
+export type SignalDirectionStats = Schemas['SignalDirectionStatsView'];
+export type ImportanceBucketStats = Schemas['ImportanceBucketStatsView'];
+
+// 前端 UI 专用:回测查询表单状态,理由同 NewsQuery(market 含 '' 哨兵值)。
+export type BacktestQuery = {
+  market?: Market | '';
+  window_days?: number;
+  horizon?: string;
+};
+
+// ---------------------------------------------------------------------------
 // 飞书通知
 // ---------------------------------------------------------------------------
 export type FeishuNotifyConfig = Schemas['FeishuConfigView'];
