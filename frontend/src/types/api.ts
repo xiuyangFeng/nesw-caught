@@ -78,6 +78,13 @@ export type ResearchDriverCategory = WatchlistResearchDriver['category'];
 export type ResearchActionLevel = WatchlistResearchDriver['action_level'];
 export type ResearchTopActionLevel = WatchlistResearchBrief['top_action_level'];
 
+// 个股 AI 综合研判（本地语料 RAG，结构化研报）
+export type StockResearchReport = Schemas['StockResearchReport'];
+export type StockResearchKeyEvent = Schemas['StockResearchKeyEvent'];
+export type StockResearchReference = Schemas['StockResearchReference'];
+export type StockResearchPriceContext = Schemas['StockResearchPriceContext'];
+export type StockResearchRating = StockResearchReport['overall_rating'];
+
 export type WatchlistAiInsight = Schemas['WatchlistAiInsightView'];
 // 前端 UI 专用:后端 WatchlistAiInsightView.failover 在 schema 中是无结构的
 // dict[str, str],此接口是前端对其约定字段的窄化描述,仅供展示层使用。

@@ -22,6 +22,7 @@ import type {
   NewsRefreshResult,
   WatchlistSparklineMap,
   StockQuoteDetail,
+  StockResearchReport,
   StreamStatus,
   TopicDetail,
   TopicItem,
@@ -275,6 +276,11 @@ export const apiClient = {
       data,
       degraded: false,
     }));
+  },
+  getStockResearch(symbol: string, lookbackDays?: number) {
+    return getJson<StockResearchReport>(
+      withQuery(`/api/research/stock/${encodeURIComponent(symbol)}`, { lookback_days: lookbackDays }),
+    ).then((data) => ({ data, degraded: false }));
   },
   getWatchlistAiInsight(symbol: string) {
     return withMockFallback<WatchlistAiInsight>(

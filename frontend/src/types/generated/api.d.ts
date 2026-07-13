@@ -518,6 +518,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/stock/{symbol}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Stock Research */
+        get: operations["get_stock_research_api_research_stock__symbol__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stream/events": {
         parameters: {
             query?: never;
@@ -1688,6 +1705,117 @@ export interface components {
         SparklineSeriesView: {
             /** Prices */
             prices?: number[];
+        };
+        /**
+         * StockResearchKeyEvent
+         * @description 关键时间线上的单个事件。
+         */
+        StockResearchKeyEvent: {
+            /** Date */
+            date?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Impact
+             * @default neutral
+             * @enum {string}
+             */
+            impact: "positive" | "negative" | "neutral";
+            /** Title */
+            title: string;
+        };
+        /**
+         * StockResearchPriceContext
+         * @description 近 N 天价格走势快照上下文。
+         */
+        StockResearchPriceContext: {
+            /** Change Percent */
+            change_percent?: number | null;
+            /** Price */
+            price?: number | null;
+            /**
+             * Snapshot Count
+             * @default 0
+             */
+            snapshot_count: number;
+            /** Status */
+            status?: string | null;
+            /** Window Change Percent */
+            window_change_percent?: number | null;
+            /** Window High */
+            window_high?: number | null;
+            /** Window Low */
+            window_low?: number | null;
+        };
+        /**
+         * StockResearchReference
+         * @description 研报所引用的单条命中新闻（可回溯本地语料）。
+         */
+        StockResearchReference: {
+            /** Canonical Url */
+            canonical_url?: string | null;
+            /** News Id */
+            news_id: number;
+            /** Published At */
+            published_at?: string | null;
+            /** Sentiment Label */
+            sentiment_label?: string | null;
+            /** Source Name */
+            source_name: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * StockResearchReport
+         * @description 个股 AI 综合研判结构化研报响应。
+         */
+        StockResearchReport: {
+            /** Bear Case */
+            bear_case?: string[];
+            /** Bull Case */
+            bull_case?: string[];
+            /** Display Name */
+            display_name?: string | null;
+            /** Failover */
+            failover?: {
+                [key: string]: string;
+            } | null;
+            /** Generated At */
+            generated_at: string;
+            /** Key Events */
+            key_events?: components["schemas"]["StockResearchKeyEvent"][];
+            /** Llm Error */
+            llm_error?: string | null;
+            /** Lookback Days */
+            lookback_days: number;
+            /** Market */
+            market: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "llm" | "rule";
+            /** Model Name */
+            model_name?: string | null;
+            /**
+             * News Count
+             * @default 0
+             */
+            news_count: number;
+            /**
+             * Overall Rating
+             * @enum {string}
+             */
+            overall_rating: "strong_bullish" | "bullish" | "neutral" | "bearish" | "strong_bearish" | "unknown";
+            price_context: components["schemas"]["StockResearchPriceContext"];
+            /** Rating Rationale */
+            rating_rationale?: string | null;
+            /** References */
+            references?: components["schemas"]["StockResearchReference"][];
+            /** Summary */
+            summary: string;
+            /** Symbol */
+            symbol: string;
         };
         /** StreamStatusResponse */
         StreamStatusResponse: {
@@ -3142,6 +3270,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeishuTestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stock_research_api_research_stock__symbol__get: {
+        parameters: {
+            query?: {
+                lookback_days?: number;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockResearchReport"];
                 };
             };
             /** @description Validation Error */

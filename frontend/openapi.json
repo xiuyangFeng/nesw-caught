@@ -2710,6 +2710,338 @@
         "title": "SparklineSeriesView",
         "type": "object"
       },
+      "StockResearchKeyEvent": {
+        "description": "关键时间线上的单个事件。",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "impact": {
+            "default": "neutral",
+            "enum": [
+              "positive",
+              "negative",
+              "neutral"
+            ],
+            "title": "Impact",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "StockResearchKeyEvent",
+        "type": "object"
+      },
+      "StockResearchPriceContext": {
+        "description": "近 N 天价格走势快照上下文。",
+        "properties": {
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "snapshot_count": {
+            "default": 0,
+            "title": "Snapshot Count",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "window_change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Change Percent"
+          },
+          "window_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window High"
+          },
+          "window_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Low"
+          }
+        },
+        "title": "StockResearchPriceContext",
+        "type": "object"
+      },
+      "StockResearchReference": {
+        "description": "研报所引用的单条命中新闻（可回溯本地语料）。",
+        "properties": {
+          "canonical_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Url"
+          },
+          "news_id": {
+            "title": "News Id",
+            "type": "integer"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "sentiment_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Label"
+          },
+          "source_name": {
+            "title": "Source Name",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "news_id",
+          "title",
+          "source_name"
+        ],
+        "title": "StockResearchReference",
+        "type": "object"
+      },
+      "StockResearchReport": {
+        "description": "个股 AI 综合研判结构化研报响应。",
+        "properties": {
+          "bear_case": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bear Case",
+            "type": "array"
+          },
+          "bull_case": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bull Case",
+            "type": "array"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "failover": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failover"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "key_events": {
+            "items": {
+              "$ref": "#/components/schemas/StockResearchKeyEvent"
+            },
+            "title": "Key Events",
+            "type": "array"
+          },
+          "llm_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Error"
+          },
+          "lookback_days": {
+            "title": "Lookback Days",
+            "type": "integer"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "llm",
+              "rule"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "news_count": {
+            "default": 0,
+            "title": "News Count",
+            "type": "integer"
+          },
+          "overall_rating": {
+            "enum": [
+              "strong_bullish",
+              "bullish",
+              "neutral",
+              "bearish",
+              "strong_bearish",
+              "unknown"
+            ],
+            "title": "Overall Rating",
+            "type": "string"
+          },
+          "price_context": {
+            "$ref": "#/components/schemas/StockResearchPriceContext"
+          },
+          "rating_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Rationale"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/StockResearchReference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "market",
+          "generated_at",
+          "lookback_days",
+          "mode",
+          "overall_rating",
+          "summary",
+          "price_context"
+        ],
+        "title": "StockResearchReport",
+        "type": "object"
+      },
       "StreamStatusResponse": {
         "properties": {
           "backend": {
@@ -5795,6 +6127,76 @@
         "summary": "Test Feishu Notification",
         "tags": [
           "notify"
+        ]
+      }
+    },
+    "/api/research/stock/{symbol}": {
+      "get": {
+        "operationId": "get_stock_research_api_research_stock__symbol__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lookback_days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Lookback Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockResearchReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stock Research",
+        "tags": [
+          "research"
         ]
       }
     },
