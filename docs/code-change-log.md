@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 五特性并行开发集成合并（Integration Merge）
+
+- 修改人：Claude（主线集成）
+- 修改范围：将 5 个在独立 git worktree 中并行开发的特性（信号回测、每日 AI 简报、系统健康看板、LLM 成本治理与分类缓存、财报事件日历）依序合并进 main，并做集成收尾。
+- 变更内容：
+  1. 依序 `--no-ff` 合并 5 个特性分支，解决注册点冲突（`backend/app/api/router.py` 的 import 与 include 合并；`frontend/src/router/index.ts` 路由；`AppShell.vue` 导航；`frontend/src/api/client.ts`；`backend/app/core/config.py` 新增字段；`docs/code-change-log.md` 追加块）。
+  2. 统一 `AppShell.vue` 导航编号与顺序：新增 Signal Backtest(08)、Daily Digest(09)、Calendar(10)、System Health(11)。
+  3. 中心化重新生成前端 API 契约（`npm run generate:api`），使 `frontend/openapi.json` 与 `src/types/generated/api.d.ts` 覆盖全部新端点；`check:api-drift` 通过。
+  4. 修复 `LlmSettingsView.test.ts` 一处因新增价格字段导致的位置脆弱断言：改为按 `name` 选择输入框，并把期望 payload 补齐 `input_price_per_1k/output_price_per_1k/monthly_budget_usd`（空值 → null）。组件行为本身未变。
+- 影响文件：`backend/app/api/router.py`、`backend/app/core/config.py`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/api/client.ts`、`frontend/src/router/index.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`frontend/src/views/LlmSettingsView.test.ts`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增 `/api/backtest`、`/api/digest`、`/api/ops/health`、`/api/calendar`；`/api/llm/*` 扩展成本/预算字段；新增 alembic 迁移 `a7f3c1e9d2b4`（LLM 单价/预算列 + `llm_classification_cache` 表），alembic 单 head。
+- 验证情况：`conda run -n news-caught pytest backend/tests` → **417 passed**；`npm run build`（vue-tsc 全检 + vite）通过；`npm run test`（vitest）→ **229 passed / 48 files**；`check:api-drift` 通过；`alembic heads` 单一 head。
+- 风险/后续事项：`digest_enabled` 默认关闭需显式开启并配好 LLM+飞书；日历依赖 yfinance，联网失败按 skipped 优雅降级；回测精度受 price_snapshot 密度影响。
+
 ## 2026-07-13 信号有效性回测闭环（Signal Backtest）
 
 - 修改人：Claude（独立 worktree 特性开发）

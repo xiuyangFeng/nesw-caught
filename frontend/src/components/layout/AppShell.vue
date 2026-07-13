@@ -33,9 +33,9 @@ const navItems = [
   { label: 'LLM Settings', to: '/settings/llm', index: '06' },
   { label: 'Notify', to: '/settings/notify', index: '07' },
   { label: 'Signal Backtest', to: '/analytics/backtest', index: '08' },
-  { label: 'System Health', to: '/ops', index: '10' },
   { label: 'Daily Digest', to: '/digest', index: '09' },
-  { label: 'Calendar', to: '/calendar', index: '11' },
+  { label: 'Calendar', to: '/calendar', index: '10' },
+  { label: 'System Health', to: '/ops', index: '11' },
 ];
 
 const connectionSummary = computed(() => {

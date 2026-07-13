@@ -111,12 +111,13 @@ describe('LlmSettingsView', () => {
 
     const wrapper = mount(LlmSettingsView);
 
-    const inputs = wrapper.findAll('input');
-    await inputs[0].setValue('openai_compatible');
-    await inputs[1].setValue('DeepSeek');
-    await inputs[2].setValue('https://example-llm.test/v2');
-    await inputs[3].setValue('deepseek-reasoner');
-    await inputs[4].setValue('sk-test-key');
+    // Select by name attribute rather than positional index so the assertion
+    // stays stable as the config form grows new fields (e.g. pricing/budget).
+    await wrapper.find('input[name="provider_name"]').setValue('openai_compatible');
+    await wrapper.find('input[name="display_name"]').setValue('DeepSeek');
+    await wrapper.find('input[name="base_url"]').setValue('https://example-llm.test/v2');
+    await wrapper.find('input[name="model_name"]').setValue('deepseek-reasoner');
+    await wrapper.find('input[name="api_key"]').setValue('sk-test-key');
     await wrapper.find('form').trigger('submit.prevent');
 
     expect(llmStore.saveConfig).toHaveBeenCalledWith({
@@ -128,6 +129,9 @@ describe('LlmSettingsView', () => {
       api_key: 'sk-test-key',
       is_active: true,
       is_default: false,
+      input_price_per_1k: null,
+      output_price_per_1k: null,
+      monthly_budget_usd: null,
     });
     expect(wrapper.text()).toContain('LLM 配置已保存');
   });
