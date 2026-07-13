@@ -453,6 +453,62 @@
         "title": "LLMAnalysisCandidate",
         "type": "object"
       },
+      "LLMBudgetView": {
+        "properties": {
+          "budget_available": {
+            "default": false,
+            "title": "Budget Available",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "month_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month Cost Usd"
+          },
+          "monthly_budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Budget Usd"
+          },
+          "over_budget": {
+            "default": false,
+            "title": "Over Budget",
+            "type": "boolean"
+          },
+          "usage_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage Ratio"
+          }
+        },
+        "required": [
+          "month"
+        ],
+        "title": "LLMBudgetView",
+        "type": "object"
+      },
       "LLMChatRequest": {
         "properties": {
           "config_id": {
@@ -550,6 +606,17 @@
             ],
             "title": "Id"
           },
+          "input_price_per_1k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per 1K"
+          },
           "is_active": {
             "default": true,
             "title": "Is Active",
@@ -563,6 +630,28 @@
           "model_name": {
             "title": "Model Name",
             "type": "string"
+          },
+          "monthly_budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Budget Usd"
+          },
+          "output_price_per_1k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per 1K"
           },
           "provider_name": {
             "title": "Provider Name",
@@ -631,6 +720,17 @@
             ],
             "title": "Id"
           },
+          "input_price_per_1k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per 1K"
+          },
           "is_active": {
             "default": true,
             "title": "Is Active",
@@ -651,6 +751,28 @@
               }
             ],
             "title": "Model Name"
+          },
+          "monthly_budget_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Budget Usd"
+          },
+          "output_price_per_1k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per 1K"
           },
           "provider_name": {
             "anyOf": [
@@ -713,6 +835,202 @@
           "message"
         ],
         "title": "LLMConnectionTestView",
+        "type": "object"
+      },
+      "LLMDailyStatView": {
+        "properties": {
+          "completion_tokens": {
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens"
+        ],
+        "title": "LLMDailyStatView",
+        "type": "object"
+      },
+      "LLMModelStatView": {
+        "properties": {
+          "call_count": {
+            "title": "Call Count",
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "cost_available": {
+            "default": false,
+            "title": "Cost Available",
+            "type": "boolean"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "input_price_per_1k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Price Per 1K"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "output_price_per_1k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Price Per 1K"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "model_name",
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens",
+          "call_count"
+        ],
+        "title": "LLMModelStatView",
+        "type": "object"
+      },
+      "LLMOperationStatView": {
+        "properties": {
+          "operation_type": {
+            "title": "Operation Type",
+            "type": "string"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "operation_type",
+          "total_tokens"
+        ],
+        "title": "LLMOperationStatView",
+        "type": "object"
+      },
+      "LLMOverallStatView": {
+        "properties": {
+          "completion_tokens": {
+            "title": "Completion Tokens",
+            "type": "integer"
+          },
+          "cost_available": {
+            "default": false,
+            "title": "Cost Available",
+            "type": "boolean"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "prompt_tokens": {
+            "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens"
+        ],
+        "title": "LLMOverallStatView",
+        "type": "object"
+      },
+      "LLMStatsView": {
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/LLMBudgetView"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/LLMDailyStatView"
+            },
+            "title": "Daily",
+            "type": "array"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/LLMModelStatView"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/LLMOperationStatView"
+            },
+            "title": "Operations",
+            "type": "array"
+          },
+          "overall": {
+            "$ref": "#/components/schemas/LLMOverallStatView"
+          }
+        },
+        "required": [
+          "overall",
+          "models",
+          "operations",
+          "daily",
+          "budget"
+        ],
+        "title": "LLMStatsView",
         "type": "object"
       },
       "LLMTranslateRequest": {
@@ -4513,7 +4831,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LLMStatsView"
+                }
               }
             },
             "description": "Successful Response"

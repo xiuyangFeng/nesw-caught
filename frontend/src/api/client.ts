@@ -170,10 +170,10 @@ export const apiClient = {
     return withMockFallback<any>(
       () => getJson('/api/llm/stats'),
       () => ({
-        overall: { prompt_tokens: 4200, completion_tokens: 6800, total_tokens: 11000 },
+        overall: { prompt_tokens: 4200, completion_tokens: 6800, total_tokens: 11000, cost_usd: 0.0176, cost_available: true },
         models: [
-          { model_name: 'deepseek-chat', prompt_tokens: 3000, completion_tokens: 5000, total_tokens: 8000, call_count: 12 },
-          { model_name: 'gpt-4o', prompt_tokens: 1200, completion_tokens: 1800, total_tokens: 3000, call_count: 4 }
+          { model_name: 'deepseek-chat', prompt_tokens: 3000, completion_tokens: 5000, total_tokens: 8000, call_count: 12, cost_usd: 0.011, cost_available: true, input_price_per_1k: 0.0002, output_price_per_1k: 0.002 },
+          { model_name: 'gpt-4o', prompt_tokens: 1200, completion_tokens: 1800, total_tokens: 3000, call_count: 4, cost_usd: 0.0066, cost_available: true, input_price_per_1k: 0.0025, output_price_per_1k: 0.002 }
         ],
         operations: [
           { operation_type: 'chat', total_tokens: 6500 },
@@ -187,7 +187,8 @@ export const apiClient = {
           { date: '2026-06-10', prompt_tokens: 900, completion_tokens: 1400, total_tokens: 2300 },
           { date: '2026-06-11', prompt_tokens: 300, completion_tokens: 600, total_tokens: 900 },
           { date: '2026-06-12', prompt_tokens: 700, completion_tokens: 1200, total_tokens: 1900 }
-        ]
+        ],
+        budget: { month: '2026-06', month_cost_usd: 0.0176, monthly_budget_usd: 5, budget_available: true, over_budget: false, usage_ratio: 0.0035 }
       })
     );
   },

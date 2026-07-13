@@ -11,6 +11,15 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'refresh'): void;
 }>();
+
+// 将美元金额格式化为定长字符串；null/undefined 显示占位符。
+function formatUsd(value: number | null | undefined, digits = 4): string {
+  return value != null ? `$${value.toFixed(digits)}` : '—';
+}
+
+function formatPercent(ratio: number | null | undefined): string {
+  return ratio != null ? `${Math.round(ratio * 100)}%` : '—';
+}
 </script>
 
 <template>
@@ -40,14 +49,14 @@ const emit = defineEmits<{
         <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500/80 shadow-[0_0_8px_#3b82f6]" />
       </div>
 
-      <!-- Metric 2: Estimated Cost -->
+      <!-- Metric 2: Real Cost (基于各模型配置单价换算) -->
       <div class="rounded-xl border border-border/60 bg-white/[0.01] p-4 flex flex-col justify-between h-24 shadow-sm relative overflow-hidden group">
-        <div class="text-[10px] uppercase tracking-wider text-muted font-mono">Estimated Cost</div>
+        <div class="text-[10px] uppercase tracking-wider text-muted font-mono">Real Cost (USD)</div>
         <div class="text-xl font-bold text-emerald-400 font-mono mt-1">
-          ${{ (stats.overall.total_tokens * 0.0000002).toFixed(6) }}
+          {{ stats.overall?.cost_available ? formatUsd(stats.overall?.cost_usd) : '—' }}
         </div>
         <div class="text-[10px] text-text-faint mt-1">
-          基于 $0.20/M tokens 均价估算
+          {{ stats.overall?.cost_available ? '基于各模型配置单价换算真实花费' : '未配置模型单价，无法换算' }}
         </div>
         <div class="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-500/80 shadow-[0_0_8px_#10b981]" />
       </div>
@@ -77,6 +86,26 @@ const emit = defineEmits<{
       </div>
     </div>
 
+    <!-- 本月累计花费 vs 月度预算：超预算高亮告警 -->
+    <div
+      v-if="stats.budget?.budget_available"
+      class="mt-4 rounded-xl border p-3 flex flex-wrap items-center justify-between gap-3 text-xs"
+      :class="stats.budget?.over_budget
+        ? 'border-red-500/60 bg-red-500/10 text-red-300'
+        : 'border-emerald-500/40 bg-emerald-500/[0.06] text-text-faint'"
+      data-testid="llm-budget-banner"
+    >
+      <div class="flex items-center gap-2 font-mono">
+        <span class="uppercase tracking-wider text-[10px] text-muted">本月累计 vs 预算 ({{ stats.budget?.month }})</span>
+        <span class="text-sm font-bold" :class="stats.budget?.over_budget ? 'text-red-400' : 'text-emerald-400'">
+          {{ formatUsd(stats.budget?.month_cost_usd) }} / {{ formatUsd(stats.budget?.monthly_budget_usd, 2) }}
+        </span>
+        <span class="text-[10px] text-text-faint">({{ formatPercent(stats.budget?.usage_ratio) }})</span>
+      </div>
+      <span v-if="stats.budget?.over_budget" class="font-bold text-red-400">⚠ 已超出月度预算</span>
+      <span v-else class="text-emerald-400/80">预算内</span>
+    </div>
+
     <!-- Token Trend Chart Section -->
     <TokenTrendChart :daily="stats.daily" />
 
@@ -87,6 +116,7 @@ const emit = defineEmits<{
         <div class="flex gap-8">
           <span class="w-16 text-right">Calls</span>
           <span class="w-20 text-right">Total Tokens</span>
+          <span class="w-20 text-right">Cost ($)</span>
         </div>
       </div>
       <div class="space-y-2">
@@ -95,6 +125,9 @@ const emit = defineEmits<{
           <div class="flex gap-8 shrink-0">
             <span class="w-16 text-right">{{ m.call_count }}</span>
             <span class="w-20 text-right text-text">{{ m.total_tokens.toLocaleString() }}</span>
+            <span class="w-20 text-right" :class="m.cost_available ? 'text-emerald-400' : 'text-text-faint'">
+              {{ m.cost_available ? formatUsd(m.cost_usd) : '—' }}
+            </span>
           </div>
         </div>
       </div>

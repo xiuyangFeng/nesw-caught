@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     # seconds. Tests set TOKEN_USAGE_FLUSH_N=1 for synchronous persistence.
     token_usage_flush_n: int = 50
     token_usage_flush_secs: float = 10.0
+    # Reuse a cached classification result when the same (normalized) content is
+    # classified again, skipping the LLM call and token accounting entirely.
+    # Tests toggle this to assert both cached and uncached behavior.
+    llm_classification_cache_enabled: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",
