@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     digest_premarket_time: str = "08:30"
     digest_postmarket_time: str = "16:30"
     digest_lookback_hours: int = 16
+    # Reuse a cached classification result when the same (normalized) content is
+    # classified again, skipping the LLM call and token accounting entirely.
+    # Tests toggle this to assert both cached and uncached behavior.
+    llm_classification_cache_enabled: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

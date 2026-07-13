@@ -103,6 +103,32 @@
 - 接口/数据结构变化：新增 `GET /api/calendar` 与 `GET /api/calendar/{symbol}`（继承 App Token 鉴权）；未新增数据库表 / 迁移。
 - 验证情况：`conda run -n news-caught pytest backend/tests/test_calendar_service.py -q` 全绿（6 passed）；后端全量 391 passed（唯一 1 例 `test_news_relevance_experiment_runner` 失败为既有问题——其硬编码主仓库绝对路径，在 worktree 下超出允许范围，与本特性无关）；前端 `npm --prefix frontend run build`（含 vue-tsc 类型检查）通过。
 - 风险/后续事项：`types/api.ts` 中日历类型为手写镜像，后续可运行 `npm run generate:api` 替换为 OpenAPI 生成别名；为加角标改动了 `StockCard.vue`（自选股专用组件，additive）。
+## 2026-07-13 11:00
+
+- 修改人：Claude（独立 worktree）
+- 修改范围：LLM 成本治理（单价换算 + 月度预算）+ 分类结果缓存（Cost Governance & Classification Cache）
+- 新增 Alembic 迁移：
+  - **revision id：`a7f3c1e9d2b4`**，**down_revision：`c9d4f0a2b7e1`**
+  - 文件：`backend/alembic/versions/a7f3c1e9d2b4_add_llm_cost_governance_and_classification_cache.py`
+  - **新增列**（表 `llm_provider_config`）：`input_price_per_1k`(Float, nullable)、`output_price_per_1k`(Float, nullable)、`monthly_budget_usd`(Float, nullable)
+  - **新增表** `llm_classification_cache`：`id`(PK)、`content_hash`(String(64), 唯一索引 `ix_llm_classification_cache_content_hash`)、`result_json`(Text)、`model_name`(String, nullable)、`created_at`(DateTime)
+  - 该迁移位于 legacy 基线 `ec84dec88ae5` 之后，会在“legacy 库”路径下再次对 `create_all` 的完整 schema 运行，故写成幂等防御式（列/表已存在则跳过），与 `c9d4f0a2b7e1` 一致。
+- 变更内容：
+  1. **单价与成本换算（Backend）**：`GET /api/llm/stats` 聚合里按各模型单价把 prompt/completion tokens 换算为 USD；无单价的模型 `cost_usd=null` 且 `cost_available=false`。新增 `budget` 字段：本月累计花费 `month_cost_usd` vs 默认模型配置的 `monthly_budget_usd`，含 `over_budget` 超预算标记与 `usage_ratio`。为 `/stats` 补充了 `response_model=LLMStatsView`。
+  2. **分类结果缓存（Backend）**：新增 `llm_classification_cache_repository.py`（`get_by_hash`/`upsert`）。在 `llm_providers.py` 的分类路径 `analyze_json` 中，先按内容归一化（折叠空白）后的 sha256 查缓存：命中直接返回、跳过 LLM 调用与 token 计量；未命中调用后写缓存。缓存读写失败仅告警、绝不影响主流程。新增开关 `llm_classification_cache_enabled: bool = True`（config.py，仅此一个字段）。
+  3. **config upsert 扩展**：`upsert_config` 与 `POST /api/llm/config` 允许写入三个价格/预算字段（非敏感、additive）；价格字段仅在显式传入时更新，避免不感知价格的调用方（如 `upsert_active`）意外清空。**原有 base_url/明文 key/掩码 key 安全校验完全保留不变**。
+  4. **前端**：`LlmConfigForm.vue` 新增“输入单价/输出单价（每 1K tokens）/月度预算($)”输入项；`TokenUsageConsole.vue` 将原“均价估算”改为真实花费($)，新增“本月累计 vs 预算”横幅（超预算红色高亮告警）与每模型 Cost 列；`components/llm/types.ts` 的 `TokenStats` 扩展价格/成本/预算字段并新增 `TokenBudget`；`client.ts` mock 同步补充成本/预算；重新生成 `src/types/generated/api.d.ts` 与 `openapi.json`（config update / stats 类型随后端 schema 更新）。
+- 影响文件：
+  - 后端：`backend/app/models/llm_classification_cache.py`(新)、`backend/app/models/llm_provider_config.py`、`backend/app/models/__init__.py`、`backend/app/db/initializer.py`、`backend/app/core/config.py`、`backend/app/schemas/llm.py`、`backend/app/repositories/llm_classification_cache_repository.py`(新)、`backend/app/repositories/llm_provider_config_repository.py`、`backend/app/services/llm_providers.py`、`backend/app/api/routes/llm.py`、`backend/alembic/versions/a7f3c1e9d2b4_...py`(新)
+  - 测试：`backend/tests/test_llm_cost.py`(新)、`backend/tests/test_llm_classification_cache.py`(新)
+  - 前端：`frontend/src/components/llm/LlmConfigForm.vue`、`frontend/src/components/llm/TokenUsageConsole.vue`、`frontend/src/components/llm/types.ts`、`frontend/src/api/client.ts`、`frontend/src/types/generated/api.d.ts`、`frontend/openapi.json`
+- 接口/数据结构变化：`LLMConfigUpsertRequest`/`LLMConfigView` 增加三价格字段；`/api/llm/stats` 响应新增 `overall.cost_usd/cost_available`、`models[].cost_usd/cost_available/input_price_per_1k/output_price_per_1k`、`budget{...}`。
+- 验证情况：
+  - `conda run -n news-caught pytest backend/tests/test_llm_cost.py test_llm_classification_cache.py test_llm_stats.py test_llm_config.py test_llm_providers.py -q` → 51 passed。
+  - 全量后端 `pytest backend/tests -q` → 392 passed，仅 `test_news_relevance_experiment_runner.py::test_experiment_runner_allows_news_relevance_research_files` 失败，且为 worktree 路径写死（`_REPO_ROOT` 解析到 worktree、测试硬编码主仓路径）导致的既有环境问题，与本特性无关。
+  - 迁移在“已存在库（stamped c9d4f0a2b7e1）”场景 upgrade/downgrade 均验证通过。
+  - 前端 `npm run build` 成功；`npm run check:api-drift` OK；`vitest run src/components/llm` 3 passed。
+- 风险/后续事项：`/stats` 预算取默认模型配置的 `monthly_budget_usd`；价格字段一旦设置暂不支持通过表单清空为 null（可清零为 0）。
 
 ## 2026-06-13 11:30
 

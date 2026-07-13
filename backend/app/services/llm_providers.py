@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+import hashlib
 import json
 import logging
 from typing import NoReturn
@@ -10,6 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from app.services.http_pool import get_async_llm_client, get_llm_client
 
+from app.core.config import get_settings
 from app.models.llm_provider_config import LLMProviderConfig
 from app.db.session import SessionLocal
 from app.services.token_usage_buffer import token_usage_buffer
@@ -55,6 +57,50 @@ def log_token_usage(model_name: str, prompt_tokens: int, completion_tokens: int,
         )
     except Exception as exc:
         logger.warning(f"Failed to log token usage to DB: {exc}")
+
+
+def normalize_classification_content(content: str) -> str:
+    """归一化分类内容：去除首尾空白并折叠内部连续空白，保证等价内容命中同一缓存。"""
+    return " ".join((content or "").split())
+
+
+def compute_classification_hash(content: str) -> str:
+    """返回归一化内容的 sha256 十六进制摘要，作为分类缓存键。"""
+    normalized = normalize_classification_content(content)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def get_cached_classification(content_hash: str) -> str | None:
+    """按内容 hash 读取缓存的分类结果 JSON；读取失败静默降级为未命中。"""
+    from app.repositories.llm_classification_cache_repository import (
+        LLMClassificationCacheRepository,
+    )
+
+    try:
+        with SessionLocal() as session:
+            entry = LLMClassificationCacheRepository(session).get_by_hash(content_hash)
+            return entry.result_json if entry is not None else None
+    except Exception as exc:
+        logger.warning(f"Failed to read classification cache: {exc}")
+        return None
+
+
+def store_classification(content_hash: str, result_json: str, model_name: str | None) -> None:
+    """写入分类结果缓存；写入失败仅告警，绝不影响主分类流程。"""
+    from app.repositories.llm_classification_cache_repository import (
+        LLMClassificationCacheRepository,
+    )
+
+    try:
+        with SessionLocal() as session:
+            LLMClassificationCacheRepository(session).upsert(
+                content_hash=content_hash,
+                result_json=result_json,
+                model_name=model_name,
+            )
+            session.commit()
+    except Exception as exc:
+        logger.warning(f"Failed to write classification cache: {exc}")
 
 
 def estimate_tokens(text: str) -> int:
@@ -329,6 +375,19 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
             return OpenAICompatibleProvider(backup_config).embed_text(text, _retry_count=_retry_count + 1)
 
     def analyze_json(self, *, prompt: str) -> dict[str, object] | object:
+        # 分类缓存：相同内容命中缓存则直接返回，跳过 LLM 调用与 token 计量。
+        cache_enabled = get_settings().llm_classification_cache_enabled
+        content_hash: str | None = None
+        if cache_enabled:
+            content_hash = compute_classification_hash(prompt)
+            cached_json = get_cached_classification(content_hash)
+            if cached_json is not None:
+                try:
+                    return json.loads(cached_json)
+                except json.JSONDecodeError:
+                    # 缓存内容损坏则忽略缓存，回退到正常 LLM 调用。
+                    logger.warning("Discarding corrupted classification cache entry")
+
         result = self.complete(
             messages=[
                 {
@@ -345,9 +404,13 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
         )
 
         try:
-            return json.loads(result.content)
+            parsed = json.loads(result.content)
         except json.JSONDecodeError as exc:
             raise LLMProviderError("llm provider returned invalid analysis payload") from exc
+
+        if cache_enabled and content_hash is not None:
+            store_classification(content_hash, result.content, self.config.model_name)
+        return parsed
 
     def generate_text(self, *, system_prompt: str, user_prompt: str) -> str:
         return self.complete(

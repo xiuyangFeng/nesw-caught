@@ -11,6 +11,9 @@ export interface TokenOverallStats {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  // 成本治理：按各模型单价换算的累计花费（美元）；无单价时为 null。
+  cost_usd?: number | null;
+  cost_available?: boolean;
 }
 
 export interface TokenModelStats {
@@ -19,6 +22,10 @@ export interface TokenModelStats {
   completion_tokens: number;
   total_tokens: number;
   call_count: number;
+  cost_usd?: number | null;
+  cost_available?: boolean;
+  input_price_per_1k?: number | null;
+  output_price_per_1k?: number | null;
 }
 
 export interface TokenOperationStats {
@@ -33,9 +40,20 @@ export interface TokenDailyStats {
   total_tokens: number;
 }
 
+// 本月累计花费 vs 月度预算。
+export interface TokenBudget {
+  month: string;
+  month_cost_usd?: number | null;
+  monthly_budget_usd?: number | null;
+  budget_available?: boolean;
+  over_budget?: boolean;
+  usage_ratio?: number | null;
+}
+
 export interface TokenStats {
   overall: TokenOverallStats;
   models: TokenModelStats[];
   operations: TokenOperationStats[];
   daily: TokenDailyStats[];
+  budget?: TokenBudget;
 }

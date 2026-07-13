@@ -1095,6 +1095,27 @@ export interface components {
             /** Symbol */
             symbol: string;
         };
+        /** LLMBudgetView */
+        LLMBudgetView: {
+            /**
+             * Budget Available
+             * @default false
+             */
+            budget_available: boolean;
+            /** Month */
+            month: string;
+            /** Month Cost Usd */
+            month_cost_usd?: number | null;
+            /** Monthly Budget Usd */
+            monthly_budget_usd?: number | null;
+            /**
+             * Over Budget
+             * @default false
+             */
+            over_budget: boolean;
+            /** Usage Ratio */
+            usage_ratio?: number | null;
+        };
         /** LLMChatRequest */
         LLMChatRequest: {
             /** Config Id */
@@ -1126,6 +1147,8 @@ export interface components {
             display_name?: string | null;
             /** Id */
             id?: number | null;
+            /** Input Price Per 1K */
+            input_price_per_1k?: number | null;
             /**
              * Is Active
              * @default true
@@ -1138,6 +1161,10 @@ export interface components {
             is_default: boolean;
             /** Model Name */
             model_name: string;
+            /** Monthly Budget Usd */
+            monthly_budget_usd?: number | null;
+            /** Output Price Per 1K */
+            output_price_per_1k?: number | null;
             /** Provider Name */
             provider_name: string;
         };
@@ -1158,6 +1185,8 @@ export interface components {
             display_name?: string | null;
             /** Id */
             id?: number | null;
+            /** Input Price Per 1K */
+            input_price_per_1k?: number | null;
             /**
              * Is Active
              * @default true
@@ -1170,6 +1199,10 @@ export interface components {
             is_default: boolean;
             /** Model Name */
             model_name?: string | null;
+            /** Monthly Budget Usd */
+            monthly_budget_usd?: number | null;
+            /** Output Price Per 1K */
+            output_price_per_1k?: number | null;
             /** Provider Name */
             provider_name?: string | null;
             /** Updated At */
@@ -1185,6 +1218,75 @@ export interface components {
             model_name: string;
             /** Provider Name */
             provider_name: string;
+        };
+        /** LLMDailyStatView */
+        LLMDailyStatView: {
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Date */
+            date: string;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** LLMModelStatView */
+        LLMModelStatView: {
+            /** Call Count */
+            call_count: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /**
+             * Cost Available
+             * @default false
+             */
+            cost_available: boolean;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Input Price Per 1K */
+            input_price_per_1k?: number | null;
+            /** Model Name */
+            model_name: string;
+            /** Output Price Per 1K */
+            output_price_per_1k?: number | null;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** LLMOperationStatView */
+        LLMOperationStatView: {
+            /** Operation Type */
+            operation_type: string;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** LLMOverallStatView */
+        LLMOverallStatView: {
+            /** Completion Tokens */
+            completion_tokens: number;
+            /**
+             * Cost Available
+             * @default false
+             */
+            cost_available: boolean;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** LLMStatsView */
+        LLMStatsView: {
+            budget: components["schemas"]["LLMBudgetView"];
+            /** Daily */
+            daily: components["schemas"]["LLMDailyStatView"][];
+            /** Models */
+            models: components["schemas"]["LLMModelStatView"][];
+            /** Operations */
+            operations: components["schemas"]["LLMOperationStatView"][];
+            overall: components["schemas"]["LLMOverallStatView"];
         };
         /** LLMTranslateRequest */
         LLMTranslateRequest: {
@@ -2791,7 +2893,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["LLMStatsView"];
                 };
             };
             /** @description Validation Error */

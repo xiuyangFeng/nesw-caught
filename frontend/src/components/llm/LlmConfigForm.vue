@@ -18,7 +18,21 @@ const formState = reactive({
   api_key: '',
   is_active: true,
   is_default: false,
+  // 成本治理：每 1K tokens 输入/输出单价与月度预算（美元），字符串输入，留空表示未设置。
+  input_price_per_1k: '',
+  output_price_per_1k: '',
+  monthly_budget_usd: '',
 });
+
+// 将价格输入框的字符串转换为 number | null；空串或非法值一律为 null。
+function toPrice(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : null;
+}
 
 const requiresKey = computed(() => !formState.id); // 新增时不建议 key 为空，编辑时可以不改 key
 const canSave = computed(() => {
@@ -38,6 +52,9 @@ function startEdit(cfg: LLMConfigSummary) {
   formState.api_key = ''; // 不回显 key
   formState.is_active = cfg.is_active ?? true;
   formState.is_default = cfg.is_default ?? false;
+  formState.input_price_per_1k = cfg.input_price_per_1k != null ? String(cfg.input_price_per_1k) : '';
+  formState.output_price_per_1k = cfg.output_price_per_1k != null ? String(cfg.output_price_per_1k) : '';
+  formState.monthly_budget_usd = cfg.monthly_budget_usd != null ? String(cfg.monthly_budget_usd) : '';
 }
 
 function cancelEdit() {
@@ -53,6 +70,9 @@ function resetForm() {
   formState.api_key = '';
   formState.is_active = true;
   formState.is_default = false;
+  formState.input_price_per_1k = '';
+  formState.output_price_per_1k = '';
+  formState.monthly_budget_usd = '';
 }
 
 async function submitConfig() {
@@ -70,6 +90,9 @@ async function submitConfig() {
     api_key: trimmedKey ? trimmedKey : undefined,
     is_active: formState.is_active,
     is_default: formState.is_default,
+    input_price_per_1k: toPrice(formState.input_price_per_1k),
+    output_price_per_1k: toPrice(formState.output_price_per_1k),
+    monthly_budget_usd: toPrice(formState.monthly_budget_usd),
   };
 
   try {
@@ -139,6 +162,51 @@ defineExpose({ startEdit });
           placeholder="例如 deepseek-chat"
           required
         />
+      </label>
+      <div class="grid gap-[14px] sm:grid-cols-2">
+        <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
+          <span>输入单价（$/1K tokens）</span>
+          <input
+            v-model="formState.input_price_per_1k"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
+            name="input_price_per_1k"
+            type="number"
+            step="0.0001"
+            min="0"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="例如 0.0002"
+          />
+        </label>
+        <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
+          <span>输出单价（$/1K tokens）</span>
+          <input
+            v-model="formState.output_price_per_1k"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
+            name="output_price_per_1k"
+            type="number"
+            step="0.0001"
+            min="0"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="例如 0.002"
+          />
+        </label>
+      </div>
+      <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
+        <span>月度预算（$）</span>
+        <input
+          v-model="formState.monthly_budget_usd"
+          data-surface="terminal-field"
+          class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
+          name="monthly_budget_usd"
+          type="number"
+          step="0.01"
+          min="0"
+          :disabled="llmStore.loading || llmStore.saving"
+          placeholder="留空表示不限制"
+        />
+        <small class="text-text-faint">用于默认模型的“本月累计花费 vs 预算”超支告警</small>
       </label>
       <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
         <span>API Key {{ requiresKey ? '*' : '' }}</span>
