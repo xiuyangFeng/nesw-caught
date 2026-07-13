@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
 
+import RouteErrorBoundary from '../common/RouteErrorBoundary.vue';
+
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useMarketStore } from '../../stores/marketStore';
 import { useNewsStore } from '../../stores/newsStore';
@@ -399,7 +401,9 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <RouterView />
+      <RouteErrorBoundary>
+        <RouterView />
+      </RouteErrorBoundary>
     </main>
   </div>
 </template>

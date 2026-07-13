@@ -2,6 +2,22 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 修复「切换模块经常卡住必须刷新」（路由视图错误处理基础设施）
+
+- 修改人：Claude（系统化调试）
+- 修改范围：前端全局错误处理与懒加载路由视图的容错恢复。
+- 根因：应用为每个路由做代码分割（`() => import()`），但**全链路缺少任何错误处理**——`main.ts` 无 `app.config.errorHandler`、无 `vite:preloadError` 监听；`router/index.ts` 无 `router.onError`；`AppShell.vue` 用裸 `<RouterView>` 无 `onErrorCaptured` 错误边界。于是任何一次**动态 import 失败/超时**（旧 chunk 失效、Vite dev 504、网络抖动，间歇发生故"经常"）或**视图渲染抛错**（同已归档的 LlmSettings `substring` 崩溃）都无人兜底，导致导航静默失败、响应式中断，用户只能手动刷新。
+- 变更内容：
+  1. 新增 `frontend/src/utils/lazyImport.ts`：`isDynamicImportError`（识别 chunk 加载失败/超时）、`recoverFromChunkError`（sessionStorage 守卫的一次性受控刷新，防无限刷新循环）、`lazyView`（给 loader 加超时 + 一次静默重试，两次都失败才受控刷新；真正的模块语法/运行时错误照常抛出不掩盖）。
+  2. 新增 `frontend/src/components/common/RouteErrorBoundary.vue`：`onErrorCaptured` 错误边界包裹 `<RouterView>`，隔离单个视图的渲染/setup 抛错使 SPA 其余部分（导航/外壳/响应式）继续存活；监听 `route.fullPath`，**切换到其它模块即自动清除错误、无需刷新整页**；提供「重试」「刷新页面」。chunk 类错误则走受控刷新。
+  3. `router/index.ts`：全部路由 loader 包裹 `lazyView(...)`；新增 `router.onError`，对 chunk 失败受控刷新到目标路径。
+  4. `main.ts`：新增 `app.config.errorHandler`（记录兜底错误）与 `window` 的 `vite:preloadError` 监听（预加载失败受控刷新）。
+  5. `AppShell.vue`：用 `<RouteErrorBoundary>` 包裹 `<RouterView>`。
+- 影响文件：`frontend/src/utils/lazyImport.ts`(新)、`frontend/src/utils/lazyImport.test.ts`(新)、`frontend/src/components/common/RouteErrorBoundary.vue`(新)、`frontend/src/components/common/RouteErrorBoundary.test.ts`(新)、`frontend/src/components/common/RouteErrorBoundary.integration.test.ts`(新)、`frontend/src/router/index.ts`、`frontend/src/main.ts`、`frontend/src/components/layout/AppShell.vue`、`docs/code-change-log.md`
+- 接口/数据结构变化：无（纯前端容错，不改后端与 API）。
+- 验证情况：新增单测覆盖错误识别/受控刷新守卫/lazyView 重试与放弃/边界隔离与恢复；新增**真实 vue-router 集成测试**复现并验证「导航到崩溃模块→被隔离不卡死→切到另一模块→自动恢复无需刷新」。`npm run test` → **243 passed / 51 files**；`npm run build`（vue-tsc 全检 + vite）通过。
+- 风险/后续事项：受控刷新有 10s sessionStorage 守卫防循环；异步/未处理 Promise 拒绝（fire-and-forget）不在 `onErrorCaptured` 覆盖范围，但不影响导航卡死场景；如仍偶发，可据浏览器控制台的 `[RouteErrorBoundary]`/`[vue]` 日志进一步定位具体抛错视图。
+
 ## 2026-07-13 五特性并行开发集成合并（Integration Merge）
 
 - 修改人：Claude（主线集成）
