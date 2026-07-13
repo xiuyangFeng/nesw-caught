@@ -284,3 +284,10 @@ export type XPostQuery = {
 export type FeishuNotifyConfig = Schemas['FeishuConfigView'];
 export type FeishuNotifyConfigUpdate = Schemas['FeishuConfigUpsertRequest'];
 export type FeishuTestResult = Schemas['FeishuTestResult'];
+
+// ---------------------------------------------------------------------------
+// 每日盘前/盘后 AI 简报（Daily Digest）
+// ---------------------------------------------------------------------------
+export type DigestSection = Schemas['DigestSectionView'];
+export type Digest = Schemas['DigestView'];
+export type DigestLatest = Schemas['DigestLatestView'];

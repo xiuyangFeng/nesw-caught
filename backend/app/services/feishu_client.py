@@ -268,6 +268,41 @@ def build_alert_card(
     }
 
 
+def build_digest_card(digest: dict[str, Any]) -> dict[str, Any]:
+    """构建每日盘前/盘后 AI 简报卡片，各 section 逐块渲染。"""
+    title = digest.get("title") or "每日 AI 简报"
+    generated_by = digest.get("generated_by")
+    generated_at = digest.get("generated_at") or ""
+
+    sections: list[dict[str, Any]] = []
+    for section in digest.get("sections", []):
+        if not isinstance(section, dict):
+            continue
+        section_title = section.get("title", "")
+        body = section.get("body", "")
+        sections.append({
+            "tag": "div",
+            "text": {"tag": "lark_md", "content": f"**{section_title}**\n{body}"},
+        })
+
+    source_label = "LLM 生成" if generated_by == "llm" else "规则汇总"
+    sections.append({
+        "tag": "note",
+        "elements": [
+            {"tag": "lark_md", "content": f"来源：{source_label} · 生成时间(UTC)：{generated_at}"},
+        ],
+    })
+
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": f"🗞️ {title}"},
+            "template": "wathet",
+        },
+        "elements": sections,
+    }
+
+
 def build_analysis_card(
     news_title: str,
     top_pick: dict[str, Any] | None,

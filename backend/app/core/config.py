@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     # seconds. Tests set TOKEN_USAGE_FLUSH_N=1 for synchronous persistence.
     token_usage_flush_n: int = 50
     token_usage_flush_secs: float = 10.0
+    # 每日盘前/盘后 AI 简报（Daily Digest）：定时用 LLM 生成结构化简报并推送。
+    # digest_enabled 默认关闭，避免未配置 LLM/飞书的环境无谓触发；开启后由
+    # DigestWorker 按各市场本地时区在盘前/盘后时点生成推送。
+    digest_enabled: bool = False
+    digest_premarket_time: str = "08:30"
+    digest_postmarket_time: str = "16:30"
+    digest_lookback_hours: int = 16
 
     model_config = SettingsConfigDict(
         env_file=".env",

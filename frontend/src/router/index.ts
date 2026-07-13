@@ -63,6 +63,11 @@ const router = createRouter({
       component: () => import('../views/ChatView.vue'),
     },
     {
+      path: '/digest',
+      name: 'daily-digest',
+      component: () => import('../views/DigestView.vue'),
+    },
+    {
       path: '/topics/:id',
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),

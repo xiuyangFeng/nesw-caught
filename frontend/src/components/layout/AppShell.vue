@@ -32,6 +32,7 @@ const navItems = [
   { label: 'AI Chat', to: '/chat', index: '05' },
   { label: 'LLM Settings', to: '/settings/llm', index: '06' },
   { label: 'Notify', to: '/settings/notify', index: '07' },
+  { label: 'Daily Digest', to: '/digest', index: '09' },
 ];
 
 const connectionSummary = computed(() => {
