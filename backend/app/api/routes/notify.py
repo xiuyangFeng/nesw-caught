@@ -3,10 +3,20 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.feishu_notify_config_repository import FeishuNotifyConfigRepository
-from app.schemas.feishu_notify import FeishuConfigUpsertRequest, FeishuConfigView, FeishuTestResult
+from app.schemas.feishu_notify import (
+    AlertGovernanceView,
+    FeishuConfigUpsertRequest,
+    FeishuConfigView,
+    FeishuTestResult,
+)
 from app.services.feishu_client import FeishuClientError, get_shared_feishu_sender
+from app.services.notification_service import get_notification_service
 
 router = APIRouter()
+
+
+def _governance_view() -> AlertGovernanceView:
+    return AlertGovernanceView(**get_notification_service().governance_view())
 
 
 @router.get("/feishu/config", response_model=FeishuConfigView)
@@ -14,7 +24,7 @@ def get_feishu_config(session: Session = Depends(get_db_session)) -> FeishuConfi
     repo = FeishuNotifyConfigRepository(session)
     config = repo.get_first()
     if config is None:
-        return FeishuConfigView(configured=False)
+        return FeishuConfigView(configured=False, governance=_governance_view())
 
     return FeishuConfigView(
         configured=True,
@@ -29,6 +39,7 @@ def get_feishu_config(session: Session = Depends(get_db_session)) -> FeishuConfi
         analysis_enabled=config.analysis_enabled,
         is_active=config.is_active,
         updated_at=config.updated_at,
+        governance=_governance_view(),
     )
 
 
@@ -54,6 +65,12 @@ def upsert_feishu_config(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # 告警治理覆盖只存内存（不落库），仅在请求携带 governance 时更新。
+    if payload.governance is not None:
+        get_notification_service().apply_governance(
+            payload.governance.model_dump(exclude_unset=True)
+        )
+
     return FeishuConfigView(
         configured=True,
         app_id=config.app_id,
@@ -67,6 +84,7 @@ def upsert_feishu_config(
         analysis_enabled=config.analysis_enabled,
         is_active=config.is_active,
         updated_at=config.updated_at,
+        governance=_governance_view(),
     )
 
 

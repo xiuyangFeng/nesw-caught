@@ -4,9 +4,13 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.repositories.feishu_notify_config_repository import FeishuNotifyConfigRepository
@@ -14,6 +18,7 @@ from app.repositories.notification_job_repository import NotificationJobReposito
 from app.services.feishu_client import (
     FeishuClientError,
     build_alert_card,
+    build_alert_digest_card,
     build_analysis_card,
     build_digest_card,
     build_news_batch_card,
@@ -25,9 +30,39 @@ logger = logging.getLogger(__name__)
 MAX_RETRY_ATTEMPTS = 5
 RETRY_DELAYS_SECONDS = (30, 120, 300, 900, 1800)
 
+# 告警治理严重度：critical 不受免打扰 / 合并限制，其余按策略暂缓或合并。
+SEVERITY_CRITICAL = "critical"
+SEVERITY_NORMAL = "normal"
+SEVERITY_LOW = "low"
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+@dataclass(frozen=True)
+class GovernanceConfig:
+    """一次治理决策所用的有效配置快照（settings 默认叠加内存覆盖后的结果）。"""
+
+    quiet_hours_start: str | None
+    quiet_hours_end: str | None
+    quiet_hours_tz: str
+    dedupe_window_minutes: int
+    digest_window_minutes: int
+    digest_threshold: int
+    critical_change_percent: float
+
+
+# 允许通过前端 / 测试覆盖的治理字段白名单。
+_GOVERNANCE_KEYS = (
+    "quiet_hours_start",
+    "quiet_hours_end",
+    "quiet_hours_tz",
+    "dedupe_window_minutes",
+    "digest_window_minutes",
+    "digest_threshold",
+    "critical_change_percent",
+)
 
 
 class NotificationService:
@@ -42,6 +77,80 @@ class NotificationService:
         self._poll_interval_seconds = poll_interval_seconds
         self._lease_seconds = lease_seconds
         self._worker: Any = None
+        # 告警治理：内存态运行期覆盖（不落库），叠加在 settings 默认之上。
+        self._governance_override: dict[str, Any] = {}
+        # 去重窗口用的"同 symbol 最近一次入队时间"，仅内存保存。
+        self._recent_alerts: dict[str, datetime] = {}
+        # 可注入时钟：测试注固定时间；生产用 UTC now。
+        self._now_provider: Callable[[], datetime] = _utc_now
+
+    # ------------------------------------------------------------------
+    # 告警治理配置：settings 默认 + 内存覆盖
+    # ------------------------------------------------------------------
+    def _governance(self) -> GovernanceConfig:
+        settings = get_settings()
+        values: dict[str, Any] = {
+            "quiet_hours_start": settings.notify_quiet_hours_start,
+            "quiet_hours_end": settings.notify_quiet_hours_end,
+            "quiet_hours_tz": settings.notify_quiet_hours_tz,
+            "dedupe_window_minutes": settings.notify_dedupe_window_minutes,
+            "digest_window_minutes": settings.notify_digest_window_minutes,
+            "digest_threshold": settings.notify_digest_threshold,
+            "critical_change_percent": settings.notify_critical_change_percent,
+        }
+        values.update(self._governance_override)
+        for key in ("quiet_hours_start", "quiet_hours_end"):
+            candidate = values.get(key)
+            if isinstance(candidate, str) and not candidate.strip():
+                values[key] = None
+        return GovernanceConfig(**values)
+
+    def configure_governance(self, **kwargs: Any) -> None:
+        """设置内存态治理覆盖（测试注入 / 前端保存均走这里）。"""
+        for key, value in kwargs.items():
+            if key not in _GOVERNANCE_KEYS:
+                raise ValueError(f"unknown governance field: {key}")
+            self._governance_override[key] = value
+
+    def apply_governance(self, payload: dict[str, Any]) -> None:
+        """从 API 请求体应用治理覆盖：空串按"未设置"处理。"""
+        normalized: dict[str, Any] = {}
+        for key in _GOVERNANCE_KEYS:
+            if key not in payload:
+                continue
+            value = payload[key]
+            if key in ("quiet_hours_start", "quiet_hours_end", "quiet_hours_tz"):
+                if isinstance(value, str) and not value.strip():
+                    if key == "quiet_hours_tz":
+                        continue  # 时区留空则回落 settings 默认
+                    value = None
+            normalized[key] = value
+        self.configure_governance(**normalized)
+
+    def governance_view(self) -> dict[str, Any]:
+        """返回当前有效治理配置，供 API 回显。"""
+        gov = self._governance()
+        return {
+            "quiet_hours_start": gov.quiet_hours_start,
+            "quiet_hours_end": gov.quiet_hours_end,
+            "quiet_hours_tz": gov.quiet_hours_tz,
+            "dedupe_window_minutes": gov.dedupe_window_minutes,
+            "digest_window_minutes": gov.digest_window_minutes,
+            "digest_threshold": gov.digest_threshold,
+            "critical_change_percent": gov.critical_change_percent,
+        }
+
+    def _classify_severity(self, event_type: str, payload: dict[str, Any]) -> str:
+        """按事件类型 / 触发条件打严重度：critical / normal / low。"""
+        if event_type == "watchlist_alert":
+            gov = self._governance()
+            change = payload.get("change_percent")
+            if change is not None and abs(change) >= gov.critical_change_percent:
+                return SEVERITY_CRITICAL
+            return SEVERITY_NORMAL
+        if event_type in ("analysis_result", "alert_digest"):
+            return SEVERITY_NORMAL
+        return SEVERITY_LOW
 
     def start(self) -> None:
         if self._worker is not None:
@@ -98,14 +207,34 @@ class NotificationService:
             if not config or not config.alert_enabled:
                 return
 
+            gov = self._governance()
+            now = self._now_provider()
+            # 去重窗口：同 symbol 在 N 分钟内已入队过则抑制（0 = 关闭）。
+            if gov.dedupe_window_minutes > 0:
+                last_enqueued_at = self._recent_alerts.get(str(symbol))
+                if (
+                    last_enqueued_at is not None
+                    and now - last_enqueued_at < timedelta(minutes=gov.dedupe_window_minutes)
+                ):
+                    self._watchlist_state[symbol] = True
+                    return
+
+            # 合并摘要：非 critical 告警先暂存一个合并窗口再合并（0 = 关闭，立即发）。
+            severity = self._classify_severity("watchlist_alert", payload)
+            next_retry_at = None
+            if severity != SEVERITY_CRITICAL and gov.digest_window_minutes > 0:
+                next_retry_at = now + timedelta(minutes=gov.digest_window_minutes)
+
             with SessionLocal() as session:
                 repo = NotificationJobRepository(session)
                 repo.enqueue(
                     channel="feishu",
                     event_type="watchlist_alert",
                     payload=payload,
+                    next_retry_at=next_retry_at,
                 )
                 session.commit()
+            self._recent_alerts[str(symbol)] = now
             self._watchlist_state[symbol] = True
 
     def on_analysis_completed(self, payload: dict[str, Any]) -> None:
@@ -148,11 +277,16 @@ class NotificationService:
         if not config:
             return 0
 
-        current_time = now or _utc_now()
+        current_time = now or self._now_provider()
+        gov = self._governance()
         if config.news_enabled:
             self._materialize_news_batch_jobs(config, now=current_time)
         else:
             self._discard_pending_news_jobs()
+
+        # 治理层：先把到期的暂存告警合并为摘要，再对免打扰时段做暂缓。
+        self._materialize_alert_digest_jobs(now=current_time, gov=gov)
+        self._apply_quiet_hours(now=current_time, gov=gov)
 
         processed_count = 0
         for _ in range(50):
@@ -202,6 +336,108 @@ class NotificationService:
             repo.discard_pending(channel="news", event_type="news_source_event")
             repo.discard_pending(channel="feishu", event_type="news_batch")
             session.commit()
+
+    def _materialize_alert_digest_jobs(self, *, now: datetime, gov: GovernanceConfig) -> None:
+        """把暂存到期的多条自选股异动合并成一条摘要卡片，复用既有队列与投递。
+
+        仅合并被暂存过（next_retry_at 非空、已到期）的告警——这些必然是非
+        critical（critical 入队时 next_retry_at 为空，立即单发）。数量不足合并
+        阈值时保持原样，由派发主循环逐条投递。
+        """
+        if gov.digest_window_minutes <= 0:
+            return
+
+        with SessionLocal() as session:
+            repo = NotificationJobRepository(session)
+            due = repo.list_pending(channel="feishu", event_type="watchlist_alert", now=now, limit=200)
+            candidates = [job for job in due if job.next_retry_at is not None]
+            if len(candidates) < max(2, gov.digest_threshold):
+                return
+
+            items = [json.loads(job.payload_json) for job in candidates]
+            dedupe_key = "alert-digest:" + ",".join(str(job.id) for job in candidates)
+            repo.enqueue(
+                channel="feishu",
+                event_type="alert_digest",
+                payload={"items": items},
+                dedupe_key=dedupe_key,
+            )
+            for job in candidates:
+                repo.mark_sent(job.id, sent_at=now, lease_token=None)
+            # 摘要落库与源告警消费在同一事务内提交。
+            session.commit()
+
+    def _apply_quiet_hours(self, *, now: datetime, gov: GovernanceConfig) -> None:
+        """免打扰时段内暂缓非 critical 的到期告警：顺延 next_retry_at 到时段结束。
+
+        critical（极端情绪 / 重大异动）不受限制，继续走派发主循环立即投递。
+        暂缓不计入失败重试次数，也不修改 attempt_count。
+        """
+        if not self._is_quiet_hours(now, gov):
+            return
+
+        quiet_end = self._next_quiet_hours_end(now, gov)
+        with SessionLocal() as session:
+            repo = NotificationJobRepository(session)
+            for job in repo.list_pending(channel="feishu", now=now, limit=200):
+                payload = json.loads(job.payload_json)
+                if self._classify_severity(job.event_type, payload) == SEVERITY_CRITICAL:
+                    continue
+                repo.mark_retryable_failure(
+                    job.id,
+                    error="deferred:quiet_hours",
+                    next_retry_at=quiet_end,
+                    lease_token=None,
+                )
+            session.commit()
+
+    @staticmethod
+    def _parse_hhmm(value: str | None) -> tuple[int, int] | None:
+        if not value:
+            return None
+        try:
+            hour_str, minute_str = value.split(":", 1)
+            hour, minute = int(hour_str), int(minute_str)
+        except (ValueError, AttributeError):
+            return None
+        if 0 <= hour < 24 and 0 <= minute < 60:
+            return hour, minute
+        return None
+
+    @staticmethod
+    def _resolve_zone(tz_name: str) -> ZoneInfo | timezone:
+        try:
+            return ZoneInfo(tz_name)
+        except Exception:
+            logger.warning("invalid quiet-hours timezone %s, falling back to UTC", tz_name)
+            return timezone.utc
+
+    def _is_quiet_hours(self, now: datetime, gov: GovernanceConfig) -> bool:
+        start = self._parse_hhmm(gov.quiet_hours_start)
+        end = self._parse_hhmm(gov.quiet_hours_end)
+        if start is None or end is None:
+            return False
+
+        local = now.astimezone(self._resolve_zone(gov.quiet_hours_tz))
+        current_minutes = local.hour * 60 + local.minute
+        start_minutes = start[0] * 60 + start[1]
+        end_minutes = end[0] * 60 + end[1]
+        if start_minutes == end_minutes:
+            return False
+        if start_minutes < end_minutes:
+            return start_minutes <= current_minutes < end_minutes
+        # 跨夜区间（如 22:00-07:00）。
+        return current_minutes >= start_minutes or current_minutes < end_minutes
+
+    def _next_quiet_hours_end(self, now: datetime, gov: GovernanceConfig) -> datetime:
+        end = self._parse_hhmm(gov.quiet_hours_end)
+        zone = self._resolve_zone(gov.quiet_hours_tz)
+        local = now.astimezone(zone)
+        assert end is not None  # 仅在免打扰生效时调用
+        end_local = local.replace(hour=end[0], minute=end[1], second=0, microsecond=0)
+        if end_local <= local:
+            end_local = end_local + timedelta(days=1)
+        return end_local.astimezone(timezone.utc)
 
     def _load_config(self) -> FeishuNotifyConfig | None:
         try:
@@ -268,6 +504,8 @@ class NotificationService:
         payload = json.loads(job.payload_json)
         if job.event_type == "news_batch":
             return build_news_batch_card(payload.get("items", []))
+        if job.event_type == "alert_digest":
+            return build_alert_digest_card(payload.get("items", []))
         if job.event_type == "watchlist_alert":
             return build_alert_card(
                 symbol=payload.get("symbol", ""),
