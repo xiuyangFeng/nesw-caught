@@ -139,6 +139,8 @@ const primaryModules: SmokeRoute[] = [
   { path: '/digest', label: 'Digest', anchor: { kind: 'text', value: '每日盘前/盘后 AI 简报' } },
   { path: '/analytics/backtest', label: 'SignalBacktest', anchor: { kind: 'text', value: 'Signal Backtest' } },
   { path: '/ops', label: 'OpsHealth', anchor: { kind: 'role', value: 'ops-health-view' } },
+  { path: '/portfolio', label: 'Portfolio', anchor: { kind: 'role', value: 'portfolio-view' } },
+  { path: '/eval/sentiment', label: 'SentimentEval', anchor: { kind: 'text', value: 'Sentiment Eval' } },
 ];
 
 // 带参路由用示例参数补充覆盖（参数取自 ../api/mock 里存在的良性夹具）。

@@ -1,6 +1,144 @@
 {
   "components": {
     "schemas": {
+      "AlertGovernanceUpdate": {
+        "description": "告警治理运行期覆盖（保存在 NotificationService 内存，不落库）。全部可选。",
+        "properties": {
+          "critical_change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critical Change Percent"
+          },
+          "dedupe_window_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dedupe Window Minutes"
+          },
+          "digest_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Threshold"
+          },
+          "digest_window_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Window Minutes"
+          },
+          "quiet_hours_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Hours End"
+          },
+          "quiet_hours_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Hours Start"
+          },
+          "quiet_hours_tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Hours Tz"
+          }
+        },
+        "title": "AlertGovernanceUpdate",
+        "type": "object"
+      },
+      "AlertGovernanceView": {
+        "description": "治理当前生效值（settings 默认叠加内存覆盖后的结果），供前端回显。",
+        "properties": {
+          "critical_change_percent": {
+            "default": 8.0,
+            "title": "Critical Change Percent",
+            "type": "number"
+          },
+          "dedupe_window_minutes": {
+            "default": 0,
+            "title": "Dedupe Window Minutes",
+            "type": "integer"
+          },
+          "digest_threshold": {
+            "default": 3,
+            "title": "Digest Threshold",
+            "type": "integer"
+          },
+          "digest_window_minutes": {
+            "default": 0,
+            "title": "Digest Window Minutes",
+            "type": "integer"
+          },
+          "quiet_hours_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Hours End"
+          },
+          "quiet_hours_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Hours Start"
+          },
+          "quiet_hours_tz": {
+            "default": "Asia/Shanghai",
+            "title": "Quiet Hours Tz",
+            "type": "string"
+          }
+        },
+        "title": "AlertGovernanceView",
+        "type": "object"
+      },
       "BacktestSummaryView": {
         "description": "回测汇总响应。",
         "properties": {
@@ -396,6 +534,16 @@
             ],
             "title": "App Secret"
           },
+          "governance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertGovernanceUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "is_active": {
             "default": true,
             "title": "Is Active",
@@ -470,6 +618,16 @@
           "configured": {
             "title": "Configured",
             "type": "boolean"
+          },
+          "governance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertGovernanceView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "is_active": {
             "default": true,
@@ -3194,6 +3352,255 @@
         "title": "OpsXSourceView",
         "type": "object"
       },
+      "PortfolioPositionView": {
+        "description": "单只持仓的成本 / 盈亏 / 仓位权重明细。",
+        "properties": {
+          "average_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Cost"
+          },
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "cost_basis": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Basis"
+          },
+          "current_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Price"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Value"
+          },
+          "position_size": {
+            "title": "Position Size",
+            "type": "number"
+          },
+          "price_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Message"
+          },
+          "price_status": {
+            "default": "unavailable",
+            "title": "Price Status",
+            "type": "string"
+          },
+          "quote_fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Fetched At"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "unrealized_pnl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Pnl"
+          },
+          "unrealized_pnl_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unrealized Pnl Percent"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "symbol",
+          "market",
+          "display_name",
+          "position_size"
+        ],
+        "title": "PortfolioPositionView",
+        "type": "object"
+      },
+      "PortfolioSummaryView": {
+        "description": "组合汇总：总市值 / 总盈亏 + 按仓位加权的新闻排序。",
+        "properties": {
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "position_count": {
+            "default": 0,
+            "title": "Position Count",
+            "type": "integer"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioPositionView"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "priced_position_count": {
+            "default": 0,
+            "title": "Priced Position Count",
+            "type": "integer"
+          },
+          "total_cost_basis": {
+            "default": 0.0,
+            "title": "Total Cost Basis",
+            "type": "number"
+          },
+          "total_market_value": {
+            "default": 0.0,
+            "title": "Total Market Value",
+            "type": "number"
+          },
+          "total_unrealized_pnl": {
+            "default": 0.0,
+            "title": "Total Unrealized Pnl",
+            "type": "number"
+          },
+          "total_unrealized_pnl_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Unrealized Pnl Percent"
+          },
+          "weighted_news": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioWeightedNewsView"
+            },
+            "title": "Weighted News",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at"
+        ],
+        "title": "PortfolioSummaryView",
+        "type": "object"
+      },
+      "PortfolioWeightedNewsView": {
+        "description": "按仓位价值加权后、组合层“最该看”的一条新闻。",
+        "properties": {
+          "impact_score": {
+            "default": 0.0,
+            "title": "Impact Score",
+            "type": "number"
+          },
+          "news_item": {
+            "$ref": "#/components/schemas/NewsItemSummary"
+          },
+          "sentiment_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Score"
+          },
+          "signed_impact": {
+            "default": 0.0,
+            "title": "Signed Impact",
+            "type": "number"
+          },
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "news_item"
+        ],
+        "title": "PortfolioWeightedNewsView",
+        "type": "object"
+      },
       "PriceSnapshotView": {
         "properties": {
           "abnormal_reason": {
@@ -3742,6 +4149,256 @@
         "title": "QuoteSummaryView",
         "type": "object"
       },
+      "SentimentABComparison": {
+        "properties": {
+          "accuracy_delta": {
+            "title": "Accuracy Delta",
+            "type": "number"
+          },
+          "label_deltas": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentLabelDelta"
+            },
+            "title": "Label Deltas",
+            "type": "array"
+          },
+          "macro_f1_delta": {
+            "title": "Macro F1 Delta",
+            "type": "number"
+          },
+          "model_a": {
+            "$ref": "#/components/schemas/SentimentModelRun"
+          },
+          "model_b": {
+            "$ref": "#/components/schemas/SentimentModelRun"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "winner": {
+            "enum": [
+              "model_a",
+              "model_b",
+              "tie"
+            ],
+            "title": "Winner",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_a",
+          "model_b",
+          "accuracy_delta",
+          "macro_f1_delta",
+          "label_deltas",
+          "winner",
+          "reason"
+        ],
+        "title": "SentimentABComparison",
+        "type": "object"
+      },
+      "SentimentEvalResponse": {
+        "description": "GET /eval/sentiment 的返回体。available=False 表示金标缺失时的降级。",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentABComparison"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dataset_path": {
+            "title": "Dataset Path",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentModelRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "dataset_path",
+          "sample_count"
+        ],
+        "title": "SentimentEvalResponse",
+        "type": "object"
+      },
+      "SentimentEvaluationMetrics": {
+        "properties": {
+          "accuracy": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "confusion_matrix": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Confusion Matrix",
+            "type": "object"
+          },
+          "macro_f1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Macro F1",
+            "type": "number"
+          },
+          "per_label": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentLabelMetrics"
+            },
+            "title": "Per Label",
+            "type": "array"
+          },
+          "sample_count": {
+            "minimum": 0.0,
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accuracy",
+          "macro_f1",
+          "sample_count",
+          "per_label",
+          "confusion_matrix"
+        ],
+        "title": "SentimentEvaluationMetrics",
+        "type": "object"
+      },
+      "SentimentLabelDelta": {
+        "properties": {
+          "f1_after": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "F1 After",
+            "type": "number"
+          },
+          "f1_before": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "F1 Before",
+            "type": "number"
+          },
+          "f1_delta": {
+            "title": "F1 Delta",
+            "type": "number"
+          },
+          "label": {
+            "enum": [
+              "positive",
+              "negative",
+              "neutral"
+            ],
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "f1_before",
+          "f1_after",
+          "f1_delta"
+        ],
+        "title": "SentimentLabelDelta",
+        "type": "object"
+      },
+      "SentimentLabelMetrics": {
+        "properties": {
+          "f1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "F1",
+            "type": "number"
+          },
+          "label": {
+            "enum": [
+              "positive",
+              "negative",
+              "neutral"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "precision": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Precision",
+            "type": "number"
+          },
+          "recall": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Recall",
+            "type": "number"
+          },
+          "support": {
+            "minimum": 0.0,
+            "title": "Support",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "precision",
+          "recall",
+          "f1",
+          "support"
+        ],
+        "title": "SentimentLabelMetrics",
+        "type": "object"
+      },
+      "SentimentModelRun": {
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/SentimentEvaluationMetrics"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_name",
+          "metrics"
+        ],
+        "title": "SentimentModelRun",
+        "type": "object"
+      },
       "SignalDirectionStatsView": {
         "description": "单个方向（利好 / 利空）的命中统计。",
         "properties": {
@@ -3924,6 +4581,338 @@
           }
         },
         "title": "SparklineSeriesView",
+        "type": "object"
+      },
+      "StockResearchKeyEvent": {
+        "description": "关键时间线上的单个事件。",
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "impact": {
+            "default": "neutral",
+            "enum": [
+              "positive",
+              "negative",
+              "neutral"
+            ],
+            "title": "Impact",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "StockResearchKeyEvent",
+        "type": "object"
+      },
+      "StockResearchPriceContext": {
+        "description": "近 N 天价格走势快照上下文。",
+        "properties": {
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "snapshot_count": {
+            "default": 0,
+            "title": "Snapshot Count",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "window_change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Change Percent"
+          },
+          "window_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window High"
+          },
+          "window_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Low"
+          }
+        },
+        "title": "StockResearchPriceContext",
+        "type": "object"
+      },
+      "StockResearchReference": {
+        "description": "研报所引用的单条命中新闻（可回溯本地语料）。",
+        "properties": {
+          "canonical_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Url"
+          },
+          "news_id": {
+            "title": "News Id",
+            "type": "integer"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "sentiment_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Label"
+          },
+          "source_name": {
+            "title": "Source Name",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "news_id",
+          "title",
+          "source_name"
+        ],
+        "title": "StockResearchReference",
+        "type": "object"
+      },
+      "StockResearchReport": {
+        "description": "个股 AI 综合研判结构化研报响应。",
+        "properties": {
+          "bear_case": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bear Case",
+            "type": "array"
+          },
+          "bull_case": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bull Case",
+            "type": "array"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "failover": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failover"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "key_events": {
+            "items": {
+              "$ref": "#/components/schemas/StockResearchKeyEvent"
+            },
+            "title": "Key Events",
+            "type": "array"
+          },
+          "llm_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Error"
+          },
+          "lookback_days": {
+            "title": "Lookback Days",
+            "type": "integer"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "llm",
+              "rule"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "news_count": {
+            "default": 0,
+            "title": "News Count",
+            "type": "integer"
+          },
+          "overall_rating": {
+            "enum": [
+              "strong_bullish",
+              "bullish",
+              "neutral",
+              "bearish",
+              "strong_bearish",
+              "unknown"
+            ],
+            "title": "Overall Rating",
+            "type": "string"
+          },
+          "price_context": {
+            "$ref": "#/components/schemas/StockResearchPriceContext"
+          },
+          "rating_rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Rationale"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/StockResearchReference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "market",
+          "generated_at",
+          "lookback_days",
+          "mode",
+          "overall_rating",
+          "summary",
+          "price_context"
+        ],
+        "title": "StockResearchReport",
         "type": "object"
       },
       "StreamStatusResponse": {
@@ -4314,6 +5303,37 @@
         "title": "WatchlistItemCreate",
         "type": "object"
       },
+      "WatchlistItemUpdate": {
+        "description": "自选股更新模型：目前用于写入持仓量 / 平均成本（持仓/组合视图）。\n\n字段均可选，仅提交的字段会被写入（未提交字段保持原值不变）。\nposition_size / average_cost 传 null 表示“清空持仓”。",
+        "properties": {
+          "average_cost": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Cost"
+          },
+          "position_size": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Size"
+          }
+        },
+        "title": "WatchlistItemUpdate",
+        "type": "object"
+      },
       "WatchlistItemView": {
         "properties": {
           "alert_mode": {
@@ -4331,6 +5351,17 @@
             ],
             "title": "Alert Threshold"
           },
+          "average_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Cost"
+          },
           "display_name": {
             "title": "Display Name",
             "type": "string"
@@ -4346,6 +5377,17 @@
           "market": {
             "title": "Market",
             "type": "string"
+          },
+          "position_size": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Size"
           },
           "symbol": {
             "title": "Symbol",
@@ -5436,6 +6478,56 @@
         "summary": "Get Latest",
         "tags": [
           "digest"
+        ]
+      }
+    },
+    "/api/eval/sentiment": {
+      "get": {
+        "description": "对内置金标集即时评一遍，返回单模型指标 + 两套阈值配置的 A/B 对比。\n\n金标缺失/为空/损坏时降级为 available=False，避免 500。",
+        "operationId": "get_sentiment_eval_api_eval_sentiment_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentimentEvalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sentiment Eval",
+        "tags": [
+          "eval"
         ]
       }
     },
@@ -7401,6 +8493,126 @@
         ]
       }
     },
+    "/api/portfolio": {
+      "get": {
+        "description": "组合汇总：总市值 / 总盈亏 + 按仓位价值加权的“最该看”新闻。",
+        "operationId": "get_portfolio_summary_api_portfolio_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSummaryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio Summary",
+        "tags": [
+          "portfolio"
+        ]
+      }
+    },
+    "/api/research/stock/{symbol}": {
+      "get": {
+        "operationId": "get_stock_research_api_research_stock__symbol__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lookback_days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 30,
+              "minimum": 1,
+              "title": "Lookback Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockResearchReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stock Research",
+        "tags": [
+          "research"
+        ]
+      }
+    },
     "/api/stream/events": {
       "get": {
         "operationId": "stream_events_api_stream_events_get",
@@ -7833,6 +9045,73 @@
           }
         },
         "summary": "Delete Watchlist Item",
+        "tags": [
+          "watchlist"
+        ]
+      },
+      "patch": {
+        "description": "更新自选股持仓量 / 平均成本（持仓/组合视图）。\n\n仅写入请求体中显式给出的字段（exclude_unset），既有字段与行为保持不变。",
+        "operationId": "update_watchlist_item_api_watchlist__symbol__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchlistItemUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchlistItemView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Watchlist Item",
         "tags": [
           "watchlist"
         ]

@@ -91,6 +91,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/eval/sentiment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sentiment Eval
+         * @description 对内置金标集即时评一遍，返回单模型指标 + 两套阈值配置的 A/B 对比。
+         *
+         *     金标缺失/为空/损坏时降级为 available=False，避免 500。
+         */
+        get: operations["get_sentiment_eval_api_eval_sentiment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -620,6 +642,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portfolio Summary
+         * @description 组合汇总：总市值 / 总盈亏 + 按仓位价值加权的“最该看”新闻。
+         */
+        get: operations["get_portfolio_summary_api_portfolio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/stock/{symbol}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Stock Research */
+        get: operations["get_stock_research_api_research_stock__symbol__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stream/events": {
         parameters: {
             query?: never;
@@ -737,7 +796,13 @@ export interface paths {
         delete: operations["delete_watchlist_item_api_watchlist__symbol__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Watchlist Item
+         * @description 更新自选股持仓量 / 平均成本（持仓/组合视图）。
+         *
+         *     仅写入请求体中显式给出的字段（exclude_unset），既有字段与行为保持不变。
+         */
+        patch: operations["update_watchlist_item_api_watchlist__symbol__patch"];
         trace?: never;
     };
     "/api/watchlist/{symbol}/ai-insight": {
@@ -934,6 +999,61 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AlertGovernanceUpdate
+         * @description 告警治理运行期覆盖（保存在 NotificationService 内存，不落库）。全部可选。
+         */
+        AlertGovernanceUpdate: {
+            /** Critical Change Percent */
+            critical_change_percent?: number | null;
+            /** Dedupe Window Minutes */
+            dedupe_window_minutes?: number | null;
+            /** Digest Threshold */
+            digest_threshold?: number | null;
+            /** Digest Window Minutes */
+            digest_window_minutes?: number | null;
+            /** Quiet Hours End */
+            quiet_hours_end?: string | null;
+            /** Quiet Hours Start */
+            quiet_hours_start?: string | null;
+            /** Quiet Hours Tz */
+            quiet_hours_tz?: string | null;
+        };
+        /**
+         * AlertGovernanceView
+         * @description 治理当前生效值（settings 默认叠加内存覆盖后的结果），供前端回显。
+         */
+        AlertGovernanceView: {
+            /**
+             * Critical Change Percent
+             * @default 8
+             */
+            critical_change_percent: number;
+            /**
+             * Dedupe Window Minutes
+             * @default 0
+             */
+            dedupe_window_minutes: number;
+            /**
+             * Digest Threshold
+             * @default 3
+             */
+            digest_threshold: number;
+            /**
+             * Digest Window Minutes
+             * @default 0
+             */
+            digest_window_minutes: number;
+            /** Quiet Hours End */
+            quiet_hours_end?: string | null;
+            /** Quiet Hours Start */
+            quiet_hours_start?: string | null;
+            /**
+             * Quiet Hours Tz
+             * @default Asia/Shanghai
+             */
+            quiet_hours_tz: string;
+        };
+        /**
          * BacktestSummaryView
          * @description 回测汇总响应。
          */
@@ -1090,6 +1210,7 @@ export interface components {
             app_id: string;
             /** App Secret */
             app_secret?: string | null;
+            governance?: components["schemas"]["AlertGovernanceUpdate"] | null;
             /**
              * Is Active
              * @default true
@@ -1136,6 +1257,7 @@ export interface components {
             app_secret_set: boolean;
             /** Configured */
             configured: boolean;
+            governance?: components["schemas"]["AlertGovernanceView"] | null;
             /**
              * Is Active
              * @default true
@@ -2018,6 +2140,105 @@ export interface components {
             /** Total Fetches */
             total_fetches: number;
         };
+        /**
+         * PortfolioPositionView
+         * @description 单只持仓的成本 / 盈亏 / 仓位权重明细。
+         */
+        PortfolioPositionView: {
+            /** Average Cost */
+            average_cost?: number | null;
+            /** Change Percent */
+            change_percent?: number | null;
+            /** Cost Basis */
+            cost_basis?: number | null;
+            /** Current Price */
+            current_price?: number | null;
+            /** Display Name */
+            display_name: string;
+            /** Market */
+            market: string;
+            /** Market Value */
+            market_value?: number | null;
+            /** Position Size */
+            position_size: number;
+            /** Price Message */
+            price_message?: string | null;
+            /**
+             * Price Status
+             * @default unavailable
+             */
+            price_status: string;
+            /** Quote Fetched At */
+            quote_fetched_at?: string | null;
+            /** Symbol */
+            symbol: string;
+            /** Unrealized Pnl */
+            unrealized_pnl?: number | null;
+            /** Unrealized Pnl Percent */
+            unrealized_pnl_percent?: number | null;
+            /** Weight */
+            weight?: number | null;
+        };
+        /**
+         * PortfolioSummaryView
+         * @description 组合汇总：总市值 / 总盈亏 + 按仓位加权的新闻排序。
+         */
+        PortfolioSummaryView: {
+            /** Generated At */
+            generated_at: string;
+            /**
+             * Position Count
+             * @default 0
+             */
+            position_count: number;
+            /** Positions */
+            positions?: components["schemas"]["PortfolioPositionView"][];
+            /**
+             * Priced Position Count
+             * @default 0
+             */
+            priced_position_count: number;
+            /**
+             * Total Cost Basis
+             * @default 0
+             */
+            total_cost_basis: number;
+            /**
+             * Total Market Value
+             * @default 0
+             */
+            total_market_value: number;
+            /**
+             * Total Unrealized Pnl
+             * @default 0
+             */
+            total_unrealized_pnl: number;
+            /** Total Unrealized Pnl Percent */
+            total_unrealized_pnl_percent?: number | null;
+            /** Weighted News */
+            weighted_news?: components["schemas"]["PortfolioWeightedNewsView"][];
+        };
+        /**
+         * PortfolioWeightedNewsView
+         * @description 按仓位价值加权后、组合层“最该看”的一条新闻。
+         */
+        PortfolioWeightedNewsView: {
+            /**
+             * Impact Score
+             * @default 0
+             */
+            impact_score: number;
+            news_item: components["schemas"]["NewsItemSummary"];
+            /** Sentiment Score */
+            sentiment_score?: number | null;
+            /**
+             * Signed Impact
+             * @default 0
+             */
+            signed_impact: number;
+            /** Symbols */
+            symbols?: string[];
+        };
         /** PriceSnapshotView */
         PriceSnapshotView: {
             /** Abnormal Reason */
@@ -2164,6 +2385,93 @@ export interface components {
             /** Volume */
             volume?: number | null;
         };
+        /** SentimentABComparison */
+        SentimentABComparison: {
+            /** Accuracy Delta */
+            accuracy_delta: number;
+            /** Label Deltas */
+            label_deltas: components["schemas"]["SentimentLabelDelta"][];
+            /** Macro F1 Delta */
+            macro_f1_delta: number;
+            model_a: components["schemas"]["SentimentModelRun"];
+            model_b: components["schemas"]["SentimentModelRun"];
+            /** Reason */
+            reason: string;
+            /**
+             * Winner
+             * @enum {string}
+             */
+            winner: "model_a" | "model_b" | "tie";
+        };
+        /**
+         * SentimentEvalResponse
+         * @description GET /eval/sentiment 的返回体。available=False 表示金标缺失时的降级。
+         */
+        SentimentEvalResponse: {
+            /** Available */
+            available: boolean;
+            comparison?: components["schemas"]["SentimentABComparison"] | null;
+            /** Dataset Path */
+            dataset_path: string;
+            /** Note */
+            note?: string | null;
+            primary?: components["schemas"]["SentimentModelRun"] | null;
+            /** Sample Count */
+            sample_count: number;
+        };
+        /** SentimentEvaluationMetrics */
+        SentimentEvaluationMetrics: {
+            /** Accuracy */
+            accuracy: number;
+            /** Confusion Matrix */
+            confusion_matrix: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Macro F1 */
+            macro_f1: number;
+            /** Per Label */
+            per_label: components["schemas"]["SentimentLabelMetrics"][];
+            /** Sample Count */
+            sample_count: number;
+        };
+        /** SentimentLabelDelta */
+        SentimentLabelDelta: {
+            /** F1 After */
+            f1_after: number;
+            /** F1 Before */
+            f1_before: number;
+            /** F1 Delta */
+            f1_delta: number;
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "positive" | "negative" | "neutral";
+        };
+        /** SentimentLabelMetrics */
+        SentimentLabelMetrics: {
+            /** F1 */
+            f1: number;
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "positive" | "negative" | "neutral";
+            /** Precision */
+            precision: number;
+            /** Recall */
+            recall: number;
+            /** Support */
+            support: number;
+        };
+        /** SentimentModelRun */
+        SentimentModelRun: {
+            metrics: components["schemas"]["SentimentEvaluationMetrics"];
+            /** Model Name */
+            model_name: string;
+        };
         /**
          * SignalDirectionStatsView
          * @description 单个方向（利好 / 利空）的命中统计。
@@ -2224,6 +2532,117 @@ export interface components {
         SparklineSeriesView: {
             /** Prices */
             prices?: number[];
+        };
+        /**
+         * StockResearchKeyEvent
+         * @description 关键时间线上的单个事件。
+         */
+        StockResearchKeyEvent: {
+            /** Date */
+            date?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Impact
+             * @default neutral
+             * @enum {string}
+             */
+            impact: "positive" | "negative" | "neutral";
+            /** Title */
+            title: string;
+        };
+        /**
+         * StockResearchPriceContext
+         * @description 近 N 天价格走势快照上下文。
+         */
+        StockResearchPriceContext: {
+            /** Change Percent */
+            change_percent?: number | null;
+            /** Price */
+            price?: number | null;
+            /**
+             * Snapshot Count
+             * @default 0
+             */
+            snapshot_count: number;
+            /** Status */
+            status?: string | null;
+            /** Window Change Percent */
+            window_change_percent?: number | null;
+            /** Window High */
+            window_high?: number | null;
+            /** Window Low */
+            window_low?: number | null;
+        };
+        /**
+         * StockResearchReference
+         * @description 研报所引用的单条命中新闻（可回溯本地语料）。
+         */
+        StockResearchReference: {
+            /** Canonical Url */
+            canonical_url?: string | null;
+            /** News Id */
+            news_id: number;
+            /** Published At */
+            published_at?: string | null;
+            /** Sentiment Label */
+            sentiment_label?: string | null;
+            /** Source Name */
+            source_name: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * StockResearchReport
+         * @description 个股 AI 综合研判结构化研报响应。
+         */
+        StockResearchReport: {
+            /** Bear Case */
+            bear_case?: string[];
+            /** Bull Case */
+            bull_case?: string[];
+            /** Display Name */
+            display_name?: string | null;
+            /** Failover */
+            failover?: {
+                [key: string]: string;
+            } | null;
+            /** Generated At */
+            generated_at: string;
+            /** Key Events */
+            key_events?: components["schemas"]["StockResearchKeyEvent"][];
+            /** Llm Error */
+            llm_error?: string | null;
+            /** Lookback Days */
+            lookback_days: number;
+            /** Market */
+            market: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "llm" | "rule";
+            /** Model Name */
+            model_name?: string | null;
+            /**
+             * News Count
+             * @default 0
+             */
+            news_count: number;
+            /**
+             * Overall Rating
+             * @enum {string}
+             */
+            overall_rating: "strong_bullish" | "bullish" | "neutral" | "bearish" | "strong_bearish" | "unknown";
+            price_context: components["schemas"]["StockResearchPriceContext"];
+            /** Rating Rationale */
+            rating_rationale?: string | null;
+            /** References */
+            references?: components["schemas"]["StockResearchReference"][];
+            /** Summary */
+            summary: string;
+            /** Symbol */
+            symbol: string;
         };
         /** StreamStatusResponse */
         StreamStatusResponse: {
@@ -2354,12 +2773,27 @@ export interface components {
             /** Symbol */
             symbol: string;
         };
+        /**
+         * WatchlistItemUpdate
+         * @description 自选股更新模型：目前用于写入持仓量 / 平均成本（持仓/组合视图）。
+         *
+         *     字段均可选，仅提交的字段会被写入（未提交字段保持原值不变）。
+         *     position_size / average_cost 传 null 表示“清空持仓”。
+         */
+        WatchlistItemUpdate: {
+            /** Average Cost */
+            average_cost?: number | null;
+            /** Position Size */
+            position_size?: number | null;
+        };
         /** WatchlistItemView */
         WatchlistItemView: {
             /** Alert Mode */
             alert_mode: string;
             /** Alert Threshold */
             alert_threshold?: number | null;
+            /** Average Cost */
+            average_cost?: number | null;
             /** Display Name */
             display_name: string;
             /** Id */
@@ -2368,6 +2802,8 @@ export interface components {
             is_active: boolean;
             /** Market */
             market: string;
+            /** Position Size */
+            position_size?: number | null;
             /** Symbol */
             symbol: string;
         };
@@ -2797,6 +3233,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DigestLatestView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sentiment_eval_api_eval_sentiment_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentimentEvalResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3894,6 +4361,72 @@ export interface operations {
             };
         };
     };
+    get_portfolio_summary_api_portfolio_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioSummaryView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stock_research_api_research_stock__symbol__get: {
+        parameters: {
+            query?: {
+                lookback_days?: number;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockResearchReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     stream_events_api_stream_events_get: {
         parameters: {
             query?: {
@@ -4138,6 +4671,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_watchlist_item_api_watchlist__symbol__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchlistItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchlistItemView"];
+                };
             };
             /** @description Validation Error */
             422: {

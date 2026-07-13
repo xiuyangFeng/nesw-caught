@@ -2,6 +2,21 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 第二批五特性并行开发集成合并（Integration Merge #2）
+
+- 修改人：Claude（主线集成）
+- 修改范围：合并第二批 5 个独立 worktree 特性（持仓/组合、个股 AI 综合研判、情绪评测闭环、告警治理、E2E 导航冒烟）进 main 并集成收尾。
+- 变更内容：
+  1. 依序 `--no-ff` 合并 5 个特性分支。其中 3 个分支基线是旧的 973fbe7（第一批+卡死修复之前），合并时逐处**同时保留第一批与第二批内容**，未回退任何既有改动（导航 08~11、全部路由的 lazyView 容错、config 第一批字段、changelog 既有条目均完整保留）。
+  2. 解决注册点/交错冲突：`router.py`（import 与 include 合并出 backtest/calendar/digest/eval/ops/portfolio/research 全集）；`feishu_client.py`（`build_digest_card` 与 `build_alert_digest_card` 两个函数级交错补全）；`client.ts`（方法块补 `},`）；`AppShell.vue` 导航；`types/api.ts`；`config.py`；`code-change-log.md`。
+  3. 统一导航：新增 Portfolio(12)、Sentiment Eval(13)；把情绪评测路由从裸 `import()` 改为 `lazyView(...)`，与其余路由一致享受 chunk 容错。
+  4. 中心化重新生成前端 API 契约（`npm run generate:api`）覆盖全部新端点；`check:api-drift` 通过。
+  5. E2E 导航冒烟测试新增覆盖 `/portfolio` 与 `/eval/sentiment`（冒烟自检本次正确地提示了这两个新模块需同步纳入）。
+- 影响文件：`backend/app/api/router.py`、`backend/app/services/feishu_client.py`、`backend/app/core/config.py`、`frontend/src/api/client.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/router/index.ts`、`frontend/src/types/api.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`frontend/src/smoke/app-navigation.test.ts`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增 `/api/portfolio`、`/api/research/stock/{symbol}`、`/api/eval/sentiment`、`/api/notify` 治理字段；watchlist 支持 `PATCH /{symbol}` 写持仓；新增 alembic 迁移 `b8e4d7f2a9c1`（watchlist_item 加 position_size/average_cost），alembic 单 head。
+- 验证情况：`conda run -n news-caught pytest backend/tests` → **449 passed**；`npm run build`（vue-tsc 全检 + vite）通过；`npm run test`（vitest）→ **262 passed / 52 files**；`check:api-drift` 通过；`alembic heads` 单一 head `b8e4d7f2a9c1`。
+- 风险/后续事项：告警治理默认保守（不配置≈旧行为）；个股研判与情绪评测在 LLM 未配置时规则降级；持仓盈亏依赖 price_snapshot 与已填持仓；既有 SkeletonFeed 模板有 `v-elif` 拼写告警（既有、仅警告不崩溃，未处理）。
+
 ## 2026-07-13 持仓/组合视图（Portfolio — 成本、盈亏、按仓位加权的新闻影响）
 
 - 修改人：Claude（独立 worktree 特性开发）
