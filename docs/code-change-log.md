@@ -2,6 +2,32 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 告警治理层（去重 / 免打扰 / 分级 / 合并摘要）
+
+- 修改人：Claude（独立 worktree agent）
+- 修改范围：通知模块告警治理增强，让通知从"吵"变"可信"。
+- 变更内容：
+  1. **免打扰时段（Quiet Hours）**：`config.py` 新增 `notify_quiet_hours_start` / `notify_quiet_hours_end`（"HH:MM"，默认空=关闭）与 `notify_quiet_hours_tz`（复用 `zoneinfo`，默认 `Asia/Shanghai`）。`notification_service.py` 在派发前对到期告警做暂缓：静默时段内低优先级异动顺延 `next_retry_at` 到时段结束（不计入失败重试次数），critical 不受限制照常投递。支持跨夜区间。
+  2. **分级（Severity）**：`_classify_severity` 按 event_type / 触发条件打 critical / normal / low。自选股异动涨跌幅绝对值达到 `notify_critical_change_percent`（默认 8.0%）升级为 critical，绕过免打扰与合并。
+  3. **去重增强**：`notify_dedupe_window_minutes`（默认 0=关闭）叠加在既有 latch 之上，同 symbol 同事件在窗口内只发一次，内存记录最近入队时间。
+  4. **合并摘要（Digest）**：`notify_digest_window_minutes`（默认 0=关闭）+ `notify_digest_threshold`（默认 3）。非 critical 异动入队时先暂存一个合并窗口；`_materialize_alert_digest_jobs` 复用既有持久化队列，把到期累积告警合并成一条 `alert_digest`，`feishu_client.py` 新增 `build_alert_digest_card`，`_build_card_for_job` 加对应分支。
+  5. **可配置面**：治理运行期覆盖只存 `NotificationService` 内存（`configure_governance` / `apply_governance` / `governance_view`），叠加在 settings 默认之上，**不落库、不加迁移**。经既有飞书配置接口（`schemas/feishu_notify.py` 加 `AlertGovernanceUpdate` / `AlertGovernanceView` 嵌套字段，`routes/notify.py` GET 回显 / POST 应用）与前端联通。
+  6. **前端**：`NotifySettingsView.vue` 在飞书配置表单内新增"告警治理"区块（免打扰时段 / 分级阈值 / 去重窗口 / 合并窗口+阈值，含说明，暗色霓虹风格），随原保存按钮一并落地；`types/api.ts` additive 扩展 `AlertGovernanceConfig` 与 `Feishu*` 类型；`mock.ts` 补充 governance 默认。
+- 影响文件：
+  - `backend/app/core/config.py`
+  - `backend/app/services/notification_service.py`
+  - `backend/app/services/feishu_client.py`
+  - `backend/app/schemas/feishu_notify.py`
+  - `backend/app/api/routes/notify.py`
+  - `backend/tests/test_alert_governance.py`（新增）
+  - `frontend/src/views/NotifySettingsView.vue`
+  - `frontend/src/types/api.ts`
+  - `frontend/src/api/mock.ts`
+  - `docs/code-change-log.md`
+- 接口/数据结构变化：飞书配置接口 `FeishuConfigView` / `FeishuConfigUpsertRequest` additive 新增可选 `governance` 嵌套对象（内存态，不落库）。**未新增数据库迁移，未改 alembic / main.py。**
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_alert_governance.py backend/tests/test_notification_jobs.py backend/tests/test_feishu_notify.py backend/tests/test_feishu_sender.py -q` 全绿（33 passed）；后端全量 392 passed（1 例 `test_news_relevance_experiment_runner` 为 worktree 绝对路径预存在失败，与本特性无关）；前端 `npm run build`（含 vue-tsc）通过。
+- 风险/后续事项：治理覆盖为内存态，后端重启后回落 settings/env 默认；如需跨重启持久化，后续可评估落库（需迁移）。默认全部保守（关闭），不改变旧行为。
+
 ## 2026-06-13 11:30
 
 - 修改人：Antigravity

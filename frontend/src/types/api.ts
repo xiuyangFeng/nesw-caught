@@ -281,6 +281,22 @@ export type XPostQuery = {
 // ---------------------------------------------------------------------------
 // 飞书通知
 // ---------------------------------------------------------------------------
-export type FeishuNotifyConfig = Schemas['FeishuConfigView'];
-export type FeishuNotifyConfigUpdate = Schemas['FeishuConfigUpsertRequest'];
+// 告警治理配置。后端以 settings 默认 + NotificationService 内存覆盖实现（不落库），
+// 通过既有飞书配置接口回显 / 保存。generated/api.d.ts 暂未含该字段，这里 additive 扩展。
+export type AlertGovernanceConfig = {
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  quiet_hours_tz: string;
+  dedupe_window_minutes: number;
+  digest_window_minutes: number;
+  digest_threshold: number;
+  critical_change_percent: number;
+};
+
+export type FeishuNotifyConfig = Schemas['FeishuConfigView'] & {
+  governance?: AlertGovernanceConfig | null;
+};
+export type FeishuNotifyConfigUpdate = Schemas['FeishuConfigUpsertRequest'] & {
+  governance?: Partial<AlertGovernanceConfig> | null;
+};
 export type FeishuTestResult = Schemas['FeishuTestResult'];

@@ -65,6 +65,25 @@ class Settings(BaseSettings):
     token_usage_flush_n: int = 50
     token_usage_flush_secs: float = 10.0
 
+    # ---------------------------------------------------------------------
+    # 告警治理（去重 / 免打扰 / 分级 / 合并摘要）——全部默认保守（关闭），
+    # 不配置时行为与旧版一致，避免惊到既有测试。前端可在通知设置页覆盖，
+    # 覆盖值只保存在 NotificationService 内存里（不落库、无迁移）。
+    # ---------------------------------------------------------------------
+    # 免打扰时段，"HH:MM" 24 小时制；start/end 任一为空即视为未启用。
+    notify_quiet_hours_start: str | None = None
+    notify_quiet_hours_end: str | None = None
+    # 免打扰时段判定所用时区（复用 zoneinfo）。
+    notify_quiet_hours_tz: str = "Asia/Shanghai"
+    # 同 symbol / 同事件在 N 分钟窗口内只发一次；0 = 关闭去重窗口。
+    notify_dedupe_window_minutes: int = 0
+    # 合并摘要窗口：非 critical 告警先暂存 N 分钟再合并；0 = 关闭合并。
+    notify_digest_window_minutes: int = 0
+    # 合并阈值：窗口内累计达到该条数才合并成摘要，否则逐条发送。
+    notify_digest_threshold: int = 3
+    # 自选股异动升级为 critical 的涨跌幅绝对值阈值（%）。
+    notify_critical_change_percent: float = 8.0
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

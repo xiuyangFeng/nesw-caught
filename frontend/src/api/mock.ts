@@ -932,6 +932,15 @@ export const mockFeishuConfig: FeishuNotifyConfig = {
   analysis_enabled: true,
   is_active: true,
   updated_at: null,
+  governance: {
+    quiet_hours_start: null,
+    quiet_hours_end: null,
+    quiet_hours_tz: 'Asia/Shanghai',
+    dedupe_window_minutes: 0,
+    digest_window_minutes: 0,
+    digest_threshold: 3,
+    critical_change_percent: 8,
+  },
 };
 
 export const mockFeishuTestResult: FeishuTestResult = {

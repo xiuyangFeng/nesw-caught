@@ -18,6 +18,16 @@ const formState = reactive({
   alert_enabled: true,
   analysis_enabled: true,
   is_active: true,
+  // 告警治理（去重 / 免打扰 / 分级 / 合并）——留空 / 置 0 即关闭，默认保守。
+  governance: {
+    quiet_hours_start: '',
+    quiet_hours_end: '',
+    quiet_hours_tz: 'Asia/Shanghai',
+    dedupe_window_minutes: 0,
+    digest_window_minutes: 0,
+    digest_threshold: 3,
+    critical_change_percent: 8,
+  },
 });
 
 const hasConfig = computed(() => notifyStore.config?.configured === true);
@@ -52,6 +62,14 @@ watch(
     formState.alert_enabled = config?.alert_enabled ?? true;
     formState.analysis_enabled = config?.analysis_enabled ?? true;
     formState.is_active = config?.is_active ?? true;
+    const gov = config?.governance;
+    formState.governance.quiet_hours_start = gov?.quiet_hours_start ?? '';
+    formState.governance.quiet_hours_end = gov?.quiet_hours_end ?? '';
+    formState.governance.quiet_hours_tz = gov?.quiet_hours_tz ?? 'Asia/Shanghai';
+    formState.governance.dedupe_window_minutes = gov?.dedupe_window_minutes ?? 0;
+    formState.governance.digest_window_minutes = gov?.digest_window_minutes ?? 0;
+    formState.governance.digest_threshold = gov?.digest_threshold ?? 3;
+    formState.governance.critical_change_percent = gov?.critical_change_percent ?? 8;
     if (!config?.configured) {
       formState.app_secret = '';
     }
@@ -74,6 +92,15 @@ async function submitConfig() {
     alert_enabled: formState.alert_enabled,
     analysis_enabled: formState.analysis_enabled,
     is_active: formState.is_active,
+    governance: {
+      quiet_hours_start: formState.governance.quiet_hours_start.trim() || null,
+      quiet_hours_end: formState.governance.quiet_hours_end.trim() || null,
+      quiet_hours_tz: formState.governance.quiet_hours_tz.trim() || 'Asia/Shanghai',
+      dedupe_window_minutes: Number(formState.governance.dedupe_window_minutes) || 0,
+      digest_window_minutes: Number(formState.governance.digest_window_minutes) || 0,
+      digest_threshold: Number(formState.governance.digest_threshold) || 3,
+      critical_change_percent: Number(formState.governance.critical_change_percent) || 8,
+    },
   };
 
   try {
@@ -233,6 +260,111 @@ onMounted(() => {
               placeholder="默认 60 分钟"
             />
           </label>
+
+          <div class="mt-1 rounded-xl border border-border bg-white/[0.02] p-4">
+            <div class="mb-1 flex items-center gap-2">
+              <span class="text-sm font-semibold text-[#3aa9f5]">告警治理</span>
+              <span class="rounded-full border border-[#3aa9f5]/40 bg-[#3aa9f5]/10 px-2 py-0.5 text-[10px] font-semibold text-[#3aa9f5]">
+                去重 · 免打扰 · 分级 · 合并
+              </span>
+            </div>
+            <p class="mb-3 text-xs text-text-faint">
+              让通知从"吵"变"可信"：留空 / 置 0 表示关闭该项（默认保守，与旧版行为一致）。配置即刻生效，保存后随通知配置一并落地。
+            </p>
+
+            <div class="grid gap-[14px]">
+              <div class="grid gap-1.5">
+                <span class="text-xs font-semibold text-text-faint">免打扰时段</span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <input
+                    v-model="formState.governance.quiet_hours_start"
+                    data-surface="terminal-field"
+                    class="rounded-xl border border-border bg-field px-3 py-2 text-text"
+                    type="time"
+                    :disabled="notifyStore.loading || notifyStore.saving"
+                  />
+                  <span class="text-text-faint">至</span>
+                  <input
+                    v-model="formState.governance.quiet_hours_end"
+                    data-surface="terminal-field"
+                    class="rounded-xl border border-border bg-field px-3 py-2 text-text"
+                    type="time"
+                    :disabled="notifyStore.loading || notifyStore.saving"
+                  />
+                  <input
+                    v-model="formState.governance.quiet_hours_tz"
+                    data-surface="terminal-field"
+                    class="min-w-[160px] flex-1 rounded-xl border border-border bg-field px-3 py-2 text-text"
+                    type="text"
+                    placeholder="时区，如 Asia/Shanghai"
+                    :disabled="notifyStore.loading || notifyStore.saving"
+                  />
+                </div>
+                <small class="text-text-faint">时段内低优先级异动暂缓到结束后再发；极端异动（critical）不受限制照常推送。两端留空即关闭。</small>
+              </div>
+
+              <label class="grid gap-1.5">
+                <span class="text-xs font-semibold text-text-faint">分级阈值：涨跌幅（%）达到即判为极端异动</span>
+                <input
+                  v-model.number="formState.governance.critical_change_percent"
+                  data-surface="terminal-field"
+                  class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  :disabled="notifyStore.loading || notifyStore.saving"
+                  placeholder="默认 8.0"
+                />
+                <small class="text-text-faint">达到该绝对涨跌幅的异动升级为 critical，绕过免打扰与合并，第一时间送达。</small>
+              </label>
+
+              <label class="grid gap-1.5">
+                <span class="text-xs font-semibold text-text-faint">去重窗口（分钟）</span>
+                <input
+                  v-model.number="formState.governance.dedupe_window_minutes"
+                  data-surface="terminal-field"
+                  class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+                  type="number"
+                  min="0"
+                  max="1440"
+                  :disabled="notifyStore.loading || notifyStore.saving"
+                  placeholder="0 = 关闭"
+                />
+                <small class="text-text-faint">同一标的同类异动在窗口内只发一次，抑制反复越界刷屏。0 表示关闭。</small>
+              </label>
+
+              <div class="grid gap-[14px] sm:grid-cols-2">
+                <label class="grid gap-1.5">
+                  <span class="text-xs font-semibold text-text-faint">合并窗口（分钟）</span>
+                  <input
+                    v-model.number="formState.governance.digest_window_minutes"
+                    data-surface="terminal-field"
+                    class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+                    type="number"
+                    min="0"
+                    max="1440"
+                    :disabled="notifyStore.loading || notifyStore.saving"
+                    placeholder="0 = 关闭"
+                  />
+                  <small class="text-text-faint">窗口内累积的多条异动合并成一张摘要卡片。0 表示逐条发送。</small>
+                </label>
+                <label class="grid gap-1.5">
+                  <span class="text-xs font-semibold text-text-faint">合并阈值（条）</span>
+                  <input
+                    v-model.number="formState.governance.digest_threshold"
+                    data-surface="terminal-field"
+                    class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text"
+                    type="number"
+                    min="2"
+                    max="50"
+                    :disabled="notifyStore.loading || notifyStore.saving"
+                    placeholder="默认 3"
+                  />
+                  <small class="text-text-faint">窗口结束时累计达到该条数才合并，不足则仍逐条发送。</small>
+                </label>
+              </div>
+            </div>
+          </div>
 
           <div class="flex flex-wrap items-center gap-3">
             <button

@@ -268,6 +268,44 @@ def build_alert_card(
     }
 
 
+def build_alert_digest_card(alerts: list[dict[str, Any]]) -> dict[str, Any]:
+    """把免打扰 / 合并窗口内累积的多条自选股异动合并成一张摘要卡片。
+
+    复用与单条 build_alert_card 一致的字段语义，只是折叠为列表，避免告警刷屏。
+    """
+    lines: list[str] = []
+    for alert in alerts[:30]:
+        symbol = alert.get("symbol", "")
+        display_name = alert.get("display_name") or symbol
+        change_percent = alert.get("change_percent")
+        price = alert.get("price")
+        direction = "📈" if (change_percent or 0) > 0 else "📉"
+        change_str = f"{change_percent:+.2f}%" if change_percent is not None else "N/A"
+        price_str = f"{price:.2f}" if price is not None else "N/A"
+        lines.append(f"{direction} **{display_name}** ({symbol})  {change_str}  @ {price_str}")
+
+    count = len(alerts)
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": f"🔔 自选股异动汇总（{count} 条）"},
+            "template": "orange",
+        },
+        "elements": [
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": "\n".join(lines) if lines else "（无异动明细）"},
+            },
+            {
+                "tag": "note",
+                "elements": [
+                    {"tag": "plain_text", "content": "已按告警治理策略合并，避免告警疲劳。"},
+                ],
+            },
+        ],
+    }
+
+
 def build_analysis_card(
     news_title: str,
     top_pick: dict[str, Any] | None,
