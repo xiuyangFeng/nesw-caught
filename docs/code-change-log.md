@@ -2,6 +2,32 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 11:00
+
+- 修改人：Claude（独立 worktree 特性开发）
+- 修改范围：统一系统健康看板 + 告警评估（Ops Health Dashboard）
+- 变更内容：
+  1. **后端按需聚合服务（Backend）**：
+     - 新增 `backend/app/services/ops_health.py`，`build_ops_health(session)` 一次性聚合散落各处的可观测数据——后台 worker 运行时状态（心跳/成功失败计数/最近错误/心跳停滞秒数）、新闻源与 X 源健康（成功率、连续失败、是否禁用、平均时延）、近 24h LLM 调用与 token 用量（总量 + 分模型）、事件层 backend/降级状态、以及 `database_url` 指向的 SQLite 文件体积（含 `-wal`/`-shm` 旁路文件，贴近 WAL 模式真实落盘占用）。
+     - 基于模块常量阈值（`SOURCE_CONSECUTIVE_FAILURE_THRESHOLD=5`、`WORKER_HEARTBEAT_TIMEOUT_SECONDS=300`、`DB_SIZE_WARNING_MB=500`/`DB_SIZE_CRITICAL_MB=1024`，刻意不进 `config.py`）产出结构化 `alerts: [{level, code, subject, message}]`，涵盖 worker 心跳超时/降级、新闻源连续失败/被禁用、X 源连续失败、事件层降级、DB 体积告警；每条告警同时 `logger.warning`。`overall_status` 由告警级别派生（critical > warning > ok）。
+     - 主动推送（notification_service / feishu）留作扩展点，本特性只在 API/UI 暴露告警 + 记 WARNING 日志，不触碰推送链路。
+  2. **后端 Schema 与路由（Backend）**：
+     - 新增 `backend/app/schemas/ops.py`（`OpsHealthResponse` 及各子视图，时间统一走 `UTCDateTime`）。
+     - 新增 `backend/app/api/routes/ops.py`，`GET /health`；在 `backend/app/api/router.py` 仅新增 import 中的 `ops` 与一行 `include_router(ops.router, prefix="/ops", tags=["ops"])`，鉴权自动继承。
+  3. **前端运维看板（Frontend）**：
+     - 新增 `frontend/src/views/OpsHealthView.vue`：分区展示 workers / 新闻源 / X 源 / LLM 用量 / 事件层 / DB，顶部醒目展示 alerts（warning 橙、critical 红，带呼吸灯辉光），每 15s 自动轮询刷新，支持手动刷新，保持暗色霓虹终端风格。
+     - `frontend/src/router/index.ts` 新增 `/ops`（name `ops-health`）懒加载路由；`frontend/src/components/layout/AppShell.vue` 的 `navItems` 追加 `{ label: 'System Health', to: '/ops', index: '10' }`。
+     - `frontend/src/api/client.ts` 新增 `getOpsHealth()`（复用已有 `getJson`）；`frontend/src/types/api.ts` 追加 `OpsHealth` 等类型别名（指向重新生成的 OpenAPI schema）。
+     - 重新生成 `frontend/openapi.json` 与 `frontend/src/types/generated/api.d.ts`（含新 `/api/ops/health` 与 Ops* schema），`check:api-drift` 通过。
+  4. **测试（TDD）**：
+     - 新增 `backend/tests/test_ops_health.py`：覆盖聚合字段正确、阈值触发对应 alerts（worker 心跳超时 / 源连续失败 / 源禁用 / X 源连续失败 / 事件层降级 / DB 体积 warning 与 critical）、无数据不崩、路由 200 返回。
+- 影响文件：
+  - 新增：`backend/app/services/ops_health.py`、`backend/app/schemas/ops.py`、`backend/app/api/routes/ops.py`、`backend/tests/test_ops_health.py`、`frontend/src/views/OpsHealthView.vue`
+  - 修改：`backend/app/api/router.py`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/api/client.ts`、`frontend/src/types/api.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增只读 API `GET /api/ops/health`（`OpsHealthResponse`）；不新增数据库表/迁移。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_ops_health.py -q` 全绿（5 passed）；后端全量 390 passed（唯一 1 failed 为 `test_news_relevance_experiment_runner` 硬编码主检出绝对路径、在任意 worktree 均失败，与本特性无关）；前端 `npm run typecheck`、`npm run build`、`check:api-drift` 均通过，`OpsHealthView` 独立懒加载分块。
+- 风险/后续事项：主动推送为预留扩展点（当前仅日志 + API/UI 暴露）；阈值为模块常量，如需可配置可后续迁入 config。
+
 ## 2026-06-13 11:30
 
 - 修改人：Antigravity

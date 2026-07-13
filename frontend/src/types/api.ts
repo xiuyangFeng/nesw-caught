@@ -100,6 +100,19 @@ export type StreamStatus = Schemas['StreamStatusResponse'];
 export type MarketWorkerStatus = Schemas['MarketWorkerStatusView'];
 
 // ---------------------------------------------------------------------------
+// 运维健康看板(Ops Health Dashboard)
+// ---------------------------------------------------------------------------
+export type OpsHealth = Schemas['OpsHealthResponse'];
+export type OpsAlert = Schemas['OpsAlert'];
+export type OpsWorker = Schemas['OpsWorkerView'];
+export type OpsSource = Schemas['OpsSourceView'];
+export type OpsXSource = Schemas['OpsXSourceView'];
+export type OpsLlmUsage = Schemas['OpsLlmUsageView'];
+export type OpsLlmModelUsage = Schemas['OpsLlmModelUsageView'];
+export type OpsEventBus = Schemas['OpsEventBusView'];
+export type OpsDatabase = Schemas['OpsDatabaseView'];
+
+// ---------------------------------------------------------------------------
 // K 线
 // ---------------------------------------------------------------------------
 export type KlineCandle = Schemas['CandlePointView'];

@@ -67,6 +67,11 @@ const router = createRouter({
       name: 'topic-detail',
       component: () => import('../views/TopicDetailView.vue'),
     },
+    {
+      path: '/ops',
+      name: 'ops-health',
+      component: () => import('../views/OpsHealthView.vue'),
+    },
   ],
 });
 
