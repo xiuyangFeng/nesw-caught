@@ -9,7 +9,7 @@ from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import NewsItemSummary
 from datetime import datetime, timedelta, timezone
-from app.schemas.watchlist import WatchlistCandidateView, WatchlistItemCreate, WatchlistItemView, WatchlistResearchBriefView, WatchlistAiInsightView
+from app.schemas.watchlist import WatchlistCandidateView, WatchlistItemCreate, WatchlistItemUpdate, WatchlistItemView, WatchlistResearchBriefView, WatchlistAiInsightView
 from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
 from app.services.stock_news_search import StockNewsSearchService
 from app.services.watchlist_research_service import WatchlistResearchService
@@ -96,6 +96,25 @@ def create_watchlist_item(
         search_service.trigger_async_external_search(symbol, payload.display_name.strip(), market)
         logger.info("watchlist %s: triggered async external news search (matched %d < threshold %d)", symbol, matched, settings.stock_news_min_count)
 
+    return WatchlistItemView.model_validate(item, from_attributes=True)
+
+
+@router.patch("/{symbol}", response_model=WatchlistItemView)
+def update_watchlist_item(
+    symbol: str,
+    payload: WatchlistItemUpdate,
+    session: Session = Depends(get_db_session),
+) -> WatchlistItemView:
+    """更新自选股持仓量 / 平均成本（持仓/组合视图）。
+
+    仅写入请求体中显式给出的字段（exclude_unset），既有字段与行为保持不变。
+    """
+    repository = WatchlistRepository(session)
+    resolved_symbol = _resolve_watchlist_stored_symbol(symbol, repository)
+    updates = payload.model_dump(exclude_unset=True)
+    item = repository.update_position(resolved_symbol, updates)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="watchlist symbol not found")
     return WatchlistItemView.model_validate(item, from_attributes=True)
 
 

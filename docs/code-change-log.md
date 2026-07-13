@@ -2,6 +2,28 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 持仓/组合视图（Portfolio — 成本、盈亏、按仓位加权的新闻影响）
+
+- 修改人：Claude（独立 worktree 特性开发）
+- 修改范围：把「自选股关注列表」升级为「投资组合」——为每只自选股记录持仓量与成本；新增组合视图展示实时总盈亏；并按仓位价值加权给命中新闻排序，让影响用户最多钱的新闻浮到最上面。
+- 数据库迁移：新增 `backend/alembic/versions/b8e4d7f2a9c1_add_watchlist_position_and_cost.py`，`revision='b8e4d7f2a9c1'`、`down_revision='a7f3c1e9d2b4'`（当前 alembic head）。给 `watchlist_item` 表新增两列：`position_size`(Float, nullable)、`average_cost`(Float, nullable)。迁移写成**幂等防御式**（`watchlist_item` 存在时只补缺失列，列已存在则跳过），与 legacy `create_all` + `stamp baseline` + `upgrade head` 路径兼容；已在临时库验证 legacy 路径 upgrade head 幂等通过、alembic head = `b8e4d7f2a9c1`。同步在 `backend/app/models/watchlist_item.py` 加两个字段。
+- 后端变更：
+  1. 新增 `backend/app/services/portfolio_service.py`：读所有有持仓（`position_size>0`）的自选股，用最新行情快照算每只与组合的市值、成本、未实现盈亏（额与百分比）；再计算「按仓位价值加权的新闻影响」——对每只持仓命中的近 7 天新闻，用 `sentiment_score × 仓位市值权重` 聚合并按绝对影响分排序。纯读+计算，缺行情（权重退化为按成本/持仓量/等权）、缺持仓、缺成本均优雅降级。
+  2. 新增 `backend/app/schemas/portfolio.py`：`PortfolioPositionView` / `PortfolioWeightedNewsView` / `PortfolioSummaryView`。
+  3. 写入持仓：`backend/app/schemas/watchlist.py` 新增 `WatchlistItemUpdate`（`position_size`/`average_cost`，均 `ge=0` 可空），并给 `WatchlistItemView` 增加这两个可空字段；`backend/app/repositories/watchlist_repository.py` 新增 `update_position(symbol, updates)`（仅写入 `updates` 中出现的键，upsert 语义，既有字段与行为不变）；`backend/app/api/routes/watchlist.py` 新增 `PATCH /{symbol}`（`exclude_unset`，找不到 symbol 返回 404）。
+  4. 路由：新增 `backend/app/api/routes/portfolio.py`（`GET /` 返回组合汇总）；`backend/app/api/router.py` 仅加两行（import `portfolio` + `include_router(portfolio.router, prefix="/portfolio", tags=["portfolio"])`，自动继承 `verify_app_token`）。
+- 前端变更：
+  1. 新增 `frontend/src/views/PortfolioView.vue`：总市值/总盈亏/总成本/持仓数汇总卡片、各持仓明细表（盈亏红绿）、「最该看的新闻」加权列表。
+  2. `frontend/src/views/WatchlistView.vue`（本特性唯一改动的既有 view）：新增「持仓设置」面板，为每只自选股就地编辑「持仓量/成本」，保存走 `apiClient.setWatchlistPosition` 后 `loadWatchlist` 刷新。
+  3. `frontend/src/router/index.ts`：新增 `/portfolio`（name `portfolio`，`lazyView` 懒加载）。
+  4. `frontend/src/components/layout/AppShell.vue`：`navItems` 追加 `{ label: 'Portfolio', to: '/portfolio', index: '12' }`。
+  5. `frontend/src/api/client.ts`：新增 `getPortfolio()`（getJson）、`setWatchlistPosition(symbol, payload)`（patchJson）。
+  6. `frontend/src/types/api.ts`：新增 `PortfolioSummary`/`PortfolioPosition`/`PortfolioWeightedNews`/`WatchlistPositionUpdate` 手写镜像；`WatchlistItem` 用交叉类型补齐 `position_size`/`average_cost`（OpenAPI 快照尚未含新字段，待 `npm run generate:api` 后可退回纯别名）。
+- 影响文件：`backend/alembic/versions/b8e4d7f2a9c1_add_watchlist_position_and_cost.py`(新)、`backend/app/models/watchlist_item.py`、`backend/app/services/portfolio_service.py`(新)、`backend/app/schemas/portfolio.py`(新)、`backend/app/schemas/watchlist.py`、`backend/app/repositories/watchlist_repository.py`、`backend/app/api/routes/watchlist.py`、`backend/app/api/routes/portfolio.py`(新)、`backend/app/api/router.py`、`backend/tests/test_portfolio_service.py`(新)、`frontend/src/views/PortfolioView.vue`(新)、`frontend/src/views/WatchlistView.vue`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/api/client.ts`、`frontend/src/types/api.ts`、`docs/code-change-log.md`
+- 接口/数据结构变化：新增 `GET /api/portfolio`、`PATCH /api/watchlist/{symbol}`；`watchlist_item` 表新增 `position_size`/`average_cost` 两列；`WatchlistItemView` 响应新增两个可空字段（向后兼容）。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_portfolio_service.py -q` → **6 passed**（盈亏计算、按仓位加权新闻排序、缺行情/缺持仓降级、PATCH 写入+组合汇总端到端、404）；另跑 `test_watchlist_research.py`/`test_market.py` 未受影响（合计 37 passed）。前端 `npm run build`（vue-tsc 全检 + vite）通过，产出 `PortfolioView` chunk；校验用的 `frontend/node_modules` 软链接构建后已删除。
+- 风险/后续事项：`types/api.ts` 的 Portfolio 类型为手写镜像，待中心化 `npm run generate:api` 后可替换为 `Schemas` 别名并移除 `WatchlistItem` 交叉类型增补；导航 index `12` 若与其它并行特性冲突由集成方统一。
+
 ## 2026-07-13 修复「切换模块经常卡住必须刷新」（路由视图错误处理基础设施）
 
 - 修改人：Claude（系统化调试）
