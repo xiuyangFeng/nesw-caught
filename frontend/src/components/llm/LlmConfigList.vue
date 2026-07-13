@@ -86,13 +86,13 @@ async function handleToggleActive(id: number, currentActive: boolean) {
                 检测中…
               </span>
               <span
-                v-else-if="llmStore.pingStatuses[cfg.id!]?.latency !== null"
+                v-else-if="llmStore.pingStatuses[cfg.id!]?.latency != null"
                 class="rounded-full px-2 py-0.5 text-[10px] font-bold font-mono tracking-wider shadow-sm text-success bg-success/10 border border-success/30 shadow-[0_0_8px_rgba(126,216,158,0.15)]"
               >
                 {{ llmStore.pingStatuses[cfg.id!].latency }} ms
               </span>
               <span
-                v-else-if="llmStore.pingStatuses[cfg.id!]?.error !== null"
+                v-else-if="llmStore.pingStatuses[cfg.id!]?.error != null"
                 class="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider text-danger bg-danger/10 border border-danger/30 shadow-[0_0_8px_rgba(239,123,123,0.15)] cursor-help"
                 :title="llmStore.pingStatuses[cfg.id!].error!"
               >
