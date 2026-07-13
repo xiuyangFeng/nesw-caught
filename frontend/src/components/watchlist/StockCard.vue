@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject, ref, type Ref } from 'vue';
 
 import type { WatchlistQuoteSummary } from '../../types/api';
 import { formatNumber, formatPercent } from '../../utils/format';
@@ -16,6 +16,13 @@ defineEmits<{
   select: [symbol: string];
   delete: [symbol: string];
 }>();
+
+// 由 WatchlistView provide 的“距财报天数”表；无 provider 时默认空表（不显示角标）。
+const earningsCountdown = inject<Ref<Record<string, number>>>('watchlistEarningsCountdown', ref({}));
+const earningsDaysUntil = computed<number | null>(() => {
+  const value = earningsCountdown.value[props.row.symbol];
+  return typeof value === 'number' ? value : null;
+});
 
 const toneClass = computed(() => {
   if ((props.row.change_percent ?? 0) > 0) {
@@ -56,6 +63,19 @@ const toneClass = computed(() => {
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600 shadow-[0_0_8px_#ef4444]"></span>
           </div>
+          <!-- 距财报角标：数据来自 /calendar 接口，无未来财报则不显示 -->
+          <span
+            v-if="earningsDaysUntil !== null"
+            class="shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.06em] whitespace-nowrap"
+            :class="
+              earningsDaysUntil <= 3
+                ? 'stock-card-earnings-near border-[#ff9f2f66] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
+                : 'border-[#53c2ff40] bg-[rgba(83,194,255,0.08)] text-[#9bd8ff]'
+            "
+            :title="`距下次财报 ${earningsDaysUntil} 天`"
+          >
+            财报 {{ earningsDaysUntil }}天
+          </span>
         </div>
         <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ row.symbol }}</span>
         <div class="mt-0.5 flex items-end gap-2">
@@ -90,3 +110,26 @@ const toneClass = computed(() => {
     </div>
   </article>
 </template>
+
+<style scoped>
+/* 临近财报（≤3 天）角标呼吸高亮。 */
+.stock-card-earnings-near {
+  animation: stock-card-earnings-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes stock-card-earnings-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 159, 47, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(255, 159, 47, 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stock-card-earnings-near {
+    animation: none;
+  }
+}
+</style>

@@ -88,6 +88,37 @@ export interface LlmFailoverInfo {
 }
 
 // ---------------------------------------------------------------------------
+// 财报 / 事件日历
+// 说明:后端新增 /api/calendar 接口尚未纳入 generate:api 的 OpenAPI 快照
+// (src/types/generated/api.d.ts),此处按后端 app/schemas/calendar.py 手写镜像;
+// 待运行 `npm run generate:api` 后可替换为 Schemas 别名。
+// ---------------------------------------------------------------------------
+export type CalendarEventType = 'earnings' | 'ex_dividend';
+
+export interface CalendarEvent {
+  symbol: string;
+  display_name: string | null;
+  event_type: CalendarEventType;
+  date: string; // ISO 日期 YYYY-MM-DD
+  days_until: number;
+}
+
+export interface CalendarSymbolSummary {
+  symbol: string;
+  display_name: string | null;
+  next_earnings_date: string | null;
+  next_earnings_days_until: number | null;
+}
+
+export interface CalendarResponse {
+  days: number;
+  events: CalendarEvent[];
+  summaries: CalendarSymbolSummary[];
+  skipped_count: number;
+  generated_at: string;
+}
+
+// ---------------------------------------------------------------------------
 // 话题
 // ---------------------------------------------------------------------------
 export type TopicItem = Schemas['TopicItemView'];

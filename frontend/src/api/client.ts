@@ -12,6 +12,7 @@ import type {
   LLMConfigUpdateRequest,
   LLMTranslateRequest,
   LLMTranslateResponse,
+  CalendarResponse,
   MarketSnapshot,
   StockKlineResponse,
   MarketRefreshResult,
@@ -256,6 +257,15 @@ export const apiClient = {
           symbols.map((symbol) => [symbol, mock.mockWatchlistSparklines[symbol] ?? { prices: [] }]),
         ),
     );
+  },
+  getCalendar(days = 30) {
+    return getJson<CalendarResponse>(withQuery('/api/calendar', { days })).then((data) => ({ data, degraded: false }));
+  },
+  getSymbolCalendar(symbol: string, days = 90) {
+    return getJson<CalendarResponse>(withQuery(`/api/calendar/${encodeURIComponent(symbol)}`, { days })).then((data) => ({
+      data,
+      degraded: false,
+    }));
   },
   getWatchlist() {
     return withMockFallback<WatchlistItem[]>(() => getJson('/api/watchlist'), (mock) => mock.mockWatchlist);
