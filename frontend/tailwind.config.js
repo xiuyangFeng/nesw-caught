@@ -25,20 +25,27 @@ export default {
         warning: 'var(--warning)',
         accent: 'var(--accent)',
         system: 'var(--system)',
+        ai: 'var(--ai)',
+        'ai-2': 'var(--ai-2)',
+      },
+      borderRadius: {
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+        xl: 'var(--r-xl)',
       },
       boxShadow: {
         shell: 'var(--shadow)',
-        terminal: '0 18px 42px rgba(2, 6, 12, 0.34)',
-        signal: '0 0 18px rgba(255, 159, 47, 0.35)',
+        glow: 'var(--glow-accent)',
+        'glow-ai': 'var(--glow-ai)',
       },
       fontFamily: {
-        sans: ['IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'sans-serif'],
-        mono: ['IBM Plex Mono', 'SFMono-Regular', 'monospace'],
+        sans: ['HarmonyOS Sans SC', 'Inter', 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'IBM Plex Mono', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       backgroundImage: {
         app: 'var(--bg-accent)',
-        terminal:
-          'linear-gradient(180deg, rgba(15, 24, 36, 0.96), rgba(10, 17, 27, 0.96)), radial-gradient(circle at top right, rgba(83, 194, 255, 0.08), transparent 26%)',
+        'grad-ai': 'var(--grad-ai)',
       },
       screens: {
         shell: '1100px',
