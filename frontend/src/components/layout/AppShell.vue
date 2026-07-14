@@ -91,28 +91,28 @@ const shellStatusRail = computed(() => {
   if (connectionStore.state === 'live') {
     return {
       label: 'SSE LIVE',
-      detail: 'Stream strong',
-      signalClass: 'bg-success shadow-[0_0_10px_rgba(57,200,132,0.38)]',
+      detail: '实时流畅',
+      signalClass: 'bg-success shadow-[0_0_10px_rgba(31,211,154,0.38)]',
     } as const;
   }
   if (connectionStore.state === 'degraded') {
     return {
       label: 'SSE DEGRADED',
-      detail: 'Mock fallback',
-      signalClass: 'bg-warning shadow-[0_0_10px_rgba(83,194,255,0.34)]',
+      detail: '降级至 Mock',
+      signalClass: 'bg-warning shadow-[0_0_10px_rgba(255,207,90,0.34)]',
     } as const;
   }
   if (connectionStore.state === 'offline') {
     return {
       label: 'SSE OFF',
-      detail: 'Reconnect idle',
-      signalClass: 'bg-danger shadow-[0_0_10px_rgba(255,111,134,0.32)]',
+      detail: '重连待机',
+      signalClass: 'bg-danger shadow-[0_0_10px_rgba(255,90,114,0.32)]',
     } as const;
   }
   return {
     label: 'SSE WAIT',
-    detail: 'Handshake pending',
-    signalClass: 'bg-warning shadow-[0_0_10px_rgba(83,194,255,0.34)]',
+    detail: '握手中',
+    signalClass: 'bg-warning shadow-[0_0_10px_rgba(255,207,90,0.34)]',
   } as const;
 });
 
