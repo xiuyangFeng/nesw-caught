@@ -149,38 +149,38 @@ async function copyInsight() {
 <template>
   <section class="grid gap-4" data-role="stock-detail-panel">
     <header
-      class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] px-3 py-3 shadow-[0_14px_34px_rgba(2,6,12,0.28)]"
+      class="grid gap-2 rounded-lg border border-border bg-panel px-3 py-3"
       data-role="trading-desk-summary"
     >
       <div class="grid gap-3 xl:grid-cols-[minmax(220px,0.78fr)_minmax(0,1.22fr)] xl:items-center">
         <div class="grid gap-1.5" data-role="trading-desk-price-strip">
           <div class="grid gap-0.5">
-            <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">行情看盘</p>
+            <p class="text-[11px] uppercase tracking-[0.24em] text-accent">行情看盘</p>
             <div class="flex flex-wrap items-end gap-x-2 gap-y-1">
               <h2 class="text-[24px] font-semibold leading-none text-text">{{ headline }}</h2>
-              <span class="text-[11px] uppercase tracking-[0.22em] text-text-faint">{{ symbolLabel }}</span>
+              <span class="num text-[11px] uppercase tracking-[0.22em] text-text-faint">{{ symbolLabel }}</span>
             </div>
           </div>
           <div class="flex flex-wrap items-end gap-x-2.5 gap-y-1">
-            <strong class="text-[34px] font-semibold leading-none text-text">{{ lastPrice }}</strong>
+            <strong class="num text-[34px] font-semibold leading-none text-text">{{ lastPrice }}</strong>
             <div class="grid gap-0.5">
-              <span class="text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+              <span class="num text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
                 {{ changeAmount }}
               </span>
-              <span class="text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+              <span class="num text-sm font-semibold" :class="(quote?.change_percent ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
                 {{ formatPercent(quote?.change_percent) }}
               </span>
             </div>
           </div>
         </div>
         <div
-          class="grid gap-1.5 rounded-[14px] border border-[rgba(148,163,184,0.1)] bg-[rgba(255,255,255,0.025)] px-3 py-2.5"
+          class="grid gap-1.5 rounded-md border border-border bg-panel-strong px-3 py-2.5"
           data-role="terminal-quote-matrix"
         >
           <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 md:grid-cols-3 xl:grid-cols-3">
             <article v-for="[label, value] in quoteMetrics" :key="label" class="grid gap-0.5">
               <span class="text-[9px] uppercase tracking-[0.18em] text-text-faint">{{ label }}</span>
-              <strong class="text-sm text-text">{{ value }}</strong>
+              <strong class="num text-sm text-text">{{ value }}</strong>
             </article>
           </div>
         </div>
@@ -209,10 +209,10 @@ async function copyInsight() {
 
     <!-- AI 投研洞察 (AI Insight Workspace) -->
     <section v-if="currentSymbol" class="grid gap-2" data-role="watchlist-detail-ai-insight">
-      <div class="surface rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] px-4 py-4 shadow-[0_14px_34px_rgba(2,6,12,0.28)]">
+      <div class="surface rounded-lg border border-border bg-panel px-4 py-4">
         <div class="mb-3.5 flex items-center justify-between gap-3 border-b border-border/40 pb-2">
           <div>
-            <p class="text-[10px] uppercase tracking-[0.16em] text-[#a855f7] font-semibold">AI Intelligence</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] text-ai font-semibold">✦ AI Intelligence</p>
             <h3 class="text-[15px] font-semibold text-text mt-0.5">AI 投研洞察 (AI Insight)</h3>
           </div>
           <div v-if="aiInsight?.text" class="flex items-center gap-2">
@@ -242,7 +242,7 @@ async function copyInsight() {
               尚未生成本自选股的最新 AI 投研研判简报。点击下方按钮即可一键调取大模型进行新闻脱水分析。
             </p>
             <button
-              class="flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#6d28d9,#a855f7)] px-5 py-2.5 text-xs font-semibold text-white transition hover:brightness-110 shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:shadow-[0_0_20px_rgba(168,85,247,0.5)] active:scale-95"
+              class="flex items-center gap-2 rounded-full bg-grad-ai px-5 py-2.5 text-xs font-semibold text-white shadow-glow-ai transition hover:brightness-110 active:scale-95"
               type="button"
               @click="generateAiInsight"
             >
@@ -280,7 +280,7 @@ async function copyInsight() {
             <!-- Failover Alert Banner -->
             <div
               v-if="aiInsight.failover"
-              class="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 backdrop-blur-md text-[11px] text-[#ffd175] flex items-center gap-2 select-text shadow-sm"
+              class="p-2.5 rounded-xl border border-warning/30 bg-warning/10 text-[11px] text-warning flex items-center gap-2 select-text"
             >
               <span class="animate-pulse">⚡</span>
               <span>

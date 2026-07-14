@@ -684,17 +684,17 @@ onBeforeUnmount(() => {
         />
       </g>
       <g v-if="crosshair">
-        <line data-role="crosshair-vertical" :x1="crosshair.x" y1="0" :x2="crosshair.x" :y2="overlaySize.height" stroke="rgba(255,255,255,0.35)" stroke-dasharray="5 4" />
-        <line data-role="crosshair-horizontal" x1="0" :y1="crosshair.y" :x2="overlaySize.width" :y2="crosshair.y" stroke="rgba(255,255,255,0.28)" stroke-dasharray="5 4" />
+        <line data-role="crosshair-vertical" :x1="crosshair.x" y1="0" :x2="crosshair.x" :y2="overlaySize.height" stroke="rgba(58,210,230,0.45)" stroke-dasharray="5 4" />
+        <line data-role="crosshair-horizontal" x1="0" :y1="crosshair.y" :x2="overlaySize.width" :y2="crosshair.y" stroke="rgba(58,210,230,0.35)" stroke-dasharray="5 4" />
         <text data-role="crosshair-time-label" :x="Math.max(8, crosshair.x - 34)" :y="overlaySize.height - 8" fill="#f8fafc" font-size="11">
           {{ crosshair.timeLabel }}
         </text>
-        <text data-role="crosshair-price-label" :x="Math.max(8, overlaySize.width - 56)" :y="Math.max(14, crosshair.y - 6)" fill="#ffca97" font-size="11">
+        <text data-role="crosshair-price-label" :x="Math.max(8, overlaySize.width - 56)" :y="Math.max(14, crosshair.y - 6)" fill="#3ad2e6" font-size="11">
           {{ crosshair.priceLabel }}
         </text>
       </g>
       <g v-if="hasDraft" data-role="drawing-draft-preview">
-        <line x1="20" y1="20" x2="120" y2="120" stroke="#ffb66d" stroke-width="2" stroke-dasharray="6 4" />
+        <line x1="20" y1="20" x2="120" y2="120" stroke="#3ad2e6" stroke-width="2" stroke-dasharray="6 4" />
       </g>
     </svg>
     <div

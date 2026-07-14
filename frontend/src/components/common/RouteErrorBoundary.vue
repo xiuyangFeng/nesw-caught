@@ -75,25 +75,25 @@ function hardReload() {
   display: grid;
   gap: 10px;
   max-width: 520px;
-  padding: 22px 24px;
-  border: 1px solid rgba(255, 111, 134, 0.32);
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(30, 16, 20, 0.9), rgba(18, 12, 16, 0.9));
-  box-shadow: 0 0 24px rgba(255, 111, 134, 0.14);
+  padding: 20px 22px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--r-lg);
+  background: var(--panel);
 }
 
 .route-error__title {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #ff9fb0;
+  color: var(--danger);
 }
 
 .route-error__detail {
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
-  color: #d6b9bf;
+  color: var(--text-soft);
   word-break: break-word;
 }
 
@@ -105,23 +105,23 @@ function hardReload() {
 
 .route-error__actions button {
   cursor: pointer;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-strong);
   padding: 7px 16px;
   font-size: 13px;
-  color: #f2e7ea;
+  color: var(--text);
   transition: background 0.15s ease;
 }
 
 .route-error__actions button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--interactive-hover);
 }
 
 .route-error__hint {
   margin: 2px 0 0;
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: #8ea0b5;
+  color: var(--muted);
 }
 </style>

@@ -32,10 +32,10 @@ const emit = defineEmits<{
     role="dialog"
     @click.self="emit('close')"
   >
-    <div class="w-full max-w-4xl rounded-[24px] border border-border bg-[linear-gradient(155deg,rgba(13,21,33,0.98),rgba(8,14,24,0.98))] p-4 shadow-[0_24px_80px_rgba(2,6,12,0.5)]">
+    <div class="w-full max-w-4xl rounded-lg border border-border bg-panel p-4 shadow-shell">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Add</p>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-accent">Add</p>
           <h2 class="mt-1 text-xl text-text">添加自选</h2>
           <p class="mt-1 text-sm text-text-soft">选中候选后直接加入，需要时再展开高级设置。</p>
         </div>
@@ -67,11 +67,11 @@ const emit = defineEmits<{
               v-for="candidate in matches"
               :key="candidate.symbol"
               type="button"
-              class="rounded-[14px] border px-3 py-2.5 text-left transition"
+              class="rounded-md border px-3 py-2.5 text-left transition"
               :class="
                 selectedCandidate?.symbol === candidate.symbol
-                  ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.14)]'
-                  : 'border-border/70 bg-[rgba(255,255,255,0.02)] hover:border-[#ff9f2f66]'
+                  ? 'border-accent/60 bg-accent/10'
+                  : 'border-border/70 bg-panel-strong hover:border-accent/40'
               "
               :data-role="`watchlist-candidate-${candidate.symbol}`"
               @click="emit('selectCandidate', candidate)"
@@ -88,9 +88,9 @@ const emit = defineEmits<{
         </section>
 
         <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
-          <p class="text-[10px] uppercase tracking-[0.2em] text-[#ffb77d]">Selection</p>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-accent">Selection</p>
           <div v-if="selectedCandidate" class="mt-3 grid gap-3">
-            <div class="rounded-[20px] border border-[#ff9f2f40] bg-[rgba(255,159,47,0.08)] p-4">
+            <div class="rounded-md border border-accent/40 bg-accent/10 p-4">
               <strong class="block text-lg text-text">{{ selectedCandidate.display_name }}</strong>
               <span class="mt-1 block text-[11px] uppercase tracking-[0.14em] text-text-faint" data-role="watchlist-add-selected-symbol">
                 {{ selectedCandidate.symbol }} · {{ selectedCandidate.market }}
@@ -135,7 +135,7 @@ const emit = defineEmits<{
             </button>
             <button
               type="button"
-              class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-5 py-2 text-sm font-semibold text-[#2f1500] disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#04141a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!selectedCandidate || createLoading"
               data-role="watchlist-add-submit"
               @click="emit('submit')"

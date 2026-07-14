@@ -67,12 +67,12 @@ const displayPercentage = computed(() => {
 
 <template>
   <article
-    class="surface rounded-[14px] border border-border/90 bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-[16px] flex flex-col items-center justify-between"
+    class="surface rounded-md border border-border p-4 flex flex-col items-center justify-between"
     data-role="sentiment-gauge-card"
   >
     <div class="w-full flex items-center justify-between mb-2">
       <p class="m-0 text-[11px] uppercase tracking-[0.16em] text-muted">輿情偏好羅盤</p>
-      <span class="text-[10px] bg-white/[0.04] border border-border px-2 py-0.5 rounded-full text-muted tabular-nums">
+      <span class="text-[10px] bg-white/[0.04] border border-border px-2 py-0.5 rounded-full text-muted font-mono tabular-nums">
         利好 {{ positiveCount }} / 利空 {{ negativeCount }}
       </span>
     </div>
@@ -83,9 +83,9 @@ const displayPercentage = computed(() => {
         <!-- 渐变色与滤镜定义 -->
         <defs>
           <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <!-- 极左利空(绿) -> 极右利好(红) -->
+            <!-- 极左利空(绿) -> 中性(琥珀) -> 极右利好(红) -->
             <stop offset="0%" stop-color="var(--negative)" />
-            <stop offset="50%" stop-color="var(--accent)" />
+            <stop offset="50%" stop-color="var(--warning)" />
             <stop offset="100%" stop-color="var(--positive)" />
           </linearGradient>
           <filter id="gaugeGlow" x="-20%" y="-20%" width="140%" height="140%">
@@ -149,7 +149,7 @@ const displayPercentage = computed(() => {
             y1="100"
             x2="100"
             y2="34"
-            stroke="var(--text)"
+            stroke="#ffffff"
             stroke-width="2.5"
             stroke-linecap="round"
           />
@@ -166,7 +166,7 @@ const displayPercentage = computed(() => {
 
       <!-- 数值文字居中叠加 -->
       <div class="absolute bottom-1 flex flex-col items-center">
-        <span class="text-[28px] font-bold tracking-tight leading-none text-text tabular-nums">
+        <span class="text-[28px] font-bold tracking-tight leading-none text-text font-mono tabular-nums">
           {{ displayPercentage }}%
         </span>
         <span class="text-[10px] text-muted tracking-wider uppercase mt-1">利好占比</span>

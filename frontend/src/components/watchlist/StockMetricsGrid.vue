@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="grid gap-3 rounded-[22px] border border-border bg-[rgba(8,14,23,0.94)] p-4">
+  <section class="grid gap-3 rounded-lg border border-border bg-panel p-4">
     <div class="grid gap-3 md:grid-cols-3">
       <article
         v-for="[label, value] in [
@@ -20,10 +20,10 @@ defineProps<{
           ['Price', formatNumber(quote?.price)],
         ]"
         :key="label"
-        class="rounded-[18px] border border-border/70 bg-black/10 p-3"
+        class="rounded-md border border-border/70 bg-panel-strong p-3"
       >
-        <span class="block text-[11px] uppercase tracking-[0.14em] text-text-faint">{{ label }}</span>
-        <strong class="text-text">{{ value }}</strong>
+        <span class="label-mono block">{{ label }}</span>
+        <strong class="num text-text">{{ value }}</strong>
       </article>
     </div>
   </section>

@@ -123,14 +123,11 @@ function handleOpen() {
 <template>
   <div
     v-if="currentNews"
-    class="relative overflow-hidden rounded-[14px] border border-[#ff6f86]/35 bg-[linear-gradient(90deg,rgba(40,16,22,0.92)_0%,rgba(13,20,33,0.96)_100%)] px-4 py-2.5 shadow-[0_0_24px_rgba(255,111,134,0.08)] flex items-center justify-between gap-4 transition duration-200 hover:border-[#ff6f86]/60"
+    class="relative rounded-md border border-danger/30 bg-panel px-4 py-2.5 flex items-center justify-between gap-4 transition duration-200 hover:border-danger/50"
     data-role="breaking-news-spotlight"
     @mouseenter="stopTimer"
     @mouseleave="startTimer"
   >
-    <!-- 装饰性流光背景 -->
-    <div class="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,111,134,0.04)_50%,transparent_100%)] translate-x-[-100%] shimmer-bg pointer-events-none" />
-
     <!-- 内容淡入淡出滑动切换 -->
     <div class="flex-grow min-w-0">
       <Transition name="slide-fade" mode="out-in">
@@ -138,19 +135,19 @@ function handleOpen() {
           <!-- 心跳呼吸动效警示点 (双层声纳波纹) -->
           <span class="flex h-3 w-3 relative items-center justify-center shrink-0">
             <!-- 外层波纹 -->
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-positive opacity-40" style="animation-duration: 2s;"></span>
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-40" style="animation-duration: 2s;"></span>
             <!-- 内层波纹 -->
-            <span class="animate-ping absolute inline-flex h-[80%] w-[80%] rounded-full bg-positive opacity-60" style="animation-duration: 1.4s;"></span>
+            <span class="animate-ping absolute inline-flex h-[80%] w-[80%] rounded-full bg-danger opacity-60" style="animation-duration: 1.4s;"></span>
             <!-- 核心点 -->
-            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-positive shadow-[0_0_6px_var(--positive)]"></span>
+            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-danger shadow-[0_0_6px_var(--danger)]"></span>
           </span>
 
-          <span class="text-[10px] font-bold uppercase tracking-[0.2em] bg-positive-soft text-positive px-2 py-0.5 rounded-md whitespace-nowrap">
+          <span class="text-[10px] font-bold uppercase tracking-[0.2em] bg-danger/10 text-danger px-2 py-0.5 rounded-sm whitespace-nowrap font-mono">
             BREAKING RADAR
           </span>
 
           <!-- 滚动条标题 -->
-          <strong class="text-[13px] font-semibold text-text truncate hover:text-positive transition duration-150 cursor-pointer" @click="handleOpen">
+          <strong class="text-[13px] font-semibold text-text truncate hover:text-danger transition duration-150 cursor-pointer" @click="handleOpen">
             {{ currentNews.title }}
           </strong>
         </div>
@@ -187,7 +184,7 @@ function handleOpen() {
       </div>
 
       <button
-        class="text-[11px] font-bold text-[#ffb77d] hover:text-positive flex items-center gap-1.5 transition duration-150"
+        class="text-[11px] font-bold text-accent hover:text-danger flex items-center gap-1.5 transition duration-150"
         type="button"
         @click="handleOpen"
       >
@@ -201,16 +198,6 @@ function handleOpen() {
 </template>
 
 <style scoped>
-.shimmer-bg {
-  animation: shimmer 3s infinite linear;
-}
-
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 /* 轮播滑动淡入淡出过渡 */
 .slide-fade-enter-active,
 .slide-fade-leave-active {

@@ -39,14 +39,14 @@ const emit = defineEmits<{
         {{ drawing.visible ? '隐藏' : '显示' }}
       </button>
       <button type="button" data-role="drawing-duplicate" class="rounded-full border border-border/70 px-2 py-1 text-[11px] text-text-faint" @click="emit('drawingDuplicate')">复制</button>
-      <button type="button" data-role="drawing-delete" class="rounded-full border border-[rgba(255,111,134,0.28)] px-2 py-1 text-[11px] text-[#ff9dad]" @click="emit('drawingDelete')">删除</button>
+      <button type="button" data-role="drawing-delete" class="rounded-full border border-danger/40 px-2 py-1 text-[11px] text-danger" @click="emit('drawingDelete')">删除</button>
     </template>
     <template v-else>
       <span data-role="drawing-group-count" class="text-[11px] uppercase tracking-[0.14em] text-text-faint">已选 {{ selectedDrawings?.length ?? 0 }} 个对象</span>
       <button type="button" data-role="drawing-group-lock-toggle" class="rounded-full border border-border/70 px-2 py-1 text-[11px] text-text-faint" @click="emit('drawingGroupLockToggle')">批量锁定</button>
       <button type="button" data-role="drawing-group-visible-toggle" class="rounded-full border border-border/70 px-2 py-1 text-[11px] text-text-faint" @click="emit('drawingGroupVisibleToggle')">批量显隐</button>
       <button type="button" data-role="drawing-group-duplicate" class="rounded-full border border-border/70 px-2 py-1 text-[11px] text-text-faint" @click="emit('drawingGroupDuplicate')">批量复制</button>
-      <button type="button" data-role="drawing-group-delete" class="rounded-full border border-[rgba(255,111,134,0.28)] px-2 py-1 text-[11px] text-[#ff9dad]" @click="emit('drawingGroupDelete')">批量删除</button>
+      <button type="button" data-role="drawing-group-delete" class="rounded-full border border-danger/40 px-2 py-1 text-[11px] text-danger" @click="emit('drawingGroupDelete')">批量删除</button>
     </template>
   </div>
 </template>

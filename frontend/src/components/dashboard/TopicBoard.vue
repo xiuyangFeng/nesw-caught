@@ -21,7 +21,7 @@ function openTopic(topicId: number) {
     <article
       v-for="topic in topics"
       :key="topic.id"
-      class="terminal-surface cursor-pointer rounded-[16px] border border-border p-4 transition duration-150 ease-out hover:-translate-y-0.5 hover:border-[#ff9f2f4d] hover:shadow-[0_16px_30px_rgba(4,10,18,0.28)]"
+      class="terminal-surface cursor-pointer rounded-lg border border-border p-4 transition duration-150 ease-out hover:-translate-y-0.5 hover:border-accent/40"
       data-surface="terminal-card"
       role="button"
       tabindex="0"
@@ -33,10 +33,10 @@ function openTopic(topicId: number) {
           <span class="pill" :class="topic.sentiment_label">{{ sentimentText(topic.sentiment_label) }}</span>
           <strong class="truncate text-base text-text">{{ topic.topic_title }}</strong>
         </div>
-        <span class="shrink-0 text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">Signal</span>
+        <span class="shrink-0 text-[10px] uppercase tracking-[0.18em] text-muted font-mono">Signal</span>
       </div>
       <p class="my-3 text-text-soft">{{ topic.topic_summary ?? '主题摘要待补充' }}</p>
-      <div class="flex flex-wrap gap-3 text-xs text-text-faint" data-role="topic-meta">
+      <div class="flex flex-wrap gap-3 text-xs text-text-faint font-mono tabular-nums" data-role="topic-meta">
         <span>{{ topic.news_count }} 条新闻</span>
         <span>{{ topic.related_symbols.join(' · ') || '无关联股票' }}</span>
         <span>{{ formatMarketTime(topic.last_seen_at, topic.market) }} {{ getMarketTimezoneLabel(topic.market) }}</span>

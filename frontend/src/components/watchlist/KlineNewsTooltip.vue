@@ -2,11 +2,11 @@
 import type { NewsEventMarker } from '../../types/api';
 
 const SENTIMENT_COLORS: Record<string, string> = {
-  positive: '#ff6f86',
-  negative: '#39c884',
-  neutral: '#3b82f6',
-  mixed: '#a855f7',
-  unknown: '#94a3b8',
+  positive: '#ff5a72',
+  negative: '#1fd39a',
+  neutral: '#5fb8ff',
+  mixed: '#8b7cff',
+  unknown: '#8794a8',
 };
 
 defineProps<{
@@ -25,7 +25,7 @@ defineProps<{
       :style="{ left: `${x}px`, top: `${y}px` }"
     >
       <div v-for="(item, i) in event.items.slice(0, 3)" :key="item.id" class="flex items-start gap-2 py-0.5" :class="i > 0 ? 'border-t border-border/30 mt-0.5' : ''">
-        <span class="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full" :style="{ backgroundColor: SENTIMENT_COLORS[item.sentiment] ?? '#94a3b8' }" />
+        <span class="mt-[5px] h-[6px] w-[6px] shrink-0 rounded-full" :style="{ backgroundColor: SENTIMENT_COLORS[item.sentiment] ?? '#8794a8' }" />
         <span class="text-[11px] leading-[1.4] text-text/90">{{ item.title.length > 40 ? item.title.slice(0, 40) + '...' : item.title }}</span>
       </div>
       <div v-if="event.items.length > 3" class="mt-1 text-[10px] text-text-faint">+{{ event.items.length - 3 }} more</div>

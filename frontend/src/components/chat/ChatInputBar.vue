@@ -28,7 +28,7 @@ const quickQuestions = [
       <button
         v-for="q in quickQuestions"
         :key="q"
-        class="rounded-full border border-border/80 bg-white/[0.03] px-3.5 py-1.5 text-xs text-text-faint transition hover:border-system hover:bg-white/[0.06] hover:text-text disabled:opacity-50 disabled:cursor-not-allowed"
+        class="rounded-full border border-border bg-panel px-3.5 py-1.5 text-xs text-text-faint transition hover:border-accent hover:bg-panel-strong hover:text-text disabled:opacity-50 disabled:cursor-not-allowed"
         type="button"
         :disabled="isSending"
         @click="emit('quick', q)"
@@ -39,7 +39,7 @@ const quickQuestions = [
 
     <!-- Input box -->
     <form
-      class="relative flex items-center gap-2 rounded-[20px] border border-border/80 bg-field p-2 focus-within:border-border"
+      class="relative flex items-center gap-2 rounded-xl border border-border bg-field p-2 focus-within:border-accent"
       @submit.prevent="emit('send')"
     >
       <input
@@ -54,14 +54,15 @@ const quickQuestions = [
         <!-- Abort button -->
         <button
           v-if="isSending"
-          class="rounded-xl bg-danger px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:brightness-110 active:scale-95"
+          class="rounded-md bg-danger px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 active:scale-95"
           type="button"
           @click="emit('stop')"
         >
           ■ 停止
         </button>
+        <!-- 发送：AI 触点，允许青紫渐变 -->
         <button
-          class="rounded-xl bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-5 py-2 text-xs font-semibold text-white shadow-md transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          class="rounded-md bg-grad-ai px-5 py-2 text-xs font-semibold text-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           type="submit"
           :disabled="!modelValue.trim() || isSending || !hasActiveConfigs"
         >

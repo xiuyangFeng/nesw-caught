@@ -37,11 +37,12 @@ const emit = defineEmits<{
 
 .strip-header h2 {
   margin: 0;
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--system);
+  letter-spacing: 0.14em;
+  color: var(--accent);
 }
 
 .strip-grid {

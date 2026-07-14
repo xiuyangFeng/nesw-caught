@@ -84,15 +84,15 @@ defineProps<{
 }
 
 .skeleton-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px;
   position: relative;
   overflow: hidden;
 }
 
-/* 呼吸扫光 Shimmer 动画 */
+/* 呼吸扫光 Shimmer 动画（基于 panel 底色的克制冷调微光） */
 .shimmer::after {
   content: '';
   position: absolute;
@@ -103,10 +103,10 @@ defineProps<{
   transform: translateX(-100%);
   background-image: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.03) 20%,
-    rgba(255, 255, 255, 0.08) 60%,
-    rgba(255, 255, 255, 0) 100%
+    rgba(150, 160, 200, 0) 0%,
+    rgba(150, 160, 200, 0.03) 20%,
+    rgba(150, 160, 200, 0.07) 60%,
+    rgba(150, 160, 200, 0) 100%
   );
   animation: shimmer 1.6s infinite;
 }
@@ -119,7 +119,7 @@ defineProps<{
 
 .skeleton-line {
   height: 14px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(150, 160, 200, 0.1);
   border-radius: 4px;
   margin-bottom: 12px;
   position: relative;
@@ -153,7 +153,7 @@ defineProps<{
 .skeleton-pill {
   height: 24px;
   width: 80px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(150, 160, 200, 0.1);
   border-radius: 99px;
   position: relative;
   overflow: hidden;
@@ -215,7 +215,7 @@ defineProps<{
 
 .divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border);
   margin: 16px 0;
 }
 </style>

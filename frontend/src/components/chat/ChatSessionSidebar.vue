@@ -38,31 +38,37 @@ function saveSessionTitle(id: string) {
 </script>
 
 <template>
-  <aside class="surface flex flex-col gap-3 rounded-[22px] p-4 overflow-hidden border border-border/40 bg-[rgba(10,17,28,0.4)]">
+  <aside class="surface flex flex-col gap-3 rounded-lg p-4 overflow-hidden">
     <button
-      class="w-full rounded-xl bg-[linear-gradient(135deg,#1768c2,#1e88e5)] hover:brightness-110 active:scale-[0.98] py-2.5 text-xs font-bold text-white shadow-md transition flex items-center justify-center gap-1.5 shrink-0"
+      class="w-full rounded-md border border-border bg-panel-strong text-accent hover:border-accent hover:bg-[var(--accent-soft)] active:scale-[0.98] py-2.5 text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0"
       type="button"
       @click="emit('create')"
     >
-      <span>➕</span> 新对话
+      <span class="text-sm leading-none">+</span> 新对话
     </button>
 
     <div class="flex-1 overflow-y-auto space-y-1 pr-0.5 min-h-0">
       <div
         v-for="session in sessions"
         :key="session.id"
-        class="group relative flex items-center justify-between rounded-xl px-3 py-2.5 text-xs transition cursor-pointer border select-none"
+        class="group relative flex items-center justify-between rounded-md pl-3.5 pr-3 py-2.5 text-xs transition cursor-pointer border select-none"
         :class="session.id === activeSessionId
-          ? 'bg-white/[0.06] border-white/10 text-text font-semibold shadow-sm'
-          : 'bg-transparent border-transparent text-text-faint hover:bg-white/[0.02] hover:text-text'"
+          ? 'bg-[var(--accent-soft)] border-border text-text font-semibold'
+          : 'bg-transparent border-transparent text-text-faint hover:bg-[var(--interactive-hover)] hover:text-text'"
         @click="emit('select', session.id)"
       >
+        <!-- Active accent bar -->
+        <span
+          v-if="session.id === activeSessionId"
+          class="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-accent"
+          aria-hidden="true"
+        />
         <!-- Session title editing -->
         <div class="flex-1 min-w-0 mr-1.5">
           <input
             v-if="editingSessionId === session.id"
             v-model="editingSessionTitle"
-            class="w-full bg-field border border-border rounded px-1.5 py-0.5 text-xs text-text focus:outline-none focus:border-system"
+            class="w-full bg-field border border-border rounded px-1.5 py-0.5 text-xs text-text focus:outline-none focus:border-accent"
             type="text"
             @blur="saveSessionTitle(session.id)"
             @keydown.enter="saveSessionTitle(session.id)"

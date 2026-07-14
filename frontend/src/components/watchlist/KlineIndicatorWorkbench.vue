@@ -35,10 +35,10 @@ function summary(template: KlineIndicatorTemplate | null) {
 </script>
 
 <template>
-  <aside class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(180deg,rgba(15,22,34,0.98),rgba(9,14,22,0.98))] p-3" data-role="kline-indicator-workbench">
+  <aside class="grid gap-3 rounded-lg border border-border bg-panel p-3" data-role="kline-indicator-workbench">
     <div class="grid gap-1" data-role="workbench-template-header">
       <div class="flex items-center justify-between gap-2">
-        <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">指标工作台</span>
+        <span class="text-[10px] uppercase tracking-[0.18em] text-accent">指标工作台</span>
         <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">{{ subIndicator }}</span>
       </div>
       <strong class="text-sm text-text" data-role="active-template-name">{{ activeTemplate?.name ?? '经典均线' }}</strong>
@@ -56,8 +56,8 @@ function summary(template: KlineIndicatorTemplate | null) {
         v-for="template in templates"
         :key="template.id"
         type="button"
-        class="rounded-[14px] border px-3 py-2 text-left"
-        :class="template.id === activeTemplateId ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)]' : 'border-border/70 bg-[rgba(255,255,255,0.02)]'"
+        class="rounded-md border px-3 py-2 text-left"
+        :class="template.id === activeTemplateId ? 'border-accent/60 bg-accent/10' : 'border-border/70 bg-panel-strong'"
         :data-role="`template-card-${template.id}`"
         :disabled="disabled"
         @click="emit('templateApply', template.id)"
@@ -85,7 +85,7 @@ function summary(template: KlineIndicatorTemplate | null) {
       <button
         type="button"
         data-role="template-delete"
-        class="rounded-full border border-[rgba(255,111,134,0.28)] px-3 py-1 text-[11px] text-[#ff9dad]"
+        class="rounded-full border border-danger/40 px-3 py-1 text-[11px] text-danger disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="!activeTemplate || activeTemplate.source === 'preset'"
         @click="activeTemplate && emit('templateDelete', activeTemplate.id)"
       >
@@ -99,7 +99,7 @@ function summary(template: KlineIndicatorTemplate | null) {
         :key="item"
         type="button"
         class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-        :class="subIndicator === item ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+        :class="subIndicator === item ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'"
         :data-role="`subindicator-${item}`"
         @click="emit('subindicatorChange', item as KlineSubIndicator)"
       >

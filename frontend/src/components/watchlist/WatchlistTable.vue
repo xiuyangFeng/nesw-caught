@@ -86,34 +86,36 @@ const emit = defineEmits<{
 <style scoped>
 .table-shell {
   overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(133, 161, 191, 0.18);
-  background: linear-gradient(180deg, rgba(11, 18, 28, 0.98), rgba(8, 14, 23, 0.98));
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--panel);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 thead {
-  background: rgba(255, 159, 47, 0.08);
+  background: var(--panel-strong);
 }
 
 th,
 td {
-  padding: 14px 16px;
+  padding: 12px 16px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
 
 th {
-  color: #ffd5b0;
-  font-weight: 700;
+  color: var(--muted);
+  font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+  font-family: var(--font-mono);
 }
 
 td {
@@ -131,7 +133,7 @@ tbody tr:hover {
 
 tbody tr[data-selected='true'] {
   background: var(--interactive-selected);
-  box-shadow: inset 3px 0 0 rgba(125, 211, 252, 0.7);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 td strong,
@@ -141,6 +143,19 @@ td span {
 
 td span {
   color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+/* 数字/时间列等宽对齐（价格·涨跌·开盘·昨收·高·低·成交量·更新时间） */
+td:nth-child(3),
+td:nth-child(4),
+td:nth-child(5),
+td:nth-child(6),
+td:nth-child(7),
+td:nth-child(8),
+td:nth-child(9),
+td:nth-child(11) {
+  font-family: var(--font-mono);
 }
 
 .positive {
@@ -152,19 +167,20 @@ td span {
 }
 
 .delete-button {
-  border: 1px solid rgba(248, 113, 113, 0.28);
+  border: 1px solid var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 32%, transparent);
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font: inherit;
-  color: #fecaca;
-  background: rgba(127, 29, 29, 0.22);
+  color: var(--danger);
+  background: var(--danger-soft);
   cursor: pointer;
   transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
 .delete-button:hover:not(:disabled) {
-  border-color: rgba(248, 113, 113, 0.48);
-  background: rgba(153, 27, 27, 0.34);
+  border-color: color-mix(in srgb, var(--danger) 52%, transparent);
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
 }
 
 .delete-button:disabled {

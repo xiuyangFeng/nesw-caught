@@ -3,11 +3,11 @@ import { computed, onMounted, onBeforeUnmount } from 'vue';
 import type { NewsEventMarker } from '../../types/api';
 
 const SENTIMENT_COLORS: Record<string, string> = {
-  positive: '#ff6f86',
-  negative: '#39c884',
-  neutral: '#3b82f6',
-  mixed: '#a855f7',
-  unknown: '#94a3b8',
+  positive: '#ff5a72',
+  negative: '#1fd39a',
+  neutral: '#5fb8ff',
+  mixed: '#8b7cff',
+  unknown: '#8794a8',
 };
 
 const SENTIMENT_LABELS: Record<string, string> = {
@@ -64,7 +64,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
         :style="popupStyle"
       >
         <header class="mb-2 flex items-center justify-between">
-          <span class="text-[11px] uppercase tracking-[0.16em] text-[#ffb77d]">{{ event.time }}</span>
+          <span class="num text-[11px] uppercase tracking-[0.16em] text-accent">{{ event.time }}</span>
           <button type="button" class="text-[11px] text-text-faint hover:text-text" @click="emit('close')">×</button>
         </header>
         <div class="grid gap-2.5">

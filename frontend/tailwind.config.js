@@ -1,32 +1,48 @@
 /** @type {import('tailwindcss').Config} */
+
+/**
+ * 让"以 CSS 变量(十六进制值)定义的语义色"支持 Tailwind 的 `/透明度` 修饰符。
+ * 默认下 `colors: { accent: 'var(--accent)' }` 时，`bg-accent/40` 会被编译期静默丢弃
+ * （Tailwind 无法对非通道值套 alpha）。这里用函数式颜色 + `color-mix` 生成有效 CSS：
+ *   bg-accent      → background-color: var(--accent)
+ *   bg-accent/40   → background-color: color-mix(in srgb, var(--accent) calc(0.4 * 100%), transparent)
+ * 既保留 main.css 里 `var(--accent)` 的原样用法，又救活全站 `/opacity` 写法。
+ */
+function withAlpha(variable) {
+  return ({ opacityValue }) =>
+    opacityValue === undefined
+      ? `var(${variable})`
+      : `color-mix(in srgb, var(${variable}) calc(${opacityValue} * 100%), transparent)`;
+}
+
 export default {
   content: ['./index.html', './src/**/*.{vue,ts}'],
   theme: {
     extend: {
       colors: {
-        bg: 'var(--bg)',
-        'bg-elevated': 'var(--bg-elevated)',
-        panel: 'var(--panel)',
-        'panel-strong': 'var(--panel-strong)',
-        'panel-stronger': 'var(--panel-stronger)',
-        'panel-soft': 'var(--panel-soft)',
-        field: 'var(--field-bg)',
-        border: 'var(--border)',
-        'border-strong': 'var(--border-strong)',
-        text: 'var(--text)',
-        'text-soft': 'var(--text-soft)',
-        'text-faint': 'var(--text-faint)',
-        muted: 'var(--muted)',
-        positive: 'var(--positive)',
-        negative: 'var(--negative)',
-        success: 'var(--success)',
-        danger: 'var(--danger)',
-        neutral: 'var(--neutral)',
-        warning: 'var(--warning)',
-        accent: 'var(--accent)',
-        system: 'var(--system)',
-        ai: 'var(--ai)',
-        'ai-2': 'var(--ai-2)',
+        bg: withAlpha('--bg'),
+        'bg-elevated': withAlpha('--bg-elevated'),
+        panel: withAlpha('--panel'),
+        'panel-strong': withAlpha('--panel-strong'),
+        'panel-stronger': withAlpha('--panel-stronger'),
+        'panel-soft': withAlpha('--panel-soft'),
+        field: withAlpha('--field-bg'),
+        border: withAlpha('--border'),
+        'border-strong': withAlpha('--border-strong'),
+        text: withAlpha('--text'),
+        'text-soft': withAlpha('--text-soft'),
+        'text-faint': withAlpha('--text-faint'),
+        muted: withAlpha('--muted'),
+        positive: withAlpha('--positive'),
+        negative: withAlpha('--negative'),
+        success: withAlpha('--success'),
+        danger: withAlpha('--danger'),
+        neutral: withAlpha('--neutral'),
+        warning: withAlpha('--warning'),
+        accent: withAlpha('--accent'),
+        system: withAlpha('--system'),
+        ai: withAlpha('--ai'),
+        'ai-2': withAlpha('--ai-2'),
       },
       borderRadius: {
         sm: 'var(--r-sm)',

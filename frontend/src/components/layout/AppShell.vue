@@ -26,20 +26,47 @@ const newsFeedLayoutStreamLimit = 100;
 let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
 let shellDisposed = false;
 
-const navItems = [
-  { label: 'Latest Events', to: '/news', index: '01' },
-  { label: 'Dashboard', to: '/dashboard', index: '02' },
-  { label: 'Watchlist', to: '/watchlist', index: '03' },
-  { label: 'X Monitor', to: '/x-monitor', index: '04' },
-  { label: 'AI Chat', to: '/chat', index: '05' },
-  { label: 'LLM Settings', to: '/settings/llm', index: '06' },
-  { label: 'Notify', to: '/settings/notify', index: '07' },
-  { label: 'Signal Backtest', to: '/analytics/backtest', index: '08' },
-  { label: 'Daily Digest', to: '/digest', index: '09' },
-  { label: 'Calendar', to: '/calendar', index: '10' },
-  { label: 'System Health', to: '/ops', index: '11' },
-  { label: 'Portfolio', to: '/portfolio', index: '12' },
-  { label: 'Sentiment Eval', to: '/eval/sentiment', index: '13' },
+type NavGroup = {
+  title: string;
+  ai?: boolean;
+  items: { label: string; en: string; to: string }[];
+};
+
+const navGroups: NavGroup[] = [
+  {
+    title: '情报',
+    items: [
+      { label: '最新事件', en: 'Events', to: '/news' },
+      { label: '仪表盘', en: 'Dashboard', to: '/dashboard' },
+      { label: '每日复盘', en: 'Digest', to: '/digest' },
+      { label: '日历', en: 'Calendar', to: '/calendar' },
+    ],
+  },
+  {
+    title: '交易',
+    items: [
+      { label: '自选股', en: 'Watchlist', to: '/watchlist' },
+      { label: '组合', en: 'Portfolio', to: '/portfolio' },
+      { label: '信号回测', en: 'Backtest', to: '/analytics/backtest' },
+    ],
+  },
+  {
+    title: '智能',
+    ai: true,
+    items: [
+      { label: 'AI 对话', en: 'AI Chat', to: '/chat' },
+      { label: 'X 监控', en: 'X Monitor', to: '/x-monitor' },
+    ],
+  },
+  {
+    title: '系统',
+    items: [
+      { label: '模型设置', en: 'LLM', to: '/settings/llm' },
+      { label: '通知', en: 'Notify', to: '/settings/notify' },
+      { label: '情绪评测', en: 'Eval', to: '/eval/sentiment' },
+      { label: '系统健康', en: 'Health', to: '/ops' },
+    ],
+  },
 ];
 
 const connectionSummary = computed(() => {
@@ -163,10 +190,11 @@ function isNavItemActive(targetPath: string) {
 
 function navLinkClasses(isActive: boolean) {
   return [
-    'relative grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-3 rounded-[18px] border px-3.5 py-3',
-    'bg-white/[0.02] font-semibold text-muted transition duration-150 ease-out',
-    'border-transparent hover:translate-x-0.5 hover:border-system/15 hover:bg-white/[0.04]',
-    isActive ? 'border-[#ff9f2f33] bg-white/[0.05] text-text shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]' : '',
+    'relative flex items-center gap-2.5 rounded-md border py-2.5 pl-4 pr-3',
+    'font-medium transition duration-150 ease-out',
+    isActive
+      ? 'border-transparent bg-[var(--accent-soft)] text-accent'
+      : 'border-transparent text-muted hover:translate-x-0.5 hover:bg-[var(--interactive-hover)] hover:text-text-soft',
   ];
 }
 
@@ -272,57 +300,64 @@ onBeforeUnmount(() => {
 <template>
   <div class="grid min-h-screen gap-[18px] p-[18px] shell:grid-cols-[272px_minmax(0,1fr)]">
     <aside
-      class="surface top-[18px] flex min-h-[calc(100vh-36px)] flex-col gap-[18px] rounded-[22px] bg-[linear-gradient(180deg,rgba(12,19,30,0.98),rgba(8,14,23,0.98))] px-4 pb-4 pt-5 shell:sticky"
+      class="surface top-[18px] flex min-h-[calc(100vh-36px)] flex-col gap-[18px] rounded-lg px-4 pb-4 pt-5 shell:sticky"
     >
-      <div class="grid gap-4 border-b border-border/80 pb-4" data-role="system-header">
-        <div>
-          <p class="m-0 text-2xl font-bold tracking-[0.14em]">NEWS CAUGHT</p>
-          <span class="text-[11px] uppercase tracking-[0.16em] text-muted">
-            Market Intelligence Terminal
+      <div class="grid gap-4 border-b border-border pb-4" data-role="system-header">
+        <div class="flex items-center gap-2.5">
+          <span
+            class="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-grad-ai font-mono text-base font-bold text-bg shadow-glow-ai"
+          >
+            N
           </span>
+          <div class="grid gap-0.5">
+            <p class="m-0 text-lg font-bold leading-none tracking-tight text-text">NEWS CAUGHT</p>
+            <span class="label-mono text-[10px] text-text-faint">Quant Intelligence</span>
+          </div>
         </div>
         <div class="grid gap-2" data-role="system-desk-note">
           <span
-            class="inline-flex w-fit items-center rounded-full border border-border bg-white/[0.03] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted"
+            class="inline-flex w-fit items-center rounded-full border border-border bg-panel-strong px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-muted"
             data-role="system-desk-chip"
           >
             Discovery
           </span>
-          <small class="text-[11px] uppercase tracking-[0.12em] text-[#8ea0b5]">/ Events / Evidence</small>
+          <small class="label-mono text-[10px] normal-case tracking-[0.12em] text-text-faint">/ Events / Evidence</small>
         </div>
       </div>
-      <nav class="grid gap-1.5" data-role="primary-nav">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          :class="navLinkClasses(isNavItemActive(item.to))"
-          :data-route-active="isNavItemActive(item.to) ? 'true' : 'false'"
-        >
-          <span
-            v-if="isNavItemActive(item.to)"
-            class="h-[26px] w-[3px] rounded-full bg-accent shadow-signal"
-            data-role="nav-active-signal"
-          />
-          <span
-            class="min-w-6 font-mono text-[11px] tracking-[0.14em]"
-            :class="isNavItemActive(item.to) ? 'text-[#ffd5b0]' : 'text-[#7f8ea3e0]'"
-          >
-            {{ item.index }}
-          </span>
-          <span class="grid gap-0.5">
-            <span class="text-[15px] text-text">{{ item.label }}</span>
-            <span
-              class="text-[10px] uppercase tracking-[0.18em]"
-              :class="isNavItemActive(item.to) ? 'text-[#ffb77d]' : 'text-muted'"
+      <nav class="grid gap-4" data-role="primary-nav">
+        <div v-for="group in navGroups" :key="group.title" class="grid gap-1">
+          <p class="label-mono flex items-center gap-1.5 px-2 pb-0.5 text-[10px]">
+            <span v-if="group.ai" class="text-ai" aria-hidden="true">✦</span>
+            {{ group.title }}
+          </p>
+          <div class="grid gap-0.5">
+            <RouterLink
+              v-for="item in group.items"
+              :key="item.to"
+              :to="item.to"
+              :class="navLinkClasses(isNavItemActive(item.to))"
+              :data-route-active="isNavItemActive(item.to) ? 'true' : 'false'"
             >
-              MODULE
-            </span>
-          </span>
-        </RouterLink>
+              <span
+                v-if="isNavItemActive(item.to)"
+                class="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent"
+                data-role="nav-active-signal"
+              />
+              <span class="flex min-w-0 flex-col gap-0.5">
+                <span class="text-sm leading-tight">{{ item.label }}</span>
+                <span
+                  class="font-mono text-[10px] uppercase tracking-[0.16em]"
+                  :class="isNavItemActive(item.to) ? 'text-accent' : 'text-text-faint'"
+                >
+                  {{ item.en }}
+                </span>
+              </span>
+            </RouterLink>
+          </div>
+        </div>
       </nav>
       <div class="mt-auto" data-role="system-status">
-        <div class="grid gap-2.5 rounded-[16px] border border-border bg-white/[0.03] p-3.5 text-xs text-muted">
+        <div class="grid gap-2.5 rounded-lg border border-border bg-panel-strong p-3.5 text-xs text-muted">
           <div class="grid grid-cols-1 gap-2" data-role="system-status-unit">
             <strong class="text-[11px] uppercase tracking-[0.16em] text-text">System Status</strong>
             <span class="pill w-full justify-start text-left leading-tight" :class="isLiveConnection ? 'success' : 'neutral'">
@@ -362,14 +397,14 @@ onBeforeUnmount(() => {
               <RouterLink
                 v-if="runtimeDiagnostic.actionTarget === 'watchlist'"
                 to="/watchlist"
-                class="text-[11px] uppercase tracking-[0.14em] text-[#ffca97]"
+                class="text-[11px] uppercase tracking-[0.14em] text-accent"
                 data-role="runtime-diagnostic-action"
               >
                 {{ runtimeDiagnostic.actionLabel }}
               </RouterLink>
               <small
                 v-else
-                class="text-[11px] uppercase tracking-[0.14em] text-[#8ea0b5]"
+                class="text-[11px] uppercase tracking-[0.14em] text-muted"
                 data-role="runtime-diagnostic-action"
               >
                 {{ runtimeDiagnostic.actionLabel }}
@@ -391,7 +426,7 @@ onBeforeUnmount(() => {
             <span class="h-2 w-2 rounded-full" :class="shellStatusRail.signalClass" data-role="shell-status-rail-signal" />
             {{ shellStatusRail.label }}
           </span>
-          <span class="text-[10px] uppercase tracking-[0.16em] text-system">{{ shellStatusRail.detail }}</span>
+          <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ shellStatusRail.detail }}</span>
         </div>
         <div class="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.16em] text-muted">
           <span>

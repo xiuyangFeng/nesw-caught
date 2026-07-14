@@ -7,8 +7,8 @@ defineProps<{
 
 <template>
   <span
-    class="inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-semibold"
-    :class="stale ? 'bg-[#a66f1224] text-warning' : 'bg-[#0f7b6c1a] text-success'"
+    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+    :class="stale ? 'bg-[var(--warning-soft)] text-warning' : 'bg-[var(--success-soft)] text-success'"
     :data-stale="stale"
   >
     {{ stale ? `数据过期 · ${label}` : `已刷新 · ${label}` }}
