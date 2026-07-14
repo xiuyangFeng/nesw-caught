@@ -73,19 +73,20 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: 'rgba(148,163,184,0.08)' },
-        horzLines: { color: 'rgba(148,163,184,0.08)' },
+        vertLines: { color: 'rgba(150,160,200,0.08)' },
+        horzLines: { color: 'rgba(150,160,200,0.08)' },
       },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
     });
+    // 红涨绿跌：对齐设计令牌 --positive(#ff5a72) / --negative(#1fd39a)
     candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#ff6f86',
-      downColor: '#39c884',
-      borderUpColor: '#ff6f86',
-      borderDownColor: '#39c884',
-      wickUpColor: '#ff6f86',
-      wickDownColor: '#39c884',
+      upColor: '#ff5a72',
+      downColor: '#1fd39a',
+      borderUpColor: '#ff5a72',
+      borderDownColor: '#1fd39a',
+      wickUpColor: '#ff5a72',
+      wickDownColor: '#1fd39a',
       priceLineVisible: false,
       lastValueVisible: false,
     });
@@ -104,8 +105,8 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: 'rgba(148,163,184,0.06)' },
-        horzLines: { color: 'rgba(148,163,184,0.08)' },
+        vertLines: { color: 'rgba(150,160,200,0.06)' },
+        horzLines: { color: 'rgba(150,160,200,0.08)' },
       },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
@@ -114,15 +115,15 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
       priceFormat: { type: 'volume' },
       priceLineVisible: false,
       lastValueVisible: false,
-      color: 'rgba(255,182,109,0.35)',
+      color: 'rgba(58,210,230,0.28)',
     });
     macdHistogramSeries = subChart.addSeries(HistogramSeries, {
       priceLineVisible: false,
       lastValueVisible: false,
-      color: 'rgba(255,182,109,0.32)',
+      color: 'rgba(58,210,230,0.28)',
     });
     macdDifSeries = subChart.addSeries(LineSeries, {
-      color: '#ffd166',
+      color: '#3ad2e6',
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -134,7 +135,7 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
       lastValueVisible: false,
     });
     kSeries = subChart.addSeries(LineSeries, {
-      color: '#ffd166',
+      color: '#3ad2e6',
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -202,7 +203,7 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         klineData.value.candles.map((candle) => ({
           time: candle.time,
           value: candle.volume ?? 0,
-          color: candle.close >= candle.open ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.35)',
+          color: candle.close >= candle.open ? 'rgba(255,90,114,0.5)' : 'rgba(31,211,154,0.42)',
         })),
       );
     } else if (activeSubIndicator.value === 'MACD') {
@@ -212,7 +213,7 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         macd.map((point) => ({
           time: point.time,
           value: point.histogram,
-          color: point.histogram >= 0 ? 'rgba(249,115,22,0.45)' : 'rgba(34,197,94,0.4)',
+          color: point.histogram >= 0 ? 'rgba(255,90,114,0.5)' : 'rgba(31,211,154,0.42)',
         })),
       );
       macdDifSeries?.setData(macd.map((point) => ({ time: point.time, value: point.dif })));

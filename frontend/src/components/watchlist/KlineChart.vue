@@ -348,10 +348,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="grid gap-4 rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.98),rgba(7,12,22,0.98))] p-4" data-role="kline-chart">
+  <section class="grid gap-4 rounded-lg border border-border bg-panel p-4" data-role="kline-chart">
     <header class="flex flex-wrap items-start justify-between gap-3">
       <div class="space-y-1">
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">K线图</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-accent">K线图</p>
         <strong class="block text-lg text-text">{{ klineData?.symbol ?? '市场概览' }}</strong>
         <p class="text-xs text-text-faint">{{ klineData?.stale ? '数据可能不是最新' : '更新时间以最新行情返回为准' }}</p>
       </div>
@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
           @toggle-dashboard="dashboardCollapsed = !dashboardCollapsed"
         />
 
-        <div class="relative overflow-hidden rounded-[18px] border border-border/80 bg-[linear-gradient(180deg,rgba(12,19,29,0.92),rgba(8,13,22,0.94))]" data-role="kline-chart-stage">
+        <div class="relative overflow-hidden rounded-lg border border-border bg-panel-strong" data-role="kline-chart-stage">
           <div class="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-start justify-between gap-3 p-3">
             <div class="flex max-w-[70%] flex-wrap gap-2" data-role="kline-stage-badges">
               <span v-for="[label, value] in summaryItems" :key="label" class="rounded-full border border-border/70 bg-[rgba(6,10,17,0.72)] px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-text-faint">
@@ -390,14 +390,14 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="pointer-events-none absolute left-3 top-20 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-[14px] border border-[rgba(255,183,125,0.18)] bg-[rgba(7,12,22,0.82)] px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
+          <div class="pointer-events-none absolute left-3 top-20 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-md border border-border bg-[rgba(7,12,22,0.82)] px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
             <span class="text-text-faint">开 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.open) }}</strong></span>
             <span class="text-text-faint">高 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.high) }}</strong></span>
             <span class="text-text-faint">低 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.low) }}</strong></span>
             <span class="text-text-faint">收 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.close) }}</strong></span>
             <span class="text-text-faint">
               涨跌
-              <strong class="ml-1" :class="(activeHudCandle?.close ?? 0) >= (activeHudCandle?.open ?? 0) ? 'text-[#ffca97]' : 'text-[#86efac]'">
+              <strong class="ml-1" :class="(activeHudCandle?.close ?? 0) >= (activeHudCandle?.open ?? 0) ? 'text-positive' : 'text-negative'">
                 {{ activeHudCandle ? formatPercent(((activeHudCandle.close - activeHudCandle.open) / Math.max(activeHudCandle.open, 1)) * 100) : '--' }}
               </strong>
             </span>
@@ -460,15 +460,15 @@ onBeforeUnmount(() => {
               <div class="flex flex-wrap items-center justify-between gap-2" data-role="kline-subindicator-strip">
                 <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">副图 {{ activeSubIndicator }}</span>
                 <div class="flex flex-wrap gap-2">
-                  <button type="button" data-role="indicator-switch-vol" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'VOL' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('VOL')">成交量</button>
-                  <button type="button" data-role="indicator-switch-macd" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'MACD' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('MACD')">MACD</button>
-                  <button type="button" data-role="indicator-switch-kdj" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'KDJ' ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('KDJ')">KDJ</button>
+                  <button type="button" data-role="indicator-switch-vol" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'VOL' ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('VOL')">成交量</button>
+                  <button type="button" data-role="indicator-switch-macd" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'MACD' ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('MACD')">MACD</button>
+                  <button type="button" data-role="indicator-switch-kdj" class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]" :class="activeSubIndicator === 'KDJ' ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'" @click="chartStore.setSubIndicator('KDJ')">KDJ</button>
                 </div>
               </div>
               <div ref="subChartRef" class="mt-3 h-[140px] w-full" />
               <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-subindicator-panel">
                 <div class="flex items-center justify-between gap-3">
-                  <span class="text-[10px] uppercase tracking-[0.18em] text-[#ffb77d]">{{ activeSubIndicator }}</span>
+                  <span class="text-[10px] uppercase tracking-[0.18em] text-accent">{{ activeSubIndicator }}</span>
                   <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">最新读数</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-          <div v-if="!klineData" class="pointer-events-none absolute inset-0 grid place-items-center bg-[linear-gradient(180deg,rgba(9,14,23,0.82),rgba(9,14,23,0.5))] p-6" data-role="kline-chart-empty-state">
+          <div v-if="!klineData" class="pointer-events-none absolute inset-0 grid place-items-center bg-[rgba(9,14,23,0.72)] p-6" data-role="kline-chart-empty-state">
             <div class="grid w-full gap-3">
               <div class="h-4 w-32 animate-pulse rounded-full bg-white/10" />
               <div class="h-6 w-2/3 animate-pulse rounded-full bg-white/10" />
@@ -497,7 +497,7 @@ onBeforeUnmount(() => {
             :data-active="highlightedEventTime === event.time ? 'true' : 'false'"
             type="button"
             class="justify-self-start rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.12em]"
-            :class="highlightedEventTime === event.time ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffdfba]' : 'border-[rgba(255,159,47,0.26)] text-[#ffca97]'"
+            :class="highlightedEventTime === event.time ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'"
             @click="emit('focusNews', event)"
           >
             {{ event.time }} · {{ event.items.length }} 条新闻

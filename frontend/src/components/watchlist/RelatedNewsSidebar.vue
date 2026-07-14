@@ -26,12 +26,12 @@ function itemDate(item: NewsItem) {
 
 <template>
   <section
-    class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.12)] bg-[linear-gradient(180deg,rgba(10,17,27,0.94),rgba(7,12,22,0.98))] p-4"
+    class="grid gap-3 rounded-lg border border-border bg-panel p-4"
     data-role="trading-desk-news-feed"
   >
     <div class="flex items-center justify-between">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Related News</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-accent">Related News</p>
         <strong class="text-text">Event Timeline</strong>
       </div>
       <span class="text-[11px] uppercase tracking-[0.14em] text-text-faint">{{ items.length }} items</span>
@@ -44,8 +44,8 @@ function itemDate(item: NewsItem) {
       class="grid gap-3 rounded-[16px] border p-3 text-left transition duration-150 ease-out hover:-translate-y-px"
       :class="
         highlightedEventTime && itemDate(item) === highlightedEventTime
-          ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.08)] shadow-[0_12px_30px_rgba(255,159,47,0.08)]'
-          : 'border-[rgba(148,163,184,0.1)] bg-[rgba(255,255,255,0.02)]'
+          ? 'border-accent/60 bg-accent/10'
+          : 'border-border/70 bg-panel-strong'
       "
       :data-highlighted="highlightedEventTime && itemDate(item) === highlightedEventTime ? 'true' : 'false'"
       :data-role="`trading-desk-news-item-${item.id}`"

@@ -175,9 +175,8 @@ describe('AppShell', () => {
 
     const activeLink = wrapper.find('[data-route-active="true"]');
     expect(activeLink.exists()).toBe(true);
-    expect(activeLink.text()).toContain('Latest Events');
-    expect(activeLink.text()).toContain('01');
-    expect(activeLink.text()).toContain('MODULE');
+    expect(activeLink.text()).toContain('最新事件');
+    expect(activeLink.text()).toContain('Events');
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
 

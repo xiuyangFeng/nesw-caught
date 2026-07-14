@@ -52,10 +52,10 @@ function ensureChart() {
     rightPriceScale: { borderVisible: false },
     timeScale: { borderVisible: false },
   });
-  primarySeries = chart.addSeries(LineSeries, { color: '#ffb66d', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-  secondarySeries = chart.addSeries(LineSeries, { color: '#7dd3fc', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-  tertiarySeries = chart.addSeries(LineSeries, { color: '#c084fc', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-  histogramSeries = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, color: 'rgba(255,182,109,0.35)' });
+  primarySeries = chart.addSeries(LineSeries, { color: '#3ad2e6', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+  secondarySeries = chart.addSeries(LineSeries, { color: '#5fb8ff', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+  tertiarySeries = chart.addSeries(LineSeries, { color: '#8b7cff', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+  histogramSeries = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false, color: 'rgba(58,210,230,0.28)' });
 }
 
 function clearSeries() {
@@ -83,7 +83,7 @@ function renderIndicator() {
       macd.map((item) => ({
         time: item.time,
         value: item.histogram,
-        color: item.histogram >= 0 ? 'rgba(249,115,22,0.38)' : 'rgba(34,197,94,0.32)',
+        color: item.histogram >= 0 ? 'rgba(255,90,114,0.4)' : 'rgba(31,211,154,0.36)',
       })),
     );
   } else if (props.activeIndicator === 'KDJ') {
@@ -117,13 +117,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="grid gap-3 rounded-[18px] border border-[rgba(148,163,184,0.12)] bg-[linear-gradient(180deg,rgba(9,15,24,0.96),rgba(7,12,21,0.98))] p-4">
+  <section class="grid gap-3 rounded-lg border border-border bg-panel p-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.22em] text-[#ffb77d]">Secondary Panel</p>
+        <p class="text-[11px] uppercase tracking-[0.22em] text-accent">Secondary Panel</p>
         <strong class="text-sm text-text">Indicator Desk</strong>
       </div>
-      <div class="flex flex-wrap gap-2 rounded-[12px] border border-[rgba(148,163,184,0.12)] bg-[rgba(255,255,255,0.03)] p-1">
+      <div class="flex flex-wrap gap-2 rounded-md border border-border bg-panel-strong p-1">
       <button
         v-for="indicator in ['MACD', 'KDJ', 'BOLL']"
         :key="indicator"
@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
         class="rounded-md border px-3 py-1.5 text-xs uppercase tracking-[0.14em] transition"
         :class="
           activeIndicator === indicator
-            ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
+            ? 'border-accent/60 bg-accent/10 text-accent'
             : 'border-transparent text-text-faint'
         "
         :data-role="`indicator-${indicator}`"

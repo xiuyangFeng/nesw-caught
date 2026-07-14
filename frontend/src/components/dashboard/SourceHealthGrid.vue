@@ -75,7 +75,7 @@ function formatLastSuccess(source: NewsRuntimeSource) {
 
 <template>
   <section class="grid gap-3" data-role="source-health-grid">
-    <div class="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.14em]" data-role="source-health-summary">
+    <div class="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.14em] font-mono tabular-nums" data-role="source-health-summary">
       <span class="text-success">OK {{ healthSummary.ok }}</span>
       <span class="text-warning">DELAYED {{ healthSummary.delayed + healthSummary.degraded }}</span>
       <span class="text-danger">OFFLINE {{ healthSummary.offline }}</span>
@@ -126,8 +126,8 @@ function formatLastSuccess(source: NewsRuntimeSource) {
 }
 
 .source-health-row[data-status='offline'] {
-  border-color: var(--danger-soft);
-  background: rgba(255, 111, 134, 0.05);
+  border-color: rgba(255, 90, 114, 0.3);
+  background: var(--danger-soft);
 }
 
 .source-health-row__dot {

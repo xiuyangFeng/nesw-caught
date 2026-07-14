@@ -214,9 +214,9 @@ onMounted(async () => {
 
 <template>
   <div class="grid gap-4" data-role="watchlist-dashboard">
-    <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
+    <header class="flex flex-col gap-3 rounded-lg border border-border bg-panel p-5 xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Watchlist</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-accent">Watchlist</p>
         <h1 class="page-title mb-2">自选股</h1>
         <p class="page-subtitle">搜索、添加并快速切换到单股 K 线详情。</p>
       </div>
@@ -224,17 +224,17 @@ onMounted(async () => {
     </header>
 
     <section
-      class="grid gap-2 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm shadow-[0_16px_36px_rgba(2,6,12,0.22)]"
+      class="grid gap-2 rounded-lg border border-border bg-panel px-4 py-3 text-sm"
       data-role="market-worker-status"
     >
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Market Worker</span>
+        <span class="text-[11px] uppercase tracking-[0.24em] text-accent">Market Worker</span>
         <strong class="text-text">{{ runtimeStatusStore.marketWorkerStatus?.name ?? 'market_quote_producer' }}</strong>
         <span class="rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-text-faint">
           {{ runtimeStatusStore.marketWorkerStatus?.status ?? 'unknown' }}
         </span>
         <button
-          class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60"
+          class="rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/20 disabled:cursor-progress disabled:opacity-60"
           :disabled="watchlistStore.refreshLoading"
           data-role="market-refresh-action"
           @click="handleManualRefresh"
@@ -316,7 +316,7 @@ onMounted(async () => {
             />
           </label>
           <button
-            class="h-fit rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60"
+            class="h-fit rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/20 disabled:cursor-progress disabled:opacity-60"
             :disabled="savingSymbol === item.symbol"
             data-role="position-save"
             @click="savePosition(item.symbol)"

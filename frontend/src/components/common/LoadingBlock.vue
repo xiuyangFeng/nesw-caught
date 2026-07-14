@@ -19,7 +19,7 @@ withDefaults(
 
 <template>
   <div class="transition-container">
-    <transition name="fade-cross" mode="out-in"><div v-if="loading && empty" :key="'skeleton'" class="w-full"><SkeletonFeed :type="skeletonType" :count="skeletonCount" /></div><div v-else-if="empty" :key="'empty'" class="grid min-h-[140px] place-items-center rounded-[18px] border border-dashed border-border-strong text-muted bg-[rgba(255,255,255,0.01)] backdrop-blur-[6px] p-6 text-center w-full"><div class="flex flex-col items-center gap-2"><span class="text-2xl">📦</span><span class="text-sm tracking-wide">{{ emptyText ?? '暂无数据' }}</span></div></div><div v-else :key="'content'" class="w-full"><slot /></div></transition>
+    <transition name="fade-cross" mode="out-in"><div v-if="loading && empty" :key="'skeleton'" class="w-full"><SkeletonFeed :type="skeletonType" :count="skeletonCount" /></div><div v-else-if="empty" :key="'empty'" class="grid min-h-[140px] place-items-center rounded-lg border border-dashed border-border text-muted bg-panel-soft p-6 text-center w-full"><div class="flex flex-col items-center gap-2"><span class="text-2xl">📦</span><span class="text-sm tracking-wide">{{ emptyText ?? '暂无数据' }}</span></div></div><div v-else :key="'content'" class="w-full"><slot /></div></transition>
   </div>
 </template>
 

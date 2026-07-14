@@ -53,6 +53,10 @@ function getPoints(data: number[]) {
 const positivePoints = computed(() => getPoints(positiveData.value));
 const negativePoints = computed(() => getPoints(negativeData.value));
 
+// 端点强调：折线末端坐标（当前时刻）
+const positiveEndpoint = computed(() => positivePoints.value[positivePoints.value.length - 1] ?? null);
+const negativeEndpoint = computed(() => negativePoints.value[negativePoints.value.length - 1] ?? null);
+
 // 转换为 polyline points 属性格式
 const positiveLineString = computed(() =>
   positivePoints.value.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
@@ -95,7 +99,7 @@ const gridLines = computed(() => {
 
 <template>
   <article
-    class="surface rounded-[14px] border border-border/90 bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-[16px] flex flex-col justify-between"
+    class="surface rounded-md border border-border p-4 flex flex-col justify-between"
     data-role="sentiment-trend-card"
   >
     <div class="w-full flex items-center justify-between mb-1">
@@ -142,7 +146,7 @@ const gridLines = computed(() => {
           :y1="y"
           :x2="width - paddingX"
           :y2="y"
-          stroke="rgba(255,255,255,0.04)"
+          stroke="var(--border)"
           stroke-width="1"
           stroke-dasharray="3,3"
         />
@@ -167,6 +171,22 @@ const gridLines = computed(() => {
           stroke-linecap="round"
           stroke-linejoin="round"
           :style="{ transition: 'points 0.5s ease' }"
+        />
+
+        <!-- 端点强调（当前时刻） -->
+        <circle
+          v-if="negativeEndpoint"
+          :cx="negativeEndpoint.x"
+          :cy="negativeEndpoint.y"
+          r="2.6"
+          fill="var(--negative)"
+        />
+        <circle
+          v-if="positiveEndpoint"
+          :cx="positiveEndpoint.x"
+          :cy="positiveEndpoint.y"
+          r="2.6"
+          fill="var(--positive)"
         />
 
         <!-- X轴刻度文字 (24小时分段) -->

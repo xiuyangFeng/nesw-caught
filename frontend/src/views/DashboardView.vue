@@ -269,7 +269,7 @@ const metrics = computed(() => {
   <div class="grid gap-4">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Secondary Overview</p>
+        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-accent font-mono">Secondary Overview</p>
         <h1 class="page-title">Dashboard</h1>
         <p class="page-subtitle">
           Overview Snapshot：为最新事件页提供连接状态、主题舆情和自选股异动的多维交互控制台。
@@ -406,13 +406,13 @@ const metrics = computed(() => {
         <LoadingBlock :loading="marketStore.loading" :empty="filteredMovers.length === 0" :skeletonType="'watchlist'" :skeletonCount="2" empty-text="暂无异动">
           <div class="grid gap-3">
             <section
-              class="grid gap-1.5 rounded-[16px] border border-[#ff9f2f33] bg-[linear-gradient(160deg,rgba(19,26,37,0.96),rgba(8,16,26,0.98))] px-3.5 py-3"
+              class="grid gap-1.5 rounded-lg border border-border bg-panel-soft px-3.5 py-3"
               data-role="movement-summary"
             >
               <div class="flex items-end justify-between gap-3">
                 <div>
-                  <p class="mb-1 text-[10px] uppercase tracking-[0.16em] text-system">Signal Count</p>
-                  <strong class="block text-[24px] leading-none">{{ filteredMovers.length }} 只异动</strong>
+                  <p class="mb-1 text-[10px] uppercase tracking-[0.16em] text-muted font-mono">Signal Count</p>
+                  <strong class="block text-[24px] leading-none font-mono tabular-nums">{{ filteredMovers.length }} 只异动</strong>
                 </div>
                 <span class="rounded-full border border-border bg-white/[0.05] px-2.5 py-1 text-[11px] text-muted">
                   主因 {{ topMoverReason }}
@@ -433,7 +433,7 @@ const metrics = computed(() => {
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <strong class="block truncate text-[13px]">{{ item.display_name ?? item.symbol }}</strong>
-                    <span class="text-[10px] uppercase tracking-[0.14em] text-[#ffb77d]">{{ marketLabelMap[normalizeMarket(item.market)] }}</span>
+                    <span class="text-[10px] uppercase tracking-[0.14em] text-text-faint font-mono">{{ marketLabelMap[normalizeMarket(item.market)] }}</span>
                   </div>
                   <span class="block truncate text-[11px] text-muted">{{ item.symbol }}</span>
                 </div>
@@ -443,7 +443,7 @@ const metrics = computed(() => {
             </div>
 
             <RouterLink
-              class="inline-flex min-h-10 items-center justify-center rounded-full border border-[#3aa9f557] bg-[rgba(10,26,42,0.72)] text-[13px] font-semibold text-[#9bd8ff] transition duration-150 ease-out hover:-translate-y-px hover:border-[#3aa9f59e] hover:bg-[rgba(15,39,61,0.92)]"
+              class="inline-flex min-h-10 items-center justify-center rounded-full border border-border bg-white/[0.04] text-[13px] font-semibold text-text transition duration-150 ease-out hover:-translate-y-px hover:border-system/25 hover:bg-white/[0.06]"
               to="/watchlist"
             >
               查看全部异动
@@ -525,12 +525,12 @@ const metrics = computed(() => {
 
 .dashboard-feed-item:hover {
   transform: translateY(-1px);
-  border-color: rgba(58, 169, 245, 0.35);
+  border-color: rgba(58, 210, 230, 0.35);
   background: rgba(255, 255, 255, 0.05);
 }
 
 .dashboard-feed-item:focus-visible {
-  outline: 2px solid rgba(58, 169, 245, 0.72);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -563,19 +563,19 @@ const metrics = computed(() => {
 }
 
 .dashboard-status-badge--success {
-  color: #7ed89e;
+  color: var(--success);
 }
 
 .dashboard-status-badge--warning {
-  color: #efc16e;
+  color: var(--warning);
 }
 
 .dashboard-status-badge--danger {
-  color: #ef7b7b;
+  color: var(--danger);
 }
 
 .dashboard-status-badge--default {
-  color: #92a5bb;
+  color: var(--muted);
 }
 
 @media (min-width: 1280px) {
@@ -621,14 +621,12 @@ const metrics = computed(() => {
 
 .dashboard-feed-item--breaking.positive {
   border-left-color: var(--positive);
-  box-shadow: 0 0 16px rgba(255, 111, 134, 0.08);
-  background: linear-gradient(90deg, rgba(255, 111, 134, 0.04) 0%, rgba(255, 111, 134, 0.01) 30%, rgba(255, 255, 255, 0.025) 100%);
+  background: var(--positive-soft);
 }
 
 .dashboard-feed-item--breaking.negative {
   border-left-color: var(--negative);
-  box-shadow: 0 0 16px rgba(57, 200, 132, 0.08);
-  background: linear-gradient(90deg, rgba(57, 200, 132, 0.04) 0%, rgba(57, 200, 132, 0.01) 30%, rgba(255, 255, 255, 0.025) 100%);
+  background: var(--negative-soft);
 }
 
 .dashboard-feed-item--breaking:hover {
@@ -637,13 +635,11 @@ const metrics = computed(() => {
 
 .dashboard-feed-item--breaking.positive:hover {
   border-color: var(--positive);
-  box-shadow: 0 0 20px rgba(255, 111, 134, 0.16);
-  background: linear-gradient(90deg, rgba(255, 111, 134, 0.06) 0%, rgba(255, 111, 134, 0.02) 40%, rgba(255, 255, 255, 0.05) 100%);
+  background: var(--positive-soft);
 }
 
 .dashboard-feed-item--breaking.negative:hover {
   border-color: var(--negative);
-  box-shadow: 0 0 20px rgba(57, 200, 132, 0.16);
-  background: linear-gradient(90deg, rgba(57, 200, 132, 0.06) 0%, rgba(57, 200, 132, 0.02) 40%, rgba(255, 255, 255, 0.05) 100%);
+  background: var(--negative-soft);
 }
 </style>

@@ -41,13 +41,14 @@ function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
 </script>
 
 <template>
+  <div class="ai-frame">
   <section
-    class="grid gap-4 rounded-[18px] border border-[rgba(148,163,184,0.12)] bg-[linear-gradient(180deg,rgba(11,18,28,0.95),rgba(8,13,22,0.99))] p-4"
+    class="ai-frame-inner grid gap-4 p-4"
     data-role="research-brief-panel"
   >
     <div class="flex flex-wrap items-start justify-between gap-3" data-role="research-brief-summary">
       <div class="grid gap-1">
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Research Brief</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-ai">✦ Research Brief</p>
         <strong class="text-text">近 {{ researchBrief.window_days }} 天驱动压缩</strong>
         <p class="text-sm text-text-soft">
           当前优先级：{{ actionLabel(researchBrief.top_action_level) }}
@@ -59,7 +60,7 @@ function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
       </span>
     </div>
 
-    <div v-if="!drivers.length" class="rounded-[14px] border border-border bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-text-soft" data-role="research-brief-empty">
+    <div v-if="!drivers.length" class="rounded-md border border-border bg-panel-stronger px-4 py-3 text-sm text-text-soft" data-role="research-brief-empty">
       暂无可归因驱动，继续关注价格和原始新闻流。
     </div>
 
@@ -67,7 +68,7 @@ function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
       <section
         v-for="[category, drivers] in groupedDrivers"
         :key="category"
-        class="grid gap-2 rounded-[14px] border border-[rgba(148,163,184,0.1)] bg-[rgba(255,255,255,0.02)] p-3"
+        class="grid gap-2 rounded-md border border-border bg-panel-stronger p-3"
         :data-role="`research-driver-group-${category}`"
       >
         <div class="flex items-center justify-between gap-2">
@@ -77,12 +78,12 @@ function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
         <article
           v-for="driver in drivers"
           :key="driver.news_item.id"
-          class="grid gap-1.5 rounded-[12px] border border-[rgba(148,163,184,0.08)] bg-[rgba(255,255,255,0.02)] p-3"
+          class="grid gap-1.5 rounded-md border border-border bg-panel-strong p-3"
           :data-role="`research-driver-item-${driver.news_item.id}`"
         >
           <div class="flex flex-wrap items-center justify-between gap-2">
             <strong class="text-sm text-text">{{ driver.news_item.title }}</strong>
-            <span class="text-[11px] uppercase tracking-[0.14em] text-[#ffca97]">{{ actionLabel(driver.action_level) }}</span>
+            <span class="text-[11px] uppercase tracking-[0.14em] text-accent">{{ actionLabel(driver.action_level) }}</span>
           </div>
           <p class="text-sm text-text-soft">{{ driver.reason }}</p>
           <div class="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.12em] text-text-faint">
@@ -93,4 +94,5 @@ function actionLabel(level: WatchlistResearchBrief['top_action_level']) {
       </section>
     </div>
   </section>
+  </div>
 </template>

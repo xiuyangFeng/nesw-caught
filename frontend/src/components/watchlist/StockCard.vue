@@ -37,11 +37,11 @@ const toneClass = computed(() => {
 
 <template>
   <article
-    class="grid gap-2 rounded-[15px] border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px"
+    class="grid gap-2 rounded-md border px-3 py-2 text-left transition duration-150 ease-out hover:-translate-y-px hover:border-border-strong"
     :class="
       selected
-        ? 'border-[#ffb66d] bg-[linear-gradient(160deg,rgba(35,23,11,0.98),rgba(18,13,10,0.98))] shadow-[0_12px_24px_rgba(255,159,47,0.14)]'
-        : 'border-border bg-[linear-gradient(180deg,rgba(10,17,27,0.96),rgba(7,12,22,0.98))]'
+        ? 'border-accent/60 bg-accent/10'
+        : 'border-border bg-panel'
     "
     :data-role="`stock-card-${row.symbol}`"
     data-density="compact"
@@ -69,30 +69,30 @@ const toneClass = computed(() => {
             class="shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold tracking-[0.06em] whitespace-nowrap"
             :class="
               earningsDaysUntil <= 3
-                ? 'stock-card-earnings-near border-[#ff9f2f66] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
-                : 'border-[#53c2ff40] bg-[rgba(83,194,255,0.08)] text-[#9bd8ff]'
+                ? 'stock-card-earnings-near border-warning/40 bg-warning/10 text-warning'
+                : 'border-system/30 bg-system/10 text-system'
             "
             :title="`距下次财报 ${earningsDaysUntil} 天`"
           >
             财报 {{ earningsDaysUntil }}天
           </span>
         </div>
-        <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ row.symbol }}</span>
+        <span class="num text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ row.symbol }}</span>
         <div class="mt-0.5 flex items-end gap-2">
-          <strong class="text-[22px] leading-none text-text">{{ formatNumber(row.price) }}</strong>
-          <span class="pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol {{ formatNumber(row.volume, 0) }}</span>
+          <strong class="num text-[22px] leading-none text-text">{{ formatNumber(row.price) }}</strong>
+          <span class="num pb-0.5 text-[10px] uppercase tracking-[0.12em] text-text-faint">Vol {{ formatNumber(row.volume, 0) }}</span>
         </div>
       </div>
       <div class="grid min-w-[78px] justify-items-end gap-1">
         <button
           type="button"
-          class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[rgba(248,113,113,0.28)] text-[10px] uppercase tracking-[0.18em] text-[#fecaca]"
+          class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-danger/30 text-[10px] uppercase tracking-[0.18em] text-danger"
           :disabled="deleting"
           @click.stop="$emit('delete', row.symbol)"
         >
           {{ deleting ? '…' : '×' }}
         </button>
-        <span class="text-sm font-semibold leading-none" :class="toneClass">
+        <span class="num text-sm font-semibold leading-none" :class="toneClass">
           {{ formatPercent(row.change_percent) }}
         </span>
         <!-- 后端 QuoteSummaryView 不含 is_abnormal 字段，改以 status 表达异常态 -->
@@ -104,7 +104,7 @@ const toneClass = computed(() => {
       <div class="min-w-0 flex-1">
         <StockSparkline :prices="sparkline" />
       </div>
-      <span class="text-[10px] font-medium tracking-[0.08em]" :class="toneClass">
+      <span class="num text-[10px] font-medium tracking-[0.08em]" :class="toneClass">
         {{ formatNumber(row.change_amount) }}
       </span>
     </div>
@@ -120,10 +120,10 @@ const toneClass = computed(() => {
 @keyframes stock-card-earnings-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 rgba(255, 159, 47, 0);
+    box-shadow: 0 0 0 rgba(255, 207, 90, 0);
   }
   50% {
-    box-shadow: 0 0 10px rgba(255, 159, 47, 0.4);
+    box-shadow: 0 0 10px rgba(255, 207, 90, 0.4);
   }
 }
 

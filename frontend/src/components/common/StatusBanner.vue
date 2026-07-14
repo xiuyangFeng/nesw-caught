@@ -8,26 +8,39 @@ const props = defineProps<{
 
 function toneClasses(tone?: 'default' | 'warning' | 'danger' | 'success') {
   if (tone === 'warning') {
-    return 'border-system/20 bg-[linear-gradient(180deg,rgba(15,27,40,0.96),rgba(11,20,31,0.96))]';
+    return 'border-[color-mix(in_srgb,var(--warning)_32%,transparent)] bg-[var(--warning-soft)]';
   }
   if (tone === 'danger') {
-    return 'border-danger/30 bg-[linear-gradient(180deg,rgba(31,17,24,0.92),rgba(18,11,17,0.94))]';
+    return 'border-[color-mix(in_srgb,var(--danger)_32%,transparent)] bg-[var(--danger-soft)]';
   }
   if (tone === 'success') {
-    return 'border-success/25 bg-[linear-gradient(180deg,rgba(11,28,22,0.92),rgba(10,18,15,0.94))]';
+    return 'border-[color-mix(in_srgb,var(--success)_32%,transparent)] bg-[var(--success-soft)]';
   }
   return 'border-border bg-panel-soft';
+}
+
+function kickerClasses(tone?: 'default' | 'warning' | 'danger' | 'success') {
+  if (tone === 'warning') {
+    return 'text-warning';
+  }
+  if (tone === 'danger') {
+    return 'text-danger';
+  }
+  if (tone === 'success') {
+    return 'text-success';
+  }
+  return 'text-muted';
 }
 </script>
 
 <template>
   <section
-    class="flex items-center justify-between gap-4 rounded-2xl border px-[18px] py-[14px]"
+    class="flex items-center justify-between gap-4 rounded-md border px-4 py-3"
     :class="toneClasses(props.tone)"
     :data-tone="props.tone ?? 'default'"
   >
     <div>
-      <p v-if="kicker" class="mb-1 text-[10px] uppercase tracking-[0.16em] text-system" data-role="status-kicker">
+      <p v-if="kicker" class="label-mono mb-1" :class="kickerClasses(props.tone)" data-role="status-kicker">
         {{ kicker }}
       </p>
       <strong class="text-text">{{ title }}</strong>

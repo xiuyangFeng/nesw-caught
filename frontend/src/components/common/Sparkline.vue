@@ -57,6 +57,12 @@ const areaPoints = computed(() => {
   const last = points[points.length - 1];
   return `${first.x.toFixed(1)},${props.height} ${linePoints.value} ${last.x.toFixed(1)},${props.height}`;
 });
+
+// 末端强调点：单色描边尽头的一个小圆点 + 克制辉光（唯一允许的 common 辉光）
+const endpoint = computed(() => {
+  const points = normalizedPoints.value;
+  return points.length > 0 ? points[points.length - 1] : null;
+});
 </script>
 
 <template>
@@ -69,7 +75,7 @@ const areaPoints = computed(() => {
     aria-hidden="true"
     data-role="sparkline"
   >
-    <polygon :points="areaPoints" :fill="strokeColor" opacity="0.12" />
+    <polygon :points="areaPoints" :fill="strokeColor" opacity="0.1" />
     <polyline
       :points="linePoints"
       :stroke="strokeColor"
@@ -77,6 +83,14 @@ const areaPoints = computed(() => {
       stroke-linecap="round"
       stroke-linejoin="round"
       fill="none"
+    />
+    <circle
+      v-if="endpoint"
+      :cx="endpoint.x.toFixed(1)"
+      :cy="endpoint.y.toFixed(1)"
+      r="1.8"
+      :fill="strokeColor"
+      :style="{ filter: `drop-shadow(0 0 3px ${strokeColor})` }"
     />
   </svg>
 </template>

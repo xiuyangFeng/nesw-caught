@@ -1,44 +1,67 @@
 /** @type {import('tailwindcss').Config} */
+
+/**
+ * 让"以 CSS 变量(十六进制值)定义的语义色"支持 Tailwind 的 `/透明度` 修饰符。
+ * 默认下 `colors: { accent: 'var(--accent)' }` 时，`bg-accent/40` 会被编译期静默丢弃
+ * （Tailwind 无法对非通道值套 alpha）。这里用函数式颜色 + `color-mix` 生成有效 CSS：
+ *   bg-accent      → background-color: var(--accent)
+ *   bg-accent/40   → background-color: color-mix(in srgb, var(--accent) calc(0.4 * 100%), transparent)
+ * 既保留 main.css 里 `var(--accent)` 的原样用法，又救活全站 `/opacity` 写法。
+ */
+function withAlpha(variable) {
+  return ({ opacityValue }) =>
+    opacityValue === undefined
+      ? `var(${variable})`
+      : `color-mix(in srgb, var(${variable}) calc(${opacityValue} * 100%), transparent)`;
+}
+
 export default {
   content: ['./index.html', './src/**/*.{vue,ts}'],
   theme: {
     extend: {
       colors: {
-        bg: 'var(--bg)',
-        'bg-elevated': 'var(--bg-elevated)',
-        panel: 'var(--panel)',
-        'panel-strong': 'var(--panel-strong)',
-        'panel-stronger': 'var(--panel-stronger)',
-        'panel-soft': 'var(--panel-soft)',
-        field: 'var(--field-bg)',
-        border: 'var(--border)',
-        'border-strong': 'var(--border-strong)',
-        text: 'var(--text)',
-        'text-soft': 'var(--text-soft)',
-        'text-faint': 'var(--text-faint)',
-        muted: 'var(--muted)',
-        positive: 'var(--positive)',
-        negative: 'var(--negative)',
-        success: 'var(--success)',
-        danger: 'var(--danger)',
-        neutral: 'var(--neutral)',
-        warning: 'var(--warning)',
-        accent: 'var(--accent)',
-        system: 'var(--system)',
+        bg: withAlpha('--bg'),
+        'bg-elevated': withAlpha('--bg-elevated'),
+        panel: withAlpha('--panel'),
+        'panel-strong': withAlpha('--panel-strong'),
+        'panel-stronger': withAlpha('--panel-stronger'),
+        'panel-soft': withAlpha('--panel-soft'),
+        field: withAlpha('--field-bg'),
+        border: withAlpha('--border'),
+        'border-strong': withAlpha('--border-strong'),
+        text: withAlpha('--text'),
+        'text-soft': withAlpha('--text-soft'),
+        'text-faint': withAlpha('--text-faint'),
+        muted: withAlpha('--muted'),
+        positive: withAlpha('--positive'),
+        negative: withAlpha('--negative'),
+        success: withAlpha('--success'),
+        danger: withAlpha('--danger'),
+        neutral: withAlpha('--neutral'),
+        warning: withAlpha('--warning'),
+        accent: withAlpha('--accent'),
+        system: withAlpha('--system'),
+        ai: withAlpha('--ai'),
+        'ai-2': withAlpha('--ai-2'),
+      },
+      borderRadius: {
+        sm: 'var(--r-sm)',
+        md: 'var(--r-md)',
+        lg: 'var(--r-lg)',
+        xl: 'var(--r-xl)',
       },
       boxShadow: {
         shell: 'var(--shadow)',
-        terminal: '0 18px 42px rgba(2, 6, 12, 0.34)',
-        signal: '0 0 18px rgba(255, 159, 47, 0.35)',
+        glow: 'var(--glow-accent)',
+        'glow-ai': 'var(--glow-ai)',
       },
       fontFamily: {
-        sans: ['IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'sans-serif'],
-        mono: ['IBM Plex Mono', 'SFMono-Regular', 'monospace'],
+        sans: ['HarmonyOS Sans SC', 'Inter', 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'IBM Plex Mono', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       backgroundImage: {
         app: 'var(--bg-accent)',
-        terminal:
-          'linear-gradient(180deg, rgba(15, 24, 36, 0.96), rgba(10, 17, 27, 0.96)), radial-gradient(circle at top right, rgba(83, 194, 255, 0.08), transparent 26%)',
+        'grad-ai': 'var(--grad-ai)',
       },
       screens: {
         shell: '1100px',

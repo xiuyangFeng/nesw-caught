@@ -70,17 +70,17 @@ watch(() => props.messages, scrollToBottom, { deep: true });
   <div class="relative flex-1 min-h-0 flex flex-col">
     <div
       ref="chatContainer"
-      class="surface flex flex-col gap-4 rounded-[22px] p-5 overflow-y-auto min-h-0 bg-[linear-gradient(180deg,rgba(12,19,30,0.4),rgba(8,14,23,0.4))] border border-border/40 flex-grow"
+      class="surface flex flex-col gap-4 rounded-lg p-5 overflow-y-auto min-h-0 flex-grow"
       @scroll="handleScroll"
     >
       <!-- Linked news contextual banner -->
       <div
         v-if="newsDetail"
-        class="relative flex flex-col md:flex-row items-start justify-between gap-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4"
+        class="relative flex flex-col md:flex-row items-start justify-between gap-4 rounded-md border border-border bg-[var(--accent-soft)] p-4"
       >
         <div class="grid gap-1 min-w-0">
-          <div class="flex items-center gap-2 text-xs font-semibold text-blue-400">
-            <span class="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+          <div class="flex items-center gap-2 text-xs font-semibold text-accent">
+            <span class="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
             已关联新闻上下文
           </div>
           <h3 class="font-bold text-sm text-text truncate max-w-2xl mt-1">
@@ -91,7 +91,7 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           </p>
         </div>
         <button
-          class="rounded-lg px-2.5 py-1 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-text-faint hover:text-text transition shrink-0"
+          class="rounded-md px-2.5 py-1 text-xs font-semibold bg-panel-strong hover:bg-bg-elevated text-text-faint hover:text-text transition shrink-0"
           type="button"
           @click="emit('clear-context')"
         >
@@ -108,13 +108,14 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           :class="msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'"
         >
           <!-- Label -->
-          <span class="text-[10px] uppercase tracking-wider text-muted mb-1 font-mono">
+          <span class="label-mono mb-1 flex items-center gap-1.5">
+            <span v-if="msg.role !== 'user'" class="text-ai">✦</span>
             {{ msg.role === 'user' ? 'USER' : 'ASSISTANT' }}
           </span>
           <!-- Failover Alert Banner -->
           <div
             v-if="msg.role === 'assistant' && msg.failover"
-            class="mb-2 p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 backdrop-blur-md text-[11px] text-[#ffd175] flex items-center gap-2 select-text shadow-sm max-w-full"
+            class="mb-2 p-2.5 rounded-md border border-border bg-[var(--warning-soft)] text-[11px] text-warning flex items-center gap-2 select-text max-w-full"
           >
             <span class="animate-pulse">⚡</span>
             <span>
@@ -123,11 +124,11 @@ watch(() => props.messages, scrollToBottom, { deep: true });
           </div>
           <!-- Bubble -->
           <div
-            class="rounded-[18px] px-4 py-3 text-sm leading-relaxed shadow-sm select-text"
+            class="relative rounded-md px-4 py-3 text-sm leading-relaxed select-text"
             :class="
               msg.role === 'user'
-                ? 'bg-[linear-gradient(135deg,#1768c2,#1e88e5)] text-white rounded-tr-sm'
-                : 'bg-white/[0.04] border border-border/60 text-text rounded-tl-sm markdown-body'
+                ? 'bg-panel-strong text-text rounded-tr-sm'
+                : 'ai-bubble bg-panel border border-border text-text rounded-tl-sm markdown-body'
             "
           >
             <!-- Standard plain text for user messages -->
@@ -135,7 +136,7 @@ watch(() => props.messages, scrollToBottom, { deep: true });
             <!-- Markdown parsing for LLM responses -->
             <div v-else v-html="parseMarkdown(msg.content)"></div>
 
-            <span v-if="msg.isStreaming" class="inline-block w-1.5 h-4 ml-0.5 bg-system animate-pulse align-middle" />
+            <span v-if="msg.isStreaming" class="inline-block w-1.5 h-4 ml-0.5 bg-accent animate-pulse align-middle" />
           </div>
         </div>
       </div>
@@ -145,36 +146,61 @@ watch(() => props.messages, scrollToBottom, { deep: true });
     <transition name="fade-in">
       <button
         v-if="showScrollBottomBtn"
-        class="absolute bottom-4 right-4 z-20 flex h-9 items-center gap-1.5 rounded-full border border-border/60 bg-[rgba(15,23,42,0.72)] px-3.5 text-xs text-[#90a2bb] hover:text-text backdrop-blur-md transition hover:bg-[rgba(30,41,59,0.92)] shadow-[0_4px_12px_rgba(0,0,0,0.3)] select-none cursor-pointer"
+        class="absolute bottom-4 right-4 z-20 flex h-9 items-center gap-1.5 rounded-full border border-border bg-panel-strong px-3.5 text-xs text-text-faint hover:text-text transition hover:bg-bg-elevated select-none cursor-pointer"
         type="button"
         @click="forceScrollToBottom"
       >
-        <span>⬇</span> 回到底部
+        <span class="text-accent">↓</span> 回到底部
       </button>
     </transition>
   </div>
 </template>
 
 <style scoped>
+/* AI 助手气泡：左侧青紫渐变强调条（克制，不整屏发光） */
+.ai-bubble::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--grad-ai);
+}
+
 .markdown-body :deep(p) {
   margin-bottom: 0.75rem;
+  color: var(--text-soft);
+  line-height: 1.7;
 }
 .markdown-body :deep(p:last-child) {
   margin-bottom: 0;
 }
-.markdown-body :deep(ul) {
-  list-style-type: disc;
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
-  padding-left: 1rem;
+  padding-left: 1.1rem;
+}
+.markdown-body :deep(ul) {
+  list-style-type: disc;
+}
+.markdown-body :deep(ol) {
+  list-style-type: decimal;
 }
 .markdown-body :deep(li) {
   margin-bottom: 0.25rem;
-  color: var(--text-muted);
+  color: var(--text-soft);
 }
 .markdown-body :deep(strong) {
   font-weight: 700;
   color: var(--text);
+}
+.markdown-body :deep(a) {
+  color: var(--system);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .markdown-body :deep(table) {
   width: 100%;
@@ -184,19 +210,32 @@ watch(() => props.messages, scrollToBottom, { deep: true });
 }
 .markdown-body :deep(th),
 .markdown-body :deep(td) {
-  padding: 0.625rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--border);
 }
 .markdown-body :deep(th) {
   font-weight: 600;
   color: var(--text-faint);
-  background-color: rgba(255, 255, 255, 0.02);
+  background: var(--panel-strong);
 }
 .markdown-body :deep(tr:hover) {
-  background-color: rgba(255, 255, 255, 0.01);
+  background: var(--interactive-hover);
 }
+/* 代码等宽；行内码收成青色小片，代码块保持素净等宽 */
 .markdown-body :deep(code) {
   font-family: var(--font-mono, monospace);
+}
+.markdown-body :deep(:not(pre) > code) {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+.markdown-body :deep(pre) {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-soft);
+}
+.markdown-body :deep(.code-block-wrapper) {
+  background: var(--panel-stronger);
 }
 
 /* 渐显动画 */

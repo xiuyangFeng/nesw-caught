@@ -116,14 +116,19 @@ onBeforeUnmount(() => {
     <!-- Right Chat Area -->
     <div class="grid gap-4 grid-rows-[auto_1fr_auto] min-w-0">
       <!-- Top header / Model selection -->
-      <header class="surface flex flex-wrap items-center justify-between gap-4 rounded-[18px] px-4.5 py-3 border border-border/40">
+      <header class="surface flex flex-wrap items-center justify-between gap-4 rounded-lg px-4 py-3">
         <div class="flex items-center gap-3">
+          <!-- AI 头像徽标：唯一允许的渐变高光触点 -->
+          <span
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-grad-ai text-sm font-bold text-bg shadow-glow-ai"
+            aria-hidden="true"
+          >✦</span>
           <span class="text-sm font-bold text-text">AI 对话助手</span>
           <div v-if="activeConfigs.length > 0" class="flex items-center gap-2">
-            <span class="text-xs text-text-faint">使用模型:</span>
+            <span class="text-xs text-text-faint">使用模型</span>
             <select
               v-model="selectedConfigId"
-              class="rounded-lg border border-border bg-field px-2.5 py-1 text-xs text-text focus:outline-none focus:border-system"
+              class="rounded-md border border-border bg-field px-2.5 py-1 text-xs text-text focus:outline-none focus:border-accent"
             >
               <option v-for="cfg in activeConfigs" :key="cfg.id!" :value="cfg.id">
                 {{ cfg.display_name || cfg.provider_name }} ({{ cfg.model_name }})
@@ -132,9 +137,7 @@ onBeforeUnmount(() => {
           </div>
           <span v-else class="text-xs text-danger">暂无可用模型，请先去配置</span>
         </div>
-        <div class="text-[11px] uppercase tracking-wider text-muted font-mono hidden sm:block">
-          Active AI Agent Workspace
-        </div>
+        <span class="label-mono hidden sm:block">Active AI Agent Workspace</span>
       </header>
 
       <!-- Chat viewport container -->

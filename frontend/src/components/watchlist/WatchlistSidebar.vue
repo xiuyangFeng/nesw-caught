@@ -35,15 +35,15 @@ const filteredRows = computed(() => {
 
 <template>
   <aside class="grid gap-4" data-role="watchlist-sidebar">
-    <div class="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.98),rgba(8,14,23,0.98))] p-4" data-role="watchlist-toolbar">
+    <div class="rounded-lg border border-border bg-panel p-4" data-role="watchlist-toolbar">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-[10px] uppercase tracking-[0.22em] text-[#ffb77d]">Watchlist</p>
+          <p class="text-[10px] uppercase tracking-[0.22em] text-accent">Watchlist</p>
           <h2 class="mt-1 text-base text-text">列表</h2>
         </div>
         <button
           type="button"
-          class="rounded-full border border-[#ff9f2f4f] bg-[linear-gradient(135deg,#9b5718,#ff9f2f)] px-3 py-1.5 text-xs font-semibold text-[#2f1500] transition hover:brightness-105"
+          class="rounded-full bg-accent px-3.5 py-1.5 text-xs font-semibold text-[#04141a] transition hover:brightness-110"
           data-role="watchlist-open-add-modal"
           @click="emit('openAddModal')"
         >
@@ -58,7 +58,7 @@ const filteredRows = computed(() => {
         />
         <button
           type="button"
-          class="shrink-0 rounded-full border border-[#ff9f2f4f] bg-[rgba(255,159,47,0.08)] px-3 py-2 text-[11px] font-semibold text-[#ffca97] disabled:opacity-60"
+          class="shrink-0 rounded-full border border-accent/40 bg-accent/10 px-3 py-2 text-[11px] font-semibold text-accent transition hover:bg-accent/20 disabled:opacity-60"
           data-role="watchlist-refresh-action"
           @click="emit('refresh')"
         >

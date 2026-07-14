@@ -14,12 +14,12 @@ const toastStore = useToastStore();
       <div
         v-for="toast in toastStore.toasts"
         :key="toast.id"
-        class="pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-xl border p-4 shadow-2xl backdrop-blur-md transition-all duration-300 hover:scale-[1.02]"
+        class="pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-md border bg-panel-strong p-3.5 shadow-shell transition-all duration-200"
         :class="{
-          'border-emerald-500/30 bg-emerald-950/20 text-emerald-100 shadow-emerald-900/10': toast.type === 'success',
-          'border-rose-500/30 bg-rose-950/20 text-rose-100 shadow-rose-900/10': toast.type === 'error',
-          'border-amber-500/30 bg-amber-950/20 text-amber-100 shadow-amber-900/10': toast.type === 'warning',
-          'border-blue-500/30 bg-blue-950/20 text-blue-100 shadow-blue-900/10': toast.type === 'info',
+          'border-[color-mix(in_srgb,var(--success)_30%,transparent)]': toast.type === 'success',
+          'border-[color-mix(in_srgb,var(--danger)_30%,transparent)]': toast.type === 'error',
+          'border-[color-mix(in_srgb,var(--warning)_30%,transparent)]': toast.type === 'warning',
+          'border-[color-mix(in_srgb,var(--accent)_30%,transparent)]': toast.type === 'info',
         }"
         role="alert"
       >
@@ -32,13 +32,13 @@ const toastStore = useToastStore();
         </span>
 
         <!-- Message Content -->
-        <div class="flex-1 text-xs font-semibold leading-relaxed">
+        <div class="flex-1 text-xs font-semibold leading-relaxed text-text">
           {{ toast.message }}
         </div>
 
         <!-- Close Button -->
         <button
-          class="ml-2 shrink-0 rounded-lg p-0.5 text-text-faint hover:bg-white/5 hover:text-text transition-colors active:scale-95"
+          class="ml-2 shrink-0 rounded-sm p-0.5 text-text-faint hover:bg-[var(--interactive-hover)] hover:text-text transition-colors active:scale-95"
           type="button"
           @click="toastStore.remove(toast.id)"
         >
@@ -51,10 +51,10 @@ const toastStore = useToastStore();
         <div
           class="absolute left-0 top-0 bottom-0 w-1"
           :class="{
-            'bg-emerald-500 shadow-[0_0_12px_#10b981]': toast.type === 'success',
-            'bg-rose-500 shadow-[0_0_12px_#ef4444]': toast.type === 'error',
-            'bg-amber-500 shadow-[0_0_12px_#f59e0b]': toast.type === 'warning',
-            'bg-blue-500 shadow-[0_0_12px_#3b82f6]': toast.type === 'info',
+            'bg-[var(--success)]': toast.type === 'success',
+            'bg-[var(--danger)]': toast.type === 'error',
+            'bg-[var(--warning)]': toast.type === 'warning',
+            'bg-[var(--accent)]': toast.type === 'info',
           }"
         />
       </div>

@@ -337,7 +337,7 @@ watch(loadMoreSentinelRef, (node, previous) => {
       <StaleBadge :stale="newsStore.feedStale" label="新闻列表" />
     </header>
 
-    <section class="surface grid gap-[18px] rounded-[22px] p-5" data-role="news-feed-shell">
+    <section class="surface grid gap-[18px] rounded-lg p-5" data-role="news-feed-shell">
       <div class="grid gap-3" data-role="news-feed-toolbar">
         <StatusBanner
           kicker="Runtime"
@@ -346,12 +346,12 @@ watch(loadMoreSentinelRef, (node, previous) => {
           :detail="runtimeBannerDetail"
         />
         <div
-          class="flex flex-wrap gap-2 rounded-[16px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-2.5"
+          class="flex flex-wrap gap-2 rounded-lg border border-border bg-panel-strong p-2.5"
           data-role="filter-bar"
         >
           <select
             v-model="filters.market"
-            class="min-w-[138px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text"
+            class="min-w-[138px] rounded-md border border-border bg-field px-3 py-2.5 text-text"
           >
             <option value="">全部市场</option>
             <option value="cn">A股/国内</option>
@@ -360,7 +360,7 @@ watch(loadMoreSentinelRef, (node, previous) => {
           </select>
           <select
             v-model="filters.sentiment_label"
-            class="min-w-[138px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text"
+            class="min-w-[138px] rounded-md border border-border bg-field px-3 py-2.5 text-text"
           >
             <option value="">全部情绪</option>
             <option value="positive">偏利好</option>
@@ -369,14 +369,14 @@ watch(loadMoreSentinelRef, (node, previous) => {
           </select>
           <select
             v-model="selectedSource"
-            class="min-w-[138px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text"
+            class="min-w-[138px] rounded-md border border-border bg-field px-3 py-2.5 text-text"
           >
             <option value="">全部来源</option>
             <option v-for="source in sourceOptions" :key="source" :value="source">{{ source }}</option>
           </select>
           <input
             v-model="filters.q"
-            class="min-w-[240px] rounded-xl border border-border bg-[rgba(6,11,19,0.92)] px-3 py-2.5 text-text max-xl:min-w-0"
+            class="min-w-[240px] rounded-md border border-border bg-field px-3 py-2.5 text-text max-xl:min-w-0"
             type="search"
             placeholder="搜索标题或摘要"
           />
@@ -414,13 +414,13 @@ watch(loadMoreSentinelRef, (node, previous) => {
             <article
               v-for="topic in filteredTopics"
               :key="topic.id"
-              class="rounded-[14px] border border-border bg-[rgba(7,12,20,0.72)] p-4"
+              class="rounded-lg border border-border bg-panel-strong p-4 transition-colors hover:border-border-strong"
             >
-              <div class="mb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-muted">
+              <div class="mb-2 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
                 <span>{{ topic.market.toUpperCase() }}</span>
                 <span>{{ topic.sentiment_label }}</span>
               </div>
-              <h3 class="m-0 text-base text-text">{{ topic.topic_title }}</h3>
+              <h3 class="m-0 text-base font-semibold text-text">{{ topic.topic_title }}</h3>
               <p class="mt-2 text-sm leading-[1.6] text-muted">{{ topic.topic_summary ?? '主题摘要待补充' }}</p>
               <p class="mt-3 text-xs text-text-soft">{{ topic.related_symbols.join(' · ') || '未关联股票' }}</p>
             </article>
@@ -438,14 +438,14 @@ watch(loadMoreSentinelRef, (node, previous) => {
           <transition name="fade-in">
             <div
               v-if="pendingNewItems.length > 0"
-              class="mb-3.5 flex items-center justify-between gap-3 rounded-xl border border-blue-500/30 bg-[rgba(59,130,246,0.12)] px-4 py-2.5 text-xs text-blue-300 backdrop-blur-md transition hover:bg-[rgba(59,130,246,0.18)] hover:border-blue-500/50 shadow-[0_4px_12px_rgba(59,130,246,0.1)] cursor-pointer select-none"
+              class="mb-3.5 flex items-center justify-between gap-3 rounded-md border border-border bg-[var(--accent-soft)] px-4 py-2.5 text-xs text-accent transition-colors hover:border-border-strong cursor-pointer select-none"
               @click="applyPendingNews"
             >
               <div class="flex items-center gap-2">
-                <span class="animate-pulse">💡</span>
-                <span>发现 <strong>{{ pendingNewItems.length }}</strong> 条最新资讯</span>
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-glow animate-pulse"></span>
+                <span>发现 <strong class="num">{{ pendingNewItems.length }}</strong> 条最新资讯</span>
               </div>
-              <span class="font-bold underline hover:text-white">点击置入 ⬇</span>
+              <span class="font-semibold">点击置入 ↓</span>
             </div>
           </transition>
 

@@ -40,7 +40,7 @@ const emit = defineEmits<{
         <p class="summary">{{ summary }}</p>
       </div>
       <div class="news-card__meta" :class="{ 'news-card__supporting-meta': variant === 'supporting', 'news-card__compact-meta': variant === 'stream-compact' }">
-        <span>{{ publishedLabel }}</span>
+        <span class="news-card__time">{{ publishedLabel }}</span>
         <span>{{ topicLabel }}</span>
       </div>
     </div>
@@ -51,18 +51,17 @@ const emit = defineEmits<{
 .news-card {
   display: grid;
   gap: 10px;
-  border-radius: 14px;
-  padding: 16px 16px;
-  background: linear-gradient(180deg, rgba(11, 18, 28, 0.98), rgba(8, 14, 23, 0.98));
-  border: 1px solid rgba(133, 161, 191, 0.18);
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  transition: border-color 160ms ease, background-color 160ms ease;
   cursor: pointer;
 }
 
 .news-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 159, 47, 0.28);
-  box-shadow: 0 16px 36px rgba(2, 6, 12, 0.28);
+  border-color: var(--border-strong);
+  background: var(--panel-strong);
 }
 
 .news-card--stream-compact {
@@ -79,15 +78,27 @@ const emit = defineEmits<{
   flex-wrap: wrap;
   color: var(--muted);
   font-size: 11px;
+}
+
+.market-tag {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.source {
+  color: var(--muted);
 }
 
 h3 {
   margin: 0;
-  font-size: 17px;
-  line-height: 1.36;
-  letter-spacing: -0.02em;
+  font-size: 16px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .news-card__body {
@@ -120,6 +131,13 @@ h3 {
   -webkit-box-orient: vertical;
   overflow: hidden;
   -webkit-line-clamp: 2;
+}
+
+.news-card__time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--text-faint);
 }
 
 .news-card__compact-body {

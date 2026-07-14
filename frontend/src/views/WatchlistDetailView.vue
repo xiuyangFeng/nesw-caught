@@ -26,14 +26,14 @@ const researchError = ref<string | null>(null);
 const lookbackDays = ref(7);
 const LOOKBACK_OPTIONS = [7, 14, 30];
 
-// 评级枚举 -> 中文标签 + 霓虹配色。
+// 评级枚举 -> 中文标签 + 语义配色（红涨绿跌：看多=正向红，看空=负向绿，中性=琥珀告警）。
 const RATING_META: Record<StockResearchRating, { label: string; classes: string }> = {
-  strong_bullish: { label: '强烈看多', classes: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' },
-  bullish: { label: '看多', classes: 'border-emerald-400/30 bg-emerald-400/[0.07] text-emerald-300' },
-  neutral: { label: '中性', classes: 'border-amber-400/30 bg-amber-400/[0.07] text-amber-300' },
-  bearish: { label: '看空', classes: 'border-rose-400/30 bg-rose-400/[0.07] text-rose-300' },
-  strong_bearish: { label: '强烈看空', classes: 'border-rose-400/40 bg-rose-400/10 text-rose-300' },
-  unknown: { label: '数据不足', classes: 'border-slate-400/25 bg-white/[0.04] text-text-faint' },
+  strong_bullish: { label: '强烈看多', classes: 'border-positive/40 bg-positive/10 text-positive' },
+  bullish: { label: '看多', classes: 'border-positive/30 bg-positive/[0.07] text-positive' },
+  neutral: { label: '中性', classes: 'border-warning/30 bg-warning/[0.07] text-warning' },
+  bearish: { label: '看空', classes: 'border-negative/30 bg-negative/[0.07] text-negative' },
+  strong_bearish: { label: '强烈看空', classes: 'border-negative/40 bg-negative/10 text-negative' },
+  unknown: { label: '数据不足', classes: 'border-border bg-panel-strong text-text-faint' },
 };
 
 const ratingMeta = computed(() => (research.value ? RATING_META[research.value.overall_rating] : null));
@@ -45,9 +45,9 @@ const keyEvents = computed(() => research.value?.key_events ?? []);
 const references = computed(() => research.value?.references ?? []);
 
 function impactDotClass(impact: string): string {
-  if (impact === 'positive') return 'bg-emerald-400';
-  if (impact === 'negative') return 'bg-rose-400';
-  return 'bg-slate-400';
+  if (impact === 'positive') return 'bg-positive';
+  if (impact === 'negative') return 'bg-negative';
+  return 'bg-muted';
 }
 
 function formatPercent(value: number | null | undefined): string {
@@ -177,11 +177,11 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
     <!-- 个股 AI 综合研判（结构化研报） -->
     <section v-if="symbol" class="grid gap-2" data-role="stock-ai-research">
       <div
-        class="rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(155deg,rgba(18,24,35,0.98),rgba(9,13,21,0.99))] px-4 py-4 shadow-[0_14px_34px_rgba(2,6,12,0.28)]"
+        class="rounded-lg border border-border bg-panel px-4 py-4"
       >
         <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-border/40 pb-2.5">
           <div>
-            <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#38bdf8]">Local RAG Synthesis</p>
+            <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-ai">✦ Local RAG Synthesis</p>
             <h3 class="mt-0.5 text-[15px] font-semibold text-text">🧠 AI 综合研判</h3>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -190,7 +190,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
                 v-for="option in LOOKBACK_OPTIONS"
                 :key="option"
                 class="rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"
-                :class="lookbackDays === option ? 'bg-[#38bdf8]/20 text-[#7dd3fc]' : 'text-text-faint hover:text-text'"
+                :class="lookbackDays === option ? 'bg-accent/15 text-accent' : 'text-text-faint hover:text-text'"
                 type="button"
                 @click="selectLookback(option)"
               >
@@ -227,7 +227,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
               汇总本股票近 {{ lookbackDays }} 天的命中新闻、正文与价格走势，基于本地语料检索一键生成结构化研报（评级 / 催化剂 / 风险 / 关键时间线）。
             </p>
             <button
-              class="flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0ea5e9,#6366f1)] px-5 py-2.5 text-xs font-semibold text-white shadow-[0_0_15px_rgba(56,189,248,0.3)] transition hover:shadow-[0_0_20px_rgba(56,189,248,0.5)] hover:brightness-110 active:scale-95"
+              class="flex items-center gap-2 rounded-full bg-grad-ai px-5 py-2.5 text-xs font-semibold text-white shadow-glow-ai transition hover:brightness-110 active:scale-95"
               type="button"
               @click="generateResearch"
             >
@@ -238,10 +238,10 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
           <!-- 加载中 -->
           <div v-else-if="researchLoading" class="flex flex-col items-center justify-center py-8">
             <div class="relative h-9 w-9">
-              <div class="absolute inset-0 rounded-full border-2 border-sky-500/20" />
-              <div class="absolute inset-0 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+              <div class="absolute inset-0 rounded-full border-2 border-accent/20" />
+              <div class="absolute inset-0 animate-spin rounded-full border-2 border-accent border-t-transparent" />
             </div>
-            <p class="mt-4 animate-pulse text-xs font-semibold text-sky-300">正在检索本地语料并综合研判…</p>
+            <p class="mt-4 animate-pulse text-xs font-semibold text-accent">正在检索本地语料并综合研判…</p>
           </div>
 
           <!-- 报错 -->
@@ -283,13 +283,13 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
             <!-- 降级 / 故障接管提示 -->
             <div
               v-if="research.mode === 'rule' && research.llm_error"
-              class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-[#ffd175]"
+              class="rounded-xl border border-warning/30 bg-warning/10 p-2.5 text-[11px] text-warning"
             >
               大模型暂不可用，已降级为基于新闻情绪的规则要点汇总。
             </div>
             <div
               v-if="research.failover"
-              class="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-[#ffd175]"
+              class="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-2.5 text-[11px] text-warning"
             >
               <span class="animate-pulse">⚡</span>
               <span>
@@ -338,21 +338,21 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
 
             <!-- 催化剂 / 风险 -->
             <div class="grid gap-3 md:grid-cols-2">
-              <div class="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.04] p-3">
-                <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-emerald-300">📈 催化剂 / 利好</p>
+              <div class="rounded-xl border border-positive/20 bg-positive/[0.05] p-3">
+                <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-positive">📈 催化剂 / 利好</p>
                 <ul v-if="bullCase.length" class="grid gap-1.5">
                   <li v-for="(item, idx) in bullCase" :key="idx" class="flex gap-2 text-[12px] leading-relaxed text-text-muted">
-                    <span class="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-emerald-400" />
+                    <span class="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-positive" />
                     <span>{{ item }}</span>
                   </li>
                 </ul>
                 <p v-else class="text-[12px] text-text-faint">暂无明显利好信号。</p>
               </div>
-              <div class="rounded-xl border border-rose-400/20 bg-rose-400/[0.04] p-3">
-                <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-rose-300">📉 风险 / 利空</p>
+              <div class="rounded-xl border border-negative/20 bg-negative/[0.05] p-3">
+                <p class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-negative">📉 风险 / 利空</p>
                 <ul v-if="bearCase.length" class="grid gap-1.5">
                   <li v-for="(item, idx) in bearCase" :key="idx" class="flex gap-2 text-[12px] leading-relaxed text-text-muted">
-                    <span class="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-rose-400" />
+                    <span class="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-negative" />
                     <span>{{ item }}</span>
                   </li>
                 </ul>
@@ -388,7 +388,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
                   <span class="tabular-nums text-text-faint">{{ formatDate(ref.published_at) }}</span>
                   <a
                     v-if="ref.canonical_url"
-                    class="truncate text-sky-300/90 hover:text-sky-200 hover:underline"
+                    class="truncate text-system hover:underline hover:brightness-110"
                     :href="ref.canonical_url"
                     target="_blank"
                     rel="noopener noreferrer"

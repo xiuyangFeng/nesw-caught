@@ -107,7 +107,7 @@ function sentimentText(label: string | null | undefined) {
     <Transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-[4px]"
+        class="fixed inset-0 z-[100] bg-black/70"
         @click="emit('close')"
       />
     </Transition>
@@ -116,14 +116,14 @@ function sentimentText(label: string | null | undefined) {
     <Transition name="slide">
       <div
         v-if="visible"
-        class="fixed top-0 right-0 bottom-0 z-[101] w-full max-w-[500px] border-l border-border bg-panel shadow-shell flex flex-col backdrop-blur-[24px]"
+        class="fixed top-0 right-0 bottom-0 z-[101] w-full max-w-[500px] border-l border-border bg-panel shadow-shell flex flex-col"
         data-role="news-detail-drawer"
       >
         <!-- 抽屉头部导航 -->
-        <header class="flex items-center justify-between border-b border-border/60 px-4 py-3 shrink-0">
+        <header class="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
           <div class="flex items-center gap-1">
             <button
-              class="p-1.5 rounded-full hover:bg-white/[0.06] text-muted hover:text-text disabled:opacity-30 disabled:cursor-not-allowed transition duration-150"
+              class="p-1.5 rounded-full hover:bg-panel-strong text-muted hover:text-text disabled:opacity-30 disabled:cursor-not-allowed transition duration-150"
               type="button"
               :disabled="!hasPrev"
               title="上一篇"
@@ -134,7 +134,7 @@ function sentimentText(label: string | null | undefined) {
               </svg>
             </button>
             <button
-              class="p-1.5 rounded-full hover:bg-white/[0.06] text-muted hover:text-text disabled:opacity-30 disabled:cursor-not-allowed transition duration-150"
+              class="p-1.5 rounded-full hover:bg-panel-strong text-muted hover:text-text disabled:opacity-30 disabled:cursor-not-allowed transition duration-150"
               type="button"
               :disabled="!hasNext"
               title="下一篇"
@@ -144,13 +144,13 @@ function sentimentText(label: string | null | undefined) {
                 <path fill-rule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0L10.5 8.5l-3.22 3.22a.75.75 0 1 1-1.06-1.06L9.44 8.5 6.22 5.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
               </svg>
             </button>
-            <span class="text-[11px] text-muted tabular-nums ml-2">
+            <span class="text-[11px] text-muted font-mono tabular-nums ml-2">
               第 {{ currentIndex + 1 }} / {{ filteredNewsIds.length }} 篇
             </span>
           </div>
 
           <button
-            class="p-1.5 rounded-full hover:bg-white/[0.06] text-muted hover:text-text transition duration-150"
+            class="p-1.5 rounded-full hover:bg-panel-strong text-muted hover:text-text transition duration-150"
             type="button"
             title="关闭"
             @click="emit('close')"
@@ -175,11 +175,11 @@ function sentimentText(label: string | null | undefined) {
                   <span class="pill" :class="detail.sentiment_label">
                     {{ sentimentText(detail.sentiment_label) }}
                   </span>
-                  <span class="bg-white/[0.04] border border-border px-2 py-0.5 rounded-md">
+                  <span class="bg-panel-strong border border-border px-2 py-0.5 rounded-sm">
                     {{ detail.source_name }}
                   </span>
-                  <span>
-                    {{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }} 
+                  <span class="font-mono tabular-nums">
+                    {{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }}
                     {{ getMarketTimezoneLabel(detail.market) }}
                   </span>
                 </div>
@@ -189,7 +189,7 @@ function sentimentText(label: string | null | undefined) {
                     :href="detail.canonical_url"
                     target="_blank"
                     rel="noreferrer"
-                    class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-accent hover:text-system transition duration-150"
+                    class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-system hover:text-accent transition duration-150"
                   >
                     <span>打开原文网页</span>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5">
@@ -201,13 +201,13 @@ function sentimentText(label: string | null | undefined) {
               </section>
 
               <!-- 股票提及 (Mentions) -->
-              <section class="rounded-xl border border-border bg-panel-strong/40 p-3 space-y-2">
-                <div class="text-[11px] uppercase tracking-wider text-muted font-bold">关联股票</div>
+              <section class="rounded-md border border-border bg-panel-strong p-3 space-y-2">
+                <div class="label-mono text-muted">关联股票</div>
                 <div class="flex flex-wrap gap-1.5">
                   <span
                     v-for="mention in detail.mentions"
                     :key="`${mention.symbol}-${mention.mention_type}`"
-                    class="text-[11px] px-2 py-0.5 bg-white/[0.04] border border-border rounded-md text-text-soft"
+                    class="text-[11px] font-mono tabular-nums px-2 py-0.5 bg-panel-soft border border-border rounded-sm text-text-soft"
                   >
                     {{ mention.symbol }} ({{ Math.round(mention.confidence * 100) }}%)
                   </span>
@@ -219,8 +219,8 @@ function sentimentText(label: string | null | undefined) {
 
               <!-- 新闻正文区 (Article Body) -->
               <section class="space-y-2">
-                <div class="text-[11px] uppercase tracking-wider text-muted font-bold">新闻正文</div>
-                <div class="rounded-xl border border-border bg-field-bg p-3.5 max-h-[200px] overflow-y-auto">
+                <div class="label-mono text-muted">新闻正文</div>
+                <div class="rounded-md border border-border bg-field p-3.5 max-h-[200px] overflow-y-auto">
                   <p
                     v-if="detail.article?.content_text"
                     class="m-0 text-[12px] leading-relaxed text-text-soft whitespace-pre-wrap"
@@ -234,14 +234,16 @@ function sentimentText(label: string | null | undefined) {
               </section>
 
               <!-- LLM AI 研判面板 (AI Analysis) -->
-              <section class="border-t border-border/60 pt-3 space-y-3">
+              <section class="border-t border-border pt-3 space-y-3">
                 <div class="flex items-center justify-between">
-                  <div class="text-[11px] uppercase tracking-wider text-muted font-bold">大模型解读 (AI Insight)</div>
-                  
+                  <div class="inline-flex items-center gap-1.5 label-mono text-ai">
+                    <span aria-hidden="true">✦</span>大模型解读 · AI INSIGHT
+                  </div>
+
                   <!-- 魔棒 AI 研判按钮 -->
                   <button
                     v-if="llmStore.config?.configured"
-                    class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 bg-white/[0.04] border border-accent/30 hover:border-accent hover:bg-accent-soft rounded-full text-accent transition duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 bg-[var(--ai-soft)] border border-border hover:border-ai rounded-full text-ai transition duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
                     type="button"
                     :disabled="analysisLoading"
                     @click="runAnalysis"
@@ -254,25 +256,25 @@ function sentimentText(label: string | null | undefined) {
                 </div>
 
                 <div v-if="analysisLoading" class="text-[12px] text-text-faint italic py-2 flex items-center gap-2">
-                  <span class="animate-pulse h-1.5 w-1.5 bg-accent rounded-full"></span>
+                  <span class="animate-pulse h-1.5 w-1.5 bg-ai rounded-full"></span>
                   正在运行深度大模型分析逻辑...
                 </div>
-                <div v-else-if="analysisError" class="text-[12px] text-danger bg-danger-soft border border-danger/20 rounded-xl px-3 py-2">
+                <div v-else-if="analysisError" class="text-[12px] text-danger bg-[var(--danger-soft)] border border-border rounded-md px-3 py-2">
                   {{ analysisError }}
                 </div>
                 <div v-else-if="analysis" class="space-y-3">
                   <!-- Top Pick Card -->
                   <div
                     v-if="analysis.top_pick"
-                    class="rounded-xl border border-positive/20 bg-positive-soft/5 p-3 space-y-1.5"
+                    class="rounded-md border border-border bg-[var(--positive-soft)] p-3 space-y-1.5"
                   >
-                    <div class="text-[10px] font-bold uppercase tracking-wider text-positive">首选影响标的 (Top Pick)</div>
+                    <div class="label-mono text-positive">首选影响标的 · TOP PICK</div>
                     <div class="flex items-baseline gap-2">
-                      <h3 class="text-[16px] font-bold text-text m-0">{{ analysis.top_pick.symbol }}</h3>
+                      <h3 class="text-[16px] font-mono font-bold text-text m-0">{{ analysis.top_pick.symbol }}</h3>
                       <span v-if="analysis.top_pick.company_name" class="text-[11px] text-text-faint">
                         {{ analysis.top_pick.company_name }}
                       </span>
-                      <span class="text-[10px] font-mono bg-positive/10 text-positive px-1.5 py-0.2 rounded ml-auto">
+                      <span class="text-[10px] font-mono tabular-nums bg-[var(--positive-soft)] text-positive px-1.5 py-0.5 rounded-sm ml-auto">
                         置信度 {{ Math.round((analysis.top_pick.confidence ?? 0) * 100) }}%
                       </span>
                     </div>
@@ -282,12 +284,12 @@ function sentimentText(label: string | null | undefined) {
                   </div>
 
                   <!-- AI Summary & Risks -->
-                  <div class="grid gap-3 text-[12px] bg-white/[0.02] border border-border p-3 rounded-xl">
+                  <div class="grid gap-3 text-[12px] bg-panel-soft border border-border p-3 rounded-md">
                     <div>
                       <strong class="block text-text font-bold mb-1">事件驱动摘要</strong>
                       <p class="m-0 text-text-soft leading-relaxed">{{ analysis.summary || '暂无分析摘要' }}</p>
                     </div>
-                    <div class="border-t border-border/40 pt-2.5">
+                    <div class="border-t border-border pt-2.5">
                       <strong class="block text-text font-bold mb-1">主要潜在风险</strong>
                       <p class="m-0 text-text-soft leading-relaxed">{{ analysis.risk_notes || '暂无风险提示' }}</p>
                     </div>
@@ -295,26 +297,26 @@ function sentimentText(label: string | null | undefined) {
 
                   <!-- Other Candidates -->
                   <div v-if="analysis.candidates && analysis.candidates.length > 1" class="space-y-2">
-                    <div class="text-[11px] uppercase tracking-wider text-muted font-bold">其余候选影响链</div>
+                    <div class="label-mono text-muted">其余候选影响链</div>
                     <div class="space-y-2">
                       <div
                         v-for="candidate in analysis.candidates.filter(c => c.symbol !== analysis?.top_pick?.symbol)"
                         :key="`${candidate.symbol}-${candidate.market}`"
-                        class="p-2.5 border border-border/80 bg-white/[0.01] rounded-xl space-y-1"
+                        class="p-2.5 border border-border bg-panel-soft rounded-md space-y-1"
                       >
                         <div class="flex items-center justify-between">
-                          <strong class="text-[12px] text-text-soft">{{ candidate.symbol }}</strong>
-                          <span class="text-[10px] text-muted">{{ Math.round((candidate.confidence ?? 0) * 100) }}% 置信度</span>
+                          <strong class="text-[12px] font-mono text-text-soft">{{ candidate.symbol }}</strong>
+                          <span class="text-[10px] font-mono tabular-nums text-muted">{{ Math.round((candidate.confidence ?? 0) * 100) }}% 置信度</span>
                         </div>
                         <p class="m-0 text-[11px] text-text-faint leading-normal">{{ candidate.reason }}</p>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div v-else-if="!llmStore.config?.configured" class="text-[11px] text-text-faint bg-white/[0.02] border border-border p-3 rounded-xl italic">
+                <div v-else-if="!llmStore.config?.configured" class="text-[11px] text-text-faint bg-panel-soft border border-border p-3 rounded-md italic">
                   提示：尚未配置大模型提供商 API 密钥，请在 LLM 选项中配置。
                 </div>
-                <div v-else class="text-[11px] text-text-faint bg-white/[0.02] border border-border p-3 rounded-xl italic">
+                <div v-else class="text-[11px] text-text-faint bg-panel-soft border border-border p-3 rounded-md italic">
                   此新闻尚未请求大模型标的研判，点击上方“一键 AI 解读”即可生成。
                 </div>
               </section>

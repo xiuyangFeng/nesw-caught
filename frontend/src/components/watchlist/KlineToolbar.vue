@@ -37,7 +37,7 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
 </script>
 
 <template>
-  <div class="grid gap-2 rounded-[16px] border border-border/70 bg-[linear-gradient(180deg,rgba(16,22,33,0.95),rgba(10,15,24,0.92))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" data-role="kline-toolbar-shell">
+  <div class="grid gap-2 rounded-lg border border-border bg-panel-strong px-3 py-2.5" data-role="kline-toolbar-shell">
     <div class="flex flex-wrap items-center justify-between gap-2" data-role="kline-period-toolbar">
       <div class="flex flex-wrap gap-2" data-role="kline-toolbar-period-group">
         <button
@@ -45,7 +45,7 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
           :key="period.value"
           type="button"
           class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-          :class="currentPeriod === period.value ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+          :class="currentPeriod === period.value ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'"
           :data-role="`period-chip-${period.value}`"
           :data-active="currentPeriod === period.value ? 'true' : 'false'"
           @click="emit('periodChange', period.value)"
@@ -74,7 +74,7 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
         </button>
         <button
           type="button"
-          class="rounded-full border border-[rgba(255,111,134,0.35)] px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[#ff9dad]"
+          class="rounded-full border border-danger/40 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-danger disabled:cursor-not-allowed disabled:opacity-40"
           data-role="clear-drawings"
           :disabled="drawingDisabled"
           @click="emit('clearDrawings')"
@@ -97,8 +97,8 @@ const tools: Array<{ value: KlineDrawingTool; label: string }> = [
         v-for="tool in tools"
         :key="tool.value"
         type="button"
-        class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-        :class="activeTool === tool.value ? 'border-[#ffb66d] bg-[rgba(255,159,47,0.12)] text-[#ffca97]' : 'border-border/70 text-text-faint'"
+        class="rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.16em] disabled:cursor-not-allowed disabled:opacity-40"
+        :class="activeTool === tool.value ? 'border-accent/60 bg-accent/10 text-accent' : 'border-border/70 text-text-faint'"
         :data-role="`tool-chip-${tool.value}`"
         :data-active="activeTool === tool.value ? 'true' : 'false'"
         :disabled="drawingDisabled && tool.value !== 'select'"
