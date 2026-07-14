@@ -26,7 +26,7 @@ defineProps<{
     </template>
 
     <!-- 仪表盘板块骨架屏 -->
-    <template v-elif="type === 'dashboard'">
+    <template v-else-if="type === 'dashboard'">
       <div class="dashboard-skeleton-grid">
         <div class="skeleton-card dash-metric shimmer"></div>
         <div class="skeleton-card dash-metric shimmer"></div>
@@ -40,7 +40,7 @@ defineProps<{
     </template>
 
     <!-- 自选股列表骨架屏 -->
-    <template v-elif="type === 'watchlist'">
+    <template v-else-if="type === 'watchlist'">
       <div
         v-for="i in (count || 3)"
         :key="i"
@@ -58,7 +58,7 @@ defineProps<{
     </template>
 
     <!-- 新闻详情骨架屏 -->
-    <template v-elif="type === 'detail'">
+    <template v-else-if="type === 'detail'">
       <div class="skeleton-card detail-skeleton">
         <div class="skeleton-line title-line shimmer"></div>
         <div class="skeleton-footer">

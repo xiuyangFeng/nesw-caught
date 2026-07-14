@@ -2,6 +2,17 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-13 修复 SkeletonFeed 的 v-elif 拼写（骨架屏分支失效）
+
+- 修改人：Claude
+- 修改范围：`frontend/src/components/common/SkeletonFeed.vue`。
+- 根因：dashboard / watchlist / detail 三个骨架屏分支写成了无效指令 `v-elif`（Vue 无此指令，应为 `v-else-if`），导致它们脱离首个 `v-if` 的条件链、在任意 `type` 下都会同时渲染，骨架屏与真实卡片高度不再 1:1 对应。
+- 变更内容：3 处 `v-elif` → `v-else-if`，恢复 `v-if(news) → v-else-if(dashboard) → v-else-if(watchlist) → v-else-if(detail)` 的正确互斥分支。
+- 影响文件：`frontend/src/components/common/SkeletonFeed.vue`、`docs/code-change-log.md`
+- 接口/数据结构变化：无。
+- 验证情况：`npm run build`（vue-tsc + vite）通过；`npm run test`（vitest）→ 262 passed 无回归；后端 `create_app()` 导入正常。
+- 风险/后续事项：无。
+
 ## 2026-07-13 第二批五特性并行开发集成合并（Integration Merge #2）
 
 - 修改人：Claude（主线集成）
