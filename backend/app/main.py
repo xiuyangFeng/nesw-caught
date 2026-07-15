@@ -10,22 +10,21 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
-from app.repositories.news_repository import NewsRepository
+from app.repositories.news_repository import NewsRepository  # noqa: F401 -- monkeypatched by tests
 from app.repositories.watchlist_repository import WatchlistRepository
-from app.schemas.news import NewsItemSummary
+from app.services.cleanup import build_data_cleanup_worker
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
 from app.services.market_quote_producer import MarketQuoteProducer
+from app.services.news_dedup import configure_secondary_judge_from_settings
 from app.services.news_ingest_scheduler import NewsIngestScheduler
-from app.services.news_signal_pipeline import NewsSignalPipelineService
+from app.services.news_signal_pipeline import (  # noqa: F401 -- monkeypatched by tests
+    NewsSignalPipelineService,
+)
 from app.services.notification_service import get_notification_service
 from app.services.quote_service import QuoteService
-from app.services.cleanup import build_data_cleanup_worker
-from app.services.news_dedup import configure_secondary_judge_from_settings
+from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
 
 logger = logging.getLogger(__name__)
-
-
-from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
 
 
 def get_quote_service() -> QuoteService:

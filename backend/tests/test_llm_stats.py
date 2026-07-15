@@ -1,13 +1,13 @@
-import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.main import app
 from app.db.session import SessionLocal
-from app.models.llm_token_usage import LLMTokenUsage
-from app.services.llm_providers import log_token_usage, OpenAICompatibleProvider
+from app.main import app
 from app.models.llm_provider_config import LLMProviderConfig
+from app.models.llm_token_usage import LLMTokenUsage
+from app.services.llm_providers import OpenAICompatibleProvider, log_token_usage
 
 
 def test_log_token_usage() -> None:
@@ -33,7 +33,7 @@ def test_log_token_usage() -> None:
 
 def test_llm_stats_api() -> None:
     client = TestClient(app)
-    
+
     with SessionLocal() as session:
         session.query(LLMTokenUsage).delete()
         session.commit()
@@ -64,7 +64,7 @@ def test_llm_provider_failover() -> None:
         repo = LLMProviderConfigRepository(session)
         session.query(LLMProviderConfig).delete()
         session.commit()
-        
+
         c1 = repo.upsert_config(
             provider_name="openai_compatible",
             display_name="Primary",
@@ -74,8 +74,8 @@ def test_llm_provider_failover() -> None:
             is_active=True,
             is_default=True,
         )
-        
-        c2 = repo.upsert_config(
+
+        repo.upsert_config(
             provider_name="openai_compatible",
             display_name="Backup",
             base_url="https://api.backup.com/v1",
@@ -88,13 +88,13 @@ def test_llm_provider_failover() -> None:
         session.commit()
 
         provider = OpenAICompatibleProvider(c1)
-        
+
         with patch("httpx.Client.post") as mock_post:
             # First call (primary) raises bad status code
             mock_response_fail = MagicMock()
             mock_response_fail.status_code = 502
             mock_response_fail.json.return_value = {"error": {"message": "Bad gateway"}}
-            
+
             # Second call (backup) succeeds
             mock_response_ok = MagicMock()
             mock_response_ok.status_code = 200
@@ -102,7 +102,7 @@ def test_llm_provider_failover() -> None:
                 "choices": [{"message": {"content": "Succeeded on backup"}}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 20}
             }
-            
+
             mock_post.side_effect = [mock_response_fail, mock_response_ok]
 
             result = provider.complete(
@@ -158,11 +158,11 @@ def test_llm_ping_api() -> None:
 
 def test_llm_stats_daily_trend() -> None:
     client = TestClient(app)
-    
+
     with SessionLocal() as session:
         session.query(LLMTokenUsage).delete()
         session.commit()
-        
+
         usage = LLMTokenUsage(
             model_name="deepseek-chat",
             prompt_tokens=200,
@@ -172,7 +172,7 @@ def test_llm_stats_daily_trend() -> None:
         )
         session.add(usage)
         session.commit()
-        
+
     res = client.get("/api/llm/stats")
     assert res.status_code == 200
     data = res.json()
@@ -186,6 +186,7 @@ def test_llm_stats_daily_trend() -> None:
 def test_llm_chat_failover_sse() -> None:
     import asyncio
     from unittest.mock import AsyncMock, MagicMock
+
     from app.api.routes.llm import chat_with_llm
     from app.schemas.llm import LLMChatRequest
 

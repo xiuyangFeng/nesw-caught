@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Sequence
 
 from app.schemas.sentiment_eval import SENTIMENT_LABELS, SentimentGoldSample
 
@@ -48,7 +48,7 @@ def evaluate_sentiment(
         actual: {predicted: 0 for predicted in LABELS} for actual in LABELS
     }
     correct = 0
-    for gold, predicted in zip(gold_labels, predicted_labels):
+    for gold, predicted in zip(gold_labels, predicted_labels, strict=True):
         if gold not in LABELS:
             raise SentimentEvaluationError(f"unknown gold label: {gold}")
         if predicted not in LABELS:

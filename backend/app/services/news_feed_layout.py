@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from datetime import datetime, timezone
-from typing import Iterable
+from collections.abc import Iterable
+from datetime import UTC, datetime
 
 from app.models.watchlist_item import WatchlistItem
 from app.repositories.news_repository import NewsRepository
@@ -189,10 +189,10 @@ def _source_weight_map() -> dict[str, float]:
 def _decayed_importance(score: float, last_seen_at: datetime | None) -> float:
     if last_seen_at is None:
         return score
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ts = last_seen_at
     if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
+        ts = ts.replace(tzinfo=UTC)
     hours = max(0, (now - ts).total_seconds()) / 3600
     return round(score * math.exp(-DECAY_LAMBDA * hours), 4)
 

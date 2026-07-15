@@ -6,7 +6,8 @@ never by runtime test-framework detection.
 """
 
 import time
-from typing import Any, Hashable
+from collections.abc import Hashable
+from typing import Any
 
 
 class SimpleTTLCache:

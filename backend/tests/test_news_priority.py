@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.services.news_priority import NewsPriorityItem, rank_news_items
 
@@ -25,7 +25,7 @@ def _item(
 
 
 def test_rank_news_items_prefers_primary_sector_tagged_stories_over_secondary_generic_stories() -> None:
-    now = datetime(2026, 3, 26, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 26, 10, 0, tzinfo=UTC)
     items = [
         _item(
             "Secondary generic market roundup",
@@ -49,7 +49,7 @@ def test_rank_news_items_prefers_primary_sector_tagged_stories_over_secondary_ge
 
 
 def test_rank_news_items_prefers_official_filing_signals_over_media_rewrites() -> None:
-    now = datetime(2026, 3, 26, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 26, 10, 0, tzinfo=UTC)
     items = [
         _item(
             "Reuters summary of SEC filing",
@@ -78,7 +78,7 @@ def test_rank_news_items_prefers_official_filing_signals_over_media_rewrites() -
 
 
 def test_rank_news_items_uses_recency_as_the_final_tiebreaker() -> None:
-    now = datetime(2026, 3, 26, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 26, 10, 0, tzinfo=UTC)
     items = [
         _item(
             "Older primary semiconductor update",

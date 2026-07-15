@@ -1,18 +1,14 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.simple_cache import SimpleTTLCache
-
-_route_cache_enabled = get_settings().route_cache_enabled
-_feed_layout_cache = SimpleTTLCache(ttl=10.0, enabled=_route_cache_enabled)
-_runtime_cache = SimpleTTLCache(ttl=5.0, enabled=_route_cache_enabled)
-
 from app.db.session import get_db_session
 from app.repositories.news_repository import NewsRepository
+from app.schemas.llm import NewsAnalysisView
 from app.schemas.news import (
     NewsArticleView,
     NewsDetailView,
@@ -23,13 +19,16 @@ from app.schemas.news import (
     NewsMentionView,
     NewsTopicRefView,
 )
-from app.schemas.llm import NewsAnalysisView
-from app.schemas.source_health import NewsRefreshResponse, SourceFetchResultView, NewsRuntimeView
+from app.schemas.source_health import NewsRefreshResponse, NewsRuntimeView, SourceFetchResultView
 from app.services.event_bus import get_event_bus
 from app.services.news_analysis import NewsAnalysisError, NewsAnalysisService
 from app.services.news_feed_layout import NewsFeedLayoutService
 from app.services.news_ingestion import NewsIngestionService
 from app.services.news_runtime import NewsRuntimeService
+
+_route_cache_enabled = get_settings().route_cache_enabled
+_feed_layout_cache = SimpleTTLCache(ttl=10.0, enabled=_route_cache_enabled)
+_runtime_cache = SimpleTTLCache(ttl=5.0, enabled=_route_cache_enabled)
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +74,7 @@ def refresh_news_sources(
                     NewsIngestionService(s).refresh_all()
                 except Exception as exc:
                     logger.warning(f"Background ingestion refresh failed: {exc}")
-        
+
         background_tasks.add_task(do_async_refresh)
         from fastapi.responses import JSONResponse
         return JSONResponse(

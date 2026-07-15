@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -12,7 +12,7 @@ from app.services.cleanup import DataCleanupWorker
 
 
 def test_data_cleanup_worker_deletes_expired_rows_in_batches() -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     worker = DataCleanupWorker(
         session_factory=SessionLocal,
         cleanup_interval_seconds=60.0,

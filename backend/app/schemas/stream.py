@@ -1,5 +1,6 @@
-from app.schemas.common import UTCDateTime
 from pydantic import BaseModel
+
+from app.schemas.common import UTCDateTime
 
 
 class MarketWorkerStatusView(BaseModel):

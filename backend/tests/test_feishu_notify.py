@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -256,7 +256,7 @@ def test_watchlist_permanent_failure_releases_latch_for_reenqueue():
     failing_sender = MagicMock()
     failing_sender.send_card.side_effect = FeishuClientError("bad config", retryable=False)
     with patch("app.services.notification_service.get_shared_feishu_sender", return_value=failing_sender):
-        service._delivery_tick(now=datetime.now(timezone.utc))
+        service._delivery_tick(now=datetime.now(UTC))
 
     service.on_watchlist_alert(payload)
 
@@ -308,12 +308,12 @@ def test_news_events_batch_into_single_card_when_window_is_due():
         "source_name": "Bloomberg",
         "market": "us",
     })
-    _set_all_notification_job_created_at(datetime.now(timezone.utc) - timedelta(minutes=2))
+    _set_all_notification_job_created_at(datetime.now(UTC) - timedelta(minutes=2))
 
     mock_sender = MagicMock()
     mock_sender.send_card.return_value = {"code": 0}
     with patch("app.services.notification_service.get_shared_feishu_sender", return_value=mock_sender):
-        service._delivery_tick(now=datetime.now(timezone.utc))
+        service._delivery_tick(now=datetime.now(UTC))
 
     jobs = _load_notification_jobs()
     batch_jobs = [job for job in jobs if job.event_type == "news_batch"]
@@ -335,7 +335,7 @@ def test_disabling_news_discards_pending_source_events():
     })
 
     _create_config(news_enabled=False, news_batch_interval_minutes=1)
-    service._delivery_tick(now=datetime.now(timezone.utc))
+    service._delivery_tick(now=datetime.now(UTC))
 
     assert _load_notification_jobs() == []
 
@@ -354,7 +354,7 @@ def test_delivery_tick_retries_retryable_failures_and_marks_sent_after_success()
         "risk_notes": "Single source risk.",
     })
 
-    first_now = datetime.now(timezone.utc)
+    first_now = datetime.now(UTC)
     retrying_sender = MagicMock()
     retrying_sender.send_card.side_effect = FeishuClientError("temporary timeout", retryable=True)
     with patch("app.services.notification_service.get_shared_feishu_sender", return_value=retrying_sender):
@@ -396,10 +396,10 @@ def test_notification_service_start_is_idempotent_for_delivery_thread():
 def test_feishu_config_secret_is_encrypted():
     from app.db.session import SessionLocal
     from app.models.feishu_notify_config import FeishuNotifyConfig
-    
+
     # 插入配置
     _create_config(app_secret="super_secret_token_123")
-    
+
     # 从数据库直接读取原始的记录
     with SessionLocal() as session:
         config = session.query(FeishuNotifyConfig).first()

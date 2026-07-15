@@ -1,15 +1,14 @@
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
-import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base
 from app.main import app
-from app.services.market_quote_producer import MarketQuoteProducer
 from app.models.worker_runtime_status import WorkerRuntimeStatus
+from app.services.market_quote_producer import MarketQuoteProducer
 from app.workers import market_quote_producer as market_quote_worker
 
 

@@ -30,7 +30,7 @@ def _make_fake_httpx_client(
     message_queue = list(message_responses)
 
     class _FakeHttpxClient:
-        instances: list["_FakeHttpxClient"] = []
+        instances: list[_FakeHttpxClient] = []
         posts: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []
 
         def __init__(self, *, timeout: float) -> None:
@@ -39,7 +39,7 @@ def _make_fake_httpx_client(
             self.instance_posts: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []
             self.__class__.instances.append(self)
 
-        def __enter__(self) -> "_FakeHttpxClient":
+        def __enter__(self) -> _FakeHttpxClient:
             return self
 
         def __exit__(self, exc_type, exc, tb) -> None:

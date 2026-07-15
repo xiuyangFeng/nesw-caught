@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 TIER_RANKS = {
     "primary": 3,
@@ -50,7 +50,7 @@ class NewsPriorityItem:
 
 
 def news_priority_key(item: NewsPriorityItem, *, now: datetime | None = None) -> tuple[object, ...]:
-    current_time = _normalize_datetime(now or datetime.now(timezone.utc))
+    current_time = _normalize_datetime(now or datetime.now(UTC))
     tier_rank = TIER_RANKS.get(item.source_tier, 0)
     sector_rank = 1 if item.sector_tag else 0
     official_rank = 1 if _has_official_signal(item) else 0
@@ -89,8 +89,8 @@ def _has_official_signal(item: NewsPriorityItem) -> bool:
 
 def _normalize_datetime(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _recency_rank(published_at: datetime | None, now: datetime) -> float:

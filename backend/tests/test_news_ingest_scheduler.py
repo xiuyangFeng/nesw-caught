@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.services.news_ingest_scheduler import NewsIngestScheduler
 from app.services.news_ingestion import RefreshSummary, SourceDefinition, SourceFetchResult
@@ -48,7 +48,7 @@ def _result(name: str, *, ok: bool) -> SourceFetchResult:
 
 
 def _summary(results: list[SourceFetchResult]) -> RefreshSummary:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     inserted_count = sum(r.inserted_count for r in results)
     fetched_count = sum(r.fetched_count for r in results)
     return RefreshSummary(

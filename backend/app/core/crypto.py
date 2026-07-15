@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import os
 import logging
+import os
+
 from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)

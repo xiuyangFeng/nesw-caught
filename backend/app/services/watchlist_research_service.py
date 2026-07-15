@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import re
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,6 @@ from app.schemas.watchlist import (
     WatchlistResearchDriverView,
 )
 from app.services.quote_service import QuoteService
-
 
 WINDOW_DAYS = 14
 MAX_DRIVERS_PER_CATEGORY = 2
@@ -116,7 +115,7 @@ class WatchlistResearchService:
         return WatchlistResearchBriefView(
             symbol=resolved_symbol,
             market=str(quote["market"]),
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             window_days=WINDOW_DAYS,
             top_action_level=top_action_level,
             has_unexplained_price_move=has_unexplained_price_move,
@@ -132,7 +131,7 @@ class WatchlistResearchService:
         )
 
     def _build_drivers(self, items: list[NewsItemSummary]) -> list[ClassifiedDriver]:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=WINDOW_DAYS)
+        cutoff = datetime.now(UTC) - timedelta(days=WINDOW_DAYS)
         dedupe_keys: set[tuple[ResearchDriverCategory, str]] = set()
         per_category: dict[ResearchDriverCategory, int] = {}
         drivers: list[ClassifiedDriver] = []
@@ -175,7 +174,7 @@ class WatchlistResearchService:
         return None
 
     def _action_level(self, category: ResearchDriverCategory, published_at: datetime) -> ResearchActionLevel:
-        age_days = max(0.0, (datetime.now(timezone.utc) - published_at).total_seconds() / 86400)
+        age_days = max(0.0, (datetime.now(UTC) - published_at).total_seconds() / 86400)
         if category in {"policy_macro", "company_action"}:
             return "act_now" if age_days <= 7 else "watch_today"
         if category == "supply_chain":

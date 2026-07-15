@@ -5,16 +5,20 @@ from logging.config import fileConfig
 # Add backend directory to sys.path so we can import app modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
+
 # Import all models to register them with Base.metadata
 from app.models.article_content import ArticleContent
 from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
-from app.models.notification_job import NotificationJob
 from app.models.news_stock_mention import NewsStockMention
+from app.models.notification_job import NotificationJob
 from app.models.price_snapshot import PriceSnapshot
 from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster
@@ -28,9 +32,6 @@ from app.models.x_signal import XSignal
 from app.models.x_signal_post_link import XSignalPostLink
 from app.models.x_source_health import XSourceHealth
 
-from sqlalchemy import engine_from_config, pool
-from alembic import context
-
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -40,9 +41,12 @@ settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# disable_existing_loggers must stay False: migrations also run inside the app
+# process (initialize_database() at startup / in tests) after app.* module
+# loggers already exist, and the fileConfig default (True) would permanently
+# silence all of them.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

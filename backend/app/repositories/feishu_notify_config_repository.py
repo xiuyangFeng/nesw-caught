@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,7 +37,7 @@ class FeishuNotifyConfigRepository:
         is_active: bool,
     ) -> FeishuNotifyConfig:
         existing = self.get_first()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         from app.core.crypto import encrypt_key
 

@@ -1,15 +1,15 @@
 import json
+from datetime import UTC, datetime
 from queue import Empty, Queue
-import anyio
 
+import anyio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
 from app.db.session import get_db_session
-from app.schemas.stream import MarketWorkerStatusView, StreamStatusResponse
 from app.repositories.worker_runtime_status_repository import WorkerRuntimeStatusRepository
+from app.schemas.stream import MarketWorkerStatusView, StreamStatusResponse
 from app.services.event_bus import get_event_bus
 
 router = APIRouter()
@@ -18,11 +18,11 @@ STREAM_KEEPALIVE_SECONDS = 15
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _serialize_timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def get_market_worker_runtime_status(session: Session) -> dict[str, object] | None:

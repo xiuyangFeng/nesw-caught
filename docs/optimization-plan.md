@@ -4,6 +4,8 @@
 > 形式:每条 = 问题诊断 → 方案对比 → 核心代码片段 → 风险点。具体落地交由后续 agent 生成。
 > 评分维度:**影响**(对性能/稳定性的收益)× **成本**(改动量/风险)。
 
+> **状态回填于 2026-07-14**：本文档撰写于 2026-06 优化诊断阶段，此后 2026-06~07 的迭代已陆续落地其中多数条目。以下在每条标题下追加 **状态** 标注（✅ 已完成 / ⚠️ 部分完成 / ⬜ 未做）+ 一行代码证据，均逐项对照当前仓库代码核实，原始分析与方案文字不做改动。
+
 ## 0. 全局判断(先理解问题)
 
 这是一个**单进程、多后台线程、SQLite 持久化**的实时管线系统:`NewsIngestScheduler / BackgroundQueueWorker / MarketQuoteProducer / cleanup / notification` 全部是 `BaseWorker` 派生的守护线程,共用一个 `SessionLocal`(同一个 SQLite 文件)。
@@ -18,29 +20,31 @@
 
 **最大的系统性风险不是单点慢,而是“长事务 + 阻塞 I/O 占着写锁”导致的全局抖动。** 下面 P0 几条都围绕这个根因。备忘录已确认约束:**<20 个源继续留在 SQLite**,所以方向是"把阻塞 I/O 移出事务 + 补索引",而不是急着换 Postgres。
 
-| # | 优化项 | 影响 | 成本 | 优先级 |
-|---|--------|------|------|--------|
-| 1 | pipeline 长事务里同步爬正文 | 高 | 中 | **P0** |
-| 2 | 缺 (published_at, id) 复合索引 | 高 | 低 | **P0** |
-| 3 | httpx.Client 每次调用新建 | 中 | 低 | **P0** |
-| 4 | log_token_usage 每次开新 Session | 中 | 低 | P1 |
-| 5 | 热路径内动态 import | 低 | 低 | P1 |
-| 6 | 内存 analysis_queue 不持久 | 高 | 中 | P1 |
-| 7 | 标题/摘要 LIKE 全表扫描(无 FTS) | 中 | 中 | P1 |
-| 8 | 同步路由 + 阻塞网络占 DB 连接 | 中 | 中 | P1 |
-| 9 | feed-layout / runtime 无缓存,每请求重算 | 中 | 低 | P2 |
-| 10 | 前端首屏一次性拉 200~300 条 | 中 | 低 | P2 |
-| 11 | classify/crawl 串行,未并发 | 中 | 中 | P2 |
-| 12 | 宽泛 `except Exception` 吞错 | 中 | 低 | P2 |
-| 13 | cleanup VACUUM 阻塞写 | 低 | 低 | P3 |
-| 14 | 仓库层缺 selectinload,详情页多次往返 | 低 | 低 | P3 |
-| 15 | 工程化:test_output.txt 入库、双份 AGENT 文档 | 低 | 低 | P3 |
+| # | 优化项 | 影响 | 成本 | 优先级 | 状态(回填于 2026-07-14) |
+|---|--------|------|------|--------|--------|
+| 1 | pipeline 长事务里同步爬正文 | 高 | 中 | **P0** | ✅ 已完成 |
+| 2 | 缺 (published_at, id) 复合索引 | 高 | 低 | **P0** | ✅ 已完成 |
+| 3 | httpx.Client 每次调用新建 | 中 | 低 | **P0** | ✅ 已完成 |
+| 4 | log_token_usage 每次开新 Session | 中 | 低 | P1 | ✅ 已完成 |
+| 5 | 热路径内动态 import | 低 | 低 | P1 | ✅ 已完成 |
+| 6 | 内存 analysis_queue 不持久 | 高 | 中 | P1 | ⚠️ 部分完成 |
+| 7 | 标题/摘要 LIKE 全表扫描(无 FTS) | 中 | 中 | P1 | ✅ 已完成 |
+| 8 | 同步路由 + 阻塞网络占 DB 连接 | 中 | 中 | P1 | ⚠️ 部分完成 |
+| 9 | feed-layout / runtime 无缓存,每请求重算 | 中 | 低 | P2 | ✅ 已完成 |
+| 10 | 前端首屏一次性拉 200~300 条 | 中 | 低 | P2 | ✅ 已完成 |
+| 11 | classify/crawl 串行,未并发 | 中 | 中 | P2 | ✅ 已完成 |
+| 12 | 宽泛 `except Exception` 吞错 | 中 | 低 | P2 | ⚠️ 部分完成 |
+| 13 | cleanup VACUUM 阻塞写 | 低 | 低 | P3 | ⚠️ 部分完成 |
+| 14 | 仓库层缺 selectinload,详情页多次往返 | 低 | 低 | P3 | ⬜ 未做 |
+| 15 | 工程化:test_output.txt 入库、双份 AGENT 文档 | 低 | 低 | P3 | ⚠️ 部分完成(拆分见下) |
 
 ---
 
 ## P0 — 先修这三条(根因)
 
 ### 1. pipeline 在写事务里同步爬全文,长时间占住 SQLite 写锁
+
+> **状态：✅ 已完成**——`backend/app/services/news_signal_pipeline.py` 已实现方案 A 两阶段拆分：`_ensure_articles`（阶段1）用独立 `session_factory` 逐条短事务提交正文抓取，`process_news_ids`（阶段2）仅在本地数据就绪后开事务做分类落库。
 
 `app/services/news_signal_pipeline.py::process_news_ids` 在**一个 session 内**,对每条无正文新闻 `crawl_and_extract_article(url)` 同步抓取(每条可能数秒),抓完 `flush`,再逐条 `classify`(可能含 LLM 调用)。整个过程事务未提交 → 这段时间内**所有其他 worker/请求的写操作都在排队**,这是 `database is locked` 的主要来源。
 
@@ -93,6 +97,8 @@ def _ensure_articles(self, news_ids: list[int]) -> None:
 
 ### 2. 列表/分页缺 `(published_at, id)` 复合索引,游标查询走不动索引
 
+> **状态：✅ 已完成**——alembic revision `backend/alembic/versions/6ca1c6bd4ed1_add_news_item_composite_indexes.py` 已建立 `ix_news_published_id`（published_at, id）与 `ix_news_market_published_id`（market, published_at, id）两个复合索引。
+
 `NewsRepository.list_recent_page` 排序是 `ORDER BY published_at IS NULL ASC, published_at DESC, id DESC`,游标 where 是 `published_at < ? OR (published_at = ? AND id < ?)`。模型里 `published_at`、`id` 各自有索引,但**没有复合索引**,SQLite 对这种 OR + 双列排序只能退化为扫描+排序。数据到几万行后首屏明显变慢。
 
 **核心代码(模型 + 迁移)**
@@ -124,6 +130,8 @@ def upgrade() -> None:
 ---
 
 ### 3. LLM Provider 每次请求都新建 `httpx.Client`,无连接池/keep-alive 复用
+
+> **状态：✅ 已完成**——`backend/app/services/http_pool.py` 已实现进程级单例 `get_llm_client`/`get_async_llm_client`/`get_crawl_client`（`httpx.Limits(max_keepalive_connections=20, max_connections=50)`），并在 `backend/app/main.py` 的 `lifespan` 退出钩子中调用 `close_llm_client()`/`aclose_async_llm_client()` 释放。
 
 `app/services/llm_providers.py::_request_completion` 里 `with httpx.Client(timeout=60.0, headers=...) as client:` —— 每次补全都新建并销毁客户端,丢失连接池与 TLS 复用,高频分类时握手开销显著,且 60s 硬编码超时无法配置。
 
@@ -173,6 +181,8 @@ response = client.post(
 
 ### 4. `log_token_usage` 每次 LLM 调用开一个新 Session 提交一行,写放大
 
+> **状态：✅ 已完成**——`backend/app/services/token_usage_buffer.py` 的 `TokenUsageBuffer` 已按 `flush_n`/`flush_secs` 阈值（默认 50 条或 10 秒）用 `bulk_insert_mappings` 批量落库，测试环境自动降阈值为 1 保证同步语义。
+
 `app/services/llm_providers.py::log_token_usage` 每次 `with SessionLocal() as session: session.add(usage); session.commit()`。高频分类时,这是叠加在 #1 写锁上的**额外独立写事务**。
 
 **方案:** 内存聚合 + 定时/批量落库(复用 BaseWorker),或至少做"每 N 条/每 T 秒 flush 一次"。
@@ -211,6 +221,8 @@ class TokenUsageBuffer:
 
 ### 5. 热路径内动态 import(循环依赖的临时绕法)
 
+> **状态：✅ 已完成**——`backend/app/workers/queue_worker.py` 顶部已静态导入 `from app.services.notification_service import ... get_notification_service`；`backend/app/services/news_signal_pipeline.py` 顶部已静态导入 `from app.services.ingestion.article_crawler import crawl_and_extract_article`，未再见循环体内的动态 import。
+
 `queue_worker.do_cycle` 里 `from app.main import get_notification_service`、`news_signal_pipeline` 循环里 `from app.services.ingestion.article_crawler import ...`。动态 import 每次走 import lock,且 `from app.main import` 是**反向依赖**(worker 依赖 main),架构上是味道。
 
 **核心代码:** `get_notification_service` 本就定义在 `app.services.notification_service`,直接从那里导入即可,删掉 main 里的转发:
@@ -227,6 +239,8 @@ from app.services.ingestion.article_crawler import crawl_and_extract_article
 ---
 
 ### 6. `analysis_queue` 是进程内 `queue.Queue`,重启即丢、无法水平扩展
+
+> **状态：⚠️ 部分完成**——`backend/app/workers/queue_worker.py` 中 `analysis_queue` 本身仍是内存 `queue.Queue`（未采用方案 A"去掉内存队列"），但 `do_cycle` 新增了自愈轮询：队列为空时按 `fallback_scan_interval_seconds`（默认 30 秒）定期调用 `pipeline.list_pending_news_ids(limit=50)` 兜底补扫，形成"内存队列即时通知 + 自愈轮询补偿"双轮驱动，缓解而非根除重启丢失问题。
 
 `app/workers/queue_worker.py` 顶部 `analysis_queue: queue.Queue[list[int]] = queue.Queue()`。系统已经为**通知**做了持久化队列(`notification_job` 表 + `lease_token` 租约),但**分析任务**还停在内存队列——一旦进程重启,已入库未分析的新闻丢失触发信号,只能靠 `signal_status` 兜底补扫。
 
@@ -256,6 +270,8 @@ def do_cycle(self) -> int:
 ---
 
 ### 7. 全文检索用 `LOWER(title) LIKE '%kw%'`,无法命中索引
+
+> **状态：✅ 已完成**——alembic revision `backend/alembic/versions/ec84dec88ae5_add_sqlite_fts5_fulltext_search.py` 已建 FTS5 虚表；`backend/app/repositories/news_repository.py` 已接入 `news_fts MATCH` 探测与查询（约第 61-71 行），未命中或异常时回退原 LIKE 逻辑。
 
 `NewsRepository.list_recent_page` 的 `q` 过滤是双 `LIKE '%...%'`,前置通配符 → 必然全表扫描;数据量上来后搜索是 O(N)。
 
@@ -288,6 +304,8 @@ if query:
 
 ### 8. 39 个路由仅 4 个 async,同步路由里跑阻塞网络会占满线程池 + 占住 DB 连接
 
+> **状态：⚠️ 部分完成**——`backend/app/api/routes/news.py` 的 `POST /news/refresh` 新增可选 `async_mode=true` 参数，走 `BackgroundTasks` + 202 响应，但**默认仍是同步阻塞**（`async_mode=False` 时在请求线程内直接跑 `refresh_all()`）；`POST /news/{id}/analyze` 完全未改造，仍是同步 `def` 路由在请求线程内直接跑 LLM 调用并持有 DB 连接。当前全仓 `backend/app/api/routes/*.py` 统计仅 2/82 个路由函数是 `async def`，结构性问题未解决。
+
 `/news/refresh`、`/news/{id}/analyze` 是 `def`(同步),内部做网络抓取/LLM 调用,运行在 FastAPI 默认线程池(40 线程)。同步路由通过 `Depends(get_db_session)` 在**整个请求周期持有一个 DB 连接**,阻塞网络期间连接空占。
 
 **方案:** 把"触发"和"执行"分离——重活交给已有 worker,路由只入队即返回 `202`。
@@ -307,6 +325,8 @@ def refresh_news_sources() -> dict:
 ## P2
 
 ### 9. `feed-layout` / `runtime` 每次请求全量重算,无缓存
+
+> **状态：✅ 已完成**——`backend/app/api/routes/news.py` 引入 `SimpleTTLCache`（`_feed_layout_cache` ttl=10s、`_runtime_cache` ttl=5s），并通过 `register_cache_invalidation` 订阅 `news.signals_processed`/`news.created_batch`/`news.updated` 事件在写路径后清空缓存。
 
 `NewsFeedLayoutService.build`(616 行,最大的 service)每次请求重新聚合 events/topics/stream;Dashboard 轮询会反复打这条重查询。
 
@@ -332,6 +352,8 @@ def get_news_feed_layout(market, ...):
 
 ### 10. 前端首屏一次性拉 200(dashboard)/300(feed)条
 
+> **状态：✅ 已完成**——`frontend/src/stores/newsStore.ts` 中 `dashboardQuery`、`feedQuery`、`sentimentQuery` 均已改为 `ref<NewsQuery>({ limit: 50 })`（原 200/300），滚动加载复用既有 `loadMoreFeedNews`。
+
 `newsStore` 默认 `dashboardQuery {limit:200}`、`feedQuery {limit:300}`。后端有游标分页、前端有 `useVirtualList`,但初始负载仍偏大,首屏 TTFB/解析变慢。
 
 **方案:** 首屏拉 50,滚动用已有 `loadMoreFeedNews` 增量;dashboard 概览类只取聚合数,不拉明细列表。
@@ -345,6 +367,8 @@ const feedQuery = ref<NewsQuery>({ limit: 50 });   // 300 -> 50,靠游标续拉
 ---
 
 ### 11. pipeline 内 classify / crawl 串行,未利用并发
+
+> **状态：✅ 已完成**——`backend/app/services/news_signal_pipeline.py` 抓取阶段已用 `ThreadPoolExecutor(max_workers=min(len(to_crawl), 8))` 并发爬正文；分类阶段也追加了 `ThreadPoolExecutor(max_workers=MAX_CLASSIFY_WORKERS)`（=4）并发分类，比原方案"分类阶段保持串行"更进一步。
 
 阶段1 抓正文(I/O 密集)逐条串行;一批 50 条就是 50 次串行网络。
 
@@ -367,6 +391,8 @@ def _ensure_articles(self, news_ids):
 
 ### 12. 大量宽泛 `except Exception:` 静默吞错,问题不可观测
 
+> **状态：⚠️ 部分完成**——`news_signal_pipeline.py` 的爬取异常已从"静默跳过"改为显式落库 `extract_status="failed"`（非无声丢弃）；但未见新增专用 `metrics.incr` 类可观测计数器，`news_signal_pipeline.py`/`queue_worker.py`/`llm_providers.py`/`event_bus.py` 中仍各有宽泛 `except Exception`，未按"可恢复/不可恢复"统一分层处理。
+
 `event_bus`、`queue_worker`、`pipeline`、`llm_providers` 等多处 `except Exception` 仅 log warning/继续。后台线程出错被吞,表现为"数据莫名不更新"。
 
 **方案:** 区分**可恢复**(记 metric + 退避重试)与**不可恢复**(标记数据状态 + 告警);至少把吞掉的异常计数暴露到 `worker_runtime_status`(已有该表)。
@@ -385,6 +411,9 @@ except Exception as exc:
 ## P3(快速清理 / 工程化)
 
 ### 13. cleanup 的 `VACUUM` 会拿独占锁,阻塞所有写
+
+> **状态：⚠️ 部分完成**——`backend/app/services/cleanup.py` 已新增 `_run_incremental_vacuum` 定期执行 `PRAGMA incremental_vacuum` 替代整库 `VACUUM`；但 `backend/app/db/session.py` 的连接层仅设置了 `journal_mode`/`synchronous`/`busy_timeout`/`foreign_keys`，未见设置 `PRAGMA auto_vacuum=INCREMENTAL`，若既有库未以 incremental 模式创建，该 pragma 对其可能是空操作，需要补一次性迁移确认。
+
 `data_cleanup_vacuum_interval_seconds=604800`(周级)。VACUUM 期间 SQLite 全库加锁。建议改用 `PRAGMA incremental_vacuum` + `auto_vacuum=INCREMENTAL`,或仅在低峰窗口执行并设 `PRAGMA busy_timeout`。
 
 ```python
@@ -394,6 +423,9 @@ session.execute(text("PRAGMA incremental_vacuum(1000)")) # 每次回收有限页
 ```
 
 ### 14. 详情页 `get_news_detail` 顺序 4 次查询,可合并
+
+> **状态：⬜ 未做**——仓库内未检索到任何 `selectinload` 用法；`backend/app/api/routes/news.py::get_news_detail` 仍是 `repository.get_by_id` + `get_article` + `list_mentions` + `get_topic_for_news` 4 次串行仓库查询，与本条描述现状完全一致，未合并。
+
 `news.py` 里 `get_by_id` + `get_article` + `list_mentions` + `get_topic_for_news` 串行 4 次往返。可用 `selectinload` 关系一次取,或并入一个聚合查询。收益不大但顺手。
 
 ```python
@@ -406,6 +438,12 @@ stmt = (select(NewsItem)
 (前提:在模型上补 `relationship` 定义。)
 
 ### 15. 仓库整洁度
+
+> **状态：⚠️ 部分完成**（三项子任务状态不同，分别核实如下）：
+> - `test_output.txt` 入库 → ✅ 已完成，`.gitignore` 已加入 `test_output.txt` / `**/test_output.txt` 规则，仓库中未见该文件残留。
+> - 双份 AGENT 文档 → ✅ 已完成，本轮文档治理已将 `ANGENT.md` 替换为指向 `AGENTS.md` 的指针说明，`AGENTS.md` 保持为唯一权威文档。
+> - `requirements.txt` 与 `environment.yml` 双依赖源统一 → ⬜ 未做，`environment.yml` 的 `pip:` 段仍通过 `-r requirements.txt` 引用独立依赖文件，未合并、未加锁文件（无 lock 文件）。
+
 - `test_output.txt`(42KB)与 `frontend/test_output.txt` 像是测试快照被误入库 —— 应进 `.gitignore`。
 - 同时存在 `AGENTS.md` / `ANGENT.md` / `AGENT.md` 三份近似文档(含拼写错误版),建议合并为单一 `AGENTS.md`,避免 agent 读到过期指令。
 - `requirements.txt` 与 `environment.yml` 双依赖源,建议统一(pin 版本 + 锁文件)。

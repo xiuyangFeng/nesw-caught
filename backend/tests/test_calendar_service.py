@@ -7,7 +7,7 @@ demo 自选股数据完全隔离、让断言确定化，这里打桩 ``Watchlist
 TTL 缓存命中（第二次不再调用 yfinance）。
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,7 +17,6 @@ from app.models.watchlist_item import WatchlistItem
 from app.services import calendar_service as calendar_module
 from app.services.calendar_service import CalendarService, clear_calendar_cache
 
-
 # 测试用自选股 symbol（纯字母 -> 归一化为美股，provider_symbol 与 symbol 相同）。
 SYM_A = "CALTSTA"
 SYM_B = "CALTSTB"
@@ -26,7 +25,7 @@ SYM_D = "CALTSTD"
 
 
 def _today():
-    return datetime.now(timezone.utc).date()
+    return datetime.now(UTC).date()
 
 
 def _d(days: int):

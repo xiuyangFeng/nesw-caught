@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from app.schemas.research import EvaluationMetrics, MarketRelevanceSample
 from app.services.news_signal_classifier import NewsSignalClassifier

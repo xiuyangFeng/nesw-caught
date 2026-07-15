@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import uuid
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -27,8 +27,8 @@ def _seed_news(session, *, title: str, summary: str, symbol: str, market: str, p
         language="en",
         sentiment_label="neutral",
         sentiment_score=None,
-        published_at=datetime.now(timezone.utc) - timedelta(hours=published_hours_ago),
-        fetched_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC) - timedelta(hours=published_hours_ago),
+        fetched_at=datetime.now(UTC),
         ingest_status="ingested",
     )
     session.add(news)
@@ -79,7 +79,7 @@ def _save_snapshot(session, *, symbol: str, market: str, provider_symbol: str, c
             provider_symbol=provider_symbol,
             quote_status="ok",
             status_message=None,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
     )
     session.flush()
@@ -98,6 +98,22 @@ def _cleanup_symbol_data(session, symbol: str) -> None:
             session.delete(article)
         for mention in session.scalars(select(NewsStockMention).where(NewsStockMention.news_id == news.id)):
             session.delete(mention)
+        # Flush the child-row deletes before deleting the parent NewsItem.
+        # NewsStockMention/ArticleContent have a DB-level ON DELETE CASCADE
+        # FK to news_item (SQLite has PRAGMA foreign_keys=ON), but this
+        # codebase intentionally does not declare ORM relationship()s
+        # between these models (explicit repository queries instead of ORM
+        # cascade). Without a relationship(), SQLAlchemy's unit-of-work has
+        # no dependency edge between the two mappers, so within a single
+        # flush it does not guarantee child-before-parent DELETE ordering.
+        # If DELETE FROM news_item were emitted first, the DB's own CASCADE
+        # would remove the mention/article rows, and the explicit DELETE
+        # statements queued above would then match 0 rows, triggering
+        # "SAWarning: DELETE statement ... expected to delete 1 row(s); 0
+        # were matched". Flushing here forces the child deletes to hit the
+        # database before the parent delete is even queued, so ordering is
+        # deterministic and no rows are cascade-deleted out from under us.
+        session.flush()
         session.delete(news)
     for snapshot in session.scalars(select(PriceSnapshot).where(PriceSnapshot.symbol == symbol)):
         session.delete(snapshot)
@@ -244,7 +260,7 @@ def test_watchlist_research_brief_returns_none_top_action_when_no_drivers_exist(
 
 
 def test_watchlist_ai_insight_api() -> None:
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
     client = TestClient(app)
 
     with SessionLocal() as session:

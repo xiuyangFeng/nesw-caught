@@ -1,8 +1,7 @@
+from fastapi.testclient import TestClient
 from sqlalchemy import inspect, text
 
 from app.db.session import engine
-from fastapi.testclient import TestClient
-
 from app.main import app
 
 

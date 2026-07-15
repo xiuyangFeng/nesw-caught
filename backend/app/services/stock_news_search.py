@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from hashlib import sha256
 
 import httpx
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _build_default_queries(symbol: str, display_name: str, market: str) -> list[str]:
@@ -44,8 +43,6 @@ def _is_cjk(text: str) -> bool:
 def _language_for_market(market: str) -> str:
     return "zh" if market in ("cn", "hk") else "en"
 
-
-from concurrent.futures import ThreadPoolExecutor
 
 _search_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="stock-news-search")
 
@@ -201,9 +198,9 @@ class _ExternalSearchWorker:
             if config is None:
                 return None
 
-            from app.services.llm_providers import LLMProviderError, build_provider
+            from app.services.llm_providers import build_provider
 
-            provider = build_provider(config)
+            build_provider(config)
             prompt = (
                 f"Given stock symbol '{symbol}' (market: {market}, display name: '{display_name}'), "
                 f"generate a JSON array of 3-5 search keywords or aliases for finding recent news about this company. "

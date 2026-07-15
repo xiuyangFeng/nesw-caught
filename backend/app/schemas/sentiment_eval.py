@@ -21,7 +21,7 @@ class SentimentGoldSample(BaseModel):
     predicted_sentiment: SentimentLabel | None = None
 
     @model_validator(mode="after")
-    def validate_text(self) -> "SentimentGoldSample":
+    def validate_text(self) -> SentimentGoldSample:
         if not self.text.strip():
             raise ValueError("text is required")
         return self
@@ -66,7 +66,7 @@ class SentimentABComparison(BaseModel):
     reason: str
 
     @model_validator(mode="after")
-    def validate_reason(self) -> "SentimentABComparison":
+    def validate_reason(self) -> SentimentABComparison:
         if not self.reason.strip():
             raise ValueError("reason is required")
         return self

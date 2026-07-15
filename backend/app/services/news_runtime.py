@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
 from app.schemas.source_health import NewsRuntimeMarketView, NewsRuntimeSourceView, NewsRuntimeView
 from app.services.event_bus import get_event_bus
-from app.services.news_ingestion import SourceDefinition, load_sources
+from app.services.news_ingestion import load_sources
 
 RECENT_INCREMENTAL_WINDOW = timedelta(minutes=5)
 RECENT_MARKET_NEWS_WINDOW = timedelta(minutes=30)
@@ -19,15 +19,15 @@ RECENT_SOURCE_MODE_WINDOW = timedelta(minutes=30)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _normalize_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _source_status(*, now: datetime, last_success_at: datetime | None, consecutive_failures: int, cadence_seconds: int) -> str:

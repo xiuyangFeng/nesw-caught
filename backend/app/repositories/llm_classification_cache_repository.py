@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ class LLMClassificationCacheRepository:
                 content_hash=content_hash,
                 result_json=result_json,
                 model_name=model_name,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             self.session.add(entry)
         else:

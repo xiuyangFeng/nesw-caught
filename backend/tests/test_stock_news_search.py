@@ -1,7 +1,7 @@
 """Tests for stock news auto-search when adding watchlist items."""
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -19,7 +19,7 @@ def _seed_news_for_symbol(session, title: str, symbol_hint: str, market: str = "
     import uuid
     from hashlib import sha256
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     unique_id = uuid.uuid4().hex[:16]
     url = f"https://example.com/test/{unique_id}"
     url_hash = sha256(url.encode()).hexdigest()
@@ -53,6 +53,15 @@ def _cleanup_news(session, news_id: int) -> None:
         session.delete(ac)
     for m in session.scalars(select(NewsStockMention).where(NewsStockMention.news_id == news_id)):
         session.delete(m)
+    # Flush the child-row deletes before deleting the parent NewsItem.
+    # NewsStockMention/ArticleContent have a DB-level ON DELETE CASCADE FK
+    # to news_item (SQLite has PRAGMA foreign_keys=ON), but this codebase
+    # intentionally does not declare ORM relationship()s between these
+    # models, so the unit-of-work has no dependency edge to order the
+    # DELETEs across mappers. Without this flush, "DELETE FROM news_item"
+    # can be emitted first, the DB cascade removes the child rows, and the
+    # explicit DELETEs queued above then match 0 rows (SAWarning).
+    session.flush()
     news = session.scalar(select(NewsItem).where(NewsItem.id == news_id))
     if news:
         session.delete(news)
@@ -152,7 +161,7 @@ def test_external_search_persists_tavily_results():
             canonical_url="https://example.com/tesla-new-model-ext-test",
             summary="Tesla announced a new vehicle model today.",
             content_text="Tesla announced a new vehicle model today with improved range.",
-            published_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            published_at=datetime.now(UTC) - timedelta(hours=2),
         ),
     ]
 
@@ -174,7 +183,7 @@ def test_external_search_persists_tavily_results():
 
         from hashlib import sha256
 
-        url_hash = sha256("https://example.com/tesla-new-model-ext-test".encode()).hexdigest()
+        url_hash = sha256(b"https://example.com/tesla-new-model-ext-test").hexdigest()
         news = session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
         assert news is not None
         assert news.source_name == "web_search"
@@ -199,7 +208,7 @@ def test_external_search_falls_back_to_google_news():
             canonical_url="https://example.com/amazon-cloud-ext-test",
             summary="Amazon Web Services introduces new features.",
             content_text=None,
-            published_at=datetime.now(timezone.utc) - timedelta(hours=3),
+            published_at=datetime.now(UTC) - timedelta(hours=3),
         ),
     ]
 
@@ -221,7 +230,7 @@ def test_external_search_falls_back_to_google_news():
 
         from hashlib import sha256
 
-        url_hash = sha256("https://example.com/amazon-cloud-ext-test".encode()).hexdigest()
+        url_hash = sha256(b"https://example.com/amazon-cloud-ext-test").hexdigest()
         news = session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
         assert news is not None
 
@@ -247,7 +256,7 @@ def test_watchlist_create_triggers_sync_match():
 
     with patch(
         "app.api.routes.watchlist.StockNewsSearchService.trigger_async_external_search"
-    ) as mock_async:
+    ):
         response = client.post(
             "/api/watchlist",
             json={
@@ -277,6 +286,12 @@ def test_watchlist_create_triggers_sync_match():
 
         for m in session.scalars(select(NewsStockMention).where(NewsStockMention.symbol == "NVDA")):
             session.delete(m)
+        # Flush the mention deletes before deleting the parent NewsItem (see
+        # _cleanup_news above for why: no ORM relationship() means the
+        # unit-of-work can otherwise emit the parent DELETE first and race
+        # the DB's own ON DELETE CASCADE, producing a 0-row-matched
+        # SAWarning on the redundant explicit mention DELETE).
+        session.flush()
 
         from app.models.watchlist_item import WatchlistItem
 

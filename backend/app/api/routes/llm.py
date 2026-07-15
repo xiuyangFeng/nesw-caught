@@ -1,24 +1,26 @@
 import asyncio
 import json
 import time
+from datetime import UTC
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.repositories.news_repository import NewsRepository
 from app.schemas.llm import (
+    LLMChatRequest,
     LLMConfigUpsertRequest,
     LLMConfigView,
     LLMConnectionTestView,
     LLMStatsView,
     LLMTranslateRequest,
     LLMTranslateView,
-    LLMChatRequest,
 )
-from app.services.llm_providers import LLMProviderError, build_provider, build_async_provider
+from app.services.llm_providers import LLMProviderError, build_async_provider, build_provider
 
 router = APIRouter()
 TRANSLATE_MAX_LENGTH = 4000
@@ -27,7 +29,7 @@ TRANSLATE_MAX_LENGTH = 4000
 def _to_config_view(config, configured: bool = True) -> LLMConfigView:
     if config is None:
         return LLMConfigView(configured=False)
-    
+
     plain_key = config.decrypted_api_key
     masked_key = None
     if plain_key:
@@ -208,7 +210,7 @@ async def chat_with_llm(
 
     # 构造消息上下文
     messages = []
-    
+
     # 角色设定与新闻上下文
     system_prompt = "你是一个资深的金融投资与分析助手，能给出深刻的新闻解读和分析。"
     if payload.news_id is not None:
@@ -269,7 +271,7 @@ async def chat_with_llm(
                 "X-Accel-Buffering": "no",
             },
         )
-    
+
     # 2. 非流式返回（普通 JSON）
     else:
         try:
@@ -306,7 +308,7 @@ def _compute_cost_usd(
 
 @router.get("/stats", response_model=LLMStatsView)
 def get_llm_stats(session: Session = Depends(get_db_session)):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from app.models.llm_token_usage import LLMTokenUsage
 
@@ -382,8 +384,8 @@ def get_llm_stats(session: Session = Depends(get_db_session)):
     }
 
     # 本月累计花费 vs 月度预算（取默认模型配置上的 monthly_budget_usd）。
-    now = datetime.now(timezone.utc)
-    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    now = datetime.now(UTC)
+    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
     stmt_month = (
         select(
             LLMTokenUsage.model_name,

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 from fastapi import HTTPException
@@ -239,7 +239,7 @@ class MarketChartService:
             dt = value
         else:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt.astimezone(timezone.utc).date().isoformat()
+        return dt.astimezone(UTC).date().isoformat()
 
     def _format_time(self, value) -> str:
         return pd.Timestamp(value).strftime("%Y-%m-%d")
@@ -263,7 +263,7 @@ class MarketChartService:
                 return json.loads(cached_payload)
 
         entry = self._cache.get(cache_key)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if entry is None or entry.expires_at < now:
             return None
         return json.loads(entry.payload_json)
@@ -277,7 +277,7 @@ class MarketChartService:
             except Exception:
                 pass
         self._cache[cache_key] = _CacheEntry(
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+            expires_at=datetime.now(UTC) + timedelta(seconds=ttl_seconds),
             payload_json=payload_json,
         )
 

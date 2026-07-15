@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -280,7 +280,7 @@ class CalendarService:
         days: int,
         skipped_count: int,
     ) -> dict:
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         events: list[dict] = []
         summaries: list[dict] = []
 
@@ -332,7 +332,7 @@ class CalendarService:
             "events": events,
             "summaries": summaries,
             "skipped_count": skipped_count,
-            "generated_at": datetime.now(timezone.utc),
+            "generated_at": datetime.now(UTC),
         }
 
     def _maybe_write_snapshot(
@@ -345,7 +345,7 @@ class CalendarService:
             return
         try:
             payload = {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
                 "symbols": {
                     symbol: {
                         "display_name": display_by_symbol.get(symbol),

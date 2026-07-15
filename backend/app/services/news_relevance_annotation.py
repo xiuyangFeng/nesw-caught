@@ -7,7 +7,11 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
-from app.schemas.research import MarketRelevanceAnnotation, MarketRelevanceLabel, MarketRelevanceSample
+from app.schemas.research import (
+    MarketRelevanceAnnotation,
+    MarketRelevanceLabel,
+    MarketRelevanceSample,
+)
 from app.services.llm_providers import LLMProviderError, build_provider
 from app.services.news_relevance_dataset import save_samples
 
@@ -33,7 +37,7 @@ class MarketRelevancePrediction(BaseModel):
     reason: str
 
     @model_validator(mode="after")
-    def validate_noise_type(self) -> "MarketRelevancePrediction":
+    def validate_noise_type(self) -> MarketRelevancePrediction:
         if self.market_relevant and self.noise_type is not None:
             raise ValueError("noise_type must be null when market_relevant is true")
         if not self.market_relevant and self.noise_type is None:

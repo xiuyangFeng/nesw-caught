@@ -1,21 +1,28 @@
 import logging
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.session import get_db_session
+from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import NewsItemSummary
-from datetime import datetime, timedelta, timezone
-from app.schemas.watchlist import WatchlistCandidateView, WatchlistItemCreate, WatchlistItemUpdate, WatchlistItemView, WatchlistResearchBriefView, WatchlistAiInsightView
+from app.schemas.watchlist import (
+    WatchlistAiInsightView,
+    WatchlistCandidateView,
+    WatchlistItemCreate,
+    WatchlistItemUpdate,
+    WatchlistItemView,
+    WatchlistResearchBriefView,
+)
+from app.services.llm_providers import build_provider
 from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
 from app.services.stock_news_search import StockNewsSearchService
-from app.services.watchlist_research_service import WatchlistResearchService
 from app.services.watchlist_candidates import list_watchlist_candidates
-from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
-from app.services.llm_providers import build_provider
+from app.services.watchlist_research_service import WatchlistResearchService
 
 logger = logging.getLogger(__name__)
 
@@ -163,13 +170,13 @@ def get_watchlist_ai_insight(
     news_items = news_mentions_repo.list_related_news(resolved_symbol)
 
     # Filter news from the last 7 days (maximum 10 items)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     limit_date = now - timedelta(days=7)
     recent_news = []
     for n in news_items:
         pub_time = n.published_at or n.fetched_at
         if pub_time.tzinfo is None:
-            pub_time = pub_time.replace(tzinfo=timezone.utc)
+            pub_time = pub_time.replace(tzinfo=UTC)
         if pub_time >= limit_date:
             recent_news.append(n)
             if len(recent_news) >= 10:
@@ -179,7 +186,7 @@ def get_watchlist_ai_insight(
         return WatchlistAiInsightView(
             symbol=resolved_symbol,
             insight_text="暂无该股票的近期关联新闻，无法生成 AI 研判。",
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
 
     llm_repo = LLMProviderConfigRepository(session)
@@ -226,6 +233,6 @@ def get_watchlist_ai_insight(
     return WatchlistAiInsightView(
         symbol=resolved_symbol,
         insight_text=insight_text,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         failover=failover_info
     )

@@ -2,6 +2,141 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-15 修复迁移日志禁用与测试真实联网两个遗留问题
+
+- 修改人：Claude
+- 修改范围：十方向优化中子智能体发现、当时超出各自任务范围未修的两个真实问题。
+- 变更内容：
+  1. **修复 app.\* logger 被全局静默**：`backend/alembic/env.py` 的 `fileConfig()` 使用默认 `disable_existing_loggers=True`，而 `initialize_database()` 在生产启动（`main.py`）与测试会话中都会在应用模块已导入之后执行迁移——导致所有既存 `app.*` 模块级 logger 被置为 `disabled=True`，"代码里有日志、实际打不出来"。改为 `fileConfig(..., disable_existing_loggers=False)` 并加注释说明原因；新增回归测试 `backend/tests/test_logging_config.py`（TDD：先写测试确认复现，再修复转绿）。
+  2. **掐断单元测试的真实联网 + 修复 SSLSocket 泄漏**：`test_news_signal_pipeline.py` 的多个用例以 `https://example.com/...` 造新闻后直接调用 `process_news_ids`，`_ensure_articles` 阶段未被 mock，会经共享爬虫连接池真实抓取 example.com（用户环境下经本机代理隧道），产生 unclosed SSLSocket ResourceWarning 且测试非确定、被网络拖慢。新增文件级 autouse fixture 把 `app.services.news_signal_pipeline.crawl_and_extract_article` 替换为抛错桩（走管线已支持的爬取失败优雅降级路径，断言均基于标题/摘要分类，行为不受影响）；同时在 `conftest.py` 会话收尾调用 `http_pool.close_llm_client()`，对齐生产 lifespan 的连接池关闭行为，兜底防止未来任何用到共享池的测试在进程退出时留下未关闭连接。
+- 影响文件：backend/alembic/env.py、backend/tests/test_logging_config.py（新增）、backend/tests/test_news_signal_pipeline.py、backend/tests/conftest.py。
+- 接口/数据结构变化：无。
+- 验证情况：`conda run -n news-caught pytest backend/tests -q -W always::ResourceWarning` → **459 passed / 0 warnings**（含新增回归测试；此前该文件单测有 2 条 unclosed SSLSocket）；`ruff check backend` → All checks passed；全量测试耗时由 ~8s 降至 ~5.7s（移除真实网络请求）。
+- 风险/后续事项：`test_article_crawler.py` 等其余涉爬取的测试已确认自带 `patch("httpx.Client.get")` mock，无联网逃逸；若未来新增直接驱动管线的测试，需同样 stub 爬取或复用本 fixture 模式。
+
+## 2026-07-14 十方向优化并行开发集成（总述）
+
+- 修改人：Claude（主线集成，子智能体并行开发）
+- 修改范围：本次由 10 个子智能体分两波并行完成 10 个优化方向（明细见下方 10 条独立记录）：后端 4 项（ruff lint 治理、异常处理治理、测试警告清零、x_monitor 服务拆分）、前端 5 项（mock.ts 模块化、OpsHealthView 组件化、六视图测试补齐、DashboardView 瘦身、Kline 绘图逻辑下沉）、工程化 1 项（文档治理）。
+- 基础设施改动：`backend/tests/conftest.py` 测试库路径支持 `NEWS_CAUGHT_TEST_DB` 环境变量覆盖（默认仍为 `backend/data/app_test.db`），使多智能体/多 worktree 并行跑 pytest 时可用隔离库文件，互不锁库。
+- 影响文件：见下方各明细条目；conftest.py（基础设施）。
+- 接口/数据结构变化：无（全部为重构、测试、lint、文档改动）。
+- 验证情况（集成后全量）：`conda run -n news-caught ruff check backend` → All checks passed；`conda run -n news-caught pytest backend/tests -q` → **458 passed / 0 warnings**（基线 449 passed / 18 warnings）；前端 `npx vitest run` → **74 files / 355 passed**（基线 262）；`npm run build`（vue-tsc + vite）通过；`create_app()` 导入正常。
+- 风险/后续事项（子智能体审查中发现、本次未处理的真实问题，建议排期）：
+  1. 【高优先级】`backend/alembic/env.py` 的 `fileConfig()` 默认 `disable_existing_loggers=True`，`initialize_database()` 执行后（生产启动也触发）会全局禁用绝大多数 `app.*` 模块级 logger——"代码里有日志、实际打不出来"，建议改为 `disable_existing_loggers=False` 或 dictConfig。
+  2. `news_signal_pipeline` 测试下观察到 unclosed SSLSocket 的 ResourceWarning，指向 services 层某 HTTP 客户端未显式关闭。
+  3. `docs/optimization-plan.md` 回填后仍开放的项：#14 详情页 selectinload 未做（`get_news_detail` 仍 4 次串行查询）、#6 内存队列持久化、#8 路由异步化、#13 incremental_vacuum 缺 auto_vacuum 前置、requirements.txt/environment.yml 双依赖源未统一。
+  4. `quote_provider.py::fetch_quotes_batch` 异常兜底中"保留部分成功字段"的原始意图从未生效（本次仅显式化死代码，未改行为），如需该能力需单独重构。
+
+## 2026-07-14 后端 ruff lint 治理（规则收紧 + 现状清零）
+
+- 修改人：Claude（子智能体-Lint治理）
+- 修改范围：`backend/` 下全部 Python 文件的 lint 修复；`backend/pyproject.toml` 的 ruff 规则配置。
+- 变更内容：
+  1. 清零 `ruff check backend` 在默认隐式规则集（E4/E7/E9/F）下的 109 处错误：约 68 处经 `--fix` 自动修复，其中 38 处（`alembic/env.py` 的模型注册 import、`app/services/news_ingestion.py` 的拆包兼容 facade、`app/main.py` 的 `NewsRepository`/`NewsSignalPipelineService`）自动修复会删除运行时仍被依赖的 import（Alembic autogenerate 副作用注册 / 跨模块 re-export / 测试 monkeypatch 依赖），已回退并改用 `per-file-ignores` 或 `# noqa: F401` 显式保留；其余 41 处（E402 顺序、F821 未定义名、F841 未用变量）手工修复。
+  2. `[tool.ruff.lint]` 新增 `select = ["E", "F", "W", "I", "UP", "B"]`，并对 `E501`（无格式化工具接入，历史长行代价大于收益）、`B008`（FastAPI `Depends()` 惯用法误报）设全局 `ignore`；新增 3 处 `per-file-ignores`（`x_monitor/__init__.py`、`alembic/env.py`、`news_ingestion.py`，均为拆包 facade 或副作用 import）。收紧后新增的 1097 处违规（主要是 I 排序与 UP 现代化）全部清零，其中 589 处自动修复，5 处 `zip()` 补 `strict=`（均为让既有等长假设显式化，非行为变更），1 处清理迁移文件尾随空格。
+  3. 顺手修复 `notification_delivery_worker.py` 缺失的 `from typing import Any`（F821，此前因 `from __future__ import annotations` 未在运行时报错）；简化 `quote_provider.py::fetch_quotes_batch` 异常兜底中恒为 `None` 的死代码引用（行为不变，仅去掉对错误作用域变量的引用）。
+- 影响文件：`backend/pyproject.toml`；`backend/app/**/*.py`（路由/服务/worker/模型，主要为 import 清理与排序、Py3.11 语法现代化）；`backend/alembic/env.py` 及 `backend/alembic/versions/*.py`；`backend/tests/*.py`（未用 import/变量清理、`zip(strict=)`）。
+- 接口/数据结构变化：无。
+- 验证情况：`conda run -n news-caught ruff check backend` → All checks passed；`conda run -n news-caught python -m pytest backend/tests -q` → 458 passed（与既定基线一致，无回归）；`PYTHONPATH=backend conda run -n news-caught python -c "from app.main import create_app; create_app()"` → OK。
+- 风险/后续事项：`E501`/`B008` 目前全局豁免，若后续接入 `ruff format` 或需要更严格的 FastAPI 静态检查可重新评估；`fetch_quotes_batch` 的死代码提示批量报价失败时未能保留部分成功字段的原始意图从未实现，如需要该能力需单独重构（本次未做行为变更）。
+
+## 2026-07-14 异常处理治理——workers/ 与 services/ingestion/
+
+- 修改人：Claude（子智能体-异常治理）
+- 修改范围：backend/app/workers/*.py、backend/app/services/ingestion/*.py 的宽泛异常处理审查与日志质量补强。
+- 变更内容：
+  1. fetcher.py::fetch_source_items 与 persister.py::persist_outcome/hydrate_minimax_detail_item：三处 ThreadPoolExecutor/串行批处理边界的 `except Exception` 原先完全没有日志（吞错不留痕），现补充带 source 名称/类型/url/latency 上下文的 logger.warning(exc_info=True) 或 logger.exception；因这些边界是"防批处理中断"的设计要点、且第三方异常类型（httpx 非 HTTPError 分支如 InvalidURL、ET.ParseError、json.JSONDecodeError、bs4 杂项异常）无法安全穷举，兜底范围保持 Exception 不收窄。
+  2. base_worker.py::_record_success/_record_failure：尝试收窄为 sqlalchemy.exc.SQLAlchemyError，但被 test_news_ingest_scheduler.py::test_scheduler_drains_signal_backlog 的非标准 FakeSession 替身（缺 .scalar()）暴露出真实回归——AttributeError 会穿透 run_cycle() 破坏"从不崩溃"契约，已回滚为 except Exception 并补充说明注释，原有日志（worker 名称 + .exception 全栈）已合规。
+  3. 其余 8 处 except（digest_worker.py trigger_fn 兜底、queue_worker.py 通知入队兜底、article_crawler.py 网络/解析兜底、parser.py/sources.py/utils.py 已窄类型）逐一审查后确认已合规或应保持宽泛（均已有带上下文的日志/上游有二层安全网），未作代码改动。
+- 影响文件：backend/app/services/ingestion/fetcher.py、backend/app/services/ingestion/persister.py、backend/app/workers/base_worker.py、backend/tests/test_ingest_caching.py（新增 3 个日志断言测试）、backend/tests/test_base_worker.py（新建，6 个记账兜底回归测试）。
+- 接口/数据结构变化：无。返回值、重试语义、调度节奏均未改变，仅日志质量与代码注释变化。
+- 验证情况：NEWS_CAUGHT_TEST_DB 隔离库跑指定 8 个测试文件 65 passed；另全量 backend/tests 458 passed 无回归。
+- 风险/后续事项：【发现，未修复，范围外】backend/alembic/env.py 的 fileConfig() 默认 disable_existing_loggers=True，导致 initialize_database() 执行后绝大多数 app.* 模块级 logger 被全局禁用，造成"代码里有日志、实际打不出来"的隐患，建议专项修复；queue_worker.py 通知入队兜底、digest_worker.py trigger_fn 兜底依赖范围外模块，若后续异常面收敛可重新评估收窄空间。
+
+## 2026-07-14 后端测试 warnings 治理（18 → 0）
+
+- 修改人：Claude（子智能体-警告治理）
+- 修改范围：backend/tests/test_watchlist_research.py、test_portfolio_service.py、test_stock_research_synthesis.py、test_stock_news_search.py。
+- 变更内容：诊断出全部 18 条 pytest warnings 均为同一根因——SAWarning "DELETE statement on table 'news_stock_mention' expected to delete 1 row(s); 0 were matched"。根因是这些测试的清理 helper 在同一次 flush 内先显式删除 NewsStockMention/ArticleContent 子行、再删除父行 NewsItem，但代码库未声明任何 SQLAlchemy relationship()（架构上一贯走 repository 显式查询），unit-of-work 因此无法保证子表先于父表 DELETE；SQLite 层 ON DELETE CASCADE（PRAGMA foreign_keys=ON）先把子行级联删除，随后测试代码排队的显式 DELETE 命中 0 行，触发该 warning。修复方式：在删除子行后、删除父行前插入 session.flush()，强制子行 DELETE 先落库，从根本上消除顺序竞争，未使用 confirm_deleted_rows=False 等压制手段。
+- 影响文件：仅上述 4 个测试文件的清理 helper 函数，均为纯新增（注释 + 一行 session.flush()），无删除、无业务逻辑改动。
+- 接口/数据结构变化：无。不涉及生产代码、模型、API、pyproject 配置。
+- 验证情况：隔离库 pytest backend/tests -q -W error::DeprecationWarning → 全量通过，0 条 warnings（治理前 18 warnings）。多次重复运行结果一致。
+- 风险/后续事项：pytest -Wdefault 下观察到 test_news_signal_pipeline.py 一个用例存在 ResourceWarning（unclosed SSLSocket），根因指向 app/services 内的网络客户端未正确关闭，建议后续在 services 层排查该客户端的关闭/上下文管理逻辑。
+
+## 2026-07-14 X 监控服务结构性拆分
+
+- 修改人：Claude（子智能体-x_monitor拆分）
+- 修改范围：backend/app/services/x_monitor.py → backend/app/services/x_monitor/（包），backend/tests/test_x_monitor.py（仅 monkeypatch 目标路径调整）。
+- 变更内容：将 653 行单文件 x_monitor.py 按职责拆分为包：constants（常量）、errors（领域异常）、summaries（结果 dataclass）、normalize（推文/时间/账号行归一化辅助函数）、health（源健康度记账）、accounts（XAccountManager 账号管理）、pipeline（XFetchPipeline 抓取/冷却/去重/信号联动）、service（XMonitorService 聚合门面），__init__.py 通过 re-export 保证包顶层公共 API 完全不变。纯结构性搬移，未改动任何函数签名、行为逻辑或日志文案。
+- 影响文件：新增 backend/app/services/x_monitor/{__init__,constants,errors,summaries,normalize,health,accounts,pipeline,service}.py；删除 backend/app/services/x_monitor.py；backend/tests/test_x_monitor.py 中 3 类 monkeypatch 目标（TwitterApiIoClient/get_settings/_utc_now）改为指向新的子模块路径（service.py、pipeline.py），因为这些名字实际使用点已迁移，仅在包顶层 re-export 无法让 monkeypatch 继续生效。
+- 接口/数据结构变化：无（对外公共 API、方法签名、返回类型均未变化）。
+- 验证情况：`pytest backend/tests/test_x_monitor.py backend/tests/test_stream_events.py -q` 42 passed；`python -c "from app.main import create_app; create_app()"` 可正常导入应用。
+- 风险/后续事项：后续如需在 pipeline.py/service.py 之外新增依赖 monkeypatch 的用例，需注意 patch 目标应指向实际调用点所在子模块（而非包顶层）。
+
+## 2026-07-14 前端 mock.ts 模块化拆分
+
+- 修改人：Claude（子智能体-mock拆分）
+- 修改范围：frontend/src/api/mock.ts（改为薄聚合出口）；新增 frontend/src/api/mock/{shared,news,market,llm,xMonitor,ops}.ts。
+- 变更内容：将全前端最大的单文件 frontend/src/api/mock.ts（970 行，聚合全部业务域 mock 数据）按业务域拆分为 6 个内聚子模块（news 新闻/话题、market 行情+自选股、llm 大模型配置与分析、xMonitor X监控、ops 系统健康与通知、shared 公共时间基准工具），mock.ts 保留为纯 `export *` 聚合出口，纯结构性搬移，未改动任何 mock 数据的值与类型。
+- 影响文件：frontend/src/api/mock.ts（修改）；frontend/src/api/mock/shared.ts、news.ts、market.ts、llm.ts、xMonitor.ts、ops.ts（新增）。
+- 接口/数据结构变化：无。所有原有导出（29 个常量 + buildMockTranslation 函数）签名与导入路径 100% 不变，使用方（client.ts、client.test.ts、smoke/app-navigation.test.ts）未做任何修改。
+- 验证情况：`npx vitest run src/api/client.test.ts src/smoke/app-navigation.test.ts` 41/41 通过；`npm run typecheck`（vue-tsc --noEmit）通过。
+- 风险/后续事项：market.ts 反向依赖 news.ts 的 mockNews/mockRelatedNews，属预期的业务域间引用，后续新增 mock 数据建议按此依赖方向（market → news）追加，避免引入反向循环。
+
+## 2026-07-14 OpsHealthView 组件化拆分 + 测试空白填补
+
+- 修改人：Claude（子智能体-Ops组件化）
+- 修改范围：frontend/src/views/OpsHealthView.vue 组件化拆分。
+- 变更内容：将 OpsHealthView.vue（原 727 行，全前端最大视图、原无测试覆盖）按区块下沉为 frontend/src/components/ops/ 下 6 个 props 驱动的子组件（OpsAlertsPanel / OpsWorkersCard / OpsLlmUsageCard / OpsSourcesCard / OpsXSourcesCard / OpsSystemStatusCard）+ 1 个共享格式化纯函数模块 opsFormat.ts（timeLabel/ageLabel/ratePct/latencyLabel/numberLabel/workerTone/sourceTone）。视图瘦身为数据加载/轮询编排层，237 行。纯搬移：class、data-role、文案、交互、CSS 选择器与原视图完全一致，未改变任何视觉或行为。同时为全部新组件与视图补齐 vitest 测试（8 个新测试文件，56 个用例），填补该视图此前的测试空白。
+- 影响文件：frontend/src/views/OpsHealthView.vue（改，727→237 行）、frontend/src/views/OpsHealthView.test.ts（新增）、frontend/src/components/ops/ 下 6 个组件 + opsFormat.ts 及各自 .test.ts（新增）。
+- 接口/数据结构变化：无（纯前端内部组件化重构，未改动后端 API 调用、类型定义或数据形状）。
+- 验证情况：`npx vitest run src/views/OpsHealthView.test.ts src/components/ops src/smoke/app-navigation.test.ts` → 9 files / 56 tests 全绿；`npm run typecheck` 通过。
+- 风险/后续事项：CSS 采用 Vue scoped 语义按使用点下沉，部分基础类（如 .ops-card / .ops-mini-dot / .ops-signal-dot）在多个子组件间存在源码级重复，是 scoped style 约束下的合理取舍，后续如需统一样式改动需注意多处同步。
+
+## 2026-07-14 前端视图单测补齐（Calendar/Chat/Digest/Portfolio/SentimentEval/SignalBacktest）
+
+- 修改人：Claude（子智能体-视图补测）
+- 修改范围：frontend（仅新增测试文件，不涉及产品源码）。
+- 变更内容：为 6 个此前完全无测试覆盖的视图补齐 vitest 单元测试，共新增 30 条用例，覆盖正常数据渲染、空数据态、API 报错态，并对过滤器切换/生成按钮/发送消息/新建会话等交互路径做了断言；ChatView 的 SSE 流测试复用 useChatStream.test.ts 的 fetch/reader mock 与 fake timers 打字机推进方式。测试过程未发现需要修复的真实 bug，未改动任何产品源码。
+- 影响文件：frontend/src/views/{Calendar,Chat,Digest,Portfolio,SentimentEval,SignalBacktest}View.test.ts（均新增）。
+- 接口/数据结构变化：无。
+- 验证情况：`npx vitest run` 上述 6 个文件，30/30 通过；`npm run typecheck` 通过。
+- 风险/后续事项：无产品代码变更；后续如这些视图的模板/store 接口发生变化，需要同步更新对应测试的 mock 数据结构。
+
+## 2026-07-14 前端 Dashboard 视图瘦身重构
+
+- 修改人：Claude（子智能体-Dashboard瘦身）
+- 修改范围：frontend/src/views/DashboardView.vue、frontend/src/components/dashboard/*。
+- 变更内容：将 DashboardView.vue（645 行）中仍留在视图层的大块模板与逻辑下沉为 5 个新的 dashboard 子组件（DashboardHeader、DashboardFilterBar、DashboardNewsFeedColumn、DashboardTopicColumn、DashboardMoversColumn）及 1 个纯函数工具（dashboardTrend.ts::computeHourlyTrend），视图收敛为编排层，降至 245 行。纯结构性搬移，class/文案/交互/数据流均未改变；样式随模板一并下沉到对应组件的 scoped style。
+- 影响文件：frontend/src/views/DashboardView.vue（改）；frontend/src/components/dashboard/ 下 5 个新组件 + dashboardTrend.ts 及 6 个新增 .test.ts；DashboardView.test.ts 无需改动。
+- 接口/数据结构变化：无。
+- 验证情况：`npx vitest run src/views/DashboardView.test.ts src/components/dashboard src/smoke/app-navigation.test.ts` 11 文件 45 用例全绿（原 DashboardView.test.ts 六个断言零改动通过）；`npm run typecheck` 0 错误；集成后 `npm run build` 通过。
+- 风险/后续事项：DashboardMoversColumn 内部承接了原视图的 moverMarketSummary/topMoverReason/marketLabelMap 等逻辑，建议后续异动展示相关新增需求优先在该组件内扩展而非视图层。
+
+## 2026-07-14 KlineDrawingOverlay 交互逻辑下沉
+
+- 修改人：Claude（子智能体-Kline逻辑下沉）
+- 修改范围：frontend/src/components/watchlist/KlineDrawingOverlay.vue、frontend/src/utils/klineDrawings.ts、frontend/src/utils/klineOverlayGeometry.ts、新增 frontend/src/composables/useKlineDrawingInteraction.ts，及以上文件对应的 .test.ts。
+- 变更内容：对 KlineDrawingOverlay.vue（全前端最大组件之一，717 行）做逻辑下沉瘦身，script 部分净减 115 行（717→602）。将坐标换算（锚点↔像素点）、蜡烛索引偏移计算、斐波那契回撤位计算、触摸/鼠标事件坐标提取等纯函数下沉到 klineOverlayGeometry.ts；将"可编辑绘图类型判断""可拖拽判断""价格标注默认文案"等领域逻辑下沉到 klineDrawings.ts；新建 useKlineDrawingInteraction composable 封装锚点拖拽/整体拖拽状态机（dragState + beginAnchorDrag/beginBodyDrag/endDrag/resolveDragCommit）。组件本身保留为渲染与事件接线层；手势透传（document.elementFromPoint/dispatchEvent）与生命周期挂载（ResizeObserver/window 监听）因深度耦合 DOM/组件实例，评估后未下沉。只做搬移与参数化，未改动任何算法与交互行为。
+- 影响文件：frontend/src/components/watchlist/KlineDrawingOverlay.vue、frontend/src/utils/klineDrawings.ts（+klineDrawings.test.ts 新建）、frontend/src/utils/klineOverlayGeometry.ts（+.test.ts 扩充）、frontend/src/composables/useKlineDrawingInteraction.ts（新建，+.test.ts 新建）。
+- 接口/数据结构变化：无（组件 props/emits 签名不变，导出函数为新增，无删除/改签名）。
+- 验证情况：`npx vitest run src/components/watchlist src/utils/klineOverlayGeometry.test.ts src/composables` 14 files / 63 tests 全绿（含原有 KlineDrawingOverlay.test.ts 16 例未改断言即通过）；`npx vitest run src/utils/klineDrawings.test.ts` 3 例全绿；`npm run typecheck` 通过。
+- 风险/后续事项：手势透传与生命周期挂载逻辑仍留在组件内，若未来需要复用/单测这部分，需评估以 Ref 传参方式抽出的可行性。
+
+## 2026-07-14 工程文档治理（ANGENT 去重 / 优化清单状态回填 / README 校对）
+
+- 修改人：Claude（子智能体-文档治理）
+- 修改范围：ANGENT.md、README.md、docs/optimization-plan.md。
+- 变更内容：
+  1. 将根目录 ANGENT.md（历史拼写错误遗留，与 AGENTS.md 内容重复）整体替换为指向 AGENTS.md 的简短指针说明，AGENTS.md 保持为唯一权威规范本体不变；同步修正 README.md 中原指向 ANGENT.md 的引用并合并冗余段落。
+  2. 逐项对照当前代码核实 docs/optimization-plan.md 中 15 项优化（P0~P3）的落地状态，在文档顶部加"状态回填于 2026-07-14"说明，并逐条追加 ✅已完成/⚠️部分完成/⬜未做 状态标注及一行代码证据。核实结论：9 项已完成，5 项部分完成（#6 内存队列自愈轮询、#8 同步路由部分异步化、#12 异常观测性不足、#13 incremental_vacuum 缺 auto_vacuum 前置、#15 工程化清理子项不一），1 项未做（#14 详情页 selectinload）。
+  3. 校对 README.md 安装/启动/测试命令与 Makefile、scripts/dev.sh 的一致性（逐条核对表见任务报告），补充遗漏的前端单元测试命令说明 `npm --prefix frontend run test`。
+- 影响文件：ANGENT.md、README.md、docs/optimization-plan.md。
+- 接口/数据结构变化：无。
+- 验证情况：全仓 grep 复查确认不存在指向 ANGENT.md 的失效引用（历史记录性质的 code-change-log 与 plans 归档除外）；README 每条命令均与 Makefile/scripts/dev.sh/environment.yml/package.json 实际内容比对一致。
+- 风险/后续事项：docs/superpowers/plans/2026-06-13-phase1-optimization-plan.md 中仍保留一条历史待办「合并 AGENTS.md 和 ANGENT.md」，属历史归档未改动；optimization-plan 中标记为部分完成/未做的项仍是真实技术债，建议后续排期。
+
 ## 2026-07-13 修复 SkeletonFeed 的 v-elif 拼写（骨架屏分支失效）
 
 - 修改人：Claude

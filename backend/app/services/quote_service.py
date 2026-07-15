@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -9,10 +9,9 @@ from app.models.price_snapshot import PriceSnapshot
 from app.repositories.market_repository import MarketRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.services.quote_provider import (
-    NormalizedSymbol,
     QuoteRecord,
-    YahooFinanceQuoteProvider,
     TencentQuoteProvider,
+    YahooFinanceQuoteProvider,
     equivalent_symbol_candidates,
     normalize_symbol,
 )
@@ -311,7 +310,7 @@ class QuoteService:
             "status": status,
             "source": self.provider.source_name,
             "message": message,
-            "fetched_at": datetime.now(timezone.utc),
+            "fetched_at": datetime.now(UTC),
             "is_abnormal": False,
             "abnormal_reason": None,
             "has_hot_alert": has_hot_alert,
@@ -320,16 +319,17 @@ class QuoteService:
     def _is_fresh(self, snapshot: PriceSnapshot) -> bool:
         fetched_at = snapshot.fetched_at
         if fetched_at.tzinfo is None:
-            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) - fetched_at <= self.cache_ttl
+            fetched_at = fetched_at.replace(tzinfo=UTC)
+        return datetime.now(UTC) - fetched_at <= self.cache_ttl
 
     def _get_hot_symbols(self, session: Session) -> set[str]:
-        from app.models.news_stock_mention import NewsStockMention
+        from sqlalchemy import or_, select
+
         from app.models.news_item import NewsItem
-        from app.models.topic_news_link import TopicNewsLink
+        from app.models.news_stock_mention import NewsStockMention
         from app.models.topic_cluster import TopicCluster
-        from sqlalchemy import select, or_
-        limit_time = datetime.now(timezone.utc) - timedelta(hours=12)
+        from app.models.topic_news_link import TopicNewsLink
+        limit_time = datetime.now(UTC) - timedelta(hours=12)
         stmt = (
             select(NewsStockMention.symbol)
             .join(NewsItem, NewsStockMention.news_id == NewsItem.id)

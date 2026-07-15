@@ -1,7 +1,8 @@
 import json
 from unittest.mock import patch
-from sqlalchemy import inspect, text
+
 from fastapi.testclient import TestClient
+from sqlalchemy import inspect, text
 
 from app.db.session import engine
 from app.main import app
@@ -168,7 +169,7 @@ def test_llm_chat_flow() -> None:
             payload = json.loads(line[6:])
             if "text" in payload:
                 chunks.append(payload["text"])
-    
+
     response_text = "".join(chunks)
     assert response_text == "Hello async world"
 
@@ -176,6 +177,7 @@ def test_llm_chat_flow() -> None:
 def test_llm_chat_stream_disconnect_generator() -> None:
     import asyncio
     from unittest.mock import AsyncMock, MagicMock
+
     from app.api.routes.llm import chat_with_llm
     from app.schemas.llm import LLMChatRequest
 

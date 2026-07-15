@@ -4,7 +4,7 @@
 参考 ``test_stream_status.py`` 的 monkeypatch 事件层写法。
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -45,7 +45,7 @@ def test_build_ops_health_aggregates_fields(monkeypatch) -> None:
     _clear_tables()
     monkeypatch.setattr(ops_health_module, "get_event_bus", _ok_bus)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with SessionLocal() as session:
         session.add(
             WorkerRuntimeStatus(
@@ -160,7 +160,7 @@ def test_ops_health_alerts_triggered(monkeypatch) -> None:
     monkeypatch.setattr(ops_health_module, "DB_SIZE_WARNING_MB", 0.0)
     monkeypatch.setattr(ops_health_module, "DB_SIZE_CRITICAL_MB", 1_000_000.0)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with SessionLocal() as session:
         # 心跳超时的 worker。
         session.add(
@@ -256,7 +256,7 @@ def test_ops_health_route_returns_payload(monkeypatch) -> None:
     _clear_tables()
     monkeypatch.setattr(ops_health_module, "get_event_bus", _ok_bus)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with SessionLocal() as session:
         session.add(
             WorkerRuntimeStatus(

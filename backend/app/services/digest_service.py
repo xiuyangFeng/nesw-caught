@@ -16,7 +16,7 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +70,7 @@ class Digest:
         return {
             "title": self.title,
             "market_scope": self.market_scope,
-            "generated_at": self.generated_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "generated_at": self.generated_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             "generated_by": self.generated_by,
             "model_name": self.model_name,
             "sections": [{"title": s.title, "body": s.body} for s in self.sections],
@@ -113,7 +113,7 @@ def reset_latest_digest() -> None:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # --- 数据收集 -----------------------------------------------------------------
@@ -132,7 +132,7 @@ def _collect_context(market_scope: str, session: Session, now: datetime) -> _Dig
         if published is None:
             continue
         if published.tzinfo is None:
-            published = published.replace(tzinfo=timezone.utc)
+            published = published.replace(tzinfo=UTC)
         if published >= cutoff:
             recent.append(item)
 
@@ -270,7 +270,7 @@ def _rule_sections(context: _DigestContext) -> list[DigestSection]:
 
 def _build_title(market_scope: str, now: datetime) -> str:
     label = _MARKET_LABELS.get(market_scope, market_scope)
-    date_str = now.astimezone(timezone.utc).strftime("%Y-%m-%d")
+    date_str = now.astimezone(UTC).strftime("%Y-%m-%d")
     return f"{label} · 每日 AI 简报 · {date_str}"
 
 

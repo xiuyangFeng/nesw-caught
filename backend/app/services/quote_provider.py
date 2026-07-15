@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import math
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 def _coerce_float(value: object) -> float | None:
@@ -176,7 +176,7 @@ class YahooFinanceQuoteProvider:
             status="ok",
             source=self.source_name,
             message=None,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
 
     def fetch_quotes_batch(self, normalized_list: list[NormalizedSymbol]) -> list[QuoteRecord]:
@@ -206,15 +206,18 @@ class YahooFinanceQuoteProvider:
                         price=None,
                         change_amount=None,
                         change_percent=None,
-                        open_price=open_price if 'open_price' in locals() else None,
-                        previous_close=previous_close if 'previous_close' in locals() else None,
-                        day_high=day_high if 'day_high' in locals() else None,
-                        day_low=day_low if 'day_low' in locals() else None,
+                        # These fields are only ever populated on the success path inside
+                        # fetch_quote(); they are never assigned in this method's scope, so
+                        # this branch always falls back to None (preserved as-is below).
+                        open_price=None,
+                        previous_close=None,
+                        day_high=None,
+                        day_low=None,
                         volume=None,
                         status="fetch_failed",
                         source=self.source_name,
                         message=str(exc),
-                        fetched_at=datetime.now(timezone.utc),
+                        fetched_at=datetime.now(UTC),
                     )
 
         return [results_map[ns.symbol] for ns in normalized_list]
@@ -285,7 +288,7 @@ class TencentQuoteProvider:
                 status="ok",
                 source=self.source_name,
                 message=None,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
             )
         except Exception as exc:
             raise RuntimeError(f"failed to parse tencent response: {exc}") from exc
@@ -321,7 +324,7 @@ class TencentQuoteProvider:
                     status="fetch_failed",
                     source=self.source_name,
                     message=f"Tencent provider only supports cn/hk, got {ns.market}",
-                    fetched_at=datetime.now(timezone.utc),
+                    fetched_at=datetime.now(UTC),
                 )
                 continue
 
@@ -356,7 +359,7 @@ class TencentQuoteProvider:
                     status="fetch_failed",
                     source=self.source_name,
                     message=str(exc),
-                    fetched_at=datetime.now(timezone.utc),
+                    fetched_at=datetime.now(UTC),
                 )
             return [results_map[ns.symbol] for ns in normalized_list]
 
@@ -404,9 +407,9 @@ class TencentQuoteProvider:
                     status="ok",
                     source=self.source_name,
                     message=None,
-                    fetched_at=datetime.now(timezone.utc),
+                    fetched_at=datetime.now(UTC),
                 )
-            except Exception as exc:
+            except Exception:
                 pass
 
         for code in codes:
@@ -427,7 +430,7 @@ class TencentQuoteProvider:
                     status="fetch_failed",
                     source=self.source_name,
                     message="no response or parse error",
-                    fetched_at=datetime.now(timezone.utc),
+                    fetched_at=datetime.now(UTC),
                 )
 
         return [results_map[ns.symbol] for ns in normalized_list]

@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from app.services.event_bus import get_event_bus
 from app.services.http_client import HttpClientFactory
-from app.services.news_signal_pipeline import NewsSignalPipelineService
-
 from app.services.ingestion.dedup_gate import (
     DuplicateGate,
     _build_duplicate_signature,
@@ -50,6 +48,7 @@ from app.services.ingestion.utils import (
     _parse_feed_datetime,
     _utc_now,
 )
+from app.services.news_signal_pipeline import NewsSignalPipelineService
 
 __all__ = [
     "DUPLICATE_WINDOW",

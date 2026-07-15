@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -26,7 +26,7 @@ _MARKET_ZONES: list[tuple[str, str, str]] = [
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _parse_hhmm(value: str) -> tuple[int, int]:
@@ -74,7 +74,7 @@ class DigestWorker(BaseWorker):
     def do_cycle(self) -> int:
         now_utc = self.now_factory()
         if now_utc.tzinfo is None:
-            now_utc = now_utc.replace(tzinfo=timezone.utc)
+            now_utc = now_utc.replace(tzinfo=UTC)
 
         fired_count = 0
         for market, phase, zone_name in _MARKET_ZONES:

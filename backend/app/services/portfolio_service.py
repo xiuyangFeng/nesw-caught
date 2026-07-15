@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -10,14 +10,13 @@ from app.models.watchlist_item import WatchlistItem
 from app.repositories.market_repository import MarketRepository
 from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
+from app.schemas.news import NewsItemSummary
 from app.schemas.portfolio import (
     PortfolioPositionView,
     PortfolioSummaryView,
     PortfolioWeightedNewsView,
 )
-from app.schemas.news import NewsItemSummary
 from app.services.quote_provider import normalize_symbol
-
 
 # 加权新闻只看最近这些天内命中的新闻，避免历史噪声压过当下最该看的消息。
 _NEWS_WINDOW_DAYS = 7
@@ -33,7 +32,7 @@ class PortfolioService:
     """
 
     def build_summary(self, session: Session) -> PortfolioSummaryView:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         holdings = self._load_holdings(session)
         if not holdings:
             return PortfolioSummaryView(generated_at=now)
@@ -60,7 +59,7 @@ class PortfolioService:
             total_pnl_percent = round(total_unrealized_pnl / pnl_cost_basis * 100, 4)
 
         weights = self._compute_weights(positions, total_market_value, total_cost_basis)
-        for position, weight in zip(positions, weights):
+        for position, weight in zip(positions, weights, strict=True):
             position.weight = weight
 
         weighted_news = self._build_weighted_news(session, positions, now)
@@ -114,7 +113,7 @@ class PortfolioService:
     # ------------------------------------------------------------------
     def _build_position(
         self, item: WatchlistItem, snapshot: PriceSnapshot | None
-    ) -> "_PositionCalc":
+    ) -> _PositionCalc:
         position_size = float(item.position_size or 0.0)
         average_cost = float(item.average_cost) if item.average_cost is not None else None
 
@@ -167,7 +166,7 @@ class PortfolioService:
     # ------------------------------------------------------------------
     def _compute_weights(
         self,
-        positions: list["_PositionCalc"],
+        positions: list[_PositionCalc],
         total_market_value: float,
         total_cost_basis: float,
     ) -> list[float]:
@@ -195,7 +194,7 @@ class PortfolioService:
     def _build_weighted_news(
         self,
         session: Session,
-        positions: list["_PositionCalc"],
+        positions: list[_PositionCalc],
         now: datetime,
     ) -> list[PortfolioWeightedNewsView]:
         mentions_repo = NewsMentionsRepository(session)
@@ -238,15 +237,15 @@ class PortfolioService:
         if moment is None:
             return False
         if moment.tzinfo is None:
-            moment = moment.replace(tzinfo=timezone.utc)
+            moment = moment.replace(tzinfo=UTC)
         return moment >= window_start
 
     def _sort_time(self, news: NewsItem) -> datetime:
         moment = news.published_at or news.fetched_at
         if moment is None:
-            return datetime.min.replace(tzinfo=timezone.utc)
+            return datetime.min.replace(tzinfo=UTC)
         if moment.tzinfo is None:
-            moment = moment.replace(tzinfo=timezone.utc)
+            moment = moment.replace(tzinfo=UTC)
         return moment
 
 

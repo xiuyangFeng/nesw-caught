@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
-
-import pytest
+from pathlib import Path
 
 from app.services.news_relevance_report import (
     build_market_relevance_report,

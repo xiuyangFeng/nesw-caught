@@ -3,10 +3,19 @@ import { describe, expect, it } from 'vitest';
 import type { KlineCandle, KlineDrawing } from '../types/api';
 import {
   buildCrosshairProjection,
+  computeAnchorFromPoint,
+  computeCandleIndexDelta,
+  computeFibonacciLevels,
   findAnchorHandleIndex,
   findNearestCandleIndex,
   moveDrawingByAnchor,
   moveDrawingByDelta,
+  normalizeTouchPoint,
+  projectAnchorToPoint,
+  resolveEventClientPoint,
+  toLocalPoint,
+  touchPointFromEvent,
+  touchPointsFromEvent,
 } from './klineOverlayGeometry';
 
 const candles: KlineCandle[] = [
@@ -176,5 +185,99 @@ describe('klineOverlayGeometry', () => {
       x: 164,
       y: 26,
     });
+  });
+
+  it('computes the candle index delta between a start and target time', () => {
+    expect(computeCandleIndexDelta(candles, '2026-03-18', '2026-03-20')).toBe(2);
+    expect(computeCandleIndexDelta(candles, '2026-03-19', '2026-03-18')).toBe(-1);
+    // 找不到起点时按 0 兜底(与组件里 Math.max(startIndex, 0) 的行为一致)。
+    expect(computeCandleIndexDelta(candles, 'missing', '2026-03-19')).toBe(1);
+  });
+
+  it('computes fibonacci retracement levels from two projected points, or an empty list otherwise', () => {
+    const levels = computeFibonacciLevels([
+      { x: 0, y: 0 },
+      { x: 10, y: 100 },
+    ]);
+    expect(levels).toHaveLength(7);
+    expect(levels[0]).toEqual({ key: '0', y: 0, label: '0' });
+    expect(levels[3]).toEqual({ key: '0.5', y: 50, label: '0.5' });
+    expect(levels[6]).toEqual({ key: '1', y: 100, label: '1' });
+
+    expect(computeFibonacciLevels([])).toEqual([]);
+    expect(computeFibonacciLevels([{ x: 0, y: 0 }])).toEqual([]);
+  });
+
+  it('projects a drawing anchor to a pixel point within the overlay size', () => {
+    expect(projectAnchorToPoint({ time: '2026-03-19', price: 550.5 }, candles, { width: 300, height: 120 })).toEqual({
+      x: 150,
+      y: 38,
+    });
+
+    // 找不到精确匹配的蜡烛时间时回退到最近的历史蜡烛(remapAnchorTime)。
+    expect(projectAnchorToPoint({ time: '2026-03-19T12:00:00', price: 550.5 }, candles, { width: 300, height: 120 })).toEqual({
+      x: 150,
+      y: 38,
+    });
+
+    expect(projectAnchorToPoint({ time: '2026-03-18', price: 550.5 }, [], { width: 300, height: 120 })).toBeNull();
+
+    // 单蜡烛且最高价等于最低价时,退化到画布正中心。
+    const flatCandles: KlineCandle[] = [{ time: '2026-03-18', open: 540, high: 540, low: 540, close: 540, volume: 10 }];
+    expect(projectAnchorToPoint({ time: '2026-03-18', price: 540 }, flatCandles, { width: 300, height: 120 })).toEqual({
+      x: 150,
+      y: 60,
+    });
+  });
+
+  it('computes a drawing anchor from a client point, falling back to interpolated price when no projector resolves it', () => {
+    expect(
+      computeAnchorFromPoint({ clientX: 150, clientY: 60 }, { left: 0, top: 0, width: 300, height: 120 }, candles),
+    ).toEqual({ time: '2026-03-19', price: 545 });
+
+    expect(
+      computeAnchorFromPoint({ clientX: 150, clientY: 60 }, { left: 0, top: 0, width: 300, height: 120 }, candles, {
+        getTimeForX: (x) => (x === 150 ? '2026-03-20' : null),
+        getPriceForY: (y) => (y === 60 ? 555 : null),
+      }),
+    ).toEqual({ time: '2026-03-20', price: 555 });
+
+    expect(computeAnchorFromPoint({ clientX: 0, clientY: 0 }, { left: 0, top: 0, width: 10, height: 10 }, [])).toBeNull();
+  });
+
+  it('normalizes touch points and derives client points from mouse/touch events', () => {
+    expect(normalizeTouchPoint({ clientX: 10, clientY: 20 })).toEqual({
+      clientX: 10,
+      clientY: 20,
+      pageX: 10,
+      pageY: 20,
+      screenX: 10,
+      screenY: 20,
+    });
+    expect(normalizeTouchPoint({ clientX: 5, clientY: 6, pageX: 7, pageY: 8, screenX: 9, screenY: 11 })).toEqual({
+      clientX: 5,
+      clientY: 6,
+      pageX: 7,
+      pageY: 8,
+      screenX: 9,
+      screenY: 11,
+    });
+
+    const touchesEvent = { touches: [{ clientX: 1, clientY: 2 }], changedTouches: [{ clientX: 3, clientY: 4 }] } as unknown as TouchEvent;
+    expect(touchPointsFromEvent(touchesEvent)).toEqual([{ clientX: 1, clientY: 2, pageX: 1, pageY: 2, screenX: 1, screenY: 2 }]);
+
+    // touches 为空时回退到 changedTouches(touchend/touchcancel 场景)。
+    const changedOnlyEvent = { touches: [], changedTouches: [{ clientX: 9, clientY: 8 }] } as unknown as TouchEvent;
+    expect(touchPointFromEvent(changedOnlyEvent)).toEqual({ clientX: 9, clientY: 8, pageX: 9, pageY: 8, screenX: 9, screenY: 8 });
+
+    const emptyEvent = { touches: [], changedTouches: [] } as unknown as TouchEvent;
+    expect(touchPointFromEvent(emptyEvent)).toBeNull();
+
+    const mouseEvent = new MouseEvent('mousedown', { clientX: 12, clientY: 34 });
+    expect(resolveEventClientPoint(mouseEvent)).toEqual({ clientX: 12, clientY: 34 });
+    expect(resolveEventClientPoint(touchesEvent)).toEqual({ clientX: 1, clientY: 2 });
+    expect(resolveEventClientPoint(emptyEvent)).toBeNull();
+
+    expect(toLocalPoint({ clientX: 120, clientY: 80 }, { left: 20, top: 10 })).toEqual({ x: 100, y: 70 });
   });
 });

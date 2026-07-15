@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, inspect, text
 
 from app.db.session import SessionLocal, engine
+from app.main import app
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
-from app.main import app
 
 
 def _cleanup_llm_tables() -> None:
@@ -341,8 +341,8 @@ def test_post_news_analysis_marks_context_limitations_when_article_body_missing(
             language="en",
             sentiment_label=None,
             sentiment_score=None,
-            published_at=datetime.now(timezone.utc),
-            fetched_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC),
+            fetched_at=datetime.now(UTC),
             ingest_status="ingested",
         )
         session.add(news_item)
@@ -437,7 +437,7 @@ def test_post_news_analysis_publishes_event_instead_of_direct_notification(monke
         risk_notes = "Single source risk."
         sentiment = "positive"
         context_limitations = None
-        analyzed_at = datetime(2026, 3, 23, 0, 50, tzinfo=timezone.utc)
+        analyzed_at = datetime(2026, 3, 23, 0, 50, tzinfo=UTC)
         analysis_error = None
 
     class FakeAnalysisService:

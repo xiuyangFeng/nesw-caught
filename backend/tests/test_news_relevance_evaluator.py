@@ -13,9 +13,9 @@ from app.schemas.research import (
 from app.services.news_relevance_evaluator import (
     EvaluationGuardrailError,
     evaluate_market_relevance,
-    predict_market_relevance_details,
     predict_market_relevance,
     predict_market_relevance_batch,
+    predict_market_relevance_details,
 )
 
 

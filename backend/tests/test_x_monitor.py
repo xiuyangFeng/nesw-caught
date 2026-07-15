@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
@@ -263,7 +263,7 @@ def test_x_monitor_refresh_deduplicates_posts_by_tweet_id(monkeypatch, tmp_path:
             ]
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -272,7 +272,7 @@ def test_x_monitor_refresh_deduplicates_posts_by_tweet_id(monkeypatch, tmp_path:
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -308,8 +308,8 @@ def test_x_monitor_refresh_skips_when_cooldown_is_active(monkeypatch, tmp_path: 
         '{"accounts":[{"handle":"MiniMax_AI","display_name":"MiniMax AI","market_focus":"us","is_active":true,"priority":100}]}',
         encoding="utf-8",
     )
-    now = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
-    recent_success = datetime(2026, 3, 19, 8, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 19, 9, 0, tzinfo=UTC)
+    recent_success = datetime(2026, 3, 19, 8, 0, tzinfo=UTC)
 
     class FakeTwitterApiIoClient:
         configured = True
@@ -322,7 +322,7 @@ def test_x_monitor_refresh_skips_when_cooldown_is_active(monkeypatch, tmp_path: 
             raise AssertionError("cooldown should skip provider requests")
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -331,8 +331,8 @@ def test_x_monitor_refresh_skips_when_cooldown_is_active(monkeypatch, tmp_path: 
             x_monitor_refresh_cooldown_hours=3,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
-    monkeypatch.setattr("app.services.x_monitor._utc_now", lambda: now)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.pipeline._utc_now", lambda: now)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -347,13 +347,13 @@ def test_x_monitor_refresh_skips_when_cooldown_is_active(monkeypatch, tmp_path: 
         assert summary.inserted_count == 0
         assert summary.skipped is True
         assert summary.skip_reason == "cooldown_active"
-        assert summary.next_refresh_at == datetime(2026, 3, 19, 11, 0, tzinfo=timezone.utc)
+        assert summary.next_refresh_at == datetime(2026, 3, 19, 11, 0, tzinfo=UTC)
 
 
 def test_x_monitor_refresh_without_active_accounts_does_not_start_cooldown(monkeypatch, tmp_path: Path) -> None:
     accounts_file = tmp_path / "accounts.json"
     accounts_file.write_text('{"accounts":[]}', encoding="utf-8")
-    now = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 19, 9, 0, tzinfo=UTC)
 
     class FakeTwitterApiIoClient:
         configured = True
@@ -362,7 +362,7 @@ def test_x_monitor_refresh_without_active_accounts_does_not_start_cooldown(monke
             raise AssertionError("no provider request expected when account list is empty")
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -371,8 +371,8 @@ def test_x_monitor_refresh_without_active_accounts_does_not_start_cooldown(monke
             x_monitor_refresh_cooldown_hours=3,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
-    monkeypatch.setattr("app.services.x_monitor._utc_now", lambda: now)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.pipeline._utc_now", lambda: now)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -389,8 +389,8 @@ def test_x_monitor_refresh_without_active_accounts_does_not_start_cooldown(monke
 def test_x_monitor_refresh_with_empty_accounts_bypasses_existing_cooldown(monkeypatch, tmp_path: Path) -> None:
     accounts_file = tmp_path / "accounts.json"
     accounts_file.write_text('{"accounts":[]}', encoding="utf-8")
-    now = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
-    recent_success = datetime(2026, 3, 19, 8, 30, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 19, 9, 0, tzinfo=UTC)
+    recent_success = datetime(2026, 3, 19, 8, 30, tzinfo=UTC)
 
     class FakeTwitterApiIoClient:
         configured = True
@@ -399,7 +399,7 @@ def test_x_monitor_refresh_with_empty_accounts_bypasses_existing_cooldown(monkey
             raise AssertionError("no provider request expected when account list is empty")
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -408,8 +408,8 @@ def test_x_monitor_refresh_with_empty_accounts_bypasses_existing_cooldown(monkey
             x_monitor_refresh_cooldown_hours=3,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
-    monkeypatch.setattr("app.services.x_monitor._utc_now", lambda: now)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.pipeline._utc_now", lambda: now)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -439,7 +439,7 @@ def test_x_monitor_provider_health_reports_unhealthy_when_probe_fails(monkeypatc
     )
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             twitterapi_io_api_key="test-key",
@@ -449,7 +449,7 @@ def test_x_monitor_provider_health_reports_unhealthy_when_probe_fails(monkeypatc
             x_monitor_accounts_file=str(tmp_accounts),
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -619,7 +619,7 @@ def test_x_monitor_refresh_uses_database_accounts_without_implicit_file_sync(mon
             raise AssertionError("refresh should not pull accounts directly from file")
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -628,7 +628,7 @@ def test_x_monitor_refresh_uses_database_accounts_without_implicit_file_sync(mon
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -668,7 +668,7 @@ def test_x_monitor_import_accounts_from_file_returns_counts_and_marks_source(mon
     )
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -722,7 +722,7 @@ def test_x_monitor_export_accounts_to_file_writes_stable_order(monkeypatch, tmp_
     accounts_file = tmp_path / "accounts.json"
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -780,7 +780,7 @@ def test_x_monitor_refresh_prioritizes_core_before_watch_and_excludes_muted(monk
             return []
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=None,
@@ -789,7 +789,7 @@ def test_x_monitor_refresh_prioritizes_core_before_watch_and_excludes_muted(monk
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         session.add_all(
@@ -853,7 +853,7 @@ def test_x_posts_endpoint_returns_disabled_when_feature_is_off(monkeypatch) -> N
 
 
 def test_x_posts_endpoint_returns_summary_views(monkeypatch) -> None:
-    now = datetime(2026, 3, 16, 7, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 16, 7, 0, tzinfo=UTC)
 
     class FakeService:
         def __init__(self, session) -> None:
@@ -916,7 +916,7 @@ def test_x_search_endpoint_requires_query(monkeypatch) -> None:
 
 
 def test_x_search_endpoint_returns_normalized_rows(monkeypatch) -> None:
-    now = datetime(2026, 3, 16, 7, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 16, 7, 0, tzinfo=UTC)
 
     class FakeService:
         def __init__(self, session) -> None:
@@ -956,7 +956,7 @@ def test_x_search_endpoint_returns_normalized_rows(monkeypatch) -> None:
 
 
 def test_x_refresh_endpoint_returns_summary(monkeypatch) -> None:
-    now = datetime(2026, 3, 16, 7, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 16, 7, 0, tzinfo=UTC)
 
     class FakeService:
         def __init__(self, session) -> None:
@@ -1126,7 +1126,7 @@ def test_x_monitor_refresh_builds_macro_and_resonance_signals(monkeypatch, tmp_p
             return tweets[handle]
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -1135,7 +1135,7 @@ def test_x_monitor_refresh_builds_macro_and_resonance_signals(monkeypatch, tmp_p
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -1177,7 +1177,7 @@ def test_x_monitor_service_returns_radar_payload(monkeypatch, tmp_path: Path) ->
             ]
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -1186,7 +1186,7 @@ def test_x_monitor_service_returns_radar_payload(monkeypatch, tmp_path: Path) ->
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -1225,8 +1225,8 @@ def test_x_radar_endpoint_returns_priority_signals(monkeypatch) -> None:
                         priority_score=95.0,
                         confidence_score=0.86,
                         source_count=2,
-                        first_seen_at=datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc),
-                        last_seen_at=datetime(2026, 3, 28, 7, 20, tzinfo=timezone.utc),
+                        first_seen_at=datetime(2026, 3, 28, 7, 0, tzinfo=UTC),
+                        last_seen_at=datetime(2026, 3, 28, 7, 20, tzinfo=UTC),
                     )
                 ],
                 macro_clusters=[
@@ -1292,7 +1292,7 @@ def test_x_monitor_refresh_uses_external_radar_rules_file(monkeypatch, tmp_path:
             ]
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -1302,7 +1302,7 @@ def test_x_monitor_refresh_uses_external_radar_rules_file(monkeypatch, tmp_path:
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -1357,7 +1357,7 @@ def test_x_monitor_refresh_falls_back_when_rules_file_contains_invalid_weight(mo
             ]
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -1367,7 +1367,7 @@ def test_x_monitor_refresh_falls_back_when_rules_file_contains_invalid_weight(mo
             x_monitor_refresh_cooldown_hours=0,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -1433,7 +1433,7 @@ def test_x_monitor_service_honors_radar_limit_for_macro_clusters(monkeypatch, tm
             return tweets[handle]
 
     monkeypatch.setattr(
-        "app.services.x_monitor.get_settings",
+        "app.services.x_monitor.service.get_settings",
         lambda: SimpleNamespace(
             x_monitor_enabled=True,
             x_monitor_accounts_file=str(accounts_file),
@@ -1443,7 +1443,7 @@ def test_x_monitor_service_honors_radar_limit_for_macro_clusters(monkeypatch, tm
             x_radar_rules_file=None,
         ),
     )
-    monkeypatch.setattr("app.services.x_monitor.TwitterApiIoClient", FakeTwitterApiIoClient)
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
 
     with _test_session() as session:
         service = XMonitorService(session)
@@ -1516,7 +1516,7 @@ def _health_stub() -> SimpleNamespace:
 
 def test_record_fetch_success_resets_failure_state_and_sets_latency() -> None:
     health = _health_stub()
-    finished_at = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
+    finished_at = datetime(2026, 3, 19, 9, 0, tzinfo=UTC)
 
     _record_fetch_success(health, finished_at=finished_at, latency_ms=120.0)
 
@@ -1530,7 +1530,7 @@ def test_record_fetch_success_resets_failure_state_and_sets_latency() -> None:
 
 def test_record_fetch_failure_tracks_error_and_weighted_average_latency() -> None:
     health = _health_stub()
-    finished_at = datetime(2026, 3, 19, 9, 0, tzinfo=timezone.utc)
+    finished_at = datetime(2026, 3, 19, 9, 0, tzinfo=UTC)
 
     _record_fetch_success(health, finished_at=finished_at, latency_ms=100.0)
     _record_fetch_failure(health, finished_at=finished_at, latency_ms=400.0, error="boom")

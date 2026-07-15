@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import importlib.util
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 
@@ -23,8 +23,8 @@ from app.services.news_relevance_dataset import (
     export_review_samples_csv,
     export_review_samples_markdown,
     import_review_decisions_csv,
-    merge_reviewed_samples,
     load_benchmark_samples,
+    merge_reviewed_samples,
     save_samples,
     select_review_samples,
 )
@@ -331,19 +331,19 @@ def test_sampling_script_preserves_historical_and_realtime_mix(tmp_path, monkeyp
                     news_id=1,
                     source_name="Legacy Feed",
                     canonical_url="https://example.com/legacy-1",
-                    fetched_at=datetime(2025, 3, 17, 1, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 17, 1, 0, tzinfo=UTC),
                 ),
                 _make_news_item(
                     news_id=2,
                     source_name="Legacy Feed",
                     canonical_url="https://example.com/legacy-2",
-                    fetched_at=datetime(2025, 3, 17, 2, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 17, 2, 0, tzinfo=UTC),
                 ),
                 _make_news_item(
                     news_id=3,
                     source_name="Realtime Feed",
                     canonical_url="https://example.com/realtime-1",
-                    fetched_at=datetime(2025, 3, 18, 1, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 18, 1, 0, tzinfo=UTC),
                 ),
             ]
         )
@@ -381,7 +381,7 @@ def test_sampling_script_includes_article_body_excerpt_when_present(monkeypatch)
             news_id=21,
             source_name="Legacy Feed",
             canonical_url="https://example.com/body-story",
-            fetched_at=datetime(2025, 3, 17, 1, 0, tzinfo=timezone.utc),
+            fetched_at=datetime(2025, 3, 17, 1, 0, tzinfo=UTC),
         )
         session.add(item)
         session.flush()
@@ -392,7 +392,7 @@ def test_sampling_script_includes_article_body_excerpt_when_present(monkeypatch)
                 content_html=None,
                 extract_status="success",
                 extract_error=None,
-                extracted_at=datetime(2025, 3, 17, 1, 5, tzinfo=timezone.utc),
+                extracted_at=datetime(2025, 3, 17, 1, 5, tzinfo=UTC),
             )
         )
         session.commit()
@@ -416,7 +416,7 @@ def test_sampling_script_deduplicates_canonical_urls_across_pools(monkeypatch) -
                 news_id=11,
                 source_name="Realtime Feed",
                 canonical_url=shared_url,
-                fetched_at=datetime(2025, 3, 18, 1, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2025, 3, 18, 1, 0, tzinfo=UTC),
             )
         )
         session.commit()
@@ -446,7 +446,7 @@ def test_sampling_script_can_cap_per_source_to_reduce_overrepresentation(monkeyp
                     news_id=index,
                     source_name="CLS Telegraph",
                     canonical_url=f"https://example.com/cls-{index}",
-                    fetched_at=datetime(2025, 3, 17, index, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 17, index, 0, tzinfo=UTC),
                 )
             )
         session.add(
@@ -454,7 +454,7 @@ def test_sampling_script_can_cap_per_source_to_reduce_overrepresentation(monkeyp
                 news_id=101,
                 source_name="Reuters",
                 canonical_url="https://example.com/reuters-1",
-                fetched_at=datetime(2025, 3, 17, 6, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2025, 3, 17, 6, 0, tzinfo=UTC),
             )
         )
         session.add(
@@ -462,7 +462,7 @@ def test_sampling_script_can_cap_per_source_to_reduce_overrepresentation(monkeyp
                 news_id=102,
                 source_name="Bloomberg",
                 canonical_url="https://example.com/bloomberg-1",
-                fetched_at=datetime(2025, 3, 17, 7, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2025, 3, 17, 7, 0, tzinfo=UTC),
             )
         )
         session.commit()
@@ -495,7 +495,7 @@ def test_sampling_script_source_cap_keeps_filling_beyond_initial_skewed_window(m
                     news_id=index,
                     source_name="A",
                     canonical_url=f"https://example.com/a-{index}",
-                    fetched_at=datetime(2025, 3, 17, 0, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 17, 0, 0, tzinfo=UTC),
                 )
             )
         for index in range(1001, 1011):
@@ -504,7 +504,7 @@ def test_sampling_script_source_cap_keeps_filling_beyond_initial_skewed_window(m
                     news_id=index,
                     source_name="B",
                     canonical_url=f"https://example.com/b-{index}",
-                    fetched_at=datetime(2025, 3, 18, 0, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 18, 0, 0, tzinfo=UTC),
                 )
             )
         for index in range(1011, 1021):
@@ -513,7 +513,7 @@ def test_sampling_script_source_cap_keeps_filling_beyond_initial_skewed_window(m
                     news_id=index,
                     source_name="C",
                     canonical_url=f"https://example.com/c-{index}",
-                    fetched_at=datetime(2025, 3, 19, 0, 0, tzinfo=timezone.utc),
+                    fetched_at=datetime(2025, 3, 19, 0, 0, tzinfo=UTC),
                 )
             )
         session.commit()

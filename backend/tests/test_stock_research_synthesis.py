@@ -11,10 +11,10 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -55,8 +55,8 @@ def _seed_news(
         language="en",
         sentiment_label=sentiment_label,
         sentiment_score=None,
-        published_at=datetime.now(timezone.utc) - timedelta(hours=published_hours_ago),
-        fetched_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC) - timedelta(hours=published_hours_ago),
+        fetched_at=datetime.now(UTC),
         ingest_status="ingested",
     )
     session.add(news)
@@ -76,7 +76,7 @@ def _seed_news(
                 news_id=news.id,
                 content_text=body,
                 extract_status="success",
-                extracted_at=datetime.now(timezone.utc),
+                extracted_at=datetime.now(UTC),
             )
         )
     session.flush()
@@ -116,7 +116,7 @@ def _save_snapshot(session, *, symbol: str, market: str, price: float, change_pe
             provider_symbol=symbol,
             quote_status="ok",
             status_message=None,
-            fetched_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago),
+            fetched_at=datetime.now(UTC) - timedelta(hours=hours_ago),
         )
     )
     session.flush()
@@ -135,6 +135,16 @@ def _cleanup_symbol_data(session, symbol: str) -> None:
             session.delete(article)
         for mention in session.scalars(select(NewsStockMention).where(NewsStockMention.news_id == news.id)):
             session.delete(mention)
+        # Flush the child-row deletes before deleting the parent NewsItem.
+        # NewsStockMention/ArticleContent have a DB-level ON DELETE CASCADE
+        # FK to news_item (SQLite has PRAGMA foreign_keys=ON), but this
+        # codebase intentionally does not declare ORM relationship()s
+        # between these models, so the unit-of-work has no dependency edge
+        # to order the DELETEs across mappers. Without this flush,
+        # "DELETE FROM news_item" can be emitted first, the DB cascade
+        # removes the child rows, and the explicit DELETEs queued above then
+        # match 0 rows (SAWarning).
+        session.flush()
         session.delete(news)
     for snapshot in session.scalars(select(PriceSnapshot).where(PriceSnapshot.symbol == symbol)):
         session.delete(snapshot)

@@ -1,6 +1,7 @@
+import logging
 import os
 import secrets
-import logging
+
 from fastapi import Header, HTTPException, Request, status
 
 from app.core.config import get_settings
@@ -24,7 +25,7 @@ def init_app_token() -> str:
     token_file = get_token_file_path()
     if os.path.exists(token_file):
         try:
-            with open(token_file, "r", encoding="utf-8") as f:
+            with open(token_file, encoding="utf-8") as f:
                 token = f.read().strip()
             if token:
                 _app_token = token

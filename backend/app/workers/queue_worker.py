@@ -7,13 +7,13 @@ from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy.orm import Session
-from app.workers.base_worker import BaseWorker
-from app.services.news_signal_pipeline import NewsSignalPipelineService
+
 from app.repositories.news_repository import NewsRepository
 from app.schemas.news import NewsItemSummary
 from app.services.event_bus import get_event_bus
-from app.services.notification_service import NotificationService, get_notification_service
-
+from app.services.news_signal_pipeline import NewsSignalPipelineService
+from app.services.notification_service import get_notification_service
+from app.workers.base_worker import BaseWorker
 
 # 全局内存分析任务队列
 analysis_queue: queue.Queue[list[int]] = queue.Queue()

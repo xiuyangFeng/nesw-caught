@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.services.news_relevance_annotation import _load_sample, _read_jsonl_lines
 from app.services.news_relevance_dataset import (
     apply_reviewed_samples,
     export_review_samples_csv,
     export_review_samples_markdown,
     import_review_decisions_csv,
-    select_review_samples,
     save_samples,
+    select_review_samples,
 )
-from app.services.news_relevance_annotation import _load_sample, _read_jsonl_lines
 
 
 def main() -> None:

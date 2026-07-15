@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
@@ -53,7 +53,7 @@ LLM_USAGE_WINDOW_HOURS = 24
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _ensure_utc(value: datetime | None) -> datetime | None:
@@ -61,8 +61,8 @@ def _ensure_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _success_rate(total_fetches: int, total_failures: int) -> float | None:

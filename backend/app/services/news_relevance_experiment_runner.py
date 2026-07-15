@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.schemas.research import EvaluationMetrics, ExperimentDecision
@@ -109,7 +109,7 @@ def append_experiment_ledger_row(
             decision.decision,
             decision.reason.replace("\t", " ").strip(),
             ",".join(changed_files),
-            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         ]
     )
     with path.open("a", encoding="utf-8") as handle:
@@ -146,7 +146,7 @@ def append_baseline_ledger_row(
             "baseline",
             reason,
             "",
-            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         ]
     )
     with path.open("a", encoding="utf-8") as handle:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import html
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.schemas.research import EvaluationMetrics

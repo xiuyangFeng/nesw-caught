@@ -30,7 +30,7 @@ def enable_route_caches():
         cache.enabled = True
         cache.clear()
     yield
-    for cache, was_enabled in zip(caches, previous):
+    for cache, was_enabled in zip(caches, previous, strict=True):
         cache.enabled = was_enabled
         cache.clear()
 

@@ -1,16 +1,16 @@
-import json
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.db.session import SessionLocal
+from app.main import app
 from app.models.price_snapshot import PriceSnapshot
 
 
 def test_market_search_online() -> None:
     client = TestClient(app)
-    
+
     with patch("httpx.get") as mock_get:
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -21,7 +21,7 @@ def test_market_search_online() -> None:
             ]
         }
         mock_get.return_value = mock_response
-        
+
         res = client.get("/api/market/search?q=Tencent")
         assert res.status_code == 200
         data = res.json()
@@ -34,7 +34,7 @@ def test_market_search_online() -> None:
 
 def test_market_search_offline_fallback() -> None:
     client = TestClient(app)
-    
+
     with SessionLocal() as session:
         session.query(PriceSnapshot).delete()
         snapshot = PriceSnapshot(
@@ -45,14 +45,14 @@ def test_market_search_offline_fallback() -> None:
             provider_name="yahoo",
             provider_symbol="AAPL",
             quote_status="ok",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         session.add(snapshot)
         session.commit()
 
     with patch("httpx.get") as mock_get:
         mock_get.side_effect = Exception("network offline")
-        
+
         res = client.get("/api/market/search?q=AA")
         assert res.status_code == 200
         data = res.json()

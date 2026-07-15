@@ -1,7 +1,8 @@
-from fastapi.testclient import TestClient
-import pandas as pd
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
+
+import pandas as pd
+from fastapi.testclient import TestClient
 
 from app.api.routes import market as market_routes
 from app.db.session import SessionLocal
@@ -9,8 +10,8 @@ from app.main import app
 from app.models.price_snapshot import PriceSnapshot
 from app.models.watchlist_item import WatchlistItem
 from app.services.market_chart_service import MarketChartService
-from app.services.quote_service import QuoteService
 from app.services.quote_provider import normalize_symbol
+from app.services.quote_service import QuoteService
 
 
 def test_market_watchlist_quotes_return_expanded_fields(monkeypatch) -> None:
@@ -89,7 +90,7 @@ def test_quote_service_keeps_display_name_for_a_share_alias_lookup() -> None:
                 provider_symbol="600519.SS",
                 quote_status="ok",
                 status_message=None,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -143,7 +144,7 @@ def test_quote_service_reads_cached_watchlist_quote_for_legacy_a_share_alias_row
                 provider_symbol="600519.SS",
                 quote_status="ok",
                 status_message=None,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -198,7 +199,7 @@ def test_quote_service_refresh_uses_canonical_cached_snapshot_for_legacy_a_share
                 provider_symbol="600519.SS",
                 quote_status="ok",
                 status_message=None,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -254,7 +255,7 @@ def test_quote_service_resolves_canonical_a_share_input_against_legacy_watchlist
                 provider_symbol="600519.SS",
                 quote_status="ok",
                 status_message=None,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -1180,9 +1181,10 @@ def test_market_chart_service_supports_a_share_sparklines() -> None:
 
 
 def test_quote_service_has_hot_alert() -> None:
-    from app.models.news_stock_mention import NewsStockMention
-    from app.models.news_item import NewsItem
     from datetime import timedelta
+
+    from app.models.news_item import NewsItem
+    from app.models.news_stock_mention import NewsStockMention
     service = QuoteService()
 
     with SessionLocal() as session:
@@ -1195,13 +1197,13 @@ def test_quote_service_has_hot_alert() -> None:
         # 插入 AAPL (无警报)
         session.add(WatchlistItem(symbol="AAPL", market="us", display_name="Apple"))
         session.add(PriceSnapshot(
-            symbol="AAPL", market="us", price=150.0, change_percent=0.0, provider_name="test", provider_symbol="AAPL", quote_status="ok", fetched_at=datetime.now(timezone.utc)
+            symbol="AAPL", market="us", price=150.0, change_percent=0.0, provider_name="test", provider_symbol="AAPL", quote_status="ok", fetched_at=datetime.now(UTC)
         ))
 
         # 插入 BABA (有警报)
         session.add(WatchlistItem(symbol="BABA", market="us", display_name="Alibaba"))
         session.add(PriceSnapshot(
-            symbol="BABA", market="us", price=80.0, change_percent=0.0, provider_name="test", provider_symbol="BABA", quote_status="ok", fetched_at=datetime.now(timezone.utc)
+            symbol="BABA", market="us", price=80.0, change_percent=0.0, provider_name="test", provider_symbol="BABA", quote_status="ok", fetched_at=datetime.now(UTC)
         ))
 
         # 插入重大新闻 (情绪分0.9, 2小时前)
@@ -1215,8 +1217,8 @@ def test_quote_service_has_hot_alert() -> None:
             sentiment_score=0.9,
             url_hash="hash_baba_test_123",
             canonical_url="https://reuters.com/baba_test_123",
-            published_at=datetime.now(timezone.utc) - timedelta(hours=2),
-            fetched_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC) - timedelta(hours=2),
+            fetched_at=datetime.now(UTC),
         )
         session.add(news)
         session.commit()

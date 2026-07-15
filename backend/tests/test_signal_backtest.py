@@ -6,7 +6,7 @@ price_snapshot 稀疏时（基准价或前视价缺失）的优雅降级与 skip
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -92,7 +92,7 @@ def _add_snapshot(session, *, symbol: str, price: float, fetched_at: datetime, m
 def test_backtest_hit_rate_returns_and_importance_buckets() -> None:
     """核心场景：命中率、平均前视收益、分桶收益与样本计数正确。"""
     _clean()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     t0 = now - timedelta(days=1)
     hour = timedelta(hours=1)
 
@@ -156,7 +156,7 @@ def test_backtest_hit_rate_returns_and_importance_buckets() -> None:
 def test_backtest_skips_when_baseline_snapshot_missing() -> None:
     """基准价缺失（发布前无快照）时优雅跳过并计入 skipped。"""
     _clean()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     t0 = now - timedelta(days=1)
     hour = timedelta(hours=1)
 
@@ -183,7 +183,7 @@ def test_backtest_skips_when_baseline_snapshot_missing() -> None:
 def test_backtest_excludes_news_outside_window() -> None:
     """回看窗口外的历史新闻被排除，不进入候选样本。"""
     _clean()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     old = now - timedelta(days=60)
     hour = timedelta(hours=1)
 
@@ -206,7 +206,7 @@ def test_backtest_excludes_news_outside_window() -> None:
 def test_backtest_market_filter_narrows_candidates() -> None:
     """market 过滤仅统计对应市场的新闻信号。"""
     _clean()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     t0 = now - timedelta(days=1)
     hour = timedelta(hours=1)
 
@@ -230,7 +230,7 @@ def test_backtest_market_filter_narrows_candidates() -> None:
 def test_backtest_route_returns_summary() -> None:
     """路由冒烟：GET /api/backtest 返回 200 与预期字段。"""
     _clean()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     t0 = now - timedelta(days=1)
     hour = timedelta(hours=1)
 

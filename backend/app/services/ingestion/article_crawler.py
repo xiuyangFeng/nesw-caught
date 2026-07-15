@@ -1,4 +1,5 @@
 import logging
+
 from bs4 import BeautifulSoup
 
 from app.services.http_pool import get_crawl_client
@@ -15,7 +16,7 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     }
-    
+
     try:
         # 使用共享连接池抓取网页（httpx.Client 线程安全，支持自动重定向）
         client = get_crawl_client()
@@ -28,7 +29,7 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
 
     try:
         soup = BeautifulSoup(html, "html.parser")
-        
+
         # 去除干扰性标签
         for s in soup(["script", "style", "nav", "header", "footer", "aside", "form", "iframe", "noscript"]):
             s.decompose()
@@ -46,7 +47,7 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
             ".main-content",
             "#content",
         ]
-        
+
         for selector in selectors:
             element = soup.select_one(selector)
             if element:
@@ -66,7 +67,7 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
                 continue
             if "版权所有" in text or "ICP备" in text or "Copyright" in text:
                 continue
-                
+
             if element.name == "p":
                 paragraphs.append(text)
             elif element.name == "div" and not element.find(["p", "div"]):
@@ -81,7 +82,7 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
             text = soup.body.get_text("\n").strip()
         else:
             text = soup.get_text("\n").strip()
-            
+
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         return "\n\n".join(lines)
     except Exception as exc:

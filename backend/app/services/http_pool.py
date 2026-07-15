@@ -1,4 +1,5 @@
 import httpx
+
 from app.core.config import get_settings
 
 _client: httpx.Client | None = None

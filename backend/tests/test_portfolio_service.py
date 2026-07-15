@@ -4,9 +4,9 @@
 沿用 test_watchlist_research.py 的 fixture 风格：直接对共享测试库读写，
 用唯一 symbol 前缀 + 逐用例清理，避免相互污染。
 """
-from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import uuid
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -41,8 +41,8 @@ def _seed_news(
         language="en",
         sentiment_label="neutral",
         sentiment_score=sentiment_score,
-        published_at=datetime.now(timezone.utc) - timedelta(hours=published_hours_ago),
-        fetched_at=datetime.now(timezone.utc),
+        published_at=datetime.now(UTC) - timedelta(hours=published_hours_ago),
+        fetched_at=datetime.now(UTC),
         ingest_status="ingested",
     )
     session.add(news)
@@ -102,7 +102,7 @@ def _save_snapshot(session, *, symbol: str, market: str, price: float, change_pe
             provider_symbol=symbol,
             quote_status="ok",
             status_message=None,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
     )
     session.flush()
@@ -119,6 +119,16 @@ def _cleanup_symbol_data(session, symbol: str) -> None:
     for news in news_items:
         for mention in session.scalars(select(NewsStockMention).where(NewsStockMention.news_id == news.id)):
             session.delete(mention)
+        # Flush the mention deletes before deleting the parent NewsItem: the
+        # DB has ON DELETE CASCADE on news_stock_mention.news_id (enforced
+        # via PRAGMA foreign_keys=ON) but the ORM models intentionally don't
+        # declare relationship()s between NewsItem and NewsStockMention, so
+        # SQLAlchemy's unit-of-work has no dependency edge to guarantee
+        # child-before-parent DELETE ordering within a single flush. Without
+        # this flush, "DELETE FROM news_item" can be emitted first, the DB
+        # cascade removes the mention row, and the explicit mention DELETE
+        # queued above then matches 0 rows (SAWarning).
+        session.flush()
         session.delete(news)
     for snapshot in session.scalars(select(PriceSnapshot).where(PriceSnapshot.symbol == symbol)):
         session.delete(snapshot)

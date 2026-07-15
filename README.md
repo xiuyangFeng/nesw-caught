@@ -98,7 +98,13 @@ conda run -n news-caught pytest backend/tests
 > 单元测试在运行时会自动重定向到专用的临时测试数据库（`backend/data/app_test.db`），并在测试结束后销毁。这可确保单元测试 100% 隔离，完全不会干扰或污染你的本地开发库（`app.db`）。
 
 
-前端构建检查：
+前端单元测试：
+
+```bash
+npm --prefix frontend run test
+```
+
+前端构建检查（含 TypeScript 类型检查）：
 
 ```bash
 npm --prefix frontend run build
@@ -372,9 +378,7 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
 
 ## 变更记录要求
 
-项目根目录下的 [ANGENT.md](/Users/xiuyang/Desktop/news-caught/ANGENT.md) 已生效。
-
-另外，项目已新增 [AGENTS.md](/Users/xiuyang/Desktop/news-caught/AGENTS.md) 作为基于 `obra/superpowers` 的开发流程约束。后续若使用 Codex 协作开发，需要先确保相关 superpowers skills 已安装到 `~/.codex/skills`，并在安装后重启 Codex 使其生效。
+项目根目录下的 [AGENTS.md](/Users/xiuyang/Desktop/news-caught/AGENTS.md) 已生效，是基于 `obra/superpowers` 的开发流程约束的唯一权威文档（历史上曾因拼写错误存在 `ANGENT.md`，现已合并，仅保留指向本文件的占位说明）。后续若使用 Codex 协作开发，需要先确保相关 superpowers skills 已安装到 `~/.codex/skills`，并在安装后重启 Codex 使其生效。
 
 从现在开始，任何代码、配置、文档、脚本、接口或测试修改，都必须同步回填到：
 

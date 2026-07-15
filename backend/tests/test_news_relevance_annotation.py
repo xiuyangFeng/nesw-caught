@@ -5,7 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.schemas.research import MarketRelevanceAnnotation, MarketRelevanceLabel, MarketRelevanceSample
+from app.schemas.research import (
+    MarketRelevanceAnnotation,
+    MarketRelevanceLabel,
+    MarketRelevanceSample,
+)
 from app.services.news_relevance_annotation import (
     MarketRelevanceAnnotationError,
     MarketRelevanceAnnotationService,

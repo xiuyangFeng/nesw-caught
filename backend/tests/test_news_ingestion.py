@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
 
 import pytest
@@ -12,23 +12,23 @@ from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
+from app.main import app
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.models.source_health import SourceHealth
-from app.main import app
 from app.repositories.source_health_repository import SourceHealthRepository
 from app.schemas.news import NewsItemSummary
 from app.services.news_ingestion import (
-    RefreshSummary,
     NewsIngestionService,
+    RefreshSummary,
     SourceDefinition,
     SourceItem,
-    load_sources,
-    _parse_minimax_detail_html,
     _parse_anchor_list_html,
+    _parse_minimax_detail_html,
     _parse_rss_or_atom,
     _parse_selector_html,
     _parse_zhipu_news_inline_json,
+    load_sources,
 )
 
 
@@ -67,7 +67,7 @@ def test_parse_rss_source_items() -> None:
     assert items[0].title == "Example headline"
     assert items[0].canonical_url == "https://example.com/story"
     assert items[0].summary == "Summary text"
-    assert items[0].published_at == datetime(2025, 3, 17, 10, 0, tzinfo=timezone.utc)
+    assert items[0].published_at == datetime(2025, 3, 17, 10, 0, tzinfo=UTC)
 
 
 def test_parse_selector_html_source_items() -> None:
@@ -159,7 +159,7 @@ def test_parse_minimax_detail_html_extracts_date_and_body() -> None:
     )
 
     assert item.title == "Music 2.5+: 解锁纯音乐，突破风格边界"
-    assert item.published_at == datetime(2026, 3, 4, 0, 0, tzinfo=timezone.utc)
+    assert item.published_at == datetime(2026, 3, 4, 0, 0, tzinfo=UTC)
     assert "今天，我们介绍MiniMax Music 2.5正式上线纯音乐创作能力。" in item.content_text
     assert item.summary == "今天，我们介绍MiniMax Music 2.5正式上线纯音乐创作能力。 欢迎使用 MiniMax Music 2.5+，解锁你的音乐创造力！"
 
@@ -550,7 +550,7 @@ def test_initialize_database_prefers_news_item_market_when_backfilling_source_he
                 sentiment_label=None,
                 sentiment_score=None,
                 published_at=None,
-                fetched_at=datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 25, 10, 0, tzinfo=UTC),
                 ingest_status="ingested",
             )
         )
@@ -617,7 +617,7 @@ def test_persist_item_backfills_existing_news_when_detail_arrives() -> None:
                 sentiment_label=None,
                 sentiment_score=None,
                 published_at=None,
-                fetched_at=datetime(2026, 3, 17, 8, 0, tzinfo=timezone.utc),
+                fetched_at=datetime(2026, 3, 17, 8, 0, tzinfo=UTC),
                 ingest_status="ingested",
             )
         )
@@ -634,7 +634,7 @@ def test_persist_item_backfills_existing_news_when_detail_arrives() -> None:
                     summary="正文摘要",
                     content_text="正文摘要 正文内容",
                     content_html="<p>正文摘要</p><p>正文内容</p>",
-                    published_at=datetime(2026, 3, 17, 7, 30, tzinfo=timezone.utc),
+                    published_at=datetime(2026, 3, 17, 7, 30, tzinfo=UTC),
                     extract_status="success",
                 ),
             )
@@ -783,8 +783,8 @@ def test_refresh_source_skips_same_window_duplicate_titles_from_same_host(monkey
         parser="the_news_api_json",
     )
     url_hashes = [
-        sha256("https://news.example.com/story-1".encode("utf-8")).hexdigest(),
-        sha256("https://news.example.com/story-2?utm_source=wire".encode("utf-8")).hexdigest(),
+        sha256(b"https://news.example.com/story-1").hexdigest(),
+        sha256(b"https://news.example.com/story-2?utm_source=wire").hexdigest(),
     ]
     with SessionLocal() as session:
         session.execute(
@@ -943,8 +943,8 @@ def test_refresh_source_deduplicates_same_window_chinese_titles(monkeypatch) -> 
         parser="the_news_api_json",
     )
     url_hashes = [
-        sha256("https://news.example.com/cn-story-1".encode("utf-8")).hexdigest(),
-        sha256("https://news.example.com/cn-story-2".encode("utf-8")).hexdigest(),
+        sha256(b"https://news.example.com/cn-story-1").hexdigest(),
+        sha256(b"https://news.example.com/cn-story-2").hexdigest(),
     ]
     with SessionLocal() as session:
         session.execute(
@@ -976,7 +976,7 @@ def test_refresh_news_endpoint_returns_summary(monkeypatch) -> None:
             self.session = session
 
         def refresh_all(self) -> RefreshSummary:
-            now = datetime(2025, 3, 17, 10, 0, tzinfo=timezone.utc)
+            now = datetime(2025, 3, 17, 10, 0, tzinfo=UTC)
             from app.services.news_ingestion import SourceFetchResult
 
             return RefreshSummary(
@@ -1022,8 +1022,8 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         language="en",
         sentiment_label=None,
         sentiment_score=None,
-        published_at=datetime(2025, 3, 17, 9, 0, tzinfo=timezone.utc),
-        fetched_at=datetime(2025, 3, 17, 9, 1, tzinfo=timezone.utc),
+        published_at=datetime(2025, 3, 17, 9, 0, tzinfo=UTC),
+        fetched_at=datetime(2025, 3, 17, 9, 1, tzinfo=UTC),
         ingest_status="ingested",
     )
 
@@ -1134,7 +1134,7 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
       </channel>
     </rss>
     """
-    url_hash = sha256("https://example.com/pipeline-refresh-item".encode("utf-8")).hexdigest()
+    url_hash = sha256(b"https://example.com/pipeline-refresh-item").hexdigest()
 
     class FakeResponse:
         def __init__(self, text: str) -> None:
@@ -1295,8 +1295,8 @@ def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> No
             signal_status=None,
             signal_error=None,
             signal_updated_at=None,
-            published_at=datetime(2026, 3, 19, 11, 0, tzinfo=timezone.utc),
-            fetched_at=datetime(2026, 3, 19, 11, 1, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 19, 11, 0, tzinfo=UTC),
+            fetched_at=datetime(2026, 3, 19, 11, 1, tzinfo=UTC),
             ingest_status="ingested",
         )
         session.add(pending)
@@ -1336,9 +1336,10 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
         def process_news_ids(self, news_ids: list[int]):
             return type("Summary", (), {"news_ids": list(news_ids), "processed_count": len(news_ids)})()
 
-    from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
-    from datetime import datetime, timezone
+    from datetime import datetime
     from typing import Any
+
+    from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
 
     while not analysis_queue.empty():
         try:
@@ -1353,8 +1354,8 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
             self.summary = "summary"
             self.source_name = "source"
             self.market = "us"
-            self.published_at = datetime(2025, 3, 17, 9, 0, tzinfo=timezone.utc)
-            self.fetched_at = datetime(2025, 3, 17, 9, 1, tzinfo=timezone.utc)
+            self.published_at = datetime(2025, 3, 17, 9, 0, tzinfo=UTC)
+            self.fetched_at = datetime(2025, 3, 17, 9, 1, tzinfo=UTC)
 
     class FakeNewsRepositoryForProcessed:
         def __init__(self, session) -> None:
@@ -1450,8 +1451,8 @@ def test_refresh_source_deduplicates_across_hour_boundary(monkeypatch) -> None:
         parser="the_news_api_json",
     )
     url_hashes = [
-        sha256("https://news.example.com/boundary-1".encode("utf-8")).hexdigest(),
-        sha256("https://news.example.com/boundary-2".encode("utf-8")).hexdigest(),
+        sha256(b"https://news.example.com/boundary-1").hexdigest(),
+        sha256(b"https://news.example.com/boundary-2").hexdigest(),
     ]
 
     def _cleanup() -> None:
@@ -1577,8 +1578,8 @@ def test_refresh_source_deduplicates_cross_source_similar_titles(monkeypatch) ->
         parser="the_news_api_json",
     )
     url_hashes = [
-        sha256("https://wire-a.example.com/cross-1".encode("utf-8")).hexdigest(),
-        sha256("https://wire-b.example.com/cross-2".encode("utf-8")).hexdigest(),
+        sha256(b"https://wire-a.example.com/cross-1").hexdigest(),
+        sha256(b"https://wire-b.example.com/cross-2").hexdigest(),
     ]
 
     def _cleanup() -> None:

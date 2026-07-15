@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from hashlib import sha256
 
 from sqlalchemy import select
@@ -11,8 +12,15 @@ from app.repositories.source_health_repository import SourceHealthRepository
 from app.services.ingestion.dedup_gate import DuplicateGate
 from app.services.ingestion.parser import _parse_minimax_detail_html
 from app.services.ingestion.sources import _should_promote_source_metadata
-from app.services.ingestion.types import SourceDefinition, SourceFetchOutcome, SourceFetchResult, SourceItem
+from app.services.ingestion.types import (
+    SourceDefinition,
+    SourceFetchOutcome,
+    SourceFetchResult,
+    SourceItem,
+)
 from app.services.ingestion.utils import _ema_latency, _utc_now
+
+logger = logging.getLogger(__name__)
 
 
 class ItemPersister:
@@ -91,7 +99,22 @@ class ItemPersister:
                 inserted_items=inserted_items,
             )
         except Exception as exc:
+            # 兜底范围刻意保持宽泛:调用方 (service.refresh_all) 用一个不带
+            # try/except 的 `for outcome in outcomes:` 循环串行调用本方法 —— 一旦
+            # 这里让异常逃逸,会中断同批后续 source 的落库(已抓取但未及处理的
+            # source 结果全部丢失)。批内异常主要来自 SQLAlchemy 写入
+            # (session.add/flush/commit 等 SQLAlchemyError 及其子类),但 MiniMax
+            # 分支还会经由 hydrate_minimax_detail_item 触达 httpx 网络层,类型面
+            # 较宽,无法安全穷举收窄,因此维持 Exception 兜底,仅补充带 source
+            # 上下文的日志(此前完全没有日志,属于"吞错不留痕"）。
             self.session.rollback()
+            logger.exception(
+                "news persist failed: source=%s type=%s url=%s latency_ms=%s",
+                source.name,
+                source.source_type,
+                source.url,
+                outcome.latency_ms,
+            )
             return self.record_failure(source, error=str(exc), latency_ms=outcome.latency_ms)
 
     def record_failure(self, source: SourceDefinition, *, error: str, latency_ms: float) -> SourceFetchResult:
@@ -261,6 +284,20 @@ class ItemPersister:
                 )
             return detail_item
         except Exception as exc:
+            # 兜底范围刻意保持宽泛:失败时优雅降级为回退 item(而非向上抛出),
+            # 让调用方 persist_outcome 把该 source 的其余 item 正常落库,不因单条
+            # MiniMax 详情页失败拖垮整批。可能的异常包括 httpx 网络层
+            # (含不属于 httpx.HTTPError 体系的 httpx.InvalidURL/StreamError 等)
+            # 与 _parse_minimax_detail_html 显式抛出的 ValueError,类型面无法安全
+            # 穷举收窄,因此维持 Exception 兜底,仅补充带 URL 上下文的日志
+            # (此前完全没有日志)。
+            logger.warning(
+                "minimax detail hydration failed: source=%s url=%s error=%s",
+                source.name,
+                canonical_url,
+                exc,
+                exc_info=True,
+            )
             if existing is not None and existing.published_at is not None:
                 return item
             return SourceItem(

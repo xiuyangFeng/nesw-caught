@@ -1,10 +1,8 @@
 from typing import Literal
-from datetime import datetime
 
 from pydantic import BaseModel, Field
 
 from app.schemas.common import UTCDateTime
-
 
 QuoteStatus = Literal["ok", "delayed", "unavailable", "symbol_not_supported", "fetch_failed"]
 

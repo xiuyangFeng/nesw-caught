@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import inspect, text
 
@@ -81,9 +81,9 @@ def test_notification_job_repository_claims_retries_and_marks_sent() -> None:
         assert claimed.status == "sending"
         assert claimed.attempt_count == 1
         assert claimed.lease_until is not None
-        assert claimed.lease_until > datetime.now(timezone.utc)
+        assert claimed.lease_until > datetime.now(UTC)
 
-        retry_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+        retry_at = datetime.now(UTC) + timedelta(minutes=5)
         retried = repo.mark_retryable_failure(
             claimed.id,
             error="temporary network error",
@@ -132,7 +132,7 @@ def test_notification_job_repository_reclaims_expired_sending_leases() -> None:
             connection.execute(
                 text("UPDATE notification_job SET lease_until = :lease_until WHERE id = :id"),
                 {
-                    "lease_until": datetime.now(timezone.utc) - timedelta(seconds=1),
+                    "lease_until": datetime.now(UTC) - timedelta(seconds=1),
                     "id": claimed.id,
                 },
             )

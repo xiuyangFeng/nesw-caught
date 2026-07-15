@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import csv
 import json
-from pathlib import Path
 import random
-from typing import Iterable
+from collections.abc import Iterable
+from pathlib import Path
 
-from app.schemas.research import MarketRelevanceAnnotation, MarketRelevanceLabel, MarketRelevanceSample
+from app.schemas.research import (
+    MarketRelevanceAnnotation,
+    MarketRelevanceLabel,
+    MarketRelevanceSample,
+)
 
 
 class DuplicateSampleIdError(ValueError):

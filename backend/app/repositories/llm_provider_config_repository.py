@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, func
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.llm_provider_config import LLMProviderConfig

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -13,7 +13,7 @@ def test_stream_status_reports_event_bus_health(monkeypatch) -> None:
                 backend="hybrid",
                 status="degraded",
                 redis_enabled=True,
-                last_published_at=datetime(2026, 3, 23, 1, 20, tzinfo=timezone.utc),
+                last_published_at=datetime(2026, 3, 23, 1, 20, tzinfo=UTC),
                 last_event_name="news.created_batch",
                 last_error="redis unavailable",
             )
@@ -50,8 +50,8 @@ def test_stream_status_reports_market_worker_runtime(monkeypatch) -> None:
         lambda session: {
             "name": "market_quote_producer",
             "status": "ok",
-            "last_heartbeat_at": datetime(2026, 3, 23, 5, 0, tzinfo=timezone.utc),
-            "last_success_at": datetime(2026, 3, 23, 4, 59, tzinfo=timezone.utc),
+            "last_heartbeat_at": datetime(2026, 3, 23, 5, 0, tzinfo=UTC),
+            "last_success_at": datetime(2026, 3, 23, 4, 59, tzinfo=UTC),
             "last_failure_at": None,
             "last_error": None,
             "cycle_count": 12,

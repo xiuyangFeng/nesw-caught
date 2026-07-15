@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
-from app.models.source_health import SourceHealth
 from app.main import app
+from app.models.source_health import SourceHealth
 
 
 def test_health_endpoint_returns_ok() -> None:

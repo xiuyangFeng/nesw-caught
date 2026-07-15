@@ -1,6 +1,6 @@
 from app.db.initializer import initialize_database
-from app.services.event_bus import build_event_bus, set_event_bus
 from app.main import build_market_quote_producer, register_market_watchlist_handlers
+from app.services.event_bus import build_event_bus, set_event_bus
 
 
 def main() -> None:

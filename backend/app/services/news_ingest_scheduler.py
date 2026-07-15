@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
 
 from sqlalchemy.orm import Session
-from app.workers.base_worker import BaseWorker
+
 from app.services.news_ingestion import NewsIngestionService, SourceDefinition, load_sources
 from app.services.news_signal_pipeline import NewsSignalPipelineService
+from app.workers.base_worker import BaseWorker
 
 DEFAULT_TICK_SECONDS = 5.0
 DEFAULT_MAX_BACKOFF_MULTIPLIER = 8

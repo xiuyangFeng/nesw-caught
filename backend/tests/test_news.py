@@ -1,16 +1,16 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
+from app.main import app
 from app.models.news_item import NewsItem
 from app.models.news_stock_mention import NewsStockMention
 from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
 from app.models.watchlist_item import WatchlistItem
-from app.main import app
 from app.services.event_bus import EventBusStatus
 from app.services.news_ingestion import SourceDefinition
 
@@ -18,13 +18,13 @@ from app.services.news_ingestion import SourceDefinition
 def test_news_runtime_returns_market_and_source_health_contract(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.news_runtime._utc_now",
-        lambda: datetime(2026, 3, 25, 2, 40, tzinfo=timezone.utc),
+        lambda: datetime(2026, 3, 25, 2, 40, tzinfo=UTC),
     )
     source_health = SourceHealth(
         source_name="Example Source",
         market="us",
         source_type="rss",
-        last_success_at=datetime(2026, 3, 25, 2, 40, tzinfo=timezone.utc),
+        last_success_at=datetime(2026, 3, 25, 2, 40, tzinfo=UTC),
         last_failure_at=None,
         consecutive_failures=0,
         total_fetches=1,
@@ -60,7 +60,7 @@ def test_news_runtime_returns_market_and_source_health_contract(monkeypatch) -> 
                         backend="memory",
                         status="ok",
                         redis_enabled=False,
-                        last_published_at=datetime(2026, 3, 25, 2, 39, 55, tzinfo=timezone.utc),
+                        last_published_at=datetime(2026, 3, 25, 2, 39, 55, tzinfo=UTC),
                         last_event_name="news.created",
                     )
                 )
@@ -71,8 +71,8 @@ def test_news_runtime_returns_market_and_source_health_contract(monkeypatch) -> 
     client = TestClient(app)
     source_name = "Example Source"
     url_hash = "test-news-runtime-contract"
-    news_created_at = datetime(2026, 3, 25, 2, 39, 40, tzinfo=timezone.utc)
-    published_at = datetime(2026, 3, 25, 2, 35, tzinfo=timezone.utc)
+    news_created_at = datetime(2026, 3, 25, 2, 39, 40, tzinfo=UTC)
+    published_at = datetime(2026, 3, 25, 2, 35, tzinfo=UTC)
 
     with SessionLocal() as session:
         session.add(
@@ -143,14 +143,14 @@ def test_news_runtime_returns_market_and_source_health_contract(monkeypatch) -> 
 def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.news_runtime._utc_now",
-        lambda: datetime(2026, 3, 25, 2, 40, tzinfo=timezone.utc),
+        lambda: datetime(2026, 3, 25, 2, 40, tzinfo=UTC),
     )
     source_rows = [
         SourceHealth(
             source_name="US Primary",
             market="us",
             source_type="rss",
-            last_success_at=datetime(2026, 3, 25, 2, 20, tzinfo=timezone.utc),
+            last_success_at=datetime(2026, 3, 25, 2, 20, tzinfo=UTC),
             last_failure_at=None,
             consecutive_failures=0,
             total_fetches=4,
@@ -162,8 +162,8 @@ def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
             source_name="HK Primary",
             market="hk",
             source_type="rss",
-            last_success_at=datetime(2026, 3, 25, 1, 50, tzinfo=timezone.utc),
-            last_failure_at=datetime(2026, 3, 25, 2, 35, tzinfo=timezone.utc),
+            last_success_at=datetime(2026, 3, 25, 1, 50, tzinfo=UTC),
+            last_failure_at=datetime(2026, 3, 25, 2, 35, tzinfo=UTC),
             consecutive_failures=2,
             total_fetches=7,
             total_failures=2,
@@ -174,7 +174,7 @@ def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
             source_name="HK Secondary",
             market="hk",
             source_type="rss",
-            last_success_at=datetime(2026, 3, 25, 2, 38, tzinfo=timezone.utc),
+            last_success_at=datetime(2026, 3, 25, 2, 38, tzinfo=UTC),
             last_failure_at=None,
             consecutive_failures=0,
             total_fetches=3,
@@ -186,8 +186,8 @@ def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
             source_name="CN Primary",
             market="cn",
             source_type="rss",
-            last_success_at=datetime(2026, 3, 25, 1, 40, tzinfo=timezone.utc),
-            last_failure_at=datetime(2026, 3, 25, 2, 39, tzinfo=timezone.utc),
+            last_success_at=datetime(2026, 3, 25, 1, 40, tzinfo=UTC),
+            last_failure_at=datetime(2026, 3, 25, 2, 39, tzinfo=UTC),
             consecutive_failures=4,
             total_fetches=9,
             total_failures=4,
@@ -251,7 +251,7 @@ def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
                         backend="memory",
                         status="ok",
                         redis_enabled=False,
-                        last_published_at=datetime(2026, 3, 25, 2, 38, 30, tzinfo=timezone.utc),
+                        last_published_at=datetime(2026, 3, 25, 2, 38, 30, tzinfo=UTC),
                         last_event_name="news.created",
                     )
                 )
@@ -280,8 +280,8 @@ def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
                     language="en",
                     sentiment_label=None,
                     sentiment_score=None,
-                    published_at=datetime(2026, 3, 25, 1, 55, tzinfo=timezone.utc),
-                    fetched_at=datetime(2026, 3, 25, 1, 59, tzinfo=timezone.utc),
+                    published_at=datetime(2026, 3, 25, 1, 55, tzinfo=UTC),
+                    fetched_at=datetime(2026, 3, 25, 1, 59, tzinfo=UTC),
                     ingest_status="ingested",
                 ),
                 NewsItem(
@@ -295,8 +295,8 @@ def test_news_runtime_maps_runtime_statuses_per_spec(monkeypatch) -> None:
                     language="zh",
                     sentiment_label=None,
                     sentiment_score=None,
-                    published_at=datetime(2026, 3, 25, 2, 35, tzinfo=timezone.utc),
-                    fetched_at=datetime(2026, 3, 25, 2, 38, tzinfo=timezone.utc),
+                    published_at=datetime(2026, 3, 25, 2, 35, tzinfo=UTC),
+                    fetched_at=datetime(2026, 3, 25, 2, 38, tzinfo=UTC),
                     ingest_status="ingested",
                 ),
             ]
@@ -434,7 +434,7 @@ def test_news_detail_serializes_utc_timestamps() -> None:
 
 def test_news_list_orders_by_published_at_before_fetched_at() -> None:
     client = TestClient(app)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     url_hashes = [
         "test-order-published-newer",
         "test-order-fetched-newer",
@@ -492,7 +492,7 @@ def test_news_list_orders_by_published_at_before_fetched_at() -> None:
 
 def test_news_list_orders_null_published_at_last() -> None:
     client = TestClient(app)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     url_hashes = [
         "test-null-order-published-new",
         "test-null-order-published-old",
@@ -592,7 +592,7 @@ def test_news_list_orders_null_published_at_last() -> None:
 
 def test_news_list_keyset_pagination_returns_next_cursor() -> None:
     client = TestClient(app)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     url_hashes = [
         "test-keyset-page-1",
         "test-keyset-page-2",
@@ -701,8 +701,8 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                 language="en",
                 sentiment_label="positive",
                 sentiment_score=0.72,
-                    published_at=datetime(2099, 3, 28, 8, 0, tzinfo=timezone.utc),
-                    fetched_at=datetime(2099, 3, 28, 8, 2, tzinfo=timezone.utc),
+                    published_at=datetime(2099, 3, 28, 8, 0, tzinfo=UTC),
+                    fetched_at=datetime(2099, 3, 28, 8, 2, tzinfo=UTC),
                 ingest_status="ingested",
             ),
             NewsItem(
@@ -716,8 +716,8 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                 language="en",
                 sentiment_label="positive",
                 sentiment_score=0.51,
-                    published_at=datetime(2099, 3, 28, 7, 30, tzinfo=timezone.utc),
-                    fetched_at=datetime(2099, 3, 28, 7, 35, tzinfo=timezone.utc),
+                    published_at=datetime(2099, 3, 28, 7, 30, tzinfo=UTC),
+                    fetched_at=datetime(2099, 3, 28, 7, 35, tzinfo=UTC),
                 ingest_status="ingested",
             ),
             NewsItem(
@@ -731,8 +731,8 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                 language="en",
                 sentiment_label="neutral",
                 sentiment_score=0.02,
-                    published_at=datetime(2099, 3, 28, 6, 45, tzinfo=timezone.utc),
-                    fetched_at=datetime(2099, 3, 28, 6, 50, tzinfo=timezone.utc),
+                    published_at=datetime(2099, 3, 28, 6, 45, tzinfo=UTC),
+                    fetched_at=datetime(2099, 3, 28, 6, 50, tzinfo=UTC),
                 ingest_status="ingested",
             ),
         ]
@@ -747,7 +747,7 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                     keywords="nvidia,chip,launch,ai,supplier",
                     sentiment_score=0.64,
                     importance_score=9.91,
-                    last_seen_at=datetime(2099, 3, 28, 8, 2, tzinfo=timezone.utc),
+                    last_seen_at=datetime(2099, 3, 28, 8, 2, tzinfo=UTC),
                 ),
                 TopicCluster(
                     topic_key=topic_keys[1],
@@ -756,7 +756,7 @@ def test_news_feed_layout_returns_event_cards_topics_and_stream() -> None:
                     keywords="fed,policy,rate,inflation",
                     sentiment_score=0.0,
                     importance_score=9.61,
-                    last_seen_at=datetime(2099, 3, 28, 6, 50, tzinfo=timezone.utc),
+                    last_seen_at=datetime(2099, 3, 28, 6, 50, tzinfo=UTC),
                 ),
         ]
         session.add_all(topics)
@@ -843,8 +843,8 @@ def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() 
                 language="en",
                 sentiment_label="negative",
                 sentiment_score=-0.4,
-                published_at=datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc),
-                fetched_at=datetime(2026, 3, 28, 9, 1, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 28, 9, 0, tzinfo=UTC),
+                fetched_at=datetime(2026, 3, 28, 9, 1, tzinfo=UTC),
                 ingest_status="ingested",
             ),
             NewsItem(
@@ -858,8 +858,8 @@ def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() 
                 language="en",
                 sentiment_label="positive",
                 sentiment_score=0.5,
-                published_at=datetime(2026, 3, 28, 8, 55, tzinfo=timezone.utc),
-                fetched_at=datetime(2026, 3, 28, 8, 56, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 28, 8, 55, tzinfo=UTC),
+                fetched_at=datetime(2026, 3, 28, 8, 56, tzinfo=UTC),
                 ingest_status="ingested",
             ),
         ]
@@ -873,7 +873,7 @@ def test_news_feed_layout_market_filter_keeps_related_symbols_in_market_scope() 
             keywords="supplier,demand,ai",
             sentiment_score=0.0,
             importance_score=9.2,
-            last_seen_at=datetime(2026, 3, 28, 9, 1, tzinfo=timezone.utc),
+            last_seen_at=datetime(2026, 3, 28, 9, 1, tzinfo=UTC),
         )
         session.add(topic)
         session.flush()
@@ -935,8 +935,8 @@ def test_news_event_detail_returns_reconstructed_topic_event() -> None:
                 language="en",
                 sentiment_label="positive",
                 sentiment_score=0.7,
-                published_at=datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc),
-                fetched_at=datetime(2026, 3, 28, 8, 5, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 28, 8, 0, tzinfo=UTC),
+                fetched_at=datetime(2026, 3, 28, 8, 5, tzinfo=UTC),
                 ingest_status="ingested",
             ),
             NewsItem(
@@ -950,8 +950,8 @@ def test_news_event_detail_returns_reconstructed_topic_event() -> None:
                 language="en",
                 sentiment_label="positive",
                 sentiment_score=0.5,
-                published_at=datetime(2026, 3, 28, 7, 45, tzinfo=timezone.utc),
-                fetched_at=datetime(2026, 3, 28, 7, 50, tzinfo=timezone.utc),
+                published_at=datetime(2026, 3, 28, 7, 45, tzinfo=UTC),
+                fetched_at=datetime(2026, 3, 28, 7, 50, tzinfo=UTC),
                 ingest_status="ingested",
             ),
         ]
@@ -965,7 +965,7 @@ def test_news_event_detail_returns_reconstructed_topic_event() -> None:
             keywords="nvidia,chip,launch,ai,supplier",
             sentiment_score=0.64,
             importance_score=9.91,
-            last_seen_at=datetime(2026, 3, 28, 8, 2, tzinfo=timezone.utc),
+            last_seen_at=datetime(2026, 3, 28, 8, 2, tzinfo=UTC),
         )
         session.add(topic)
         session.flush()

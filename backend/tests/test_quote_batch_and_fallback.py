@@ -1,14 +1,12 @@
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
-import pytest
+from datetime import UTC, datetime
+from unittest.mock import patch
 
 from app.db.session import SessionLocal
-from app.models.watchlist_item import WatchlistItem
 from app.models.price_snapshot import PriceSnapshot
+from app.models.watchlist_item import WatchlistItem
 from app.services.quote_provider import (
     NormalizedSymbol,
     QuoteRecord,
-    YahooFinanceQuoteProvider,
     TencentQuoteProvider,
 )
 from app.services.quote_service import QuoteService
@@ -31,7 +29,7 @@ def test_tencent_quote_provider_parse_cn() -> None:
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
 
-    with patch("urllib.request.urlopen", return_value=FakeResponse(mock_data)) as mock_urlopen:
+    with patch("urllib.request.urlopen", return_value=FakeResponse(mock_data)):
         record = provider.fetch_quote(ns)
         assert record.symbol == "600519.SH"
         assert record.price == 1291.91
@@ -104,7 +102,7 @@ def test_quote_service_fallback_to_tencent() -> None:
             status="fetch_failed",
             source="yahoo_finance",
             message="Yahoo limit exceeded",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
 
         # Mock Tencent Success
@@ -123,7 +121,7 @@ def test_quote_service_fallback_to_tencent() -> None:
             status="ok",
             source="tencent_finance",
             message=None,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
 
         with patch.object(service.provider, "fetch_quotes_batch", return_value=[yahoo_fail_record]) as mock_yahoo, \

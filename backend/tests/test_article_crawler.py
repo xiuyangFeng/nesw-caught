@@ -1,11 +1,11 @@
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
-from datetime import datetime, timezone
+
 import httpx
 
 from app.db.session import SessionLocal
-from app.models.news_item import NewsItem
 from app.models.article_content import ArticleContent
+from app.models.news_item import NewsItem
 from app.services.ingestion.article_crawler import crawl_and_extract_article
 from app.services.news_signal_pipeline import NewsSignalPipelineService
 
@@ -71,8 +71,8 @@ def test_pipeline_automatically_crawls_missing_body():
             language="en",
             sentiment_label=None,
             sentiment_score=None,
-            published_at=datetime.now(timezone.utc),
-            fetched_at=datetime.now(timezone.utc),
+            published_at=datetime.now(UTC),
+            fetched_at=datetime.now(UTC),
             ingest_status="ingested",
         )
         # 清理原先记录
@@ -84,7 +84,7 @@ def test_pipeline_automatically_crawls_missing_body():
         # 2. 模拟爬虫调用并运行管线
         with patch("httpx.Client.get", return_value=mock_response), \
              patch("app.services.news_signal_classifier.NewsSignalClassifier.classify") as mock_classify:
-            
+
             # 模拟 AI 分类器正常处理并返回
             mock_classify.return_value = MagicMock(
                 topic_key="apple_supply",
@@ -101,20 +101,20 @@ def test_pipeline_automatically_crawls_missing_body():
 
             pipeline = NewsSignalPipelineService(session)
             summary = pipeline.process_news_ids([news_item.id])
-            
+
             assert summary.processed_count == 1
-            
+
             # 3. 验证数据库中已经自动填充了正文
             article = session.query(ArticleContent).filter(ArticleContent.news_id == news_item.id).first()
             assert article is not None
             assert article.extract_status == "success"
             assert "Detailed analysis" in article.content_text
-            
+
             # 验证 AI 分类器接收到了爬取出来的正文
             mock_classify.assert_called_once()
             _, kwargs = mock_classify.call_args
             assert "Detailed analysis" in kwargs["body"]
-            
+
             # 清理
             session.delete(article)
             session.delete(news_item)

@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
-from pathlib import Path
 import sys
+from datetime import UTC, datetime
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.db.session import SessionLocal
 from app.services.news_relevance_dataset import load_benchmark_samples
-from app.services.news_relevance_evaluator import evaluate_market_relevance, predict_market_relevance_batch
+from app.services.news_relevance_evaluator import (
+    evaluate_market_relevance,
+    predict_market_relevance_batch,
+)
 from app.services.news_relevance_experiment_runner import append_baseline_ledger_row
 
 
@@ -50,7 +53,7 @@ def main() -> None:
         encoding="utf-8",
     )
     if args.ledger is not None:
-        experiment_id = args.experiment_id or datetime.now(timezone.utc).strftime("baseline-%Y%m%dT%H%M%SZ")
+        experiment_id = args.experiment_id or datetime.now(UTC).strftime("baseline-%Y%m%dT%H%M%SZ")
         append_baseline_ledger_row(
             args.ledger,
             experiment_id=experiment_id,

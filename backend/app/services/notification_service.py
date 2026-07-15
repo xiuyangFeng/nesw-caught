@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,7 +36,7 @@ SEVERITY_LOW = "low"
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
@@ -410,7 +409,7 @@ class NotificationService:
             return ZoneInfo(tz_name)
         except Exception:
             logger.warning("invalid quiet-hours timezone %s, falling back to UTC", tz_name)
-            return timezone.utc
+            return UTC
 
     def _is_quiet_hours(self, now: datetime, gov: GovernanceConfig) -> bool:
         start = self._parse_hhmm(gov.quiet_hours_start)
@@ -437,7 +436,7 @@ class NotificationService:
         end_local = local.replace(hour=end[0], minute=end[1], second=0, microsecond=0)
         if end_local <= local:
             end_local = end_local + timedelta(days=1)
-        return end_local.astimezone(timezone.utc)
+        return end_local.astimezone(UTC)
 
     def _load_config(self) -> FeishuNotifyConfig | None:
         try:

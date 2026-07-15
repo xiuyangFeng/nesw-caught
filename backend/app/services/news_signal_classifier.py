@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from app.core.config import get_settings
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository

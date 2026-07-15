@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left, bisect_right
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -49,8 +49,8 @@ def parse_horizon(horizon: str) -> timedelta:
 def _as_utc(value: datetime) -> datetime:
     """将（可能为 naive 的）datetime 对齐到 UTC。"""
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _importance_bucket(confidence: float | None) -> str:
@@ -104,7 +104,7 @@ class SignalBacktestService:
         now: datetime | None = None,
     ) -> dict:
         horizon_delta = parse_horizon(horizon)
-        current = _as_utc(now) if now is not None else datetime.now(timezone.utc)
+        current = _as_utc(now) if now is not None else datetime.now(UTC)
         since = current - timedelta(days=window_days)
 
         news_list = self.signal_repo.list_directional_signal_news(market=market, since=since)

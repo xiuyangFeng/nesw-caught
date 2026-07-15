@@ -7,6 +7,7 @@ from threading import Event, Thread
 from typing import Any
 
 from sqlalchemy.orm import Session
+
 from app.repositories.worker_runtime_status_repository import WorkerRuntimeStatusRepository
 
 
@@ -96,6 +97,11 @@ class BaseWorker:
                 # 非请求上下文：repository 只 flush，提交边界在这里。
                 session.commit()
         except Exception:
+            # 兜底范围刻意保持宽泛(而非收窄为 SQLAlchemyError):调用方可能传入不完全
+            # 模拟真实 SQLAlchemy Session 的测试替身/未来实现(例如缺少 .scalar()
+            # 方法),此时会抛出 AttributeError/TypeError 而非 SQLAlchemyError。
+            # 本方法的契约是"记账失败绝不能让 worker 主循环崩溃或改变 run_cycle()
+            # 的返回值语义",因此保留 Exception 兜底,仅确保日志带 worker 名称上下文。
             self.logger.exception("Failed to record worker '%s' success status", self.worker_name)
 
     def _record_failure(self, error: str) -> None:
@@ -108,4 +114,7 @@ class BaseWorker:
                 # 非请求上下文：repository 只 flush，提交边界在这里。
                 session.commit()
         except Exception:
+            # 同上:刻意保持 Exception 兜底,避免因调用方 session_factory 传入的
+            # 测试替身/异常 Session 实现类型不可控,导致记账失败反过来让
+            # run_cycle() 抛出而破坏"从不崩溃"的对外契约。
             self.logger.exception("Failed to record worker '%s' failure status", self.worker_name)

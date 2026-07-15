@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
+import { useKlineDrawingInteraction } from '../../composables/useKlineDrawingInteraction';
 import type { KlineCandle, KlineDrawing, KlineDrawingAnchor, KlineDrawingTool } from '../../types/api';
+import { isEditableDrawing, resolveLabelEditorText } from '../../utils/klineDrawings';
 import {
   buildCrosshairProjection,
-  findAnchorHandleIndex,
-  findNearestCandleIndex,
+  computeAnchorFromPoint,
+  computeFibonacciLevels,
   hitTestDrawing,
-  moveDrawingByAnchor,
-  moveDrawingByDelta,
-  remapAnchorTime,
+  projectAnchorToPoint,
+  resolveEventClientPoint,
+  toLocalPoint,
+  touchPointsFromEvent,
   type KlineChartProjector,
   type ProjectedPoint,
 } from '../../utils/klineOverlayGeometry';
@@ -46,15 +49,7 @@ const editingLabel = ref<{ drawingId: string; text: string } | null>(null);
 const editorInputRef = ref<HTMLInputElement | null>(null);
 const pointerPassthroughActive = ref(false);
 const touchPassthroughTarget = ref<EventTarget | null>(null);
-const dragState = ref<
-  | {
-      mode: 'anchor' | 'object';
-      drawingId: string;
-      anchorIndex?: number;
-      startAnchor: KlineDrawingAnchor;
-    }
-  | null
->(null);
+const { dragState, beginAnchorDrag: startAnchorDrag, beginBodyDrag: startBodyDrag, endDrag, resolveDragCommit } = useKlineDrawingInteraction();
 let resizeObserver: ResizeObserver | null = null;
 
 function getOverlayRect() {
@@ -71,93 +66,20 @@ function refreshSize() {
   };
 }
 
-function normalizeTouchPoint(touch: {
-  clientX: number;
-  clientY: number;
-  pageX?: number;
-  pageY?: number;
-  screenX?: number;
-  screenY?: number;
-}) {
-  return {
-    clientX: touch.clientX,
-    clientY: touch.clientY,
-    pageX: touch.pageX ?? touch.clientX,
-    pageY: touch.pageY ?? touch.clientY,
-    screenX: touch.screenX ?? touch.clientX,
-    screenY: touch.screenY ?? touch.clientY,
-  };
-}
-
-function touchPointsFromEvent(event: TouchEvent) {
-  return Array.from(event.touches.length ? event.touches : event.changedTouches).map((touch) => normalizeTouchPoint(touch));
-}
-
-function touchPointFromEvent(event: TouchEvent) {
-  return touchPointsFromEvent(event)[0] ?? null;
-}
-
-function eventClientPoint(event: MouseEvent | WheelEvent | TouchEvent) {
-  // MouseEvent/WheelEvent 自带 clientX；TouchEvent（含测试里手工构造的
-  // touch 事件对象）没有 clientX，只能从 touches/changedTouches 取坐标。
-  if ('clientX' in event) {
-    return {
-      clientX: event.clientX,
-      clientY: event.clientY,
-    };
-  }
-  const touch = touchPointFromEvent(event);
-  if (!touch) {
-    return null;
-  }
-  return {
-    clientX: touch.clientX,
-    clientY: touch.clientY,
-  };
-}
-
 function buildAnchor(event: MouseEvent | TouchEvent): KlineDrawingAnchor | null {
-  if (!props.candles.length) {
-    return null;
-  }
   const rect = getOverlayRect();
   if (!rect) {
     return null;
   }
-  const point = eventClientPoint(event);
+  const point = resolveEventClientPoint(event);
   if (!point) {
     return null;
   }
-  const index = findNearestCandleIndex(point.clientX - rect.left, rect.width, props.candles.length);
-  const candle = props.candles[index];
-  const high = Math.max(...props.candles.map((item) => item.high));
-  const low = Math.min(...props.candles.map((item) => item.low));
-  const ratio = 1 - (point.clientY - rect.top) / Math.max(rect.height, 1);
-  const x = point.clientX - rect.left;
-  const y = point.clientY - rect.top;
-  const mappedTime = props.chartProjector?.getTimeForX?.(x);
-  const projectedPrice = props.chartProjector?.getPriceForY?.(y);
-  return {
-    time: mappedTime ? remapAnchorTime({ time: mappedTime, price: projectedPrice ?? 0 }, props.candles) : candle.time,
-    price: projectedPrice ?? low + (high - low) * ratio,
-  };
+  return computeAnchorFromPoint(point, rect, props.candles, props.chartProjector);
 }
 
 function projectAnchor(anchor: KlineDrawingAnchor, target: HTMLElement): ProjectedPoint | null {
-  if (!props.candles.length) {
-    return null;
-  }
-  const rect = target.getBoundingClientRect();
-  const mappedTime = remapAnchorTime(anchor, props.candles);
-  const index = Math.max(
-    0,
-    props.candles.findIndex((candle) => candle.time === mappedTime),
-  );
-  const high = Math.max(...props.candles.map((item) => item.high));
-  const low = Math.min(...props.candles.map((item) => item.low));
-  const x = props.candles.length > 1 ? (index / (props.candles.length - 1)) * rect.width : rect.width / 2;
-  const y = high === low ? rect.height / 2 : (1 - (anchor.price - low) / (high - low)) * rect.height;
-  return { x, y };
+  return projectAnchorToPoint(anchor, props.candles, target.getBoundingClientRect());
 }
 
 function drawingPoints(drawing: KlineDrawing) {
@@ -170,15 +92,11 @@ function drawingPoints(drawing: KlineDrawing) {
 }
 
 function pointFromEvent(event: MouseEvent | WheelEvent | TouchEvent, target: HTMLElement) {
-  const rect = target.getBoundingClientRect();
-  const point = eventClientPoint(event);
+  const point = resolveEventClientPoint(event);
   if (!point) {
     return null;
   }
-  return {
-    x: point.clientX - rect.left,
-    y: point.clientY - rect.top,
-  };
+  return toLocalPoint(point, target.getBoundingClientRect());
 }
 
 function hitDrawingAtEvent(event: MouseEvent | WheelEvent | TouchEvent) {
@@ -199,17 +117,6 @@ function selectedDrawing() {
   return props.drawings.find((drawing) => drawing.id === props.selectedDrawingId) ?? null;
 }
 
-function isEditableDrawing(drawing: KlineDrawing | null) {
-  return (
-    drawing &&
-    (drawing.toolType === 'trend_line' ||
-      drawing.toolType === 'horizontal_line' ||
-      drawing.toolType === 'price_range' ||
-      drawing.toolType === 'fibonacci_retracement' ||
-      drawing.toolType === 'price_note')
-  );
-}
-
 const crosshair = computed(() =>
   buildCrosshairProjection({
     anchor: hoverAnchor.value,
@@ -223,18 +130,7 @@ const crosshair = computed(() =>
 const overlayTouchAction = computed(() => (overlayDisabled.value ? 'auto' : 'none'));
 
 function fibLevels(points: ProjectedPoint[]) {
-  const [start, end] = points;
-  if (!start || !end) {
-    return [];
-  }
-  const top = Math.min(start.y, end.y);
-  const bottom = Math.max(start.y, end.y);
-  const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-  return levels.map((level) => ({
-    key: String(level),
-    y: top + (bottom - top) * level,
-    label: String(level),
-  }));
+  return computeFibonacciLevels(points);
 }
 
 function onClick(event: MouseEvent) {
@@ -359,7 +255,7 @@ function forwardTouchEventToChart(type: 'touchstart' | 'touchmove' | 'touchend' 
   }
   if (type === 'touchstart') {
     overlayRef.value.style.pointerEvents = 'none';
-    const point = eventClientPoint(event);
+    const point = resolveEventClientPoint(event);
     const target = point ? document.elementFromPoint(point.clientX, point.clientY) : null;
     overlayRef.value.style.pointerEvents = '';
     if (!target) {
@@ -466,51 +362,40 @@ const hasDraft = computed(() => (props.draftAnchors?.length ?? 0) > 0);
 
 function onMouseleave() {
   hoverAnchor.value = null;
-  dragState.value = null;
+  endDrag();
   emit('hoverAnchorChange', null);
 }
 
 function onMouseup(event: MouseEvent) {
   if (!dragState.value || overlayDisabled.value) {
-    dragState.value = null;
+    endDrag();
     return;
   }
   const drawing = props.drawings.find((item) => item.id === dragState.value?.drawingId) ?? null;
   const anchor = buildAnchor(event);
-  if (!drawing || !anchor || drawing.locked || !isEditableDrawing(drawing)) {
-    dragState.value = null;
-    return;
+  const commit = resolveDragCommit(drawing, anchor, props.candles);
+  if (commit?.type === 'anchor') {
+    emit('drawingAnchorCommit', commit.drawingId, commit.anchors);
+  } else if (commit?.type === 'move') {
+    emit('drawingMoveCommit', commit.drawingId, commit.anchors);
   }
-  if (dragState.value.mode === 'anchor' && typeof dragState.value.anchorIndex === 'number') {
-    emit('drawingAnchorCommit', drawing.id, moveDrawingByAnchor(drawing, dragState.value.anchorIndex, anchor));
-  } else {
-    const startIndex = props.candles.findIndex((item) => item.time === dragState.value?.startAnchor.time);
-    const targetIndex = props.candles.findIndex((item) => item.time === anchor.time);
-    emit('drawingMoveCommit', drawing.id, moveDrawingByDelta(drawing, props.candles, targetIndex - Math.max(startIndex, 0), anchor.price - dragState.value.startAnchor.price));
-  }
-  dragState.value = null;
+  endDrag();
 }
 
 function beginAnchorDrag(drawingId: string, anchorIndex: number, event: MouseEvent) {
   const drawing = props.drawings.find((item) => item.id === drawingId) ?? null;
   const anchor = buildAnchor(event);
-  if (!drawing || !anchor || drawing.locked || !isEditableDrawing(drawing)) {
-    return;
-  }
-  dragState.value = { mode: 'anchor', drawingId, anchorIndex, startAnchor: anchor };
+  startAnchorDrag(drawing, anchorIndex, anchor);
 }
 
 function beginBodyDrag(drawingId: string, event: MouseEvent) {
   const drawing = props.drawings.find((item) => item.id === drawingId) ?? null;
   const anchor = buildAnchor(event);
-  if (!drawing || !anchor || drawing.locked || !isEditableDrawing(drawing)) {
-    return;
-  }
-  dragState.value = { mode: 'object', drawingId, startAnchor: anchor };
+  startBodyDrag(drawing, anchor);
 }
 
 function handleWindowMouseup() {
-  dragState.value = null;
+  endDrag();
   if (overlayRef.value) {
     overlayRef.value.style.pointerEvents = '';
   }
@@ -522,7 +407,7 @@ function openLabelEditor(drawing: KlineDrawing) {
   }
   editingLabel.value = {
     drawingId: drawing.id,
-    text: drawing.payload.text ?? drawing.anchors[0]?.price.toFixed(2) ?? '',
+    text: resolveLabelEditorText(drawing),
   };
   emit('labelEditingChange', true);
   nextTick(() => editorInputRef.value?.focus());

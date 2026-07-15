@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from threading import Event, Thread
 from typing import Any
 
-
 from sqlalchemy.orm import Session
+
 from app.workers.base_worker import BaseWorker
 
 

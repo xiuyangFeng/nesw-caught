@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,7 +65,7 @@ def _fixed_clock(now: datetime):
 
 def _as_utc(value: datetime) -> datetime:
     # 原生 ORM 读回的 DateTime 可能是 naive，补上 UTC 便于比较。
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _make_service(now: datetime, **governance) -> NotificationService:
@@ -88,7 +88,7 @@ def _mock_sender():
 def test_quiet_hours_suppress_low_severity_but_deliver_critical():
     _create_config(alert_enabled=True)
     # Asia/Shanghai = UTC+8。UTC 15:00 => 本地 23:00，落在 22:00-07:00 免打扰区间内。
-    now = datetime(2026, 7, 13, 15, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 13, 15, 0, tzinfo=UTC)
     service = _make_service(
         now,
         quiet_hours_start="22:00",
@@ -134,7 +134,7 @@ def test_quiet_hours_suppress_low_severity_but_deliver_critical():
 
 def test_quiet_hours_disabled_by_default_delivers_everything():
     _create_config(alert_enabled=True)
-    now = datetime(2026, 7, 13, 15, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 7, 13, 15, 0, tzinfo=UTC)
     # 不配置 quiet hours（默认关闭）=> 普通异动照发。
     service = _make_service(now, critical_change_percent=8.0)
     service.on_watchlist_alert({
@@ -159,7 +159,7 @@ def test_quiet_hours_disabled_by_default_delivers_everything():
 # ---------------------------------------------------------------------------
 def test_dedupe_window_suppresses_repeat_within_window():
     _create_config(alert_enabled=True)
-    t0 = datetime(2026, 7, 13, 2, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 7, 13, 2, 0, tzinfo=UTC)
     service = _make_service(
         t0,
         dedupe_window_minutes=10,
@@ -194,7 +194,7 @@ def test_dedupe_window_suppresses_repeat_within_window():
 # ---------------------------------------------------------------------------
 def test_multiple_alerts_merge_into_single_digest_card():
     _create_config(alert_enabled=True)
-    t0 = datetime(2026, 7, 13, 2, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 7, 13, 2, 0, tzinfo=UTC)
     service = _make_service(
         t0,
         digest_window_minutes=5,
@@ -235,7 +235,7 @@ def test_multiple_alerts_merge_into_single_digest_card():
 
 def test_digest_disabled_by_default_delivers_individually():
     _create_config(alert_enabled=True)
-    t0 = datetime(2026, 7, 13, 2, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 7, 13, 2, 0, tzinfo=UTC)
     # 不配置 digest（默认关闭）=> 逐条发送。
     service = _make_service(t0, critical_change_percent=100.0)
 

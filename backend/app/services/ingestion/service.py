@@ -4,12 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
 
+from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
 from app.schemas.news import NewsItemSummary
 from app.services import news_ingestion
 from app.services.ingestion.fetcher import fetch_source_items
 from app.services.ingestion.persister import ItemPersister
-from app.models.news_item import NewsItem
 from app.services.ingestion.types import (
     MAX_FETCH_WORKERS,
     RefreshSummary,
@@ -41,7 +41,7 @@ class NewsIngestionService:
         active_sources = [
             source for source in (sources if sources is not None else news_ingestion.load_sources()) if not source.disabled
         ]
-        
+
         # 预先查出每个活跃源的本地 ETag / Last-Modified 缓存标志
         source_caches = {}
         if active_sources:

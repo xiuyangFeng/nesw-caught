@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 WATCHLIST_CANDIDATES: list[dict[str, object]] = [
     {
         "symbol": "0700.HK",

@@ -13,17 +13,17 @@ Create Date: 2026-07-13 12:00:00.000000
 都写成幂等的防御式操作（列已存在则跳过），与 a7f3c1e9d2b4 / c9d4f0a2b7e1
 保持一致。
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'b8e4d7f2a9c1'
-down_revision: Union[str, Sequence[str], None] = 'a7f3c1e9d2b4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'a7f3c1e9d2b4'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 _POSITION_COLUMNS = ('position_size', 'average_cost')

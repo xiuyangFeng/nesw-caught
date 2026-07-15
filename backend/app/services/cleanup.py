@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select, text
-from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.article_content import ArticleContent
@@ -15,7 +14,7 @@ BATCH_SIZE = 1000
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class DataCleanupWorker(BaseWorker):

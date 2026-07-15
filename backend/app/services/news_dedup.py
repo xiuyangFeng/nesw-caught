@@ -10,12 +10,13 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from hashlib import sha256
 import logging
 import math
 import re
-from typing import Callable, Protocol
+from collections import OrderedDict
+from collections.abc import Callable
+from hashlib import sha256
+from typing import Protocol
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -41,7 +42,9 @@ def tokenize_title(title: str) -> list[str]:
     if len(cjk_chars) == 1:
         tokens.append(cjk_chars[0])
     else:
-        tokens.extend(a + b for a, b in zip(cjk_chars, cjk_chars[1:]))
+        # Pairwise bigram idiom: the two iterables differ in length by design
+        # (offset by one), so strict pairing is deliberately off here.
+        tokens.extend(a + b for a, b in zip(cjk_chars, cjk_chars[1:], strict=False))
     return tokens
 
 
@@ -142,7 +145,7 @@ class EmbeddingDuplicateJudge:
 def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if not left or not right or len(left) != len(right):
         return 0.0
-    dot = sum(a * b for a, b in zip(left, right))
+    dot = sum(a * b for a, b in zip(left, right, strict=True))
     left_norm = math.sqrt(sum(a * a for a in left))
     right_norm = math.sqrt(sum(b * b for b in right))
     if left_norm == 0 or right_norm == 0:

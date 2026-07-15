@@ -4,7 +4,7 @@ is now injected explicitly via constructor arguments (falling back to
 Settings.token_usage_flush_n / token_usage_flush_secs)."""
 
 import pytest
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from app.db.session import SessionLocal
 from app.models.llm_token_usage import LLMTokenUsage

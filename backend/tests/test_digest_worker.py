@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.workers.digest_worker import DigestWorker
 
@@ -22,7 +22,7 @@ def _build_worker(clock: dict[str, datetime], calls: list[tuple[str, str]], **kw
 def test_digest_worker_fires_hk_premarket_once_and_is_idempotent() -> None:
     calls: list[tuple[str, str]] = []
     # 08:30 Asia/Hong_Kong == 00:30 UTC
-    clock = {"now": datetime(2026, 7, 13, 0, 30, tzinfo=timezone.utc)}
+    clock = {"now": datetime(2026, 7, 13, 0, 30, tzinfo=UTC)}
     worker = _build_worker(clock, calls)
 
     # 到点：港股盘前触发一次。
@@ -44,7 +44,7 @@ def test_digest_worker_fires_hk_premarket_once_and_is_idempotent() -> None:
 def test_digest_worker_fires_us_postmarket() -> None:
     calls: list[tuple[str, str]] = []
     # 16:30 America/New_York (EDT, UTC-4) == 20:30 UTC
-    clock = {"now": datetime(2026, 7, 13, 20, 30, tzinfo=timezone.utc)}
+    clock = {"now": datetime(2026, 7, 13, 20, 30, tzinfo=UTC)}
     worker = _build_worker(clock, calls)
 
     assert worker.do_cycle() == 1
@@ -54,7 +54,7 @@ def test_digest_worker_fires_us_postmarket() -> None:
 def test_digest_worker_skips_stale_time_outside_grace_window() -> None:
     calls: list[tuple[str, str]] = []
     # 08:45 HKT == 00:45 UTC，已超出 08:30 后的 10 分钟 grace 窗口，不应补发。
-    clock = {"now": datetime(2026, 7, 13, 0, 45, tzinfo=timezone.utc)}
+    clock = {"now": datetime(2026, 7, 13, 0, 45, tzinfo=UTC)}
     worker = _build_worker(clock, calls, grace_minutes=10)
 
     assert worker.do_cycle() == 0
@@ -66,7 +66,7 @@ def test_digest_worker_swallows_trigger_errors() -> None:
     def failing_trigger(market: str, phase: str) -> None:
         raise RuntimeError("push failed")
 
-    clock = {"now": datetime(2026, 7, 13, 0, 30, tzinfo=timezone.utc)}
+    clock = {"now": datetime(2026, 7, 13, 0, 30, tzinfo=UTC)}
     worker = DigestWorker(
         session_factory=lambda: None,
         trigger_fn=failing_trigger,

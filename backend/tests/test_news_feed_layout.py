@@ -1,21 +1,21 @@
-from datetime import datetime, timezone
-from unittest.mock import patch
 import math
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from app.schemas.news import NewsItemSummary
 from app.schemas.topic import TopicItemView
 from app.services.news_feed_layout import (
+    NewsFeedEventCardView,
     NewsFeedLayoutService,
+    _attach_watchlist_hits,
+    _event_type_from_texts,
+    _merge_cards,
+    _should_fuse,
+    _title_overlap,
+    _watchlist_hits_for_symbols,
     build_event_cards,
     fuse_event_cards,
-    _attach_watchlist_hits,
-    _watchlist_hits_for_symbols,
-    _event_type_from_texts,
-    _title_overlap,
-    _should_fuse,
-    _merge_cards,
-    NewsFeedEventCardView,
 )
 
 
@@ -72,8 +72,8 @@ def _topic(
 def test_build_event_cards_keeps_only_qualifying_topics_and_sorts_by_importance_then_freshness() -> (
     None
 ):
-    older = datetime(2026, 3, 28, 7, 0, tzinfo=timezone.utc)
-    newer = datetime(2026, 3, 28, 8, 0, tzinfo=timezone.utc)
+    older = datetime(2026, 3, 28, 7, 0, tzinfo=UTC)
+    newer = datetime(2026, 3, 28, 8, 0, tzinfo=UTC)
     topics = [
         _topic(
             1,
@@ -173,7 +173,7 @@ def test_watchlist_hits_follow_primary_symbol_then_related_symbols_and_skip_blan
 
 
 def test_attach_watchlist_hits_populates_event_cards() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     card = _event_card(
         event_key="t-1",
         event_title="NVIDIA AI Chip Launch",
@@ -194,7 +194,7 @@ def test_attach_watchlist_hits_populates_event_cards() -> None:
 def test_build_event_cards_limits_story_mounts_and_classifies_macro_and_supply_chain_patterns() -> (
     None
 ):
-    now = datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 9, 0, tzinfo=UTC)
     topics = [
         _topic(
             10,
@@ -255,7 +255,7 @@ def test_chinese_event_type_patterns_classify_correctly() -> None:
 
 
 def test_source_weighting_adjusts_importance_by_tier() -> None:
-    now = datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 9, 0, tzinfo=UTC)
     topics = [
         _topic(
             1,
@@ -319,9 +319,8 @@ def test_source_weighting_adjusts_importance_by_tier() -> None:
 
 
 def test_time_decay_sorts_recent_events_before_older_ones() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
-    one_hour_ago = datetime(2026, 3, 28, 9, 0, tzinfo=timezone.utc)
-    two_days_ago = datetime(2026, 3, 26, 10, 0, tzinfo=timezone.utc)
+    one_hour_ago = datetime(2026, 3, 28, 9, 0, tzinfo=UTC)
+    two_days_ago = datetime(2026, 3, 26, 10, 0, tzinfo=UTC)
     topics = [
         _topic(
             1,
@@ -396,7 +395,7 @@ def _event_card(
     last_seen_at: datetime | None = None,
     news_items: list[NewsItemSummary] | None = None,
 ) -> NewsFeedEventCardView:
-    now = last_seen_at or datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = last_seen_at or datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     return NewsFeedEventCardView(
         event_key=event_key,
         event_title=event_title,
@@ -452,7 +451,7 @@ def test_should_not_fuse_general_events() -> None:
 
 
 def test_fuse_event_cards_merges_duplicate_events() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     news_a = [
         _news_item(1, title="NVIDIA chip story A", summary="s", source_name="WSJ", published_at=now)
     ]
@@ -504,7 +503,7 @@ def test_fuse_event_cards_keeps_independent_events() -> None:
 
 
 def test_merge_cards_preserves_higher_importance() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     a = _event_card(
         event_key="t-1",
         event_title="High",
@@ -525,7 +524,7 @@ def test_merge_cards_preserves_higher_importance() -> None:
 
 
 def test_merge_cards_recomputes_unique_story_and_source_counts() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     shared_story = _news_item(
         101,
         title="Shared NVIDIA story",
@@ -561,7 +560,7 @@ def test_merge_cards_recomputes_unique_story_and_source_counts() -> None:
 
 
 def test_get_event_detail_reconstructs_fused_event_with_full_news_items() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     first = _topic(
         1,
         title="NVIDIA AI Chip Launch",
@@ -619,7 +618,7 @@ def test_get_event_detail_reconstructs_fused_event_with_full_news_items() -> Non
 
 
 def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null_published_last() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     topic = _topic(
         1,
         title="AI Chip Launch",
@@ -635,7 +634,7 @@ def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null
         title="Published latest",
         summary="Newest published story.",
         source_name="Reuters",
-        published_at=datetime(2026, 3, 28, 9, 5, tzinfo=timezone.utc),
+        published_at=datetime(2026, 3, 28, 9, 5, tzinfo=UTC),
     )
     fetched_only = _news_item(
         11,
@@ -645,13 +644,13 @@ def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null
         published_at=now,
     )
     fetched_only.published_at = None
-    fetched_only.fetched_at = datetime(2026, 3, 28, 9, 30, tzinfo=timezone.utc)
+    fetched_only.fetched_at = datetime(2026, 3, 28, 9, 30, tzinfo=UTC)
     published_older = _news_item(
         12,
         title="Published older",
         summary="Older published story.",
         source_name="WSJ",
-        published_at=datetime(2026, 3, 28, 8, 50, tzinfo=timezone.utc),
+        published_at=datetime(2026, 3, 28, 8, 50, tzinfo=UTC),
     )
 
     detail = NewsFeedLayoutService._build_event_detail(
@@ -670,7 +669,7 @@ def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null
 
 
 def test_get_event_detail_does_not_truncate_large_event_news_items() -> None:
-    now = datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     topic = _topic(
         1,
         title="Large Event",
@@ -686,7 +685,7 @@ def test_get_event_detail_does_not_truncate_large_event_news_items() -> None:
             title=f"Story {news_id}",
             summary="Bulk story.",
             source_name=f"Source-{news_id % 7}",
-            published_at=datetime(2026, 3, 28, 10, 0, tzinfo=timezone.utc),
+            published_at=datetime(2026, 3, 28, 10, 0, tzinfo=UTC),
         )
         for news_id in range(1, 506)
     ]

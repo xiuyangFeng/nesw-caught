@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from app.schemas.common import UTCDateTime
 
-
 # 财报 / 事件日历事件类型。当前仅覆盖财报日与除息日两类。
 CalendarEventType = Literal["earnings", "ex_dividend"]
 

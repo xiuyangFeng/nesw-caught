@@ -18,18 +18,18 @@ Both steps are defensive no-ops when the target schema is already in place
 via ``Base.metadata.create_all``), so this migration is safe to run against
 any existing database in the wild.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'c9d4f0a2b7e1'
-down_revision: Union[str, Sequence[str], None] = 'ec84dec88ae5'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'ec84dec88ae5'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _load_source_markets() -> dict[str, str]:

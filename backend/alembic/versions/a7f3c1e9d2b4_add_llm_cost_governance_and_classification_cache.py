@@ -11,17 +11,17 @@ Create Date: 2026-07-13 10:00:00.000000
 针对 Base.metadata.create_all 出来的完整 schema 再次运行，因此每一步
 都写成幂等的防御式操作（列/表已存在则跳过），与 c9d4f0a2b7e1 保持一致。
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'a7f3c1e9d2b4'
-down_revision: Union[str, Sequence[str], None] = 'c9d4f0a2b7e1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'c9d4f0a2b7e1'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 _PRICE_COLUMNS = ('input_price_per_1k', 'output_price_per_1k', 'monthly_budget_usd')

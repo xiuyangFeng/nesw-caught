@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -113,7 +113,7 @@ def refresh_market_quotes(session: Session = Depends(get_db_session)) -> MarketR
     return MarketRefreshResultView(
         quotes_count=len(quotes),
         symbols=[str(q.get("symbol")) for q in quotes if q.get("symbol")],
-        triggered_at=datetime.now(timezone.utc),
+        triggered_at=datetime.now(UTC),
     )
 
 
@@ -143,7 +143,7 @@ def search_market_symbols(q: str, session: Session = Depends(get_db_session)):
                     continue
                 shortname = item.get("shortname") or item.get("longname") or symbol
                 quote_type = item.get("quoteType")
-                
+
                 # Check market based on symbol suffix or exchange
                 exchange = item.get("exchange")
                 market = "us"
@@ -151,7 +151,7 @@ def search_market_symbols(q: str, session: Session = Depends(get_db_session)):
                     market = "hk"
                 elif symbol.endswith(".SS") or symbol.endswith(".SZ") or exchange in {"SHH", "SHE"}:
                     market = "cn"
-                
+
                 results.append({
                     "symbol": symbol,
                     "display_name": shortname,
@@ -166,7 +166,7 @@ def search_market_symbols(q: str, session: Session = Depends(get_db_session)):
 
     # 2. Local fallback: search in price_snapshot
     from app.models.price_snapshot import PriceSnapshot
-    
+
     stmt = (
         select(PriceSnapshot)
         .where(

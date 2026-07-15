@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/health", response_model=HealthResponse)
 def health_check(session: Session = Depends(get_db_session)) -> HealthResponse:
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     x_monitor_healthy = False
     if settings.x_monitor_enabled:
         service = XMonitorService(session)

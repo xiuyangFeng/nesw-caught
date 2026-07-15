@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 from app.services.ingestion.parser import (
@@ -9,7 +10,9 @@ from app.services.ingestion.parser import (
     _parse_the_news_api_json,
     _parse_zhipu_news_inline_json,
 )
-from app.services.ingestion.types import SourceDefinition, SourceFetchOutcome, SourceItem
+from app.services.ingestion.types import SourceDefinition, SourceFetchOutcome
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_source_items(
@@ -49,7 +52,7 @@ def fetch_source_items(
                 )
 
             response.raise_for_status()
-            
+
             resp_headers = getattr(response, "headers", None) or {}
             new_etag = resp_headers.get("ETag")
             new_last_modified = resp_headers.get("Last-Modified")
@@ -76,7 +79,24 @@ def fetch_source_items(
             last_modified=new_last_modified,
         )
     except Exception as exc:
+        # 兜底范围刻意保持宽泛:本函数运行在 ThreadPoolExecutor 的工作线程中,
+        # 调用方 (service.refresh_all) 用 `[f.result() for f in futures]` 收集结果,
+        # 未对单个 future 做 try/except —— 这里一旦让异常逃逸,会在 f.result() 处
+        # 直接抛出并中断整批 source 的抓取。可能出现的异常横跨 httpx 网络层
+        # (含不属于 httpx.HTTPError 体系的 httpx.InvalidURL/StreamError)、
+        # xml.etree.ElementTree.ParseError、json.JSONDecodeError、显式 ValueError
+        # 与 BeautifulSoup 解析期间的杂项异常,无法安全穷举收窄,因此维持 Exception 兜底,
+        # 仅补充带 source 上下文的日志。
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
+        logger.warning(
+            "news source fetch failed: source=%s type=%s url=%s latency_ms=%s error=%s",
+            source.name,
+            source.source_type,
+            source.url,
+            latency_ms,
+            exc,
+            exc_info=True,
+        )
         return SourceFetchOutcome(
             source=source,
             items=[],

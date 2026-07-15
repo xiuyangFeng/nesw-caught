@@ -140,3 +140,23 @@ export function restoreDrawings(raw: string | null, symbol: string): KlineDrawin
 export function serializeDrawings(drawings: KlineDrawing[]) {
   return JSON.stringify(persistDrawingsPayload(drawings));
 }
+
+const EDITABLE_TOOL_TYPES: ReadonlySet<KlineDrawing['toolType']> = new Set([
+  'trend_line',
+  'horizontal_line',
+  'price_range',
+  'fibonacci_retracement',
+  'price_note',
+]);
+
+export function isEditableDrawing(drawing: KlineDrawing | null): boolean {
+  return Boolean(drawing && EDITABLE_TOOL_TYPES.has(drawing.toolType));
+}
+
+export function isDrawingDraggable(drawing: KlineDrawing | null): boolean {
+  return Boolean(drawing && !drawing.locked && isEditableDrawing(drawing));
+}
+
+export function resolveLabelEditorText(drawing: KlineDrawing): string {
+  return drawing.payload.text ?? drawing.anchors[0]?.price.toFixed(2) ?? '';
+}

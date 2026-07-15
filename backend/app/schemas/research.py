@@ -35,7 +35,7 @@ class MarketRelevanceLabel(BaseModel):
     noise_type: NoiseType | None = None
 
     @model_validator(mode="after")
-    def validate_noise_type(self) -> "MarketRelevanceLabel":
+    def validate_noise_type(self) -> MarketRelevanceLabel:
         if self.market_relevant and self.noise_type is not None:
             raise ValueError("noise_type must be null when market_relevant is true")
         if not self.market_relevant and self.noise_type is None:
@@ -74,7 +74,7 @@ class ExperimentDecision(BaseModel):
     metrics_after: EvaluationMetrics
 
     @model_validator(mode="after")
-    def validate_reason(self) -> "ExperimentDecision":
+    def validate_reason(self) -> ExperimentDecision:
         if not self.reason.strip():
             raise ValueError("reason is required")
         return self

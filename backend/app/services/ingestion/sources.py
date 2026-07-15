@@ -166,7 +166,7 @@ def load_sources() -> list[SourceDefinition]:
         return sources
 
     try:
-        with open(settings.news_sources_file, "r", encoding="utf-8") as handle:
+        with open(settings.news_sources_file, encoding="utf-8") as handle:
             payload = json.load(handle)
     except FileNotFoundError:
         return sources

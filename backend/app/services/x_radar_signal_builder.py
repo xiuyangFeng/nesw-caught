@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from dataclasses import dataclass
-import json
 from pathlib import Path
 
 from app.models.x_account import XAccount

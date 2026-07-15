@@ -22,11 +22,11 @@ import logging
 from importlib import util as importlib_util
 from pathlib import Path
 
-from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import inspect
 
+from alembic import command
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -39,8 +39,8 @@ from app.models.llm_provider_config import LLMProviderConfig  # noqa: F401
 from app.models.llm_token_usage import LLMTokenUsage  # noqa: F401
 from app.models.news_analysis_result import NewsAnalysisResult  # noqa: F401
 from app.models.news_item import NewsItem  # noqa: F401
-from app.models.notification_job import NotificationJob  # noqa: F401
 from app.models.news_stock_mention import NewsStockMention  # noqa: F401
+from app.models.notification_job import NotificationJob  # noqa: F401
 from app.models.price_snapshot import PriceSnapshot  # noqa: F401
 from app.models.source_health import SourceHealth  # noqa: F401
 from app.models.topic_cluster import TopicCluster  # noqa: F401

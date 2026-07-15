@@ -14,9 +14,9 @@ prompt 调用默认 LLM 产出结构化 JSON 研报（评级 / 催化剂 / 风�
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import json
 import logging
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -98,7 +98,7 @@ def synthesize_stock_research(
     绝不抛出未捕获异常：任何 LLM/解析失败都会降级为规则要点汇总。
     """
     lookback_days = max(MIN_LOOKBACK_DAYS, min(MAX_LOOKBACK_DAYS, int(lookback_days)))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(days=lookback_days)
 
     quote = (quote_service or QuoteService()).get_cached_symbol_quote(symbol, session)
@@ -574,5 +574,5 @@ def _rule_summary(
 
 def _aware(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
+        return value.replace(tzinfo=UTC)
     return value
