@@ -65,7 +65,14 @@ export function useFeedKeyboard(options: FeedKeyboardOptions): {
       return;
     }
     if (event.key === 'Enter') {
-      if (selectedId.value !== null && !options.isDrawerOpen()) {
+      // 防护：列表可能因筛选/刷新变化，selectedId 可能已不在当前 ids() 中；
+      // 此时忽略 Enter，避免对已消失的 id 调用 openDrawer。不清空 selectedId，
+      // 交由 j/k 的 indexOf 回退逻辑处理后续移动。
+      if (
+        selectedId.value !== null &&
+        !options.isDrawerOpen() &&
+        options.ids().includes(selectedId.value)
+      ) {
         event.preventDefault();
         options.openDrawer(selectedId.value);
       }
