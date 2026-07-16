@@ -1907,6 +1907,17 @@
       },
       "NewsDetailView": {
         "properties": {
+          "ai_takeaway": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Takeaway"
+          },
           "article": {
             "anyOf": [
               {
@@ -2393,6 +2404,17 @@
       },
       "NewsItemSummary": {
         "properties": {
+          "ai_takeaway": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Takeaway"
+          },
           "canonical_url": {
             "anyOf": [
               {

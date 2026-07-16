@@ -14,6 +14,7 @@ class NewsItemSummary(BaseModel):
     published_at: UTCDateTime | None = None
     fetched_at: UTCDateTime
     editorial_score: float | None = None
+    ai_takeaway: str | None = None
 
 
 class NewsListPageView(BaseModel):

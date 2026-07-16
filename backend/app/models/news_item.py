@@ -19,6 +19,7 @@ class NewsItem(TimestampMixin, Base):
     source_url: Mapped[str] = mapped_column(String(500))
     title: Mapped[str] = mapped_column(String(500), index=True)
     summary: Mapped[str | None] = mapped_column(Text(), default=None)
+    ai_takeaway: Mapped[str | None] = mapped_column(Text(), default=None)
     canonical_url: Mapped[str] = mapped_column(String(500), unique=True)
     url_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     market: Mapped[str] = mapped_column(String(16), index=True)

@@ -1687,6 +1687,8 @@ export interface components {
         };
         /** NewsDetailView */
         NewsDetailView: {
+            /** Ai Takeaway */
+            ai_takeaway?: string | null;
             article?: components["schemas"]["NewsArticleView"] | null;
             /** Canonical Url */
             canonical_url?: string | null;
@@ -1831,6 +1833,8 @@ export interface components {
         };
         /** NewsItemSummary */
         NewsItemSummary: {
+            /** Ai Takeaway */
+            ai_takeaway?: string | null;
             /** Canonical Url */
             canonical_url?: string | null;
             /** Editorial Score */
