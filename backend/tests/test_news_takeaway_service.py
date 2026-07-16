@@ -67,6 +67,37 @@ def test_generate_skips_items_with_existing_takeaway() -> None:
             _cleanup(session, ids)
 
 
+def test_generate_persists_empty_takeaway_and_prevents_retry() -> None:
+    """LLM 明确返回空字符串(「无法判断」)时也应落库并计入 updated,
+    避免 ai_takeaway 留 NULL 导致下次 feed layout 重建再次入队、反复调用 LLM 且绕开日配额。
+    落库后 ai_takeaway 非 NULL,同一 id 再次调用 generate_for_ids 不应再命中 provider。"""
+    provider = _FakeProvider({"takeaway": ""})
+    with SessionLocal() as session:
+        item = _make_item(session, suffix="empty")
+        session.commit()
+        item_id = item.id
+        try:
+            service = NewsTakeawayService(session)
+            with (
+                patch.object(service.config_repository, "get_active", return_value=object()),
+                patch.object(takeaway_module, "build_provider", return_value=provider),
+            ):
+                updated = service.generate_for_ids([item_id], batch_limit=10)
+                session.commit()
+                assert [i.id for i in updated] == [item_id]
+                assert provider.calls == 1
+                session.refresh(item)
+                assert item.ai_takeaway == ""
+
+                # 再次调用同一 id:ai_takeaway 已非 NULL(空字符串),.is_(None) 过滤应排除它,
+                # provider 调用计数保持不变。
+                updated_again = service.generate_for_ids([item_id], batch_limit=10)
+                assert updated_again == []
+                assert provider.calls == 1
+        finally:
+            _cleanup(session, [item_id])
+
+
 def test_generate_respects_batch_limit_and_tolerates_failure() -> None:
     class _FailingProvider:
         def analyze_json(self, *, prompt: str) -> object:

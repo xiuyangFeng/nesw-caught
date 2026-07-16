@@ -84,6 +84,8 @@ class TakeawayWorker(BaseWorker):
             updated_ids = [item.id for item in updated]
             session.commit()
 
+        # updated_ids 是「拿到 LLM 响应的尝试数」(含空字符串结论),非「非空结论数」——
+        # 语义与 news_takeaway.generate_for_ids 对齐,确保日配额约束的是实际 LLM 调用量。
         self._generated_count += len(updated_ids)
         for payload in payloads:
             event_bus.publish("news.updated", payload)

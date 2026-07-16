@@ -44,6 +44,7 @@ class NewsTakeawayService:
         stmt = (
             select(NewsItem)
             .where(NewsItem.id.in_(news_ids), NewsItem.ai_takeaway.is_(None))
+            .order_by(NewsItem.id)
             .limit(batch_limit)
         )
         items = list(self.session.scalars(stmt))
@@ -64,9 +65,9 @@ class NewsTakeawayService:
             except Exception as exc:
                 logger.warning("takeaway generation failed for news %s: %s", item.id, exc)
                 continue
+            # 只要拿到 LLM 响应就落库并计数(含空字符串「无法判断」),避免 NULL 残留导致下次
+            # feed layout 重建再次入队、反复调用且不受日配额约束;前端对空值自动回退原文摘要。
             takeaway = str(payload.get("takeaway") or "").strip() if isinstance(payload, dict) else ""
-            if not takeaway:
-                continue
-            item.ai_takeaway = takeaway[:TAKEAWAY_MAX_LEN]
+            item.ai_takeaway = takeaway[:TAKEAWAY_MAX_LEN] if takeaway else ""
             updated.append(item)
         return updated
