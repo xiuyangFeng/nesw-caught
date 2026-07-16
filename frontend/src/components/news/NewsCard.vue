@@ -27,7 +27,8 @@ const publishedLabel = computed(
 const topicLabel = computed(() => props.entry.detail?.topic?.topic_title ?? '未归主题');
 
 const takeaway = computed(() => {
-  const value = (props.entry.detail ?? props.entry.item).ai_takeaway;
+  // item 由 SSE news.updated 实时更新,detail 加载后不再刷新——故 item 优先,避免读到过期的 detail
+  const value = props.entry.item.ai_takeaway ?? props.entry.detail?.ai_takeaway;
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 });
