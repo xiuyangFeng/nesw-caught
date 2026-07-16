@@ -184,14 +184,11 @@ def analyze_news(news_id: int, session: Session = Depends(get_db_session)) -> Ne
 @router.get("/{news_id}", response_model=NewsDetailView)
 def get_news_detail(news_id: int, session: Session = Depends(get_db_session)) -> NewsDetailView:
     repository = NewsRepository(session)
-    item = repository.get_by_id(news_id)
-    if item is None:
+    bundle = repository.get_detail_bundle(news_id)
+    if bundle is None:
         raise HTTPException(status_code=404, detail="news not found")
 
-    article = repository.get_article(news_id)
-    mentions = repository.list_mentions(news_id)
-    topic = repository.get_topic_for_news(news_id)
-
+    item, article, topic = bundle.item, bundle.article, bundle.topic
     return NewsDetailView(
         **NewsItemSummary.model_validate(item, from_attributes=True).model_dump(),
         sentiment_score=item.sentiment_score,
@@ -212,7 +209,7 @@ def get_news_detail(news_id: int, session: Session = Depends(get_db_session)) ->
                 mention_type=mention.mention_type,
                 confidence=mention.confidence,
             )
-            for mention in mentions
+            for mention in bundle.mentions
         ],
         topic=(
             NewsTopicRefView(
