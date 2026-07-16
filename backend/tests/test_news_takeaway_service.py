@@ -112,6 +112,98 @@ def test_worker_drains_queue_when_ai_disabled() -> None:
     assert takeaway_queue.empty()
 
 
+def test_generate_continues_batch_after_single_item_failure() -> None:
+    """batch_limit>=2 时,单条候选生成失败不应中断批次:
+    第 1 条 provider 调用抛异常后,第 2 条仍被尝试并成功写库。"""
+
+    class _FailFirstThenSucceedProvider:
+        def __init__(self, payload: object) -> None:
+            self._payload = payload
+            self.calls = 0
+
+        def analyze_json(self, *, prompt: str) -> object:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("llm down")
+            return self._payload
+
+    provider = _FailFirstThenSucceedProvider({"takeaway": "第二条结论"})
+    with SessionLocal() as session:
+        a = _make_item(session, suffix="fail-first")
+        b = _make_item(session, suffix="fail-second")
+        session.commit()
+        ids = [a.id, b.id]
+        try:
+            service = NewsTakeawayService(session)
+            with (
+                patch.object(service.config_repository, "get_active", return_value=object()),
+                patch.object(takeaway_module, "build_provider", return_value=provider),
+            ):
+                updated = service.generate_for_ids(ids, batch_limit=2)
+            session.commit()
+            assert [item.id for item in updated] == [b.id]
+            assert provider.calls == 2
+            session.refresh(a)
+            session.refresh(b)
+            assert a.ai_takeaway is None
+            assert b.ai_takeaway == "第二条结论"
+        finally:
+            _cleanup(session, ids)
+
+
+def test_worker_daily_quota_exhausted_drops_candidates_and_clamps_batch_limit() -> None:
+    """日配额=1 时:第一轮按 batch_limit=min(takeaway_batch_limit, quota) 钳制只生成 1 条;
+    同一 worker 实例第二轮候选入队时配额已耗尽(quota<=0),整批被直接丢弃——
+    不发布任何事件、DB 中新候选的 ai_takeaway 仍为 NULL。"""
+    provider = _FakeProvider({"takeaway": "配额结论"})
+    with SessionLocal() as session:
+        a = _make_item(session, suffix="quota-a")
+        b = _make_item(session, suffix="quota-b")
+        c = _make_item(session, suffix="quota-c")
+        session.commit()
+        a_id, b_id, c_id = a.id, b.id, c.id
+    ids = [a_id, b_id, c_id]
+    published: list[tuple[str, dict]] = []
+    try:
+        enqueue_takeaway_candidates([a_id, b_id])
+        worker = TakeawayWorker(session_factory=SessionLocal)
+        settings = SimpleNamespace(
+            ai_enabled=True, takeaway_batch_limit=12, takeaway_daily_limit=1, takeaway_poll_interval_seconds=5.0
+        )
+        fake_bus = SimpleNamespace(publish=lambda name, payload: published.append((name, payload)))
+        with (
+            patch.object(worker_module, "get_settings", return_value=settings),
+            patch.object(worker_module, "get_event_bus", return_value=fake_bus),
+            patch.object(takeaway_module, "build_provider", return_value=provider),
+            patch.object(takeaway_module.LLMProviderConfigRepository, "get_active", return_value=object()),
+        ):
+            # 第一轮:两条候选入队,但 batch_limit 被钳制为 min(12, quota=1)=1,只生成 1 条
+            processed_first = worker.do_cycle()
+            assert processed_first == 1
+
+            with SessionLocal() as check_session:
+                a_takeaway = check_session.get(NewsItem, a_id).ai_takeaway
+                b_takeaway = check_session.get(NewsItem, b_id).ai_takeaway
+            generated = [tk for tk in (a_takeaway, b_takeaway) if tk is not None]
+            skipped = [tk for tk in (a_takeaway, b_takeaway) if tk is None]
+            assert len(generated) == 1
+            assert len(skipped) == 1
+
+            events_after_first_round = len(published)
+
+            # 第二轮(同一 worker 实例):新候选入队,但当日配额已耗尽,整批被丢弃
+            enqueue_takeaway_candidates([c_id])
+            processed_second = worker.do_cycle()
+            assert processed_second == 0
+            assert len(published) == events_after_first_round
+
+            with SessionLocal() as check_session:
+                assert check_session.get(NewsItem, c_id).ai_takeaway is None
+    finally:
+        with SessionLocal() as session:
+            _cleanup(session, ids)
+
+
 def test_worker_generates_and_publishes() -> None:
     provider = _FakeProvider({"takeaway": "批量结论"})
     with SessionLocal() as session:
