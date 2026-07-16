@@ -214,6 +214,8 @@ class NewsSignalPipelineService:
         item.signal_status = "processed"
         item.signal_error = result.llm_error
         item.signal_updated_at = _utc_now()
+        if result.takeaway and not item.ai_takeaway:
+            item.ai_takeaway = result.takeaway
 
         self.repository.ensure_link(topic_id=topic.id, news_id=item.id)
         self.repository.upsert_signal_result(
