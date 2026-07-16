@@ -20,7 +20,7 @@
 ### 1.1 布局：顶部紧凑条
 
 - **事件胶囊条 `EventCapsuleStrip.vue`（新增）**：Event Radar 6 张大卡压成一行横向滑动胶囊，每枚含 `事件类型 · 情绪色点 · 市场 · 标题（截断）· 命中持仓标记`；点击进事件详情页（现有路由）。`EventFeedCard.vue` 组件保留（供事件详情等处复用），仅从本页移除。
-- **主题 chips 行**：Topic Watch 压成一行 `主题名(新闻数)` chips，点击进主题详情；超出部分收进「▸更多」弹出层。
+- **主题 chips 行**：Topic Watch 压成一行 `主题名(新闻数)` chips，点击进主题详情；超出部分横向滚动（与事件胶囊条一致，不做弹出层）。
 - 两行合计高度约 90px；Raw Stream 提升至首屏。数据源不变（`loadFeedLayout` 的 events/topics）。
 
 ### 1.2 新闻卡片改造（`NewsCard.vue`）
