@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-15 Latest Events 快读改版（多智能体并行开发集成）
+
+- 修改人：Claude（主线协调，9 个实现任务由 Sonnet 子智能体分三波并行/串行完成，每任务经规格+质量双审，终审 With fixes 后修复合入）
+- 修改范围：`/news` 板块快读改造全链路。设计文档 `docs/superpowers/specs/2026-07-15-latest-events-fast-read-design.md`，实施计划 `docs/superpowers/plans/2026-07-15-latest-events-fast-read.md`。
+- 变更内容：
+  1. **后端契约**：`news_item` 新增 `ai_takeaway` 列（防御式迁移 `c4f8a1d3e6b2`），贯通 `NewsItemSummary` → OpenAPI → 前端生成类型。
+  2. **takeaway 双生成路径**：LLM 精修顺路产出（`news_signal_classifier` + `_apply_result` 不覆盖写回）；feed layout 高分候选入队 + `TakeawayWorker` 批量补齐（批量上限 12/日配额 300 按尝试计数、空结论落库为 `""` 防永久重试、`ai_enabled` 降级、每条 `news.updated` + 一条 `news.signals_processed`）。
+  3. **详情接口提速**：`get_news_detail` 4 次串行查询合并为 2 次往返（`NewsRepository.get_detail_bundle`），响应契约不变。
+  4. **前端改版**：事件胶囊条 `EventCapsuleStrip` + 主题 chips 行 `TopicChipsRow` 替换首屏大卡区；`NewsCard` 加情绪色条（红涨绿跌、编辑分三档透明度）/AI 结论行（item 优先防 SSE staleness）/已读淡化/选中态；点卡片改就地抽屉阅读（复用 `NewsDetailDrawer`，加「完整页」入口）；`useFeedKeyboard`（j/k/Enter/Esc，含过期选中防护）；低分尾部折叠（P70+至少留 10 条）；已读 localStorage（2000 条 FIFO）；AppShell 对 `updated_fields=['ai_takeaway']` 的 SSE 跳过 layout 全量刷新防抖动。
+- 影响文件：后端 models/schemas/repositories/routes/services/workers/config/main + alembic 迁移 + 6 个测试文件；前端 NewsFeedView/NewsCard/NewsVirtualList/NewsDetailDrawer/AppShell + 4 个新组件/工具/composable + 生成类型。
+- 接口/数据结构变化：`NewsItemSummary` 及其派生视图新增可空 `ai_takeaway`；新增配置 `takeaway_batch_limit`/`takeaway_daily_limit`/`takeaway_poll_interval_seconds`；`/news` 点卡片由整页跳转改为抽屉（详情页路由保留）。
+- 验证情况：后端 `pytest backend/tests -q` → **478 passed**；前端 `vitest --run` → **389 passed（79 files）**；`vue-tsc` 0 错；`check:api-drift` OK；真实 `app.db` 启动迁移 + feed-layout/news/detail 接口冒烟 200（detail 热请求 ~2ms）。
+- 风险/后续事项（终审分诊入 backlog）：DB 往返计数守护测试、NewsFeedView keydown 驱动集成测试、31-42 条折叠/虚拟化阈值交叉致展开时渲染策略切换（滚动重置）、紧凑条两组件 CSS 重复与 topic-chip 截断、takeaway 截断长度双写（120）、kbd 提示空流仍显示；commit 99b2c85 因并行 git index 竞态混入 T3/T4 两任务文件（内容正确，仅归属混杂）。
+
 ## 2026-07-15 修复迁移日志禁用与测试真实联网两个遗留问题
 
 - 修改人：Claude
