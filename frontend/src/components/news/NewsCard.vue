@@ -33,7 +33,7 @@ const takeaway = computed(() => {
   return trimmed ? trimmed : null;
 });
 
-// 编辑分 → 色条强度三档(阈值对齐前端 getEditorialScore 的 0~1.4 区间)
+// 编辑分 → 色条强度三档(阈值对齐前端 getEditorialScore 的约 0~1.5 区间)
 const intensityTier = computed(() => {
   if (props.entry.score >= 0.9) {
     return 'strong';
