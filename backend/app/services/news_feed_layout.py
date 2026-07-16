@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import math
 import re
 from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from app.core.config import get_settings
 from app.models.watchlist_item import WatchlistItem
 from app.repositories.news_repository import NewsRepository
 from app.repositories.topic_repository import TopicRepository
@@ -19,6 +21,9 @@ from app.schemas.news import (
 )
 from app.schemas.topic import TopicItemView
 from app.services.news_priority import has_official_signal
+from app.services.news_takeaway import enqueue_takeaway_candidates
+
+logger = logging.getLogger(__name__)
 
 EVENT_TYPE_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
@@ -609,8 +614,28 @@ class NewsFeedLayoutService:
             stream_items, topic_views, topic_news_map, topic_mentions_map
         )
 
+        self._enqueue_takeaway_candidates(event_cards[:limit_events], scored_stream)
+
         return NewsFeedLayoutView(
             events=event_cards[:limit_events],
             topics=topic_views[:limit_topics],
             stream=scored_stream,
         )
+
+    @staticmethod
+    def _enqueue_takeaway_candidates(
+        event_cards: list[NewsFeedEventCardView],
+        scored_stream: list[NewsItemSummary],
+    ) -> None:
+        """把缺 takeaway 的高分条目送入补齐队列(非阻塞,失败不影响主链路)。"""
+        try:
+            if not get_settings().ai_enabled:
+                return
+            top_n = max(8, int(len(scored_stream) * 0.2))
+            candidate_ids = {item.id for item in scored_stream[:top_n] if item.ai_takeaway is None}
+            for card in event_cards:
+                candidate_ids.update(item.id for item in card.news_items if item.ai_takeaway is None)
+            if candidate_ids:
+                enqueue_takeaway_candidates(sorted(candidate_ids))
+        except Exception:  # noqa: BLE001
+            logger.warning("takeaway candidate enqueue failed", exc_info=True)

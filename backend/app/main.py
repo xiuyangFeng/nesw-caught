@@ -23,6 +23,7 @@ from app.services.news_signal_pipeline import (  # noqa: F401 -- monkeypatched b
 from app.services.notification_service import get_notification_service
 from app.services.quote_service import QuoteService
 from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
+from app.workers.takeaway_worker import TakeawayWorker
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,9 @@ async def lifespan(_: FastAPI):
     queue_worker = BackgroundQueueWorker(session_factory=SessionLocal)
     queue_worker.start()
 
+    takeaway_worker = TakeawayWorker(session_factory=SessionLocal)
+    takeaway_worker.start()
+
     settings = get_settings()
     news_scheduler: NewsIngestScheduler | None = None
     cleanup_worker = None
@@ -169,6 +173,7 @@ async def lifespan(_: FastAPI):
     if news_scheduler is not None:
         news_scheduler.stop()
     queue_worker.stop()
+    takeaway_worker.stop()
     notification_service.stop()
     from app.services.http_pool import aclose_async_llm_client, close_llm_client
     close_llm_client()
