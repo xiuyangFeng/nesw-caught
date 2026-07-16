@@ -10,9 +10,13 @@ const props = withDefaults(
   defineProps<{
     entry: EditorialStoryEntry;
     variant?: 'supporting' | 'stream' | 'stream-compact';
+    read?: boolean;
+    selected?: boolean;
   }>(),
   {
     variant: 'stream',
+    read: false,
+    selected: false,
   },
 );
 
@@ -22,22 +26,58 @@ const publishedLabel = computed(
 );
 const topicLabel = computed(() => props.entry.detail?.topic?.topic_title ?? '未归主题');
 
+const takeaway = computed(() => {
+  // item 由 SSE news.updated 实时更新,detail 加载后不再刷新——故 item 优先,避免读到过期的 detail
+  const value = props.entry.item.ai_takeaway ?? props.entry.detail?.ai_takeaway;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+});
+
+// 编辑分 → 色条强度三档(阈值对齐前端 getEditorialScore 的约 0~1.5 区间)
+const intensityTier = computed(() => {
+  if (props.entry.score >= 0.9) {
+    return 'strong';
+  }
+  if (props.entry.score >= 0.55) {
+    return 'medium';
+  }
+  return 'soft';
+});
+
+const sentimentTone = computed(() => {
+  const label = props.entry.item.sentiment_label;
+  return label === 'positive' || label === 'negative' ? label : 'neutral';
+});
+
 const emit = defineEmits<{
   open: [id: number];
 }>();
 </script>
 
 <template>
-  <article class="news-card" :class="`news-card--${variant}`" data-role="news-card-shell" @click="emit('open', entry.item.id)">
+  <article
+    class="news-card"
+    :class="[
+      `news-card--${variant}`,
+      `news-card--tone-${sentimentTone}`,
+      `news-card--tier-${intensityTier}`,
+      { 'news-card--read': read, 'news-card--selected': selected },
+    ]"
+    :data-news-id="entry.item.id"
+    data-role="news-card-shell"
+    @click="emit('open', entry.item.id)"
+  >
     <div class="card-head" data-role="news-card-head">
       <span class="pill" :class="entry.item.sentiment_label">{{ sentimentText(entry.item.sentiment_label) }}</span>
       <span class="market-tag">{{ entry.item.market.toUpperCase() }}</span>
       <span class="source">{{ entry.item.source_name }}</span>
+      <span v-if="!read" class="unread-dot" data-role="news-card-unread"></span>
     </div>
     <div class="news-card__body" :class="{ 'news-card__supporting-body': variant === 'supporting', 'news-card__compact-body': variant === 'stream-compact' }">
       <div class="news-card__copy" :class="{ 'news-card__supporting-copy': variant === 'supporting', 'news-card__compact-copy': variant === 'stream-compact' }">
         <h3 data-role="news-card-title">{{ entry.item.title }}</h3>
-        <p class="summary">{{ summary }}</p>
+        <p v-if="takeaway" class="takeaway" data-role="news-card-takeaway">→ {{ takeaway }}</p>
+        <p v-if="!takeaway || variant !== 'stream-compact'" class="summary">{{ summary }}</p>
       </div>
       <div class="news-card__meta" :class="{ 'news-card__supporting-meta': variant === 'supporting', 'news-card__compact-meta': variant === 'stream-compact' }">
         <span class="news-card__time">{{ publishedLabel }}</span>
@@ -49,6 +89,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .news-card {
+  position: relative;
   display: grid;
   gap: 10px;
   border-radius: var(--r-md);
@@ -62,6 +103,76 @@ const emit = defineEmits<{
 .news-card:hover {
   border-color: var(--border-strong);
   background: var(--panel-strong);
+}
+
+.news-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  opacity: 0.3;
+}
+
+.news-card--tone-positive::before {
+  background: var(--positive);
+}
+
+.news-card--tone-negative::before {
+  background: var(--negative);
+}
+
+.news-card--tier-strong::before {
+  opacity: 0.95;
+}
+
+.news-card--tier-medium::before {
+  opacity: 0.6;
+}
+
+.news-card--tier-soft::before {
+  opacity: 0.3;
+}
+
+.news-card--read {
+  opacity: 0.55;
+}
+
+.news-card--read:hover {
+  opacity: 0.85;
+}
+
+.news-card--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.unread-dot {
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-soft);
+}
+
+.takeaway {
+  margin: 0;
+  color: var(--accent);
+  font-size: 13.5px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+}
+
+.news-card--stream-compact .takeaway {
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .news-card--stream-compact {

@@ -254,7 +254,11 @@ async function bootstrap() {
     }
     if (event.type === 'news.updated') {
       newsStore.upsertNewsUpdate(event.payload);
-      refreshNewsFeedLayoutIfVisible();
+      // takeaway 补齐只更新卡片文案,不影响排序——跳过 layout 全量刷新,避免批量生成期抖动
+      const fields = event.payload.updated_fields;
+      if (!(fields.length === 1 && fields[0] === 'ai_takeaway')) {
+        refreshNewsFeedLayoutIfVisible();
+      }
       return;
     }
     if (event.type === 'topic.updated') {

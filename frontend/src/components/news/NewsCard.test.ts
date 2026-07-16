@@ -56,4 +56,52 @@ describe('NewsCard', () => {
     expect(wrapper.find('[data-role="news-card-head"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-card-title"]').text()).toContain('Xinjiang power export exceeds');
   });
+
+  it('有 ai_takeaway 时显示结论行', () => {
+    const entry = makeEntry();
+    // takeaway 优先取 entry.item(SSE news.updated 实时更新的那份),只设 item 即可
+    entry.item = { ...entry.item, ai_takeaway: '数据中心需求超预期,利好产业链' };
+    const wrapper = mount(NewsCard, { props: { entry, variant: 'stream-compact' } });
+    expect(wrapper.get('[data-role="news-card-takeaway"]').text()).toContain('数据中心需求超预期');
+  });
+
+  it('detail 已水合但无 ai_takeaway 时,回退显示 item 的 ai_takeaway(staleness 回归守护)', () => {
+    // 场景: 卡片已展开加载过 detail(此时 detail.ai_takeaway 为空,worker 尚未生成),
+    // 随后 SSE news.updated 更新了 item.ai_takeaway,但不会回填 detailMap 里的 detail。
+    // 若 takeaway 仍以 detail 优先,就会永远读到过期的 null——这里验证 item 优先能避免该问题。
+    const entry = makeEntry();
+    entry.detail = entry.detail && { ...entry.detail, ai_takeaway: null };
+    entry.item = { ...entry.item, ai_takeaway: 'SSE 推送的最新结论' };
+    const wrapper = mount(NewsCard, { props: { entry, variant: 'stream-compact' } });
+    expect(wrapper.get('[data-role="news-card-takeaway"]').text()).toContain('SSE 推送的最新结论');
+  });
+
+  it('无 ai_takeaway 时回退显示原文摘要且无结论行', () => {
+    const wrapper = mount(NewsCard, { props: { entry: makeEntry(), variant: 'stream-compact' } });
+    expect(wrapper.find('[data-role="news-card-takeaway"]').exists()).toBe(false);
+    expect(wrapper.find('.summary').exists()).toBe(true);
+  });
+
+  it('read 时加淡化 class,未读时显示圆点', () => {
+    const read = mount(NewsCard, { props: { entry: makeEntry(), read: true } });
+    expect(read.classes()).toContain('news-card--read');
+    expect(read.find('[data-role="news-card-unread"]').exists()).toBe(false);
+    const unread = mount(NewsCard, { props: { entry: makeEntry() } });
+    expect(unread.find('[data-role="news-card-unread"]').exists()).toBe(true);
+  });
+
+  it('selected 时加选中 class,并带 data-news-id', () => {
+    const wrapper = mount(NewsCard, { props: { entry: makeEntry(), selected: true } });
+    expect(wrapper.classes()).toContain('news-card--selected');
+    expect(wrapper.attributes('data-news-id')).toBeDefined();
+  });
+
+  it('情绪与强度映射为色条 class', () => {
+    const entry = makeEntry();
+    entry.item = { ...entry.item, sentiment_label: 'negative' };
+    entry.score = 1.2;
+    const wrapper = mount(NewsCard, { props: { entry } });
+    expect(wrapper.classes()).toContain('news-card--tone-negative');
+    expect(wrapper.classes()).toContain('news-card--tier-strong');
+  });
 });

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch, onMounted } from 'vue';
+import { RouterLink } from 'vue-router';
 import { useNewsStore } from '../../stores/newsStore';
 import { useLlmStore } from '../../stores/llmStore';
 import LoadingBlock from '../common/LoadingBlock.vue';
@@ -147,6 +148,15 @@ function sentimentText(label: string | null | undefined) {
             <span class="text-[11px] text-muted font-mono tabular-nums ml-2">
               第 {{ currentIndex + 1 }} / {{ filteredNewsIds.length }} 篇
             </span>
+            <RouterLink
+              v-if="newsId !== null"
+              :to="{ name: 'news-detail', params: { id: newsId } }"
+              class="text-xs text-muted hover:text-text"
+              data-role="drawer-open-full"
+              @click="emit('close')"
+            >
+              完整页 ↗
+            </RouterLink>
           </div>
 
           <button

@@ -162,6 +162,7 @@ class ClassificationResult:
     llm_error: str | None = None
     topic_title_hint: str | None = None
     topic_summary_hint: str | None = None
+    takeaway: str | None = None
 
 
 class NewsSignalClassifier:
@@ -232,7 +233,8 @@ class NewsSignalClassifier:
                 f"Title: {title}",
                 f"Summary: {summary or ''}",
                 f"Body: {body or ''}",
-                "Return JSON only with keys: sentiment_label, sentiment_score, summary, keywords, topic_title_hint.",
+                "Return JSON only with keys: sentiment_label, sentiment_score, summary, keywords, topic_title_hint, takeaway.",
+                "takeaway: 一句中文结论(<=60字),说明谁受影响、偏利好还是利空、原因;无法判断时返回空字符串。",
             ]
         )
         try:
@@ -264,6 +266,9 @@ class NewsSignalClassifier:
             if (payload.get("summary") or baseline.summary)
             else None
         )
+        takeaway_raw = payload.get("takeaway")
+        takeaway_text = str(takeaway_raw).strip() if takeaway_raw else ""
+        takeaway = takeaway_text[:120] if takeaway_text else None
         return ClassificationResult(
             sentiment_label=label,
             sentiment_score=round(max(-1.0, min(1.0, score)), 4),
@@ -279,6 +284,7 @@ class NewsSignalClassifier:
             if topic_title_hint
             else baseline.topic_title_hint,
             topic_summary_hint=summary_text[:280] if summary_text else baseline.topic_summary_hint,
+            takeaway=takeaway,
         )
 
     def _zh_tokens(self, text: str) -> list[str]:

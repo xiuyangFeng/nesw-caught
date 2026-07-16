@@ -338,6 +338,7 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             "market": "us",
             "sentiment_label": "positive",
             "editorial_score": None,
+            "ai_takeaway": None,
             "published_at": "2026-03-25T02:30:00Z",
             "fetched_at": "2026-03-25T02:31:03Z",
             "updated_fields": ["sentiment_label"],
@@ -422,3 +423,59 @@ def test_chinese_theme_words_contribute_to_topic_key() -> None:
             assert any(kw in zh_themes for kw in topic_keywords)
     finally:
         _cleanup_news([url_hash])
+
+
+def test_apply_result_writes_takeaway_without_overwrite() -> None:
+    import sqlalchemy as sa
+
+    from app.db.session import SessionLocal
+    from app.models.news_item import NewsItem
+    from app.models.news_signal_result import NewsSignalResult
+    from app.models.topic_cluster import TopicCluster
+    from app.models.topic_news_link import TopicNewsLink
+    from app.services.news_signal_classifier import ClassificationResult
+    from app.services.news_signal_pipeline import NewsSignalPipelineService
+    from datetime import datetime, timezone
+
+    def _result(takeaway: str) -> ClassificationResult:
+        return ClassificationResult(
+            sentiment_label="positive",
+            sentiment_score=0.5,
+            signal_confidence=0.8,
+            keywords=["takeaway", "apply"],
+            topic_key="takeaway-apply-topic",
+            summary="s",
+            classifier_type="hybrid",
+            takeaway=takeaway,
+        )
+
+    with SessionLocal() as session:
+        item = NewsItem(
+            source_name="UnitTest",
+            source_url="https://example.com/apply-tk",
+            title="apply takeaway",
+            canonical_url="https://example.com/apply-tk",
+            url_hash="hash-apply-tk",
+            market="us",
+            fetched_at=datetime.now(timezone.utc),
+        )
+        session.add(item)
+        session.flush()
+        service = NewsSignalPipelineService(session, session_factory=SessionLocal)
+        try:
+            service._apply_result(item, _result("首次结论"), set())
+            session.commit()
+            session.refresh(item)
+            assert item.ai_takeaway == "首次结论"
+
+            service._apply_result(item, _result("第二次结论"), set())
+            session.commit()
+            session.refresh(item)
+            assert item.ai_takeaway == "首次结论"  # 已有值不覆盖
+        finally:
+            session.rollback()
+            session.execute(sa.delete(TopicNewsLink).where(TopicNewsLink.news_id == item.id))
+            session.execute(sa.delete(NewsSignalResult).where(NewsSignalResult.news_id == item.id))
+            session.execute(sa.delete(TopicCluster).where(TopicCluster.topic_key == "takeaway-apply-topic"))
+            session.execute(sa.delete(NewsItem).where(NewsItem.id == item.id))
+            session.commit()

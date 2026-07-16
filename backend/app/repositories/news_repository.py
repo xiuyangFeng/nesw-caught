@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,14 @@ from app.models.news_stock_mention import NewsStockMention
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
 from app.repositories.news_cursor import decode_cursor, encode_cursor
+
+
+@dataclass(frozen=True)
+class NewsDetailBundle:
+    item: NewsItem
+    article: ArticleContent | None
+    mentions: list[NewsStockMention]
+    topic: TopicCluster | None
 
 
 class NewsRepository:
@@ -141,6 +151,30 @@ class NewsRepository:
             .where(TopicNewsLink.news_id == news_id)
         )
         return self.session.scalar(stmt)
+
+    def get_detail_bundle(self, news_id: int) -> NewsDetailBundle | None:
+        """详情页聚合读取:item/article/topic 单条 JOIN 查询 + mentions 一次列表查询。
+
+        原实现为 4 次串行查询,SQLite 单 writer 场景下往返次数直接决定
+        抽屉打开延迟,故合并为 2 次。
+        """
+        stmt = (
+            select(NewsItem, ArticleContent, TopicCluster)
+            .outerjoin(ArticleContent, ArticleContent.news_id == NewsItem.id)
+            .outerjoin(TopicNewsLink, TopicNewsLink.news_id == NewsItem.id)
+            .outerjoin(TopicCluster, TopicCluster.id == TopicNewsLink.topic_cluster_id)
+            .where(NewsItem.id == news_id)
+        )
+        row = self.session.execute(stmt).first()
+        if row is None:
+            return None
+        item, article, topic = row
+        return NewsDetailBundle(
+            item=item,
+            article=article,
+            mentions=self.list_mentions(news_id),
+            topic=topic,
+        )
 
     def get_by_ids(self, news_ids: list[int]) -> list[NewsItem]:
         if not news_ids:

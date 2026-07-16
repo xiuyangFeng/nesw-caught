@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ai_enabled: bool = False
     http_timeout_seconds: float = 10.0
     llm_timeout_seconds: float = 60.0
+    takeaway_batch_limit: int = 12
+    takeaway_daily_limit: int = 300
+    takeaway_poll_interval_seconds: float = 5.0
     news_sources_file: str | None = None
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
