@@ -4,11 +4,16 @@ import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
-import EventFeedCard from '../components/news/EventFeedCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
 import NewsCard from '../components/news/NewsCard.vue';
 import NewsVirtualList from '../components/news/NewsVirtualList.vue';
+import EventCapsuleStrip from '../components/news/EventCapsuleStrip.vue';
+import TopicChipsRow from '../components/news/TopicChipsRow.vue';
+import NewsDetailDrawer from '../components/news/NewsDetailDrawer.vue';
+import { useFeedKeyboard } from '../composables/useFeedKeyboard';
+import { partitionFoldableStream } from '../utils/newsFolding';
+import { markNewsRead, useReadNewsIds } from '../utils/readNews';
 import { useConnectionStore } from '../stores/connectionStore';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
@@ -208,7 +213,22 @@ const orderedEntries = computed<EditorialStoryEntry[]>(() =>
     newsStore.detailMap,
   ),
 );
-const useVirtualScrolling = computed(() => orderedEntries.value.length > VIRTUAL_LIST_THRESHOLD);
+
+const drawerVisible = ref(false);
+const selectedNewsId = ref<number | null>(null);
+const foldExpanded = ref(false);
+const readIds = useReadNewsIds();
+const virtualListRef = ref<InstanceType<typeof NewsVirtualList> | null>(null);
+
+const foldedStream = computed(() => partitionFoldableStream(orderedEntries.value));
+const displayEntries = computed(() =>
+  foldExpanded.value
+    ? [...foldedStream.value.visible, ...foldedStream.value.folded]
+    : foldedStream.value.visible,
+);
+const displayIds = computed(() => displayEntries.value.map((entry) => entry.item.id));
+
+const useVirtualScrolling = computed(() => displayEntries.value.length > VIRTUAL_LIST_THRESHOLD);
 const orderedEntryIdSet = computed(() => new Set(orderedEntries.value.map((entry) => entry.item.id)));
 const hydrationCandidateIds = computed(() => {
   const candidateIds = new Set<number>();
@@ -274,12 +294,46 @@ watch(
 );
 
 function openStory(id: number) {
-  router.push({ name: 'news-detail', params: { id } });
+  markNewsRead(id);
+  selectedNewsId.value = id;
+  drawerVisible.value = true;
+  keyboard.selectedId.value = id;
+}
+
+function closeDrawer() {
+  drawerVisible.value = false;
+  selectedNewsId.value = null;
+}
+
+function changeNewsInDrawer(id: number) {
+  markNewsRead(id);
+  selectedNewsId.value = id;
+  keyboard.selectedId.value = id;
 }
 
 function openEvent(eventKey: string) {
   router.push({ name: 'event-detail', params: { eventKey } });
 }
+
+function openTopic(id: number) {
+  router.push({ name: 'topic-detail', params: { id } });
+}
+
+function scrollSelectedIntoView(id: number, index: number) {
+  if (useVirtualScrolling.value) {
+    virtualListRef.value?.scrollToIndex(index);
+    return;
+  }
+  document.querySelector(`[data-news-id="${id}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+
+const keyboard = useFeedKeyboard({
+  ids: () => displayIds.value,
+  isDrawerOpen: () => drawerVisible.value,
+  openDrawer: openStory,
+  closeDrawer,
+  onSelect: scrollSelectedIntoView,
+});
 
 onMounted(async () => {
   await Promise.all([
@@ -384,48 +438,10 @@ watch(loadMoreSentinelRef, (node, previous) => {
       </div>
 
       <LoadingBlock :loading="newsStore.feedLoading" :empty="!hasVisibleFeedContent" :skeletonType="'news'" :skeletonCount="3">
-        <SectionCard
-          eyebrow="Lead Layer"
-          title="Event Radar"
-          subtitle="首页首屏先展示聚合后的市场事件主卡，卡片只保留事件级元数据。"
-          compact
-          data-role="event-radar-shell"
-        >
-          <div v-if="filteredEvents.length" class="grid gap-[14px]">
-            <EventFeedCard
-              v-for="event in filteredEvents"
-              :key="event.event_key"
-              :event="event"
-              @open-event="openEvent"
-              @open-story="openStory"
-            />
-          </div>
-          <p v-else class="text-sm text-muted">Event Radar 暂无聚合事件</p>
-        </SectionCard>
-
-        <SectionCard
-          eyebrow="Theme Layer"
-          title="Topic Watch"
-          subtitle="保留持续发酵的主题簇，用于观察主线扩散。"
-          compact
-          data-role="topic-watch-shell"
-        >
-          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <article
-              v-for="topic in filteredTopics"
-              :key="topic.id"
-              class="rounded-lg border border-border bg-panel-strong p-4 transition-colors hover:border-border-strong"
-            >
-              <div class="mb-2 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
-                <span>{{ topic.market.toUpperCase() }}</span>
-                <span>{{ topic.sentiment_label }}</span>
-              </div>
-              <h3 class="m-0 text-base font-semibold text-text">{{ topic.topic_title }}</h3>
-              <p class="mt-2 text-sm leading-[1.6] text-muted">{{ topic.topic_summary ?? '主题摘要待补充' }}</p>
-              <p class="mt-3 text-xs text-text-soft">{{ topic.related_symbols.join(' · ') || '未关联股票' }}</p>
-            </article>
-          </div>
-        </SectionCard>
+        <div class="grid gap-2.5" data-role="feed-compact-header">
+          <EventCapsuleStrip :events="filteredEvents" @open-event="openEvent" />
+          <TopicChipsRow :topics="filteredTopics" @open-topic="openTopic" />
+        </div>
 
         <SectionCard
           eyebrow="Live Flow"
@@ -451,21 +467,35 @@ watch(loadMoreSentinelRef, (node, previous) => {
 
           <NewsVirtualList
             v-if="useVirtualScrolling"
-            :entries="orderedEntries"
+            ref="virtualListRef"
+            :entries="displayEntries"
+            :selected-id="keyboard.selectedId.value"
+            :read-ids="readIds"
             @open="openStory"
             @visible-ids="visibleStreamIds = $event"
           />
           <div v-else class="grid grid-cols-1 gap-[14px]" data-role="news-stream-list">
             <transition-group name="list-fade-in" tag="div" class="grid grid-cols-1 gap-[14px]">
               <NewsCard
-                v-for="entry in orderedEntries"
+                v-for="entry in displayEntries"
                 :key="entry.item.id"
                 :entry="entry"
                 variant="stream-compact"
+                :read="readIds.has(entry.item.id)"
+                :selected="entry.item.id === keyboard.selectedId.value"
                 @open="openStory"
               />
             </transition-group>
           </div>
+          <button
+            v-if="foldedStream.folded.length"
+            type="button"
+            class="fold-toggle"
+            data-role="news-fold-toggle"
+            @click="foldExpanded = !foldExpanded"
+          >
+            {{ foldExpanded ? '▴ 收起低优先级' : `▾ 已折叠 ${foldedStream.folded.length} 条低优先级 — 展开` }}
+          </button>
           <div
             v-if="newsStore.feedHasMore"
             ref="loadMoreSentinelRef"
@@ -474,9 +504,20 @@ watch(loadMoreSentinelRef, (node, previous) => {
           >
             {{ newsStore.feedLoadingMore ? '加载更多历史新闻…' : '继续下滑加载更多' }}
           </div>
+          <p class="kbd-hint" data-role="feed-kbd-hint">
+            <kbd>j</kbd>/<kbd>k</kbd> 上下 · <kbd>Enter</kbd> 阅读 · <kbd>Esc</kbd> 关闭
+          </p>
         </SectionCard>
       </LoadingBlock>
     </section>
+
+    <NewsDetailDrawer
+      :newsId="selectedNewsId"
+      :visible="drawerVisible"
+      :filteredNewsIds="displayIds"
+      @close="closeDrawer"
+      @changeNews="changeNewsInDrawer"
+    />
   </div>
 </template>
 
@@ -503,5 +544,38 @@ watch(loadMoreSentinelRef, (node, previous) => {
 .list-fade-in-leave-to {
   opacity: 0;
   transform: scale(0.95);
+}
+
+.fold-toggle {
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.fold-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.kbd-hint {
+  margin: 10px 0 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-align: center;
+}
+
+.kbd-hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 </style>

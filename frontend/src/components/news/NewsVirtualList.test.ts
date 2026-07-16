@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import type { EditorialStoryEntry } from '../../utils/newsEditorial';
+import NewsCard from './NewsCard.vue';
 import NewsVirtualList from './NewsVirtualList.vue';
 
 function makeEntry(id: number): EditorialStoryEntry {
@@ -34,5 +35,23 @@ describe('NewsVirtualList', () => {
 
     expect(wrapper.find('.virtual-row').attributes('style')).toContain('height: 156px;');
     expect(wrapper.find('[data-role="news-card-shell"]').classes()).toContain('news-card--stream-compact');
+  });
+
+  it('forwards selectedId/readIds to NewsCard as selected/read props', async () => {
+    const wrapper = mount(NewsVirtualList, {
+      props: {
+        entries: [makeEntry(1), makeEntry(2)],
+        selectedId: 2,
+        readIds: new Set([1]),
+      },
+    });
+
+    await Promise.resolve();
+
+    const cards = wrapper.findAllComponents(NewsCard);
+    expect(cards[0].props('selected')).toBe(false);
+    expect(cards[0].props('read')).toBe(true);
+    expect(cards[1].props('selected')).toBe(true);
+    expect(cards[1].props('read')).toBe(false);
   });
 });

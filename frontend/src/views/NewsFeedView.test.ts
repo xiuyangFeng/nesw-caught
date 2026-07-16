@@ -3,6 +3,7 @@ import { reactive, nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { NewsDetail, NewsItem } from '../types/api';
+import { resetReadNewsForTest } from '../utils/readNews';
 import NewsFeedView from './NewsFeedView.vue';
 
 const mockPush = vi.fn();
@@ -103,6 +104,10 @@ const newsStore = reactive({
   feedLayoutDegraded: false,
   feedItems: items,
   detailMap,
+  detailLoading: false,
+  analysisMap: {} as Record<number, any>,
+  analysisLoadingMap: {} as Record<number, boolean>,
+  analysisErrorMap: {} as Record<number, string | null>,
   feedLoading: false,
   feedStale: false,
   usingMock: false,
@@ -152,9 +157,15 @@ const newsStore = reactive({
   loadFeedLayout: vi.fn(async () => undefined),
   loadMoreFeedNews: vi.fn(async () => false),
   loadDetail: vi.fn(async (_id: number): Promise<void> => undefined),
+  loadAnalysis: vi.fn(async (_id: number): Promise<void> => undefined),
 });
 
 vi.mock('vue-router', () => ({
+  RouterLink: {
+    name: 'RouterLink',
+    props: ['to'],
+    template: '<a :href="typeof to === \'string\' ? to : to?.path"><slot /></a>',
+  },
   useRouter: () => ({
     push: mockPush,
   }),
@@ -168,6 +179,13 @@ vi.mock('../stores/newsStore', () => ({
   useNewsStore: () => newsStore,
 }));
 
+vi.mock('../stores/llmStore', () => ({
+  useLlmStore: () => ({
+    config: null,
+    loadConfig: vi.fn(),
+  }),
+}));
+
 describe('NewsFeedView', () => {
   beforeEach(() => {
     class MockIntersectionObserver {
@@ -178,15 +196,20 @@ describe('NewsFeedView', () => {
     }
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver as unknown as typeof IntersectionObserver);
 
+    resetReadNewsForTest();
     mockPush.mockReset();
     connectionStore.state = 'live';
     newsStore.loadFeedNews.mockClear();
     newsStore.loadFeedLayout.mockClear();
     newsStore.loadDetail.mockClear();
+    newsStore.loadAnalysis.mockClear();
     newsStore.feedLayoutDegraded = false;
     newsStore.feedItems = items;
     newsStore.feedLayout = feedLayout;
     newsStore.detailMap = detailMap;
+    newsStore.analysisMap = {};
+    newsStore.analysisLoadingMap = {};
+    newsStore.analysisErrorMap = {};
   });
 
   it('frames the page as compact latest-event discovery instead of signal desk copy', () => {
@@ -196,20 +219,20 @@ describe('NewsFeedView', () => {
     expect(wrapper.text()).not.toContain('Signal Desk');
     expect(wrapper.text()).not.toContain('News Feed');
     expect(wrapper.findAll('h2').map((node) => node.text())).not.toContain('Latest Events');
-    expect(wrapper.text()).toContain('Event Radar');
-    expect(wrapper.text()).toContain('Topic Watch');
     expect(wrapper.text()).toContain('Raw Stream');
     expect(wrapper.text()).not.toContain('先扫最新事件，再看主题簇和原始新闻流作为证据层。');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-feed-toolbar"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-feed-shell"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="feed-compact-header"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="event-capsule-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="topic-chips-row"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="news-stream-shell"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('命中持仓：');
+    expect(wrapper.text()).toContain('持仓 2');
     expect(wrapper.text()).toContain('AI Chip Launch');
-    expect(wrapper.text()).toContain('NVDA');
-    expect(wrapper.text()).toContain('SMCI');
+    expect(wrapper.text()).toContain('AI Infra');
 
     const titles = wrapper.findAll('[data-role="news-card-title"]').map((node) => node.text());
     expect(titles).toEqual([
@@ -228,17 +251,37 @@ describe('NewsFeedView', () => {
   it('routes event cards to the event detail page on open-event', async () => {
     const wrapper = mount(NewsFeedView);
 
-    await wrapper.getComponent({ name: 'EventFeedCard' }).vm.$emit('open-event', 'topic-1');
+    await wrapper.getComponent({ name: 'EventCapsuleStrip' }).vm.$emit('open-event', 'topic-1');
 
     expect(mockPush).toHaveBeenCalledWith({ name: 'event-detail', params: { eventKey: 'topic-1' } });
   });
 
-  it('keeps evidence-pill story routing on news detail', async () => {
+  it('routes topic chips to the topic detail page on open-topic', async () => {
     const wrapper = mount(NewsFeedView);
 
-    await wrapper.getComponent({ name: 'EventFeedCard' }).vm.$emit('open-story', 2);
+    await wrapper.getComponent({ name: 'TopicChipsRow' }).vm.$emit('open-topic', 1);
 
-    expect(mockPush).toHaveBeenCalledWith({ name: 'news-detail', params: { id: 2 } });
+    expect(mockPush).toHaveBeenCalledWith({ name: 'topic-detail', params: { id: 1 } });
+  });
+
+  it('opens the detail drawer instead of routing to the news-detail page when a card is clicked', async () => {
+    const wrapper = mount(NewsFeedView);
+
+    await wrapper.get('[data-role="news-card-shell"]').trigger('click');
+
+    expect(mockPush).not.toHaveBeenCalledWith({ name: 'news-detail', params: { id: expect.anything() } });
+    const drawer = wrapper.findComponent({ name: 'NewsDetailDrawer' });
+    expect(drawer.props('newsId')).not.toBeNull();
+    expect(drawer.props('visible')).toBe(true);
+  });
+
+  it('marks a news card as read after it has been opened via the drawer', async () => {
+    const wrapper = mount(NewsFeedView);
+
+    const card = wrapper.get('[data-role="news-card-shell"]');
+    await card.trigger('click');
+
+    expect(wrapper.get('[data-role="news-card-shell"]').classes()).toContain('news-card--read');
   });
 
   it('renders delayed/degraded/live status copy in the feed header', () => {
@@ -266,7 +309,7 @@ describe('NewsFeedView', () => {
 
     const wrapper = mount(NewsFeedView);
 
-    expect(wrapper.text()).toContain('Event Radar 暂无聚合事件');
+    expect(wrapper.text()).toContain('暂无聚合事件');
     expect(wrapper.find('[data-role="news-stream-shell"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('NVIDIA rallies as AI capex estimates move higher');
 
@@ -283,10 +326,11 @@ describe('NewsFeedView', () => {
 
     const wrapper = mount(NewsFeedView);
 
-    expect(wrapper.text()).toContain('Event Radar');
-    expect(wrapper.text()).toContain('Topic Watch');
-    expect(wrapper.find('[data-role="event-radar-shell"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="topic-watch-shell"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('AI Chip Launch');
+    expect(wrapper.text()).toContain('AI Infra');
+    expect(wrapper.find('[data-role="feed-compact-header"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="event-capsule-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="topic-chips-row"]').exists()).toBe(true);
 
     newsStore.feedLayout = feedLayout;
     newsStore.feedItems = items;
@@ -298,6 +342,52 @@ describe('NewsFeedView', () => {
     await wrapper.findAll('select')[1].setValue('negative');
 
     expect(wrapper.text()).not.toContain('AI Infra');
+  });
+
+  it('folds low-priority stream entries behind a toggle and expands them on click', async () => {
+    const foldableItems: NewsItem[] = Array.from({ length: 16 }, (_, index) => ({
+      id: index + 1,
+      title: `Fold story ${index + 1}`,
+      summary: `Summary ${index + 1}`,
+      source_name: 'Reuters',
+      canonical_url: null,
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: `2026-03-18T${String(index).padStart(2, '0')}:00:00Z`,
+      fetched_at: `2026-03-18T${String(index).padStart(2, '0')}:02:00Z`,
+      editorial_score: 1 - index * 0.05,
+    }));
+
+    newsStore.feedItems = foldableItems;
+    newsStore.feedLayout = {
+      events: [],
+      topics: [],
+      stream: foldableItems,
+    };
+    newsStore.detailMap = {};
+
+    const wrapper = mount(NewsFeedView);
+    await nextTick();
+
+    const toggle = wrapper.get('[data-role="news-fold-toggle"]');
+    expect(toggle.text()).toContain('已折叠');
+
+    const beforeCount = wrapper.findAll('[data-role="news-card-shell"]').length;
+    await toggle.trigger('click');
+    const afterCount = wrapper.findAll('[data-role="news-card-shell"]').length;
+
+    expect(afterCount).toBeGreaterThan(beforeCount);
+    expect(wrapper.get('[data-role="news-fold-toggle"]').text()).toContain('收起');
+
+    newsStore.feedItems = items;
+    newsStore.feedLayout = feedLayout;
+    newsStore.detailMap = detailMap;
+  });
+
+  it('shows the keyboard shortcut hint below the raw stream', () => {
+    const wrapper = mount(NewsFeedView);
+
+    expect(wrapper.find('[data-role="feed-kbd-hint"]').exists()).toBe(true);
   });
 
   it('falls back to the raw feed when the layout response is degraded', () => {
@@ -471,7 +561,9 @@ describe('NewsFeedView', () => {
   });
 
   it('does not keep stale virtual visible ids when the stream stops using virtualization', async () => {
-    const manyItems: NewsItem[] = Array.from({ length: 31 }, (_, index) => ({
+    // 50 条:折叠段 P70 之后约 15 条被折叠,可见段仍有 35 条 > VIRTUAL_LIST_THRESHOLD(30),
+    // 保证折叠不会意外把这条用例的初始态从「虚拟滚动」降级为「非虚拟」。
+    const manyItems: NewsItem[] = Array.from({ length: 50 }, (_, index) => ({
       id: index + 1,
       title: `Story ${index + 1}`,
       summary: `Summary ${index + 1}`,

@@ -7,6 +7,8 @@ import NewsCard from './NewsCard.vue';
 
 const props = defineProps<{
   entries: EditorialStoryEntry[];
+  selectedId?: number | null;
+  readIds?: ReadonlySet<number>;
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +48,15 @@ watch(
   },
   { immediate: true },
 );
+
+function scrollToIndex(index: number): void {
+  if (!containerRef.value) {
+    return;
+  }
+  containerRef.value.scrollTop = Math.max(0, index * ROW_HEIGHT - containerRef.value.clientHeight / 2);
+}
+
+defineExpose({ scrollToIndex });
 </script>
 
 <template>
@@ -58,7 +69,13 @@ watch(
           class="virtual-row"
           :style="{ height: `${ROW_HEIGHT}px` }"
         >
-          <NewsCard :entry="vis.item" variant="stream-compact" @open="emit('open', $event)" />
+          <NewsCard
+            :entry="vis.item"
+            variant="stream-compact"
+            :selected="vis.item.item.id === selectedId"
+            :read="readIds?.has(vis.item.item.id) ?? false"
+            @open="emit('open', $event)"
+          />
         </div>
       </div>
     </div>
