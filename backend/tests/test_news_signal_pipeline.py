@@ -338,6 +338,7 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             "market": "us",
             "sentiment_label": "positive",
             "editorial_score": None,
+            "ai_takeaway": None,
             "published_at": "2026-03-25T02:30:00Z",
             "fetched_at": "2026-03-25T02:31:03Z",
             "updated_fields": ["sentiment_label"],
