@@ -623,6 +623,28 @@ describe('newsStore', () => {
     await expect((store as any).refreshDashboardNews()).resolves.toBe(false);
   });
 
+  it('does not start cooldown when refresh request fails', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.refreshNews
+      .mockRejectedValueOnce(new Error('backend offline'))
+      .mockResolvedValueOnce({
+        data: { status: 'ok', results: [] },
+        degraded: false,
+      });
+    apiClient.getNews.mockResolvedValue({
+      data: { items: [], next_cursor: null },
+      degraded: false,
+    });
+
+    await expect((store as any).refreshDashboardNews()).resolves.toBe(false);
+    await expect((store as any).refreshDashboardNews()).resolves.toBe(true);
+    expect(apiClient.refreshNews).toHaveBeenCalledTimes(2);
+  });
+
   it('enforces a cooldown between manual full-source refreshes', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-17T12:00:00Z'));

@@ -47,6 +47,29 @@ def test_persist_empty_http_200_marks_empty_not_ok() -> None:
         assert health.last_fetched_count == 0
 
 
+def test_record_failure_clears_empty_batch_streak() -> None:
+    source = _source("hard-fail-source")
+    with SessionLocal() as session:
+        repo = SourceHealthRepository(session)
+        health = repo.get_or_create(source_name=source.name, source_type="rss", market="us")
+        health.consecutive_empty_batches = 4
+        session.commit()
+
+        persister = ItemPersister(session, repo)
+        result = persister.record_failure(
+            source,
+            error="timeout",
+            latency_ms=9.0,
+            status="http_error",
+            http_status=503,
+        )
+        assert result.status == "http_error"
+        session.refresh(health)
+        assert health.consecutive_empty_batches == 0
+        assert health.last_status == "http_error"
+        assert health.consecutive_failures >= 1
+
+
 def test_persist_not_modified_clears_failure_and_records_status() -> None:
     source = _source("nm-source")
     with SessionLocal() as session:

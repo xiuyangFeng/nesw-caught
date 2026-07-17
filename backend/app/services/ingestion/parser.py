@@ -61,7 +61,7 @@ def _parse_rss_or_atom(content: str, source: SourceDefinition) -> list[SourceIte
         if not raw_link:
             continue
 
-        published_at = _parse_feed_datetime(_entry_published_text(entry))
+        published_at = _parse_feed_datetime(_entry_published_text(entry), market=source.market)
         content_text = _content_from_entry(entry)
         summary = content_text[:280] if content_text else None
         items.append(
@@ -294,7 +294,7 @@ def _parse_zhipu_news_inline_json(content: str, source: SourceDefinition) -> lis
             continue
 
         summary = _clean_text(record.get("resume_zh") or record.get("resume_en"))
-        published_at = _parse_feed_datetime(record.get("createAt"))
+        published_at = _parse_feed_datetime(record.get("createAt"), market=source.market)
         items.append(
             SourceItem(
                 title=title.strip(),
@@ -335,7 +335,7 @@ def _parse_the_news_api_json(content: str, source: SourceDefinition) -> list[Sou
                 summary=summary[:280] if summary else None,
                 content_text=content_text,
                 content_html=None,
-                published_at=_parse_feed_datetime(record.get("published_at")),
+                published_at=_parse_feed_datetime(record.get("published_at"), market=source.market),
             )
         )
     return items

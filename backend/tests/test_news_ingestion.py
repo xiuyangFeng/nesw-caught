@@ -93,9 +93,18 @@ def test_parse_rss_dc_date_when_pubdate_missing() -> None:
 def test_parse_feed_datetime_naive_iso_as_asia_shanghai() -> None:
     from app.services.ingestion.utils import _parse_feed_datetime
 
-    parsed = _parse_feed_datetime("2026-07-17T18:30:00")
+    parsed = _parse_feed_datetime("2026-07-17T18:30:00", market="cn")
 
     assert parsed == datetime(2026, 7, 17, 10, 30, tzinfo=UTC)
+
+
+def test_parse_feed_datetime_naive_iso_us_market_uses_eastern() -> None:
+    from app.services.ingestion.utils import _parse_feed_datetime
+
+    # 2026-07-17 EDT = UTC-4
+    parsed = _parse_feed_datetime("2026-07-17T18:30:00", market="us")
+
+    assert parsed == datetime(2026, 7, 17, 22, 30, tzinfo=UTC)
 
 
 def test_parse_selector_html_source_items() -> None:

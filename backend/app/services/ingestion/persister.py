@@ -179,6 +179,7 @@ class ItemPersister:
         health.last_failure_at = _utc_now()
         health.total_failures += 1
         health.consecutive_failures += 1
+        health.consecutive_empty_batches = 0
         health.last_status = status
         health.last_error = error
         health.last_http_status = http_status

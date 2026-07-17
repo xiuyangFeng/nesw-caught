@@ -302,7 +302,6 @@ export const useNewsStore = defineStore('newsStore', () => {
     if (now - lastManualRefreshAt < REFRESH_COOLDOWN_MS) {
       return false;
     }
-    lastManualRefreshAt = now;
     try {
       const response = await apiClient.refreshNews();
       usingMock.value = usingMock.value || response.degraded;
@@ -310,10 +309,12 @@ export const useNewsStore = defineStore('newsStore', () => {
         return false;
       }
 
+      lastManualRefreshAt = Date.now();
       await loadDashboardNews(dashboardQuery.value);
       return true;
     } catch {
       // Refresh is a background convenience; callers only need success/failure.
+      // Do not start cooldown on failure so the user can retry immediately.
       return false;
     }
   }

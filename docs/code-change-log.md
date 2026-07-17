@@ -2,6 +2,19 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-17 审查跟进：时区/冷却/空批计数
+
+- 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）
+- 修改范围：审查 Important 项修复（无 Critical）。
+- 变更内容：
+  1. 无时区 feed 时间按 `market` 解释：`cn`/`hk`→Asia/Shanghai，`us`→America/New_York，其它→UTC；RSS/API 解析传入 `source.market`。
+  2. 前端 `refreshDashboardNews` 仅在刷新成功后写入 60s 冷却，失败可立即重试。
+  3. `record_failure` 硬失败时清零 `consecutive_empty_batches`，与 scheduler 内存 streak 对齐。
+- 影响文件：`ingestion/utils.py`、`ingestion/parser.py`、`ingestion/persister.py`、`newsStore.ts` 及对应测试；本变更记录。
+- 接口/数据结构变化：无。
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` → **508 passed**；`vitest newsStore/TopicChips/OpsSources` → **22 passed**；`npm --prefix frontend run build` → 通过。
+- 风险或后续事项：AbortController 仍未贯通到 apiClient（可接受风险）；进程内 refresh lease 多副本仍独立。
+
 ## 2026-07-17 优化收尾：refresh lease + 主题中文名 UI + Ops 源诊断
 
 - 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）
