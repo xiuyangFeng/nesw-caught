@@ -412,7 +412,7 @@ except Exception as exc:
 
 ### 13. cleanup 的 `VACUUM` 会拿独占锁,阻塞所有写
 
-> **状态：⚠️ 部分完成**——`backend/app/services/cleanup.py` 已新增 `_run_incremental_vacuum` 定期执行 `PRAGMA incremental_vacuum` 替代整库 `VACUUM`；但 `backend/app/db/session.py` 的连接层仅设置了 `journal_mode`/`synchronous`/`busy_timeout`/`foreign_keys`，未见设置 `PRAGMA auto_vacuum=INCREMENTAL`，若既有库未以 incremental 模式创建，该 pragma 对其可能是空操作，需要补一次性迁移确认。
+> **状态：✅ 已完成**——`backend/app/services/cleanup.py` 已新增 `_run_incremental_vacuum` 定期执行 `PRAGMA incremental_vacuum` 替代整库 `VACUUM`；`backend/app/db/session.py` 的 `set_sqlite_pragma` 已补 `PRAGMA auto_vacuum=INCREMENTAL`（新库从第一次连接起生效），既有库通过 Alembic revision `f3a7c1e9b5d2`（`PRAGMA auto_vacuum` 非 2 时执行 `PRAGMA auto_vacuum=INCREMENTAL` + `VACUUM` 完成切换）一次性迁移。
 
 `data_cleanup_vacuum_interval_seconds=604800`(周级)。VACUUM 期间 SQLite 全库加锁。建议改用 `PRAGMA incremental_vacuum` + `auto_vacuum=INCREMENTAL`,或仅在低峰窗口执行并设 `PRAGMA busy_timeout`。
 
