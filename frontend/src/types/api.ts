@@ -152,34 +152,11 @@ export interface LlmFailoverInfo {
 
 // ---------------------------------------------------------------------------
 // 财报 / 事件日历
-// 说明:后端新增 /api/calendar 接口尚未纳入 generate:api 的 OpenAPI 快照
-// (src/types/generated/api.d.ts),此处按后端 app/schemas/calendar.py 手写镜像;
-// 待运行 `npm run generate:api` 后可替换为 Schemas 别名。
 // ---------------------------------------------------------------------------
 export type CalendarEventType = 'earnings' | 'ex_dividend';
-
-export interface CalendarEvent {
-  symbol: string;
-  display_name: string | null;
-  event_type: CalendarEventType;
-  date: string; // ISO 日期 YYYY-MM-DD
-  days_until: number;
-}
-
-export interface CalendarSymbolSummary {
-  symbol: string;
-  display_name: string | null;
-  next_earnings_date: string | null;
-  next_earnings_days_until: number | null;
-}
-
-export interface CalendarResponse {
-  days: number;
-  events: CalendarEvent[];
-  summaries: CalendarSymbolSummary[];
-  skipped_count: number;
-  generated_at: string;
-}
+export type CalendarEvent = Schemas['CalendarEventView'];
+export type CalendarSymbolSummary = Schemas['CalendarSymbolSummaryView'];
+export type CalendarResponse = Schemas['CalendarResponseView'];
 
 // ---------------------------------------------------------------------------
 // 话题
@@ -429,56 +406,17 @@ export type DigestSection = Schemas['DigestSectionView'];
 export type Digest = Schemas['DigestView'];
 export type DigestLatest = Schemas['DigestLatestView'];
 // 情绪/利好利空评测 (Sentiment Eval Harness)
-//
-// 新增的 /api/eval/sentiment 端点,generated/api.d.ts 需重新跑
-// `npm run generate:api` 才会覆盖;在此手写与后端 schemas/sentiment_eval.py
-// 对齐的类型,便于视图直接消费。
 // ---------------------------------------------------------------------------
 export type SentimentEvalLabel = 'positive' | 'negative' | 'neutral';
 
-export interface SentimentLabelMetrics {
-  label: SentimentEvalLabel;
-  precision: number;
-  recall: number;
-  f1: number;
-  support: number;
-}
+export type SentimentLabelMetrics = Schemas['SentimentLabelMetrics'];
 
-export interface SentimentEvaluationMetrics {
-  accuracy: number;
-  macro_f1: number;
-  sample_count: number;
-  per_label: SentimentLabelMetrics[];
-  confusion_matrix: Record<string, Record<string, number>>;
-}
+export type SentimentEvaluationMetrics = Schemas['SentimentEvaluationMetrics'];
 
-export interface SentimentModelRun {
-  model_name: string;
-  metrics: SentimentEvaluationMetrics;
-}
+export type SentimentModelRun = Schemas['SentimentModelRun'];
 
-export interface SentimentLabelDelta {
-  label: SentimentEvalLabel;
-  f1_before: number;
-  f1_after: number;
-  f1_delta: number;
-}
+export type SentimentLabelDelta = Schemas['SentimentLabelDelta'];
 
-export interface SentimentABComparison {
-  model_a: SentimentModelRun;
-  model_b: SentimentModelRun;
-  accuracy_delta: number;
-  macro_f1_delta: number;
-  label_deltas: SentimentLabelDelta[];
-  winner: 'model_a' | 'model_b' | 'tie';
-  reason: string;
-}
+export type SentimentABComparison = Schemas['SentimentABComparison'];
 
-export interface SentimentEvalResponse {
-  available: boolean;
-  dataset_path: string;
-  sample_count: number;
-  primary: SentimentModelRun | null;
-  comparison: SentimentABComparison | null;
-  note: string | null;
-}
+export type SentimentEvalResponse = Schemas['SentimentEvalResponse'];

@@ -85,7 +85,7 @@ async function loadEarningsCountdown() {
   try {
     const { data } = await apiClient.getCalendar(90);
     const nextMap: Record<string, number> = {};
-    for (const summary of data.summaries) {
+    for (const summary of data.summaries ?? []) {
       if (summary.next_earnings_days_until !== null && summary.next_earnings_days_until !== undefined) {
         nextMap[summary.symbol] = summary.next_earnings_days_until;
       }
