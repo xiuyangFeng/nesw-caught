@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import type { EditorialStoryEntry } from '../../utils/newsEditorial';
@@ -53,5 +53,37 @@ describe('NewsVirtualList', () => {
     expect(cards[0].props('read')).toBe(true);
     expect(cards[1].props('selected')).toBe(true);
     expect(cards[1].props('read')).toBe(false);
+  });
+
+  it('keeps a usable viewport height and bounds DOM rows for 100 entries', async () => {
+    const entries = Array.from({ length: 100 }, (_, i) => makeEntry(i + 1));
+    const wrapper = mount(NewsVirtualList, {
+      props: { entries },
+      attachTo: document.body,
+    });
+
+    await flushPromises();
+
+    const shellEl = wrapper.get('.virtual-shell').element as HTMLElement;
+
+    // Scroll root must declare an explicit constrained height (not collapsing height:100%).
+    expect(shellEl.style.height).toMatch(/px|vh|min\(/i);
+
+    // jsdom does not perform layout; stub clientHeight to the constrained viewport.
+    const viewportPx = 680;
+    Object.defineProperty(shellEl, 'clientHeight', {
+      configurable: true,
+      value: viewportPx,
+    });
+    window.dispatchEvent(new Event('resize'));
+    await flushPromises();
+
+    const rowCount = wrapper.findAll('.virtual-row').length;
+    expect(shellEl.clientHeight).toBe(viewportPx);
+    expect(rowCount).toBeGreaterThan(0);
+    expect(rowCount).toBeLessThan(40);
+    expect(rowCount).toBeLessThan(entries.length / 2);
+
+    wrapper.unmount();
   });
 });

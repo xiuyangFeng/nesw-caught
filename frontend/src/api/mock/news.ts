@@ -23,6 +23,7 @@ export const mockNews: NewsItem[] = [
     sentiment_label: 'positive',
     published_at: isoMinutesAgo(32),
     fetched_at: isoMinutesAgo(29),
+    effective_at: isoMinutesAgo(32),
   },
   {
     id: 102,
@@ -34,6 +35,7 @@ export const mockNews: NewsItem[] = [
     sentiment_label: 'negative',
     published_at: isoMinutesAgo(25),
     fetched_at: isoMinutesAgo(23),
+    effective_at: isoMinutesAgo(25),
   },
   {
     id: 103,
@@ -45,6 +47,7 @@ export const mockNews: NewsItem[] = [
     sentiment_label: 'neutral',
     published_at: isoMinutesAgo(14),
     fetched_at: isoMinutesAgo(12),
+    effective_at: isoMinutesAgo(14),
   },
   {
     id: 104,
@@ -56,6 +59,7 @@ export const mockNews: NewsItem[] = [
     sentiment_label: 'positive',
     published_at: isoMinutesAgo(9),
     fetched_at: isoMinutesAgo(8),
+    effective_at: isoMinutesAgo(9),
   },
 ];
 

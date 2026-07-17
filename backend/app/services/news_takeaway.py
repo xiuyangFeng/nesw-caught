@@ -2,6 +2,7 @@
 
 feed layout 构建时把缺 takeaway 的高分新闻 id 入队(enqueue_takeaway_candidates),
 TakeawayWorker 后台批量调 LLM 生成并写回 news_item.ai_takeaway;一条新闻只生成一次。
+无 LLM 配置时降级为结构化规则摘要（主体/事件/影响对象）。
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.models.news_item import NewsItem
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.services.llm_providers import build_provider
+from app.services.news_structured_summary import build_structured_takeaway
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +39,6 @@ class NewsTakeawayService:
         """为缺 takeaway 的新闻生成一句话结论,返回成功写回的条目(不 commit,由调用方决定)。"""
         if not news_ids or batch_limit <= 0:
             return []
-        config = self.config_repository.get_active()
-        if config is None:
-            return []
 
         stmt = (
             select(NewsItem)
@@ -48,7 +47,17 @@ class NewsTakeawayService:
             .limit(batch_limit)
         )
         items = list(self.session.scalars(stmt))
-        updated: list[NewsItem] = []
+        config = self.config_repository.get_active()
+        if config is None:
+            # 无 LLM 时降级为结构化规则摘要（主体/事件/影响对象）
+            updated: list[NewsItem] = []
+            for item in items:
+                takeaway = build_structured_takeaway(title=item.title, summary=item.summary)
+                item.ai_takeaway = (takeaway[:TAKEAWAY_MAX_LEN] if takeaway else "")
+                updated.append(item)
+            return updated
+
+        updated = []
         for item in items:
             prompt = "\n".join(
                 [
@@ -63,6 +72,7 @@ class NewsTakeawayService:
             try:
                 payload = build_provider(config).analyze_json(prompt=prompt)
             except Exception as exc:
+                # 单条失败保留 NULL，便于后续重试；不中断批次
                 logger.warning("takeaway generation failed for news %s: %s", item.id, exc)
                 continue
             # 只要拿到 LLM 响应就落库并计数(含空字符串「无法判断」),避免 NULL 残留导致下次

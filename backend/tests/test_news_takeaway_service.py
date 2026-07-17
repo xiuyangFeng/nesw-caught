@@ -120,14 +120,19 @@ def test_generate_respects_batch_limit_and_tolerates_failure() -> None:
             _cleanup(session, ids)
 
 
-def test_generate_without_active_config_is_noop() -> None:
+def test_generate_without_active_config_uses_structured_fallback() -> None:
     with SessionLocal() as session:
         item = _make_item(session, suffix="noconf")
         session.commit()
         try:
             service = NewsTakeawayService(session)
             with patch.object(service.config_repository, "get_active", return_value=None):
-                assert service.generate_for_ids([item.id], batch_limit=5) == []
+                updated = service.generate_for_ids([item.id], batch_limit=5)
+            session.commit()
+            assert [row.id for row in updated] == [item.id]
+            session.refresh(item)
+            assert item.ai_takeaway is not None
+            assert item.ai_takeaway != ""
         finally:
             _cleanup(session, [item.id])
 

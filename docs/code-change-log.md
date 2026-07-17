@@ -2,6 +2,95 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-17 优化收尾：refresh lease + 主题中文名 UI + Ops 源诊断
+
+- 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）
+- 修改范围：手动刷新服务端冷却、主题 display_name 前端展示、Ops 新闻源健康诊断字段。
+- 变更内容：
+  1. **`/news/refresh` lease**：新增 `news_refresh_lease` + 配置 `news_refresh_cooldown_seconds`（默认 60）；冷却期内返回 **429** + `Retry-After`；测试套件默认 cooldown=0。
+  2. **主题 chips/看板**：`TopicChipsRow` / `TopicBoard` 优先展示 `display_name`，chip `title` 透出 `alias_zh`（或原文 title）。
+  3. **Ops UI**：`OpsSourceView` / `SourceHealthView` 暴露 `last_status`/`last_error`/`last_http_status`/`last_fetched_count`/`last_inserted_count`/`consecutive_empty_batches`；`OpsSourcesCard` 展示状态 pill、HTTP/解析/入库/空批与错误行；`npm run generate:api` 同步契约。
+- 影响文件：`news_refresh_lease.py`（新）、`config.py`、`routes/news.py`、`schemas/ops.py`、`schemas/source_health.py`、`ops_health.py`、`conftest.py`、`test_news_refresh_lease.py`（新）、`test_ops_health.py`；前端 `TopicChipsRow.vue`、`TopicBoard.vue`、`OpsSourcesCard.vue` 及测试；`openapi.json`/`api.d.ts`；本变更记录。
+- 接口/数据结构变化：`OpsSourceView`/`SourceHealthView` 新增可选诊断字段（兼容旧客户端）；`POST /api/news/refresh` 在冷却期内新增 429 行为。
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` → **506 passed**；相关 vitest（TopicChips/TopicBoard/OpsSources/newsStore/AppShell 等）→ **53 passed**；`npm --prefix frontend run build` → 通过。
+- 风险或后续事项：lease 为进程内内存，多 Web 副本各自独立冷却；生产需确保未误设 `NEWS_REFRESH_COOLDOWN_SECONDS=0`。
+
+## 2026-07-17 P0-1 修通独立 scheduler → Redis → Web SSE
+
+- 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）
+- 修改范围：跨进程事件总线 + Web Redis consumer + 前端断线快照对账。
+- 变更内容：
+  1. **Redis 信封**：`RedisStreamPublisher` 写入 `event_name`/`publisher_id`；`news.created`/`news.updated` 纳入 stream_map。
+  2. **RedisStreamConsumer**：Web lifespan 在 hybrid/redis 下启动，消费后 `inject_from_remote` 只进 local_bus，同进程消息按 publisher_id 去回声。
+  3. **前端**：SSE 重连 `onReconnect` 拉取新闻/layout 快照，不触发全源 refresh。
+- 影响文件：`redis_stream_bus.py`、`event_bus.py`、`main.py`、`test_redis_stream_consumer.py`、`test_event_bus.py`、`connectionStore.ts`、`AppShell.vue` 及测试。
+- 接口/数据结构变化：Redis stream 字段新增 `event_name`/`publisher_id`（旧消息无 event_name 会被跳过）。
+- 验证情况：`pytest backend/tests/test_redis_stream_consumer.py backend/tests/test_event_bus.py` → 10 passed；`vitest connectionStore + AppShell` → 14 passed。
+- 风险或后续事项：独立 worker 模式依赖 Redis 可达；consumer 默认从 live tail（`$`）起读，断线窗口靠前端快照对账。
+
+## 2026-07-17 P0-2 修正 304/空解析健康判定
+
+- 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）
+- 修改范围：抓取 outcome 状态机、source_health 诊断字段、scheduler 退避/空批熔断。
+- 变更内容：
+  1. 状态拆分：`ok` / `not_modified` / `empty` / `parse_error` / `http_error`。
+  2. `source_health` 新增 last_status/last_error/last_http_status/last_fetched_count/last_inserted_count/consecutive_empty_batches（迁移 `d1a2b3c4e5f6`）。
+  3. scheduler：304/ok 清零失败；empty 计软 streak，达阈值低频探测；仅硬失败指数退避。
+- 影响文件：`source_health.py`、persister/fetcher/types、`news_ingest_scheduler.py`、迁移、`test_source_health_status.py` 等。
+- 接口/数据结构变化：`SourceFetchResult.status` 取值扩展；Ops 视图暂未暴露新字段。
+- 验证情况：`pytest test_source_health_status + test_news_ingest_scheduler + test_ingest_caching` → 13 passed。
+- 风险或后续事项：Ops UI 可后续展示 last_status；空批阈值默认 3 可配置化。
+
+## 2026-07-17 P1-2 页面生命周期只读 + SSE debounce + 手动刷新冷却
+
+- 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）
+- 修改范围：AppShell 启动不再全源抓取；SSE layout trailing debounce；手动 refresh 60s cooldown；NewsFeed 搜索防抖 + 仅 market 变化重算 layout。
+- 变更内容：移除 bootstrap `refreshDashboardNews`；layout 刷新 500ms debounce；`refreshDashboardNews` 冷却；Feed 过滤器 300ms debounce，`pendingLayoutReload` 仅在 market 变化时重拉 layout；AbortController 取消过期 hydrate。
+- 影响文件：`AppShell.vue`、`newsStore.ts`、`NewsFeedView.vue` 及测试。
+- 接口/数据结构变化：无。
+- 验证情况：见总验证；AppShell/newsStore 单测覆盖 cooldown 与无自动 refresh。
+- 风险或后续事项：后端 `/news/refresh` 尚未加服务端 lease（仅前端冷却）；AbortController 未贯通到 apiClient fetch（以 requestId + abort hydrate 为主）。
+
+## 2026-07-17 P1-1 effective_at = published_at ?? fetched_at
+
+- 修改人：Cursor（子智能体 / cursor-grok-4.5-high-fast）
+- 修改范围：新闻时间排序与 RSS 时间解析；API/前端展示标注。
+- 变更内容：
+  1. **`news_item.effective_at`**：新增可索引列，入库/更新时维护为 `published_at or fetched_at`（SQLAlchemy `before_insert`/`before_update` + persister 显式赋值）；索引 `(effective_at, id)` / `(market, effective_at, id)`。
+  2. **列表/游标**：`NewsRepository.list_recent_page` 与 cursor 编解码改用 `effective_at`；feed layout 排序键同步。
+  3. **RSS 解析**：修复 `dc:date`（原 `{*}dc:date` 无效，改为 Dublin Core Clark 记号 / `{*}date`）；无时区 feed 时间按 `Asia/Shanghai` 解释后转 UTC。
+  4. **API/UI**：`NewsItemSummary` 暴露 `effective_at`（缺失时自动回填）；前端 `getNewsDisplayTimestamp` 优先 `effective_at`，`getNewsTimeSourceLabel` + `NewsCard` 标注「原文时间 / 抓取时间」。
+  5. **迁移**：防御式 alembic `e2b4c6d8f0a1`，`down_revision=d1a2b3c4e5f6`，回填 `COALESCE(published_at, fetched_at)`。
+- 影响文件：`backend/app/models/news_item.py`、`backend/alembic/versions/e2b4c6d8f0a1_add_news_item_effective_at.py`、`backend/app/repositories/news_{cursor,repository}.py`、`backend/app/services/ingestion/{utils,parser,persister}.py`、`backend/app/services/news_feed_layout.py`、`backend/app/schemas/news.py`、相关 pytest；`frontend/src/utils/time.ts`、`NewsCard.vue`、mock/openapi 生成物与 vitest。
+- 接口/数据结构变化：`NewsItemSummary` 新增可空 `effective_at`（响应中由 ORM 填充；旧 cursor 语义变更，客户端需重拉）。兼容：保留 `published_at`/`fetched_at`。
+- 验证情况：`conda run -n news-caught pytest backend/tests/test_news.py backend/tests/test_news_ingestion.py backend/tests/test_news_feed_layout.py -q` → **69 passed**；`npx vitest run src/utils/time.test.ts src/components/news/NewsCard.test.ts` → **12 passed**；`npm --prefix frontend run build` → 通过。
+- 风险或后续事项：生产库需跑 alembic upgrade；旧 keyset cursor 失效可接受；`mentions`/`signal` 仓库仍有部分 `published_at` 排序未切换（非列表主路径）。
+
+## 2026-07-17 P1-4 强化市场相关性与主题命名
+
+- 修改人：Cursor（子智能体 / cursor-grok-4.5-high-fast）
+- 修改范围：入库相关性门槛、官方/IR/监管源优先、主题中文显示名、无 LLM 结构化摘要降级。
+- 变更内容：
+  1. **入库门槛**：新增 `passes_ingest_relevance_gate`，复用 `predict_market_relevance_details`；弱理由（`concept_mover` / `sector_signal_term`）单独出现时拒收；`ItemPersister.persist_item` 新条目入库前过门槛。
+  2. **官方源优先**：扩展 `has_official_signal`（IR/EDGAR/8-K/港交所/财报等 + 短词 `ir` 边界匹配）；官方源绕过门槛。
+  3. **主题命名**：新增 `topic_naming.py`（中文别名表 + `resolve_topic_display_name`）；`TopicItemView` / `NewsFeedTopicView` 增加可选 `display_name` / `alias_zh`；topics 路由与 feed layout 填充。
+  4. **结构化摘要**：新增 `news_structured_summary.py`（主体/事件/影响对象模板）；规则分类与 takeaway 无 LLM 时写入 `ai_takeaway`。
+  5. **中文强信号**：evaluator 增补「资本开支」等短语，避免真实市场中文稿被门槛误杀。
+- 影响文件：`backend/app/services/news_priority.py`、`news_relevance_evaluator.py`、`news_signal_classifier.py`、`news_takeaway.py`、`news_feed_layout.py`、`topic_naming.py`（新）、`news_structured_summary.py`（新）、`ingestion/persister.py`、`schemas/topic.py`、`schemas/news.py`、`api/routes/topics.py`；测试 `test_market_relevance_gate.py` / `test_topic_naming.py` / `test_structured_summary.py`（新）及若干既有入库/管线用例适配；`docs/code-change-log.md`、计划 Task 7 勾选。
+- 接口/数据结构变化：`TopicItemView` / `NewsFeedTopicView` 新增可选字段 `display_name`、`alias_zh`（兼容旧客户端）；入库侧静默跳过低相关新条目（不新增 API 错误码）。前端未跑 `generate:api`，类型快照未同步。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/news-caught-p14-test.db conda run -n news-caught pytest backend/tests/test_market_relevance_gate.py backend/tests/test_topic_naming.py backend/tests/test_structured_summary.py backend/tests/test_news_priority.py backend/tests/test_takeaway_classifier.py backend/tests/test_news_relevance_evaluator.py backend/tests/test_ingest_caching.py backend/tests/test_news_signal_pipeline.py backend/tests/test_news_ingestion.py -q` → **98 passed**。
+- 风险/后续事项：门槛可能降低冷门但真实相关稿件召回，需持续用 benchmark 校准；前端主题 chips 仍读 `topic_title`，需 `generate:api` 后改用 `display_name`；未做全量 `backend/tests`。
+
+## 2026-07-17 P1-3 修复虚拟列表滚动根高度
+
+- 修改人：Cursor（子智能体 / cursor-grok-4.5-high-fast）
+- 修改范围：新闻流 `NewsVirtualList` 虚拟滚动容器高度契约与回归测试。
+- 变更内容：滚动根不再依赖会塌陷的 `height: 100%`，改为显式视口高度 `min(720px, calc(100vh - 220px))`（inline style），保证 `clientHeight` 可用；`clientHeight <= 0` 时回退到 680px 视口高度。新增回归测试：100 条 entries 时断言滚动根有明确高度，且 DOM `.virtual-row` 远小于 100（有限 overscan）。
+- 影响文件：`frontend/src/components/news/NewsVirtualList.vue`、`frontend/src/components/news/NewsVirtualList.test.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（仅组件内部滚动根样式与视口同步兜底；新增 `data-role="news-virtual-scroll-root"`）。
+- 验证情况：`npm --prefix frontend run test -- src/components/news/NewsVirtualList.test.ts` → **3 passed**（TDD：先写失败断言 `style.height` 为空，再修滚动根转绿）。
+- 风险/后续事项：视口高度公式中的 `220px` 为顶部壳层估算，极端小屏或壳层布局大改时可能需微调；未改 `NewsFeedView` 父级高度链（滚动根自带明确高度已足够）。
+
 ## 2026-07-15 Latest Events 快读改版（多智能体并行开发集成）
 
 - 修改人：Claude（主线协调，9 个实现任务由 Sonnet 子智能体分三波并行/串行完成，每任务经规格+质量双审，终审 With fixes 后修复合入）

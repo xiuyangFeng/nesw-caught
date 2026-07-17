@@ -56,6 +56,13 @@ class OpsSourceView(BaseModel):
     success_rate: float | None = None
     avg_latency_ms: float | None = None
     is_disabled: bool
+    # 最近一次抓取诊断（ok / not_modified / empty / parse_error / http_error）。
+    last_status: str | None = None
+    last_error: str | None = None
+    last_http_status: int | None = None
+    last_fetched_count: int = 0
+    last_inserted_count: int = 0
+    consecutive_empty_batches: int = 0
 
 
 class OpsXSourceView(BaseModel):

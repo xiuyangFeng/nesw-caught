@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from app.core.config import Settings, get_settings
 from app.services.redis_stream_bus import RedisStreamPublisher
@@ -65,11 +66,15 @@ class HybridEventBus:
         local_bus: InMemoryEventBus | None = None,
         redis_publisher: RedisStreamPublisher | Any | None = None,
         stream_map: dict[str, str] | None = None,
+        publisher_id: str | None = None,
     ) -> None:
         self.backend = backend
         self.local_bus = local_bus or InMemoryEventBus()
         self.redis_publisher = redis_publisher
         self.stream_map = stream_map or {}
+        self.publisher_id = publisher_id or getattr(redis_publisher, "publisher_id", None) or uuid4().hex
+        if redis_publisher is not None and getattr(redis_publisher, "publisher_id", None) is None:
+            redis_publisher.publisher_id = self.publisher_id
         self._status = EventBusStatus(
             backend=backend,
             status="ok",
@@ -91,13 +96,22 @@ class HybridEventBus:
             stream_name = self.stream_map.get(event_name)
             if stream_name:
                 try:
-                    self.redis_publisher.publish(stream_name, payload)
+                    self.redis_publisher.publish(stream_name, payload, event_name=event_name)
                     self._status.status = "ok"
                     self._status.last_error = None
                 except Exception as exc:  # pragma: no cover - exercised via tests with fakes
                     self._status.status = "degraded"
                     self._status.last_error = str(exc)
 
+        self.local_bus.publish(event_name, payload)
+        if self.local_bus.last_error:
+            self._status.status = "degraded"
+            self._status.last_error = self.local_bus.last_error
+
+    def inject_from_remote(self, event_name: str, payload: dict[str, Any]) -> None:
+        """Inject a cross-process event into local subscribers only (no Redis echo)."""
+        self._status.last_event_name = event_name
+        self._status.last_published_at = _utc_now()
         self.local_bus.publish(event_name, payload)
         if self.local_bus.last_error:
             self._status.status = "degraded"
@@ -116,7 +130,9 @@ class HybridEventBus:
 
 def _build_stream_map(settings: Settings) -> dict[str, str]:
     return {
+        "news.created": settings.redis_stream_news_ingested,
         "news.created_batch": settings.redis_stream_news_ingested,
+        "news.updated": settings.redis_stream_news_processed,
         "news.processed_batch": settings.redis_stream_news_processed,
         "news.signals_processed": settings.redis_stream_news_processed,
         "news.analysis_completed": settings.redis_stream_news_processed,
@@ -126,17 +142,20 @@ def _build_stream_map(settings: Settings) -> dict[str, str]:
 
 def build_event_bus(settings: Settings | None = None) -> HybridEventBus:
     settings = settings or get_settings()
+    publisher_id = uuid4().hex
     redis_publisher = None
     if settings.event_bus_backend in {"hybrid", "redis"}:
         redis_publisher = RedisStreamPublisher(
             redis_url=settings.redis_url,
             maxlen=settings.redis_stream_maxlen,
             timeout_seconds=settings.event_bus_publish_timeout_seconds,
+            publisher_id=publisher_id,
         )
     return HybridEventBus(
         backend=settings.event_bus_backend,
         redis_publisher=redis_publisher,
         stream_map=_build_stream_map(settings),
+        publisher_id=publisher_id,
     )
 
 

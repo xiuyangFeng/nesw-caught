@@ -83,6 +83,10 @@ CHINESE_MARKET_SIGNAL_PHRASES = {
     "市场稳定计划",
     "期货",
     "自由现金流",
+    "资本开支",
+    "上调指引",
+    "营收指引",
+    "上调资本开支",
 }
 
 CHINESE_CONCEPT_SIGNAL_TERMS = {

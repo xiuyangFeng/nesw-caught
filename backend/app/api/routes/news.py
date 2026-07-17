@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -24,6 +25,7 @@ from app.services.event_bus import get_event_bus
 from app.services.news_analysis import NewsAnalysisError, NewsAnalysisService
 from app.services.news_feed_layout import NewsFeedLayoutService
 from app.services.news_ingestion import NewsIngestionService
+from app.services.news_refresh_lease import try_acquire_news_refresh_lease
 from app.services.news_runtime import NewsRuntimeService
 
 _route_cache_enabled = get_settings().route_cache_enabled
@@ -66,6 +68,17 @@ def refresh_news_sources(
     async_mode: bool = Query(default=False),
     session: Session = Depends(get_db_session)
 ) -> Any:
+    acquired, retry_after = try_acquire_news_refresh_lease()
+    if not acquired:
+        retry_seconds = max(1, int(retry_after + 0.999))
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(retry_seconds)},
+            content={
+                "detail": f"news refresh cooldown active, retry after {retry_seconds}s",
+            },
+        )
+
     if async_mode:
         def do_async_refresh():
             from app.db.session import SessionLocal
@@ -76,7 +89,6 @@ def refresh_news_sources(
                     logger.warning(f"Background ingestion refresh failed: {exc}")
 
         background_tasks.add_task(do_async_refresh)
-        from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=202,
             content={"status": "accepted", "message": "News refresh started in background"}

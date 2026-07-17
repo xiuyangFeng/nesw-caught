@@ -121,6 +121,30 @@ async def lifespan(_: FastAPI):
     news_scheduler: NewsIngestScheduler | None = None
     cleanup_worker = None
     digest_worker = None
+    redis_consumer = None
+    event_bus = get_event_bus()
+    redis_publisher = getattr(event_bus, "redis_publisher", None)
+    stream_map = getattr(event_bus, "stream_map", None) or {}
+    publisher_id = getattr(event_bus, "publisher_id", None)
+    inject_fn = getattr(event_bus, "inject_from_remote", None)
+    if (
+        settings.event_bus_backend in {"hybrid", "redis"}
+        and redis_publisher is not None
+        and callable(inject_fn)
+        and stream_map
+    ):
+        from app.services.redis_stream_bus import RedisStreamConsumer
+
+        stream_names = list(dict.fromkeys(stream_map.values()))
+        redis_consumer = RedisStreamConsumer(
+            redis_url=settings.redis_url,
+            streams=stream_names,
+            inject=inject_fn,
+            timeout_seconds=settings.event_bus_publish_timeout_seconds,
+            publisher_id=publisher_id,
+        )
+        redis_consumer.start()
+        logger.info("redis stream consumer started for streams=%s", stream_names)
     if settings.digest_enabled:
         from app.workers.digest_worker import DigestWorker
 
@@ -166,6 +190,8 @@ async def lifespan(_: FastAPI):
         await token_flush_task
     except asyncio.CancelledError:
         pass
+    if redis_consumer is not None:
+        redis_consumer.stop()
     if digest_worker is not None:
         digest_worker.stop()
     if cleanup_worker is not None:

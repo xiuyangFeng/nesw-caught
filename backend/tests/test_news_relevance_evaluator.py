@@ -160,6 +160,33 @@ def test_predict_market_relevance_keeps_market_moving_company_news() -> None:
     assert predict_market_relevance(sample) is True
 
 
+def test_predict_market_relevance_keeps_chinese_capex_guidance() -> None:
+    sample = MarketRelevanceSample(
+        sample_id="chinese-capex-guidance",
+        source_type="realtime",
+        origin=MarketRelevanceOrigin(
+            news_id=901,
+            source_name="CLS",
+            canonical_url="https://example.com/capex",
+            published_at="2026-03-26T03:00:00Z",
+        ),
+        content=MarketRelevanceContent(
+            title="台积电上调资本开支",
+            summary="公司上调年度资本开支计划",
+            body_excerpt=None,
+        ),
+        labels=MarketRelevanceLabel(market_relevant=True, noise_type=None),
+        annotation=MarketRelevanceAnnotation(
+            label_source="human_reviewed",
+            model_name="rule",
+            confidence=0.9,
+            review_notes="",
+        ),
+    )
+
+    assert predict_market_relevance(sample) is True
+
+
 def test_predict_market_relevance_keeps_chinese_earnings_flash() -> None:
     sample = MarketRelevanceSample(
         sample_id="earnings-flash-cn",

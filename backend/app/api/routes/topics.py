@@ -5,6 +5,7 @@ from app.db.session import get_db_session
 from app.repositories.topic_repository import TopicRepository
 from app.schemas.news import NewsItemSummary
 from app.schemas.topic import TopicDetailView, TopicItemView
+from app.services.topic_naming import topic_naming_fields
 
 router = APIRouter()
 
@@ -22,12 +23,20 @@ def list_topics(session: Session = Depends(get_db_session)) -> list[TopicItemVie
     response: list[TopicItemView] = []
     for topic in topics:
         news_items = repository.list_news_for_topic(topic.id)
+        keywords = _keywords(topic.keywords)
+        display_name, alias_zh = topic_naming_fields(
+            topic_key=topic.topic_key,
+            topic_title=topic.topic_title,
+            keywords=keywords,
+        )
         response.append(
             TopicItemView(
                 id=topic.id,
                 topic_title=topic.topic_title,
+                display_name=display_name,
+                alias_zh=alias_zh,
                 topic_summary=topic.topic_summary,
-                keywords=_keywords(topic.keywords),
+                keywords=keywords,
                 market=(news_items[0].market if news_items else "us"),
                 sentiment_label="positive" if (topic.sentiment_score or 0) > 0.2 else "negative" if (topic.sentiment_score or 0) < -0.2 else "neutral",
                 importance_score=topic.importance_score or 0.0,
@@ -47,11 +56,19 @@ def get_topic_detail(topic_id: int, session: Session = Depends(get_db_session)) 
         raise HTTPException(status_code=404, detail="topic not found")
 
     news_items = repository.list_news_for_topic(topic.id)
+    keywords = _keywords(topic.keywords)
+    display_name, alias_zh = topic_naming_fields(
+        topic_key=topic.topic_key,
+        topic_title=topic.topic_title,
+        keywords=keywords,
+    )
     return TopicDetailView(
         id=topic.id,
         topic_title=topic.topic_title,
+        display_name=display_name,
+        alias_zh=alias_zh,
         topic_summary=topic.topic_summary,
-        keywords=_keywords(topic.keywords),
+        keywords=keywords,
         market=(news_items[0].market if news_items else "us"),
         sentiment_label="positive" if (topic.sentiment_score or 0) > 0.2 else "negative" if (topic.sentiment_score or 0) < -0.2 else "neutral",
         importance_score=topic.importance_score or 0.0,

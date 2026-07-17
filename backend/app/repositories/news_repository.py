@@ -97,30 +97,25 @@ class NewsRepository:
                     )
 
         if cursor:
-            cursor_published_at, cursor_id = decode_cursor(cursor)
-            if cursor_published_at is None:
-                stmt = stmt.where(
-                    NewsItem.published_at.is_(None),
-                    NewsItem.id < cursor_id,
-                )
+            cursor_effective_at, cursor_id = decode_cursor(cursor)
+            if cursor_effective_at is None:
+                stmt = stmt.where(NewsItem.id < cursor_id)
             else:
                 stmt = stmt.where(
                     or_(
-                        NewsItem.published_at.is_(None),
-                        NewsItem.published_at < cursor_published_at,
+                        NewsItem.effective_at < cursor_effective_at,
                         and_(
-                            NewsItem.published_at == cursor_published_at,
+                            NewsItem.effective_at == cursor_effective_at,
                             NewsItem.id < cursor_id,
                         ),
                     )
                 )
 
-        # In SQLite NULL sorts lowest, so `published_at DESC` already puts NULL
-        # published_at rows last. Avoid an `IS NULL` ordering prefix here: it defeats
-        # ix_news_published_id / ix_news_market_published_id and forces a full scan
-        # with a temp B-tree sort.
+        # Sort by effective_at (= published_at ?? fetched_at) so Chinese feeds
+        # without publish time no longer sink. Index: ix_news_effective_id /
+        # ix_news_market_effective_id.
         stmt = stmt.order_by(
-            NewsItem.published_at.desc(),
+            NewsItem.effective_at.desc(),
             NewsItem.id.desc(),
         ).limit(limit + 1)
         rows = list(self.session.scalars(stmt))
@@ -130,7 +125,7 @@ class NewsRepository:
             return items, None
 
         last = items[-1]
-        return items, encode_cursor(published_at=last.published_at, item_id=last.id)
+        return items, encode_cursor(effective_at=last.effective_at, item_id=last.id)
 
     def get_by_id(self, news_id: int) -> NewsItem | None:
         stmt = select(NewsItem).where(NewsItem.id == news_id)

@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import UTCDateTime
 
@@ -13,8 +15,25 @@ class NewsItemSummary(BaseModel):
     sentiment_label: str | None = None
     published_at: UTCDateTime | None = None
     fetched_at: UTCDateTime
+    effective_at: UTCDateTime | None = None
     editorial_score: float | None = None
     ai_takeaway: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_effective_at(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("effective_at") is None:
+                data["effective_at"] = data.get("published_at") or data.get("fetched_at")
+            return data
+        if getattr(data, "effective_at", None) is None:
+            published = getattr(data, "published_at", None)
+            fetched = getattr(data, "fetched_at", None)
+            try:
+                data.effective_at = published or fetched
+            except Exception:
+                pass
+        return data
 
 
 class NewsListPageView(BaseModel):
@@ -74,6 +93,8 @@ class NewsEventDetailView(NewsFeedEventCardView):
 class NewsFeedTopicView(BaseModel):
     id: int
     topic_title: str
+    display_name: str | None = None
+    alias_zh: str | None = None
     topic_summary: str | None = None
     keywords: list[str]
     market: str

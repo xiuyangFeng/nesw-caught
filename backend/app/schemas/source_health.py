@@ -14,6 +14,12 @@ class SourceHealthView(BaseModel):
     total_failures: int
     avg_latency_ms: float | None = None
     is_disabled: bool
+    last_status: str | None = None
+    last_error: str | None = None
+    last_http_status: int | None = None
+    last_fetched_count: int = 0
+    last_inserted_count: int = 0
+    consecutive_empty_batches: int = 0
 
 
 class SourceFetchResultView(BaseModel):

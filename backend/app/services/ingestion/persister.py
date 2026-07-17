@@ -19,6 +19,7 @@ from app.services.ingestion.types import (
     SourceItem,
 )
 from app.services.ingestion.utils import _ema_latency, _utc_now
+from app.services.news_priority import passes_ingest_relevance_gate
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,17 @@ class ItemPersister:
             market=source.market,
         )
         health.total_fetches += 1
+        health.last_http_status = outcome.http_status
 
         if outcome.error is not None:
-            return self.record_failure(source, error=outcome.error, latency_ms=outcome.latency_ms)
+            status = outcome.error_kind if outcome.error_kind in {"http_error", "parse_error"} else "http_error"
+            return self.record_failure(
+                source,
+                error=outcome.error,
+                latency_ms=outcome.latency_ms,
+                status=status,
+                http_status=outcome.http_status,
+            )
 
         # 保存最新的 ETag / Last-Modified 缓存标头
         health.last_etag = outcome.etag
@@ -49,6 +58,11 @@ class ItemPersister:
         if outcome.is_not_modified:
             health.last_success_at = _utc_now()
             health.consecutive_failures = 0
+            health.consecutive_empty_batches = 0
+            health.last_status = "not_modified"
+            health.last_error = None
+            health.last_fetched_count = 0
+            health.last_inserted_count = 0
             health.avg_latency_ms = _ema_latency(health.avg_latency_ms, outcome.latency_ms)
             self.session.commit()
             return SourceFetchResult(
@@ -70,6 +84,26 @@ class ItemPersister:
                 with news_ingestion.HttpClientFactory().create() as client:
                     items = [self.hydrate_minimax_detail_item(client, source, item) for item in items]
 
+            if not items:
+                health.consecutive_empty_batches += 1
+                health.consecutive_failures = 0
+                health.last_status = "empty"
+                health.last_error = "parsed 0 items"
+                health.last_fetched_count = 0
+                health.last_inserted_count = 0
+                health.avg_latency_ms = _ema_latency(health.avg_latency_ms, outcome.latency_ms)
+                self.session.commit()
+                return SourceFetchResult(
+                    source_name=source.name,
+                    source_type=source.source_type,
+                    status="empty",
+                    fetched_count=0,
+                    inserted_count=0,
+                    error="parsed 0 items",
+                    latency_ms=outcome.latency_ms,
+                    inserted_items=[],
+                )
+
             inserted_count = 0
             inserted_items: list[NewsItem] = []
             # 按批预取去重候选:一次范围查询建立签名索引,整批复用,
@@ -86,6 +120,11 @@ class ItemPersister:
 
             health.last_success_at = _utc_now()
             health.consecutive_failures = 0
+            health.consecutive_empty_batches = 0
+            health.last_status = "ok"
+            health.last_error = None
+            health.last_fetched_count = len(items)
+            health.last_inserted_count = inserted_count
             health.avg_latency_ms = _ema_latency(health.avg_latency_ms, outcome.latency_ms)
             self.session.commit()
             return SourceFetchResult(
@@ -115,9 +154,23 @@ class ItemPersister:
                 source.url,
                 outcome.latency_ms,
             )
-            return self.record_failure(source, error=str(exc), latency_ms=outcome.latency_ms)
+            return self.record_failure(
+                source,
+                error=str(exc),
+                latency_ms=outcome.latency_ms,
+                status="parse_error",
+                http_status=outcome.http_status,
+            )
 
-    def record_failure(self, source: SourceDefinition, *, error: str, latency_ms: float) -> SourceFetchResult:
+    def record_failure(
+        self,
+        source: SourceDefinition,
+        *,
+        error: str,
+        latency_ms: float,
+        status: str = "http_error",
+        http_status: int | None = None,
+    ) -> SourceFetchResult:
         health = self.source_health_repository.get_or_create(
             source_name=source.name,
             source_type=source.source_type,
@@ -126,11 +179,16 @@ class ItemPersister:
         health.last_failure_at = _utc_now()
         health.total_failures += 1
         health.consecutive_failures += 1
+        health.last_status = status
+        health.last_error = error
+        health.last_http_status = http_status
+        health.last_fetched_count = 0
+        health.last_inserted_count = 0
         self.session.commit()
         return SourceFetchResult(
             source_name=source.name,
             source_type=source.source_type,
-            status="error",
+            status=status,
             fetched_count=0,
             inserted_count=0,
             error=error,
@@ -153,6 +211,20 @@ class ItemPersister:
             self.duplicate_gate.register(duplicate)
             return None
 
+        if not passes_ingest_relevance_gate(
+            title=item.title,
+            summary=item.summary,
+            body_excerpt=item.content_text,
+            source_name=source.name,
+        ):
+            logger.info(
+                "skip low-relevance ingest: source=%s title=%s",
+                source.name,
+                item.title[:120],
+            )
+            return None
+
+        fetched_at = _utc_now()
         news_item = NewsItem(
             source_name=source.name,
             source_url=source.url,
@@ -165,7 +237,8 @@ class ItemPersister:
             sentiment_label=None,
             sentiment_score=None,
             published_at=item.published_at,
-            fetched_at=_utc_now(),
+            fetched_at=fetched_at,
+            effective_at=item.published_at or fetched_at,
             ingest_status="ingested",
         )
         self.session.add(news_item)
@@ -206,6 +279,7 @@ class ItemPersister:
             news_item.summary = item.summary
         if item.published_at and news_item.published_at is None:
             news_item.published_at = item.published_at
+            news_item.effective_at = news_item.published_at or news_item.fetched_at
 
         extract_status = item.extract_status or ("success" if item.content_text else None)
         if not extract_status:

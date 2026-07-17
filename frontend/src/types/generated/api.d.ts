@@ -1694,6 +1694,8 @@ export interface components {
             canonical_url?: string | null;
             /** Editorial Score */
             editorial_score?: number | null;
+            /** Effective At */
+            effective_at?: string | null;
             /** Fetched At */
             fetched_at: string;
             /** Id */
@@ -1810,6 +1812,10 @@ export interface components {
         };
         /** NewsFeedTopicView */
         NewsFeedTopicView: {
+            /** Alias Zh */
+            alias_zh?: string | null;
+            /** Display Name */
+            display_name?: string | null;
             /** Id */
             id: number;
             /** Importance Score */
@@ -1839,6 +1845,8 @@ export interface components {
             canonical_url?: string | null;
             /** Editorial Score */
             editorial_score?: number | null;
+            /** Effective At */
+            effective_at?: string | null;
             /** Fetched At */
             fetched_at: string;
             /** Id */
@@ -2071,12 +2079,33 @@ export interface components {
         OpsSourceView: {
             /** Avg Latency Ms */
             avg_latency_ms?: number | null;
+            /**
+             * Consecutive Empty Batches
+             * @default 0
+             */
+            consecutive_empty_batches: number;
             /** Consecutive Failures */
             consecutive_failures: number;
             /** Is Disabled */
             is_disabled: boolean;
+            /** Last Error */
+            last_error?: string | null;
             /** Last Failure At */
             last_failure_at?: string | null;
+            /**
+             * Last Fetched Count
+             * @default 0
+             */
+            last_fetched_count: number;
+            /** Last Http Status */
+            last_http_status?: number | null;
+            /**
+             * Last Inserted Count
+             * @default 0
+             */
+            last_inserted_count: number;
+            /** Last Status */
+            last_status?: string | null;
             /** Last Success At */
             last_success_at?: string | null;
             /** Market */
@@ -2513,12 +2542,33 @@ export interface components {
         SourceHealthView: {
             /** Avg Latency Ms */
             avg_latency_ms?: number | null;
+            /**
+             * Consecutive Empty Batches
+             * @default 0
+             */
+            consecutive_empty_batches: number;
             /** Consecutive Failures */
             consecutive_failures: number;
             /** Is Disabled */
             is_disabled: boolean;
+            /** Last Error */
+            last_error?: string | null;
             /** Last Failure At */
             last_failure_at?: string | null;
+            /**
+             * Last Fetched Count
+             * @default 0
+             */
+            last_fetched_count: number;
+            /** Last Http Status */
+            last_http_status?: number | null;
+            /**
+             * Last Inserted Count
+             * @default 0
+             */
+            last_inserted_count: number;
+            /** Last Status */
+            last_status?: string | null;
             /** Last Success At */
             last_success_at?: string | null;
             /** Market */
@@ -2668,6 +2718,10 @@ export interface components {
         };
         /** TopicDetailView */
         TopicDetailView: {
+            /** Alias Zh */
+            alias_zh?: string | null;
+            /** Display Name */
+            display_name?: string | null;
             /** Id */
             id: number;
             /** Importance Score */
@@ -2693,6 +2747,10 @@ export interface components {
         };
         /** TopicItemView */
         TopicItemView: {
+            /** Alias Zh */
+            alias_zh?: string | null;
+            /** Display Name */
+            display_name?: string | null;
             /** Id */
             id: number;
             /** Importance Score */

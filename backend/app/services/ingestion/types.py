@@ -64,6 +64,8 @@ class SourceFetchOutcome:
     etag: str | None = None
     last_modified: str | None = None
     is_not_modified: bool = False
+    http_status: int | None = None
+    error_kind: str | None = None  # http_error | parse_error
 
 
 

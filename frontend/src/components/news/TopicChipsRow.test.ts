@@ -29,6 +29,24 @@ describe('TopicChipsRow', () => {
     expect(wrapper.emitted('open-topic')).toEqual([[7]]);
   });
 
+  it('优先展示 display_name，并透出 alias_zh', () => {
+    const wrapper = mount(TopicChipsRow, {
+      props: {
+        topics: [
+          makeTopic({
+            topic_title: 'nvidia-ai-chips',
+            display_name: '英伟达 AI 芯片',
+            alias_zh: '英伟达芯片',
+          }),
+        ],
+      },
+    });
+    const chip = wrapper.get('[data-role="topic-chip"]');
+    expect(chip.text()).toContain('英伟达 AI 芯片');
+    expect(chip.text()).not.toContain('nvidia-ai-chips');
+    expect(chip.attributes('title')).toContain('英伟达芯片');
+  });
+
   it('空列表显示占位文案', () => {
     const wrapper = mount(TopicChipsRow, { props: { topics: [] } });
     expect(wrapper.get('[data-role="topic-chips-row"]').text()).toContain('暂无主题');

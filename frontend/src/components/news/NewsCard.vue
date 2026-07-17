@@ -4,7 +4,12 @@ import { computed } from 'vue';
 import type { EditorialStoryEntry } from '../../utils/newsEditorial';
 import { sentimentText } from '../../utils/format';
 import { getNewsSummary } from '../../utils/news';
-import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../../utils/time';
+import {
+  formatMarketTime,
+  getMarketTimezoneLabel,
+  getNewsDisplayTimestamp,
+  getNewsTimeSourceLabel,
+} from '../../utils/time';
 
 const props = withDefaults(
   defineProps<{
@@ -22,7 +27,8 @@ const props = withDefaults(
 
 const summary = computed(() => getNewsSummary(props.entry.detail ?? props.entry.item) ?? '摘要待补充');
 const publishedLabel = computed(
-  () => `${formatMarketTime(getNewsDisplayTimestamp(props.entry.item), props.entry.item.market)} ${getMarketTimezoneLabel(props.entry.item.market)}`,
+  () =>
+    `${formatMarketTime(getNewsDisplayTimestamp(props.entry.item), props.entry.item.market)} ${getMarketTimezoneLabel(props.entry.item.market)} · ${getNewsTimeSourceLabel(props.entry.item)}`,
 );
 const topicLabel = computed(() => props.entry.detail?.topic?.topic_title ?? '未归主题');
 

@@ -70,6 +70,12 @@ def test_build_ops_health_aggregates_fields(monkeypatch) -> None:
                 total_failures=10,
                 avg_latency_ms=250.0,
                 is_disabled=False,
+                last_status="ok",
+                last_error=None,
+                last_http_status=200,
+                last_fetched_count=12,
+                last_inserted_count=3,
+                consecutive_empty_batches=0,
             )
         )
         session.add(
@@ -122,6 +128,12 @@ def test_build_ops_health_aggregates_fields(monkeypatch) -> None:
     assert source.source_name == "reuters"
     # 100 抓取 / 10 失败 -> 成功率 0.9
     assert source.success_rate == 0.9
+    assert source.last_status == "ok"
+    assert source.last_error is None
+    assert source.last_http_status == 200
+    assert source.last_fetched_count == 12
+    assert source.last_inserted_count == 3
+    assert source.consecutive_empty_batches == 0
 
     assert len(result.x_sources) == 1
     assert result.x_sources[0].provider_name == "twitterapi_io"

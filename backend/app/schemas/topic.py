@@ -7,6 +7,8 @@ from app.schemas.news import NewsItemSummary
 class TopicItemView(BaseModel):
     id: int
     topic_title: str
+    display_name: str | None = None
+    alias_zh: str | None = None
     topic_summary: str | None = None
     keywords: list[str]
     market: str

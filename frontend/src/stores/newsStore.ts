@@ -290,11 +290,19 @@ export const useNewsStore = defineStore('newsStore', () => {
     }
   }
 
+  const REFRESH_COOLDOWN_MS = 60_000;
+  let lastManualRefreshAt = 0;
+
   async function refreshNews() {
     return refreshDashboardNews();
   }
 
   async function refreshDashboardNews() {
+    const now = Date.now();
+    if (now - lastManualRefreshAt < REFRESH_COOLDOWN_MS) {
+      return false;
+    }
+    lastManualRefreshAt = now;
     try {
       const response = await apiClient.refreshNews();
       usingMock.value = usingMock.value || response.degraded;

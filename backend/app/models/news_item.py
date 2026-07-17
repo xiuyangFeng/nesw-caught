@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, String, Text
+from sqlalchemy import DateTime, Float, Index, String, Text, event
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -12,6 +12,8 @@ class NewsItem(TimestampMixin, Base):
     __table_args__ = (
         Index("ix_news_published_id", "published_at", "id"),
         Index("ix_news_market_published_id", "market", "published_at", "id"),
+        Index("ix_news_effective_id", "effective_at", "id"),
+        Index("ix_news_market_effective_id", "market", "effective_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -31,4 +33,19 @@ class NewsItem(TimestampMixin, Base):
     signal_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     ingest_status: Mapped[str] = mapped_column(String(32), default="ingested")
+
+
+def _sync_effective_at(target: NewsItem) -> None:
+    target.effective_at = target.published_at or target.fetched_at
+
+
+@event.listens_for(NewsItem, "before_insert")
+def _news_item_before_insert(_mapper, _connection, target: NewsItem) -> None:
+    _sync_effective_at(target)
+
+
+@event.listens_for(NewsItem, "before_update")
+def _news_item_before_update(_mapper, _connection, target: NewsItem) -> None:
+    _sync_effective_at(target)

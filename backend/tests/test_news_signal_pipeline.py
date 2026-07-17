@@ -31,6 +31,8 @@ def _block_real_article_crawling(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _make_news(*, title: str, summary: str, url_hash: str) -> NewsItem:
+    published_at = datetime(2026, 3, 19, 9, 0, tzinfo=UTC)
+    fetched_at = datetime(2026, 3, 19, 9, 5, tzinfo=UTC)
     return NewsItem(
         source_name="Pipeline Test",
         source_url="https://example.com/pipeline",
@@ -42,8 +44,9 @@ def _make_news(*, title: str, summary: str, url_hash: str) -> NewsItem:
         language="en",
         sentiment_label=None,
         sentiment_score=None,
-        published_at=datetime(2026, 3, 19, 9, 0, tzinfo=UTC),
-        fetched_at=datetime(2026, 3, 19, 9, 5, tzinfo=UTC),
+        published_at=published_at,
+        fetched_at=fetched_at,
+        effective_at=published_at,
         ingest_status="ingested",
     )
 
@@ -283,6 +286,7 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             item.sentiment_label = "positive"
             item.fetched_at = datetime(2026, 3, 25, 2, 31, 3, tzinfo=UTC)
             item.published_at = datetime(2026, 3, 25, 2, 30, tzinfo=UTC)
+            item.effective_at = item.published_at
             return item
 
         def get_by_ids(self, requested_ids: list[int]) -> list[NewsItem]:
@@ -341,6 +345,7 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             "ai_takeaway": None,
             "published_at": "2026-03-25T02:30:00Z",
             "fetched_at": "2026-03-25T02:31:03Z",
+            "effective_at": "2026-03-25T02:30:00Z",
             "updated_fields": ["sentiment_label"],
         },
     ) in fake_bus.published

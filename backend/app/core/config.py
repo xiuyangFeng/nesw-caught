@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
     news_backoff_max_multiplier: int = 8
+    # 手动 POST /news/refresh 的服务端冷却（秒）；0 = 关闭。默认 60 对齐前端节流。
+    news_refresh_cooldown_seconds: float = 60.0
     x_monitor_enabled: bool = False
     x_monitor_accounts_file: str | None = None
     twitterapi_io_api_key: str | None = None

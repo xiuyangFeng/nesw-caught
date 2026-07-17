@@ -1,6 +1,7 @@
 import type { Market } from '../types/api';
 
 interface NewsTimestampCarrier {
+  effective_at?: string | null;
   published_at?: string | null;
   fetched_at?: string | null;
 }
@@ -42,7 +43,11 @@ function toEpochMs(utcIso: string | null | undefined): number {
 }
 
 export function getNewsDisplayTimestamp(item: NewsTimestampCarrier): string | null {
-  return item.published_at ?? item.fetched_at ?? null;
+  return item.effective_at ?? item.published_at ?? item.fetched_at ?? null;
+}
+
+export function getNewsTimeSourceLabel(item: NewsTimestampCarrier): '原文时间' | '抓取时间' {
+  return item.published_at ? '原文时间' : '抓取时间';
 }
 
 export function compareNewsTimestamps(left: NewsTimestampCarrier, right: NewsTimestampCarrier): number {

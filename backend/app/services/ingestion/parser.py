@@ -15,6 +15,20 @@ from app.services.ingestion.utils import (
     _utc_now,
 )
 
+# ElementTree treats "{*}dc:date" as local name "dc:date" (never matches).
+# Dublin Core date uses Clark notation or a wildcard local-name "date".
+_DC_DATE = "{http://purl.org/dc/elements/1.1/}date"
+
+
+def _entry_published_text(entry: ET.Element) -> str | None:
+    return (
+        entry.findtext("pubDate")
+        or entry.findtext("{*}published")
+        or entry.findtext("{*}updated")
+        or entry.findtext(_DC_DATE)
+        or entry.findtext("{*}date")
+    )
+
 
 def _content_from_entry(entry: ET.Element) -> str | None:
     for tag_name in ("content", "summary", "description"):
@@ -47,12 +61,7 @@ def _parse_rss_or_atom(content: str, source: SourceDefinition) -> list[SourceIte
         if not raw_link:
             continue
 
-        published_at = _parse_feed_datetime(
-            entry.findtext("pubDate")
-            or entry.findtext("{*}published")
-            or entry.findtext("{*}updated")
-            or entry.findtext("{*}dc:date")
-        )
+        published_at = _parse_feed_datetime(_entry_published_text(entry))
         content_text = _content_from_entry(entry)
         summary = content_text[:280] if content_text else None
         items.append(

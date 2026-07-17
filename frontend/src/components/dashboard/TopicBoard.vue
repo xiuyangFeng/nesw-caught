@@ -31,7 +31,7 @@ function openTopic(topicId: number) {
       <div class="flex items-center justify-between gap-3" data-role="topic-card-head">
         <div class="flex min-w-0 items-center gap-2.5">
           <span class="pill" :class="topic.sentiment_label">{{ sentimentText(topic.sentiment_label) }}</span>
-          <strong class="truncate text-base text-text">{{ topic.topic_title }}</strong>
+          <strong class="truncate text-base text-text">{{ topic.display_name?.trim() || topic.topic_title }}</strong>
         </div>
         <span class="shrink-0 text-[10px] uppercase tracking-[0.18em] text-muted font-mono">Signal</span>
       </div>

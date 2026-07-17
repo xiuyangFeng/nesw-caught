@@ -36,6 +36,32 @@ describe('TopicBoard', () => {
     expect(wrapper.find('[data-role="topic-card-head"]').exists()).toBe(true);
   });
 
+  it('prefers display_name over topic_title', () => {
+    const wrapper = mount(TopicBoard, {
+      props: {
+        topics: [
+          {
+            id: 7,
+            topic_title: 'china-internet-ai-monetization',
+            display_name: '中国互联网 AI 变现',
+            alias_zh: '中概 AI',
+            topic_summary: 'Platform companies are extending enterprise AI and cloud monetization narratives.',
+            market: 'hk',
+            sentiment_label: 'positive',
+            importance_score: 0.88,
+            news_count: 3,
+            keywords: [],
+            related_symbols: ['0700.HK'],
+            last_seen_at: '2026-03-18T04:00:00Z',
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.text()).toContain('中国互联网 AI 变现');
+    expect(wrapper.text()).not.toContain('china-internet-ai-monetization');
+  });
+
   it('keeps a stable topic meta anchor and routes on click', async () => {
     const wrapper = mount(TopicBoard, {
       props: {

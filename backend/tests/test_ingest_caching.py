@@ -100,7 +100,8 @@ def test_persister_saves_headers_and_handles_304_outcome(test_source):
         )
 
         result_200 = persister.persist_outcome(outcome_200)
-        assert result_200.status == "ok"
+        # HTTP 200 with zero parsed items is an empty batch, not a hard success.
+        assert result_200.status == "empty"
 
         # 验证数据库中已经存入 etag/date
         health = repo.get_or_create(
@@ -195,7 +196,7 @@ def test_persister_logs_source_context_on_persist_outcome_failure(
             result = persister.persist_outcome(outcome)
 
     # 行为不变:仍然返回 error 状态结果,不向上抛出(否则会中断同批其它 source 的落库)。
-    assert result.status == "error"
+    assert result.status == "parse_error"
     assert result.error == "unexpected persist failure"
 
     assert any(
@@ -232,9 +233,9 @@ def test_persister_logs_context_when_minimax_detail_hydration_fails(caplog, _ree
             source=minimax_source,
             items=[
                 SourceItem(
-                    title="Detail Hydration Fail",
+                    title="NVIDIA raises revenue guidance on AI chip demand",
                     canonical_url=canonical_url,
-                    summary=None,
+                    summary="Earnings outlook lifted for data-center GPUs",
                     content_text=None,
                     published_at=None,
                 )

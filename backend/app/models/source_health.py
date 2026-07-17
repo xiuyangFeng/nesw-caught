@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -23,4 +23,9 @@ class SourceHealth(Base):
     is_disabled: Mapped[bool] = mapped_column(Boolean(), default=False)
     last_etag: Mapped[str | None] = mapped_column(String(256), default=None)
     last_modified: Mapped[str | None] = mapped_column(String(128), default=None)
-
+    last_status: Mapped[str | None] = mapped_column(String(32), default=None)
+    last_error: Mapped[str | None] = mapped_column(Text(), default=None)
+    last_http_status: Mapped[int | None] = mapped_column(Integer(), default=None)
+    last_fetched_count: Mapped[int] = mapped_column(Integer(), default=0)
+    last_inserted_count: Mapped[int] = mapped_column(Integer(), default=0)
+    consecutive_empty_batches: Mapped[int] = mapped_column(Integer(), default=0)

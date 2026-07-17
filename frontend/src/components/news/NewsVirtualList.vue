@@ -17,6 +17,9 @@ const emit = defineEmits<{
 }>();
 
 const ROW_HEIGHT = 156;
+/** Explicit scroll-root height so clientHeight stays usable (avoid collapsing height:100%). */
+const SCROLL_ROOT_HEIGHT = 'min(720px, calc(100vh - 220px))';
+const FALLBACK_VIEWPORT_HEIGHT = 680;
 const containerRef = ref<HTMLElement | null>(null);
 
 const { totalHeight, visibleItems, offsetY, updateScrollTop, updateViewportHeight } = useVirtualList(
@@ -28,7 +31,8 @@ function syncViewport() {
   if (!containerRef.value) {
     return;
   }
-  updateViewportHeight(containerRef.value.clientHeight);
+  const measured = containerRef.value.clientHeight;
+  updateViewportHeight(measured > 0 ? measured : FALLBACK_VIEWPORT_HEIGHT);
 }
 
 onMounted(async () => {
@@ -60,7 +64,13 @@ defineExpose({ scrollToIndex });
 </script>
 
 <template>
-  <div ref="containerRef" class="virtual-shell" @scroll="updateScrollTop(($event.target as HTMLElement).scrollTop)">
+  <div
+    ref="containerRef"
+    class="virtual-shell"
+    data-role="news-virtual-scroll-root"
+    :style="{ height: SCROLL_ROOT_HEIGHT }"
+    @scroll="updateScrollTop(($event.target as HTMLElement).scrollTop)"
+  >
     <div :style="{ height: `${totalHeight}px` }" class="virtual-spacer">
       <div class="virtual-inner" :style="{ transform: `translateY(${offsetY}px)` }">
         <div
@@ -84,8 +94,8 @@ defineExpose({ scrollToIndex });
 
 <style scoped>
 .virtual-shell {
-  height: 100%;
-  min-height: 680px;
+  /* Height comes from inline SCROLL_ROOT_HEIGHT (fixed/viewport), not collapsing 100%. */
+  min-height: 480px;
   overflow: auto;
 }
 

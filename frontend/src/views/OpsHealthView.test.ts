@@ -36,6 +36,12 @@ function buildHealth(overrides: Partial<OpsHealth> = {}): OpsHealth {
         total_fetches: 100,
         last_success_at: '2026-07-14T02:58:00Z',
         last_failure_at: null,
+        last_status: 'ok',
+        last_error: null,
+        last_http_status: 200,
+        last_fetched_count: 5,
+        last_inserted_count: 1,
+        consecutive_empty_batches: 0,
       },
     ],
     x_sources: [

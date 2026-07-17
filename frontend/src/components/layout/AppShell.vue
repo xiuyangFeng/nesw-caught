@@ -23,7 +23,9 @@ const watchlistStore = useWatchlistStore();
 const runtimePollIntervalMs = 60_000;
 const runtimePollFreshnessSeconds = 45;
 const newsFeedLayoutStreamLimit = 100;
+const feedLayoutDebounceMs = 500;
 let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
+let feedLayoutDebounceHandle: ReturnType<typeof setTimeout> | null = null;
 let shellDisposed = false;
 
 type NavGroup = {
@@ -210,13 +212,31 @@ function refreshNewsFeedLayoutIfVisible() {
   if (!route.path.startsWith('/news')) {
     return;
   }
-  const market = newsStore.feedQuery?.market || undefined;
-  void newsStore.loadFeedLayout({
-    market,
-    limit_events: 6,
-    limit_topics: 6,
-    limit_stream: newsFeedLayoutStreamLimit,
-  });
+  if (feedLayoutDebounceHandle !== null) {
+    clearTimeout(feedLayoutDebounceHandle);
+  }
+  feedLayoutDebounceHandle = setTimeout(() => {
+    feedLayoutDebounceHandle = null;
+    if (shellDisposed || !route.path.startsWith('/news')) {
+      return;
+    }
+    const market = newsStore.feedQuery?.market || undefined;
+    void newsStore.loadFeedLayout({
+      market,
+      limit_events: 6,
+      limit_topics: 6,
+      limit_stream: newsFeedLayoutStreamLimit,
+    });
+  }, feedLayoutDebounceMs);
+}
+
+function reconcileNewsSnapshot() {
+  if (shellDisposed) {
+    return;
+  }
+  void newsStore.loadDashboardNews({ limit: 200 });
+  void newsStore.loadNewsRuntime();
+  refreshNewsFeedLayoutIfVisible();
 }
 
 function startRuntimeStatusPolling() {
@@ -246,47 +266,44 @@ async function bootstrap() {
 
   startRuntimeStatusPolling();
 
-  connectionStore.connect((event) => {
-    if (event.type === 'news.created') {
-      newsStore.upsertNews(event.payload);
-      refreshNewsFeedLayoutIfVisible();
-      return;
-    }
-    if (event.type === 'news.updated') {
-      newsStore.upsertNewsUpdate(event.payload);
-      // takeaway 补齐只更新卡片文案,不影响排序——跳过 layout 全量刷新,避免批量生成期抖动
-      const fields = event.payload.updated_fields;
-      if (!(fields.length === 1 && fields[0] === 'ai_takeaway')) {
+  connectionStore.connect(
+    (event) => {
+      if (event.type === 'news.created') {
+        newsStore.upsertNews(event.payload);
         refreshNewsFeedLayoutIfVisible();
+        return;
       }
-      return;
-    }
-    if (event.type === 'topic.updated') {
-      topicStore.upsertTopic({
-        ...event.payload,
-        topic_summary: null,
-        keywords: [],
-        sentiment_label: 'unknown',
-        related_symbols: [],
-      });
-      refreshNewsFeedLayoutIfVisible();
-      return;
-    }
-    if (event.type === 'watchlist.movement') {
-      marketStore.upsertSnapshot(event.payload);
-      void runtimeStatusStore.loadRuntimeStatusIfStale();
-      return;
-    }
-    if (event.type === 'stream.keepalive') {
-      void runtimeStatusStore.loadRuntimeStatusIfStale();
-    }
-  });
-
-  void newsStore.refreshDashboardNews().then(async (refreshed) => {
-    if (refreshed) {
-      await topicStore.loadTopics();
-    }
-  });
+      if (event.type === 'news.updated') {
+        newsStore.upsertNewsUpdate(event.payload);
+        // takeaway 补齐只更新卡片文案,不影响排序——跳过 layout 全量刷新,避免批量生成期抖动
+        const fields = event.payload.updated_fields;
+        if (!(fields.length === 1 && fields[0] === 'ai_takeaway')) {
+          refreshNewsFeedLayoutIfVisible();
+        }
+        return;
+      }
+      if (event.type === 'topic.updated') {
+        topicStore.upsertTopic({
+          ...event.payload,
+          topic_summary: null,
+          keywords: [],
+          sentiment_label: 'unknown',
+          related_symbols: [],
+        });
+        refreshNewsFeedLayoutIfVisible();
+        return;
+      }
+      if (event.type === 'watchlist.movement') {
+        marketStore.upsertSnapshot(event.payload);
+        void runtimeStatusStore.loadRuntimeStatusIfStale();
+        return;
+      }
+      if (event.type === 'stream.keepalive') {
+        void runtimeStatusStore.loadRuntimeStatusIfStale();
+      }
+    },
+    { onReconnect: reconcileNewsSnapshot },
+  );
 }
 
 onMounted(() => {
@@ -296,6 +313,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   shellDisposed = true;
+  if (feedLayoutDebounceHandle !== null) {
+    clearTimeout(feedLayoutDebounceHandle);
+    feedLayoutDebounceHandle = null;
+  }
   stopRuntimeStatusPolling();
   connectionStore.disconnect();
 });

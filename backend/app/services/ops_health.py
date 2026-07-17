@@ -120,6 +120,12 @@ def _collect_sources(session: Session) -> list[OpsSourceView]:
             success_rate=_success_rate(row.total_fetches, row.total_failures),
             avg_latency_ms=row.avg_latency_ms,
             is_disabled=row.is_disabled,
+            last_status=row.last_status,
+            last_error=row.last_error,
+            last_http_status=row.last_http_status,
+            last_fetched_count=row.last_fetched_count or 0,
+            last_inserted_count=row.last_inserted_count or 0,
+            consecutive_empty_batches=row.consecutive_empty_batches or 0,
         )
         for row in rows
     ]

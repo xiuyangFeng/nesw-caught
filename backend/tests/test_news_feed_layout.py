@@ -39,6 +39,7 @@ def _news_item(
         sentiment_label=sentiment_label,
         published_at=published_at,
         fetched_at=published_at,
+        effective_at=published_at,
     )
 
 
@@ -617,7 +618,7 @@ def test_get_event_detail_reconstructs_fused_event_with_full_news_items() -> Non
     assert len(detail.news_items) == 4
 
 
-def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null_published_last() -> None:
+def test_get_event_detail_sorts_by_effective_at_with_fetched_fallback() -> None:
     now = datetime(2026, 3, 28, 10, 0, tzinfo=UTC)
     topic = _topic(
         1,
@@ -645,6 +646,7 @@ def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null
     )
     fetched_only.published_at = None
     fetched_only.fetched_at = datetime(2026, 3, 28, 9, 30, tzinfo=UTC)
+    fetched_only.effective_at = fetched_only.fetched_at
     published_older = _news_item(
         12,
         title="Published older",
@@ -662,9 +664,9 @@ def test_get_event_detail_sorts_mixed_published_and_fetched_timestamps_with_null
 
     assert detail is not None
     assert [item.title for item in detail.news_items] == [
+        "Fetched only",
         "Published latest",
         "Published older",
-        "Fetched only",
     ]
 
 

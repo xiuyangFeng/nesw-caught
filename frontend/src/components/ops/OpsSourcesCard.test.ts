@@ -17,6 +17,12 @@ function buildSource(overrides: Partial<OpsSource> = {}): OpsSource {
     total_fetches: 200,
     last_success_at: '2026-07-14T02:00:00Z',
     last_failure_at: null,
+    last_status: 'ok',
+    last_error: null,
+    last_http_status: 200,
+    last_fetched_count: 8,
+    last_inserted_count: 2,
+    consecutive_empty_batches: 0,
     ...overrides,
   };
 }
@@ -53,5 +59,31 @@ describe('OpsSourcesCard', () => {
 
     expect(wrapper.text()).toContain('disabled');
     expect(wrapper.find('.pill.ops-pill-crit').exists()).toBe(true);
+  });
+
+  it('renders last_status, http, counts, empty streak and last_error', () => {
+    const wrapper = mount(OpsSourcesCard, {
+      props: {
+        sources: [
+          buildSource({
+            source_name: 'Empty Wire',
+            last_status: 'empty',
+            last_http_status: 200,
+            last_fetched_count: 0,
+            last_inserted_count: 0,
+            consecutive_empty_batches: 3,
+            last_error: 'parsed 0 items',
+          }),
+        ],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain('empty');
+    expect(text).toContain('HTTP 200');
+    expect(text).toContain('解析 0');
+    expect(text).toContain('入库 0');
+    expect(text).toContain('空批 3');
+    expect(text).toContain('parsed 0 items');
   });
 });

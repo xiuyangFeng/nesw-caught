@@ -5,15 +5,17 @@ from app.services.event_bus import HybridEventBus, InMemoryEventBus
 class DummyRedisPublisher:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
+        self.event_names: list[str | None] = []
 
-    def publish(self, stream_name: str, payload: dict[str, object]) -> str:
+    def publish(self, stream_name: str, payload: dict[str, object], *, event_name: str | None = None) -> str:
         self.calls.append((stream_name, payload))
+        self.event_names.append(event_name)
         return "1-0"
 
 
 class FailingRedisPublisher:
-    def publish(self, stream_name: str, payload: dict[str, object]) -> str:
-        del stream_name, payload
+    def publish(self, stream_name: str, payload: dict[str, object], *, event_name: str | None = None) -> str:
+        del stream_name, payload, event_name
         raise RuntimeError("redis unavailable")
 
 

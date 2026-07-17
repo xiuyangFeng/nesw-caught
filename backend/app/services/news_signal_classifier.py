@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from app.core.config import get_settings
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.services.llm_providers import build_provider
+from app.services.news_structured_summary import build_structured_takeaway
+from app.services.topic_naming import resolve_topic_display_name
 
 POSITIVE_TERMS = {
     "beat": 0.7,
@@ -197,8 +199,13 @@ class NewsSignalClassifier:
         keywords = self._keywords(tokens)
         topic_key = self._topic_key(tokens, keywords)
 
-        topic_title_hint = " ".join(token.capitalize() for token in topic_key.split())
-        summary_hint = summary or body or title
+        topic_title_hint = resolve_topic_display_name(
+            topic_key=topic_key,
+            topic_title=" ".join(token.capitalize() for token in topic_key.split()),
+            keywords=keywords,
+        )
+        structured = build_structured_takeaway(title=title, summary=summary, keywords=keywords)
+        summary_hint = summary or body or structured or title
         result = ClassificationResult(
             sentiment_label=label,
             sentiment_score=round(max(-1.0, min(1.0, score)), 4),
@@ -209,6 +216,7 @@ class NewsSignalClassifier:
             classifier_type="rule",
             topic_title_hint=topic_title_hint,
             topic_summary_hint=(summary_hint[:280] if summary_hint else None),
+            takeaway=structured[:120],
         )
 
         should_refine = allow_llm and get_settings().ai_enabled and confidence <= 0.55

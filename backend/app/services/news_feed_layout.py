@@ -22,6 +22,7 @@ from app.schemas.news import (
 from app.schemas.topic import TopicItemView
 from app.services.news_priority import has_official_signal
 from app.services.news_takeaway import enqueue_takeaway_candidates
+from app.services.topic_naming import topic_naming_fields
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,7 @@ def _timestamp_value(value: datetime | None) -> float:
 
 def _news_sort_key(item: NewsItemSummary) -> tuple[float, float, int]:
     return (
-        _timestamp_value(item.published_at),
+        _timestamp_value(item.effective_at or item.published_at or item.fetched_at),
         _timestamp_value(item.fetched_at),
         item.id,
     )
@@ -515,12 +516,20 @@ class NewsFeedLayoutService:
                 continue
 
             related_symbols = batch_symbols.get(topic.id, [])
+            keywords = _keywords(topic.keywords)
+            display_name, alias_zh = topic_naming_fields(
+                topic_key=topic.topic_key,
+                topic_title=topic.topic_title,
+                keywords=keywords,
+            )
             topic_views.append(
                 NewsFeedTopicView(
                     id=topic.id,
                     topic_title=topic.topic_title,
+                    display_name=display_name,
+                    alias_zh=alias_zh,
                     topic_summary=topic.topic_summary,
-                    keywords=_keywords(topic.keywords),
+                    keywords=keywords,
                     market=news_items[0].market,
                     sentiment_label=_topic_sentiment_label(topic.sentiment_score),
                     importance_score=topic.importance_score or 0.0,

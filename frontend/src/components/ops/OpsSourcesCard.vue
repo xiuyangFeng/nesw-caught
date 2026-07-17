@@ -30,10 +30,24 @@ defineProps<{
             <span class="ops-mini-dot" :class="`ops-mini-dot--${sourceTone(source.consecutive_failures, source.is_disabled)}`" />
             <strong class="truncate text-[13px]">{{ source.source_name }}</strong>
             <span class="text-[10px] uppercase tracking-[0.14em] text-[#ffb77d]">{{ source.market }}</span>
+            <span
+              v-if="source.last_status"
+              class="pill ops-status-pill"
+              :data-status="source.last_status"
+            >{{ source.last_status }}</span>
             <span v-if="source.is_disabled" class="pill ops-pill-crit">disabled</span>
           </div>
           <div class="ops-meta">
             成功率 {{ ratePct(source.success_rate) }} · 连败 {{ source.consecutive_failures }} · 时延 {{ latencyLabel(source.avg_latency_ms) }} · {{ source.source_type }}
+          </div>
+          <div class="ops-diagnostics" data-role="ops-source-diagnostics">
+            <span v-if="source.last_http_status != null">HTTP {{ source.last_http_status }}</span>
+            <span>解析 {{ source.last_fetched_count ?? 0 }}</span>
+            <span>入库 {{ source.last_inserted_count ?? 0 }}</span>
+            <span>空批 {{ source.consecutive_empty_batches ?? 0 }}</span>
+          </div>
+          <div v-if="source.last_error" class="ops-error-line" data-role="ops-source-error">
+            {{ source.last_error }}
           </div>
         </div>
         <div class="ops-row-aside">
@@ -126,6 +140,54 @@ defineProps<{
   font-size: 11px;
   line-height: 1.5;
   color: var(--muted);
+}
+
+.ops-diagnostics {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.ops-diagnostics > span + span::before {
+  content: '· ';
+  color: var(--text-faint);
+}
+
+.ops-error-line {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #ff8a9c;
+  word-break: break-word;
+}
+
+.pill.ops-status-pill {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-soft);
+}
+
+.pill.ops-status-pill[data-status='ok'],
+.pill.ops-status-pill[data-status='not_modified'] {
+  background: rgba(57, 200, 132, 0.14);
+  color: #5bd49a;
+}
+
+.pill.ops-status-pill[data-status='empty'] {
+  background: rgba(255, 159, 47, 0.14);
+  color: #ffb25c;
+}
+
+.pill.ops-status-pill[data-status='parse_error'],
+.pill.ops-status-pill[data-status='http_error'] {
+  background: rgba(255, 111, 134, 0.14);
+  color: #ff8a9c;
 }
 
 .ops-mini-dot {

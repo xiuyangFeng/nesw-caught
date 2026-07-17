@@ -1950,6 +1950,17 @@
             ],
             "title": "Editorial Score"
           },
+          "effective_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective At"
+          },
           "fetched_at": {
             "title": "Fetched At",
             "type": "string"
@@ -2334,6 +2345,28 @@
       },
       "NewsFeedTopicView": {
         "properties": {
+          "alias_zh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias Zh"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -2436,6 +2469,17 @@
               }
             ],
             "title": "Editorial Score"
+          },
+          "effective_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective At"
           },
           "fetched_at": {
             "title": "Fetched At",
@@ -3122,6 +3166,11 @@
             ],
             "title": "Avg Latency Ms"
           },
+          "consecutive_empty_batches": {
+            "default": 0,
+            "title": "Consecutive Empty Batches",
+            "type": "integer"
+          },
           "consecutive_failures": {
             "title": "Consecutive Failures",
             "type": "integer"
@@ -3129,6 +3178,17 @@
           "is_disabled": {
             "title": "Is Disabled",
             "type": "boolean"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
           },
           "last_failure_at": {
             "anyOf": [
@@ -3140,6 +3200,38 @@
               }
             ],
             "title": "Last Failure At"
+          },
+          "last_fetched_count": {
+            "default": 0,
+            "title": "Last Fetched Count",
+            "type": "integer"
+          },
+          "last_http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Http Status"
+          },
+          "last_inserted_count": {
+            "default": 0,
+            "title": "Last Inserted Count",
+            "type": "integer"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
           },
           "last_success_at": {
             "anyOf": [
@@ -4529,6 +4621,11 @@
             ],
             "title": "Avg Latency Ms"
           },
+          "consecutive_empty_batches": {
+            "default": 0,
+            "title": "Consecutive Empty Batches",
+            "type": "integer"
+          },
           "consecutive_failures": {
             "title": "Consecutive Failures",
             "type": "integer"
@@ -4536,6 +4633,17 @@
           "is_disabled": {
             "title": "Is Disabled",
             "type": "boolean"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
           },
           "last_failure_at": {
             "anyOf": [
@@ -4547,6 +4655,38 @@
               }
             ],
             "title": "Last Failure At"
+          },
+          "last_fetched_count": {
+            "default": 0,
+            "title": "Last Fetched Count",
+            "type": "integer"
+          },
+          "last_http_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Http Status"
+          },
+          "last_inserted_count": {
+            "default": 0,
+            "title": "Last Inserted Count",
+            "type": "integer"
+          },
+          "last_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status"
           },
           "last_success_at": {
             "anyOf": [
@@ -5010,6 +5150,28 @@
       },
       "TopicDetailView": {
         "properties": {
+          "alias_zh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias Zh"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -5088,6 +5250,28 @@
       },
       "TopicItemView": {
         "properties": {
+          "alias_zh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias Zh"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "id": {
             "title": "Id",
             "type": "integer"

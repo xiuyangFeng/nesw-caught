@@ -316,6 +316,7 @@ describe('AppShell', () => {
   });
 
   it('refreshes the news feed layout safely when feedQuery is missing', async () => {
+    vi.useFakeTimers();
     (newsStore as { feedQuery?: { market?: string } | undefined }).feedQuery = undefined;
 
     const wrapper = mount(AppShell);
@@ -342,12 +343,34 @@ describe('AppShell', () => {
       }),
     ).not.toThrow();
 
+    await vi.advanceTimersByTimeAsync(500);
+
     expect(newsStore.loadFeedLayout).toHaveBeenCalledWith({
       market: undefined,
       limit_events: 6,
       limit_topics: 6,
       limit_stream: 100,
     });
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('does not auto-trigger full-source refresh on bootstrap and wires reconnect snapshot', async () => {
+    const wrapper = mount(AppShell);
+    await flushPromises();
+
+    expect(newsStore.refreshDashboardNews).not.toHaveBeenCalled();
+    expect(connectionStore.connect).toHaveBeenCalledWith(expect.any(Function), {
+      onReconnect: expect.any(Function),
+    });
+
+    const options = connectionStore.connect.mock.calls[0]?.[1] as { onReconnect?: () => void };
+    options.onReconnect?.();
+    await flushPromises();
+
+    expect(newsStore.loadDashboardNews).toHaveBeenCalled();
+    expect(newsStore.refreshDashboardNews).not.toHaveBeenCalled();
 
     wrapper.unmount();
   });

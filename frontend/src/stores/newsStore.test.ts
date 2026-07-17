@@ -622,4 +622,31 @@ describe('newsStore', () => {
 
     await expect((store as any).refreshDashboardNews()).resolves.toBe(false);
   });
+
+  it('enforces a cooldown between manual full-source refreshes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-17T12:00:00Z'));
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.refreshNews.mockResolvedValue({
+      data: { status: 'ok', results: [] },
+      degraded: false,
+    });
+    apiClient.getNews.mockResolvedValue({
+      data: { items: [], next_cursor: null },
+      degraded: false,
+    });
+
+    await expect((store as any).refreshDashboardNews()).resolves.toBe(true);
+    await expect((store as any).refreshDashboardNews()).resolves.toBe(false);
+    expect(apiClient.refreshNews).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(new Date('2026-07-17T12:01:01Z'));
+    await expect((store as any).refreshDashboardNews()).resolves.toBe(true);
+    expect(apiClient.refreshNews).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
 });

@@ -20,6 +20,8 @@ os.environ["DATABASE_URL"] = test_db_url
 os.environ["VERIFY_APP_TOKEN"] = "false"
 os.environ["ROUTE_CACHE_ENABLED"] = "false"
 os.environ["TOKEN_USAGE_FLUSH_N"] = "1"
+# 默认关闭手动刷新服务端冷却，避免测试间互相踩 lease；专用用例再抬高 cooldown。
+os.environ["NEWS_REFRESH_COOLDOWN_SECONDS"] = "0"
 
 from app.db.initializer import initialize_database  # noqa: E402 (after env setup)
 

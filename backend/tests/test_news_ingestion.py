@@ -70,6 +70,34 @@ def test_parse_rss_source_items() -> None:
     assert items[0].published_at == datetime(2025, 3, 17, 10, 0, tzinfo=UTC)
 
 
+def test_parse_rss_dc_date_when_pubdate_missing() -> None:
+    xml = """
+    <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <channel>
+        <item>
+          <title>DC date headline</title>
+          <link>https://example.com/dc-date</link>
+          <dc:date>2026-07-17T18:30:00+08:00</dc:date>
+        </item>
+      </channel>
+    </rss>
+    """
+    source = SourceDefinition(name="CN Feed", source_type="rss", url="https://example.com/feed", market="cn")
+
+    items = _parse_rss_or_atom(xml, source)
+
+    assert len(items) == 1
+    assert items[0].published_at == datetime(2026, 7, 17, 10, 30, tzinfo=UTC)
+
+
+def test_parse_feed_datetime_naive_iso_as_asia_shanghai() -> None:
+    from app.services.ingestion.utils import _parse_feed_datetime
+
+    parsed = _parse_feed_datetime("2026-07-17T18:30:00")
+
+    assert parsed == datetime(2026, 7, 17, 10, 30, tzinfo=UTC)
+
+
 def test_parse_selector_html_source_items() -> None:
     html = """
     <div class="entry">
@@ -1024,6 +1052,7 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         sentiment_score=None,
         published_at=datetime(2025, 3, 17, 9, 0, tzinfo=UTC),
         fetched_at=datetime(2025, 3, 17, 9, 1, tzinfo=UTC),
+        effective_at=datetime(2025, 3, 17, 9, 0, tzinfo=UTC),
         ingest_status="ingested",
     )
 
@@ -1126,9 +1155,9 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
     <rss version="2.0">
       <channel>
         <item>
-          <title>Pipeline refresh item</title>
+          <title>NVIDIA raises revenue guidance on AI demand</title>
           <link>https://example.com/pipeline-refresh-item</link>
-          <description>Fresh signal text</description>
+          <description>Chipmaker lifts outlook for data-center GPUs</description>
           <pubDate>Wed, 19 Mar 2026 10:00:00 GMT</pubDate>
         </item>
       </channel>
@@ -1196,8 +1225,8 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
                 "news.created",
                 {
                     "id": inserted_id,
-                    "title": "Pipeline refresh item",
-                    "summary": "Fresh signal text",
+                    "title": "NVIDIA raises revenue guidance on AI demand",
+                    "summary": "Chipmaker lifts outlook for data-center GPUs",
                     "source_name": "Pipeline Refresh",
                     "canonical_url": "https://example.com/pipeline-refresh-item",
                     "market": "us",
@@ -1206,6 +1235,7 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
                     "ai_takeaway": None,
                     "published_at": "2026-03-19T10:00:00Z",
                     "fetched_at": inserted_payload["fetched_at"],
+                    "effective_at": inserted_payload["effective_at"],
                 },
             ),
             ("news.created_batch", {"news_ids": [inserted_id]}),
@@ -1354,9 +1384,14 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
             self.title = "title"
             self.summary = "summary"
             self.source_name = "source"
+            self.canonical_url = f"https://example.com/{item_id}"
             self.market = "us"
+            self.sentiment_label = None
+            self.editorial_score = None
+            self.ai_takeaway = None
             self.published_at = datetime(2025, 3, 17, 9, 0, tzinfo=UTC)
             self.fetched_at = datetime(2025, 3, 17, 9, 1, tzinfo=UTC)
+            self.effective_at = datetime(2025, 3, 17, 9, 0, tzinfo=UTC)
 
     class FakeNewsRepositoryForProcessed:
         def __init__(self, session) -> None:
@@ -1521,7 +1556,8 @@ def test_refresh_all_limits_to_given_sources(monkeypatch) -> None:
         summary = NewsIngestionService(session).refresh_all(sources=[source])
 
     assert [result.source_name for result in summary.results] == ["Only Source"]
-    assert summary.results[0].status == "ok"
+    # 空 RSS 通道按健康判定记 empty（非 http/parse 失败）
+    assert summary.results[0].status == "empty"
 
 
 def test_refresh_source_deduplicates_cross_source_similar_titles(monkeypatch) -> None:

@@ -273,23 +273,57 @@ async function hydrateEditorialDetails() {
   }
 }
 
-watch(
-  () => ({ ...filters, source_name: selectedSource.value }),
-  async () => {
-    await Promise.all([
+const SEARCH_DEBOUNCE_MS = 300;
+let searchDebounceHandle: ReturnType<typeof setTimeout> | null = null;
+let feedSearchAbort: AbortController | null = null;
+let lastLayoutMarket: string | undefined;
+let pendingLayoutReload = false;
+
+async function reloadFeedForFilters(options: { reloadLayout: boolean }) {
+  feedSearchAbort?.abort();
+  feedSearchAbort = new AbortController();
+  const signal = feedSearchAbort.signal;
+  const tasks: Promise<unknown>[] = [
+    newsStore.loadFeedNews({
+      ...filters,
+      source_name: selectedSource.value || undefined,
+      limit: FEED_PAGE_SIZE,
+    }),
+  ];
+  if (options.reloadLayout) {
+    tasks.unshift(
       newsStore.loadFeedLayout({
         market: filters.market || undefined,
         limit_events: 6,
         limit_topics: 6,
         limit_stream: FEED_LAYOUT_STREAM_LIMIT,
       }),
-      newsStore.loadFeedNews({
-        ...filters,
-        source_name: selectedSource.value || undefined,
-        limit: FEED_PAGE_SIZE,
-      }),
-    ]);
-    await hydrateEditorialDetails();
+    );
+  }
+  await Promise.all(tasks);
+  if (signal.aborted) {
+    return;
+  }
+  await hydrateEditorialDetails();
+}
+
+watch(
+  () => ({ ...filters, source_name: selectedSource.value }),
+  (next) => {
+    const market = next.market || undefined;
+    if (market !== lastLayoutMarket) {
+      lastLayoutMarket = market;
+      pendingLayoutReload = true;
+    }
+    if (searchDebounceHandle !== null) {
+      clearTimeout(searchDebounceHandle);
+    }
+    searchDebounceHandle = setTimeout(() => {
+      searchDebounceHandle = null;
+      const reloadLayout = pendingLayoutReload;
+      pendingLayoutReload = false;
+      void reloadFeedForFilters({ reloadLayout });
+    }, SEARCH_DEBOUNCE_MS);
   },
 );
 
@@ -336,6 +370,7 @@ const keyboard = useFeedKeyboard({
 });
 
 onMounted(async () => {
+  lastLayoutMarket = filters.market || undefined;
   await Promise.all([
     newsStore.loadFeedLayout({ limit_events: 6, limit_topics: 6, limit_stream: FEED_LAYOUT_STREAM_LIMIT }),
     newsStore.loadFeedNews({ limit: FEED_PAGE_SIZE }),
@@ -354,6 +389,12 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  if (searchDebounceHandle !== null) {
+    clearTimeout(searchDebounceHandle);
+    searchDebounceHandle = null;
+  }
+  feedSearchAbort?.abort();
+  feedSearchAbort = null;
   loadMoreObserver?.disconnect();
   loadMoreObserver = null;
 });

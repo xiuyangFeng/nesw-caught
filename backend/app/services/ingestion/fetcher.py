@@ -49,26 +49,62 @@ def fetch_source_items(
                     etag=etag,
                     last_modified=last_modified,
                     is_not_modified=True,
+                    http_status=304,
                 )
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception as exc:
+                latency_ms = round((time.perf_counter() - started) * 1000, 2)
+                return SourceFetchOutcome(
+                    source=source,
+                    items=[],
+                    error=str(exc),
+                    latency_ms=latency_ms,
+                    etag=etag,
+                    last_modified=last_modified,
+                    http_status=status_code,
+                    error_kind="http_error",
+                )
 
             resp_headers = getattr(response, "headers", None) or {}
             new_etag = resp_headers.get("ETag")
             new_last_modified = resp_headers.get("Last-Modified")
 
-            if source.source_type == "rss":
-                items = _parse_rss_or_atom(response.text, source)
-            elif source.source_type == "api":
-                items = _parse_the_news_api_json(response.text, source)
-            elif source.parser == "anchor_list_html":
-                items = _parse_anchor_list_html(response.text, source)
-            elif source.parser == "zhipu_news_inline_json":
-                items = _parse_zhipu_news_inline_json(response.text, source)
-            elif source.parser == "selector_html":
-                items = _parse_selector_html(response.text, source)
-            else:
-                raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
+            try:
+                if source.source_type == "rss":
+                    items = _parse_rss_or_atom(response.text, source)
+                elif source.source_type == "api":
+                    items = _parse_the_news_api_json(response.text, source)
+                elif source.parser == "anchor_list_html":
+                    items = _parse_anchor_list_html(response.text, source)
+                elif source.parser == "zhipu_news_inline_json":
+                    items = _parse_zhipu_news_inline_json(response.text, source)
+                elif source.parser == "selector_html":
+                    items = _parse_selector_html(response.text, source)
+                else:
+                    raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
+            except Exception as exc:
+                latency_ms = round((time.perf_counter() - started) * 1000, 2)
+                logger.warning(
+                    "news source parse failed: source=%s type=%s url=%s latency_ms=%s error=%s",
+                    source.name,
+                    source.source_type,
+                    source.url,
+                    latency_ms,
+                    exc,
+                    exc_info=True,
+                )
+                return SourceFetchOutcome(
+                    source=source,
+                    items=[],
+                    error=str(exc),
+                    latency_ms=latency_ms,
+                    etag=new_etag,
+                    last_modified=new_last_modified,
+                    http_status=status_code,
+                    error_kind="parse_error",
+                )
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         return SourceFetchOutcome(
             source=source,
@@ -77,6 +113,7 @@ def fetch_source_items(
             latency_ms=latency_ms,
             etag=new_etag,
             last_modified=new_last_modified,
+            http_status=status_code,
         )
     except Exception as exc:
         # 兜底范围刻意保持宽泛:本函数运行在 ThreadPoolExecutor 的工作线程中,
@@ -104,4 +141,5 @@ def fetch_source_items(
             latency_ms=latency_ms,
             etag=etag,
             last_modified=last_modified,
+            error_kind="http_error",
         )

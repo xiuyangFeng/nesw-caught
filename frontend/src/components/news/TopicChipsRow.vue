@@ -4,6 +4,22 @@ import type { NewsFeedTopic } from '../../types/api';
 defineProps<{ topics: NewsFeedTopic[] }>();
 
 const emit = defineEmits<{ 'open-topic': [id: number] }>();
+
+function topicLabel(topic: NewsFeedTopic): string {
+  return topic.display_name?.trim() || topic.topic_title;
+}
+
+function topicTitleAttr(topic: NewsFeedTopic): string | undefined {
+  const alias = topic.alias_zh?.trim();
+  if (alias) {
+    return alias;
+  }
+  const display = topic.display_name?.trim();
+  if (display && display !== topic.topic_title) {
+    return topic.topic_title;
+  }
+  return undefined;
+}
 </script>
 
 <template>
@@ -17,9 +33,10 @@ const emit = defineEmits<{ 'open-topic': [id: number] }>();
         type="button"
         class="topic-chip"
         data-role="topic-chip"
+        :title="topicTitleAttr(topic)"
         @click="emit('open-topic', topic.id)"
       >
-        {{ topic.topic_title }}
+        {{ topicLabel(topic) }}
         <span class="topic-chip__count">({{ topic.news_count }})</span>
       </button>
     </div>

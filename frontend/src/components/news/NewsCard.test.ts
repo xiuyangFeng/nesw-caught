@@ -104,4 +104,14 @@ describe('NewsCard', () => {
     expect(wrapper.classes()).toContain('news-card--tone-negative');
     expect(wrapper.classes()).toContain('news-card--tier-strong');
   });
+
+  it('有 published_at 时标注原文时间，缺失时标注抓取时间', () => {
+    const withPublished = mount(NewsCard, { props: { entry: makeEntry() } });
+    expect(withPublished.find('.news-card__time').text()).toContain('原文时间');
+
+    const entry = makeEntry();
+    entry.item = { ...entry.item, published_at: null };
+    const fetchedOnly = mount(NewsCard, { props: { entry } });
+    expect(fetchedOnly.find('.news-card__time').text()).toContain('抓取时间');
+  });
 });
