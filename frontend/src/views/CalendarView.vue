@@ -113,10 +113,10 @@ onMounted(() => {
 <template>
   <div class="grid gap-4" data-role="calendar-view">
     <header
-      class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between"
+      class="flex flex-col gap-3 rounded-[24px] border border-border bg-panel p-5 xl:flex-row xl:items-end xl:justify-between"
     >
       <div>
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Earnings & Events</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-accent">Earnings & Events</p>
         <h1 class="page-title mb-2">财报 / 事件日历</h1>
         <p class="page-subtitle">追踪自选股即将到来的财报日与除息日，临近事件优先高亮。</p>
       </div>
@@ -129,7 +129,7 @@ onMounted(() => {
           class="rounded-full border px-3 py-1.5 text-[11px] font-semibold transition duration-150"
           :class="
             windowDays === option.value
-              ? 'border-[#ff9f2f66] bg-[rgba(255,159,47,0.12)] text-[#ffca97]'
+              ? 'border-warning/40 bg-warning/10 text-warning'
               : 'border-border/60 bg-white/[0.02] text-muted hover:bg-white/[0.05] hover:text-text'
           "
           @click="selectWindow(option.value)"
@@ -140,27 +140,27 @@ onMounted(() => {
     </header>
 
     <section
-      class="flex flex-wrap items-center gap-2.5 rounded-[18px] border border-[rgba(148,163,184,0.14)] bg-[linear-gradient(135deg,rgba(12,19,31,0.94),rgba(8,14,24,0.98))] px-4 py-3 text-sm"
+      class="flex flex-wrap items-center gap-2.5 rounded-[18px] border border-border bg-panel px-4 py-3 text-sm"
       data-role="calendar-summary"
     >
-      <span class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Overview</span>
-      <span class="rounded-full border border-border px-2.5 py-0.5 text-[11px] tracking-[0.14em] text-text">
+      <span class="text-[11px] uppercase tracking-[0.24em] text-accent">Overview</span>
+      <span class="num rounded-full border border-border px-2.5 py-0.5 text-[11px] tracking-[0.14em] text-text">
         财报 {{ earningsCount }}
       </span>
-      <span class="rounded-full border border-border px-2.5 py-0.5 text-[11px] tracking-[0.14em] text-text">
+      <span class="num rounded-full border border-border px-2.5 py-0.5 text-[11px] tracking-[0.14em] text-text">
         除息 {{ dividendCount }}
       </span>
       <span
         v-if="skippedCount > 0"
-        class="rounded-full border border-[rgba(248,113,113,0.28)] px-2.5 py-0.5 text-[11px] tracking-[0.14em] text-[#fecaca]"
+        class="num rounded-full border border-danger/30 px-2.5 py-0.5 text-[11px] tracking-[0.14em] text-danger"
         title="部分自选股日历拉取失败，已优雅跳过"
       >
         跳过 {{ skippedCount }}
       </span>
-      <span class="ml-auto text-[11px] uppercase tracking-[0.14em] text-text-faint">未来 {{ windowDays }} 天</span>
+      <span class="num ml-auto text-[11px] uppercase tracking-[0.14em] text-text-faint">未来 {{ windowDays }} 天</span>
     </section>
 
-    <p v-if="errorMessage" class="rounded-[14px] border border-[rgba(248,113,113,0.3)] bg-[rgba(248,113,113,0.06)] px-4 py-3 text-sm text-danger">
+    <p v-if="errorMessage" class="rounded-[14px] border border-danger/40 bg-danger/[0.06] px-4 py-3 text-sm text-danger">
       {{ errorMessage }}
     </p>
 
@@ -179,8 +179,8 @@ onMounted(() => {
             class="grid gap-2.5 rounded-[20px] border px-4 py-4"
             :class="
               group.isNear
-                ? 'calendar-group--near border-[#ff9f2f4d] bg-[linear-gradient(160deg,rgba(35,23,11,0.9),rgba(12,13,10,0.96))]'
-                : 'border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.98))]'
+                ? 'calendar-group--near border-warning/30 bg-panel'
+                : 'border-border bg-panel'
             "
             :data-role="`calendar-group-${group.date}`"
           >
@@ -189,14 +189,14 @@ onMounted(() => {
                 <strong class="text-[15px] text-text">{{ formatDateHeader(group.date) }}</strong>
                 <span
                   class="text-[11px] uppercase tracking-[0.14em]"
-                  :class="group.isNear ? 'text-[#ffca97]' : 'text-text-faint'"
+                  :class="group.isNear ? 'num text-warning' : 'num text-text-faint'"
                 >
                   {{ daysUntilLabel(group.daysUntil) }}
                 </span>
               </div>
               <span
                 v-if="group.isNear"
-                class="calendar-pulse-dot inline-flex h-2.5 w-2.5 rounded-full bg-[#ff9f2f]"
+                class="calendar-pulse-dot inline-flex h-2.5 w-2.5 rounded-full bg-warning"
                 aria-hidden="true"
               />
             </div>
@@ -221,13 +221,13 @@ onMounted(() => {
                     class="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
                     :class="
                       event.event_type === 'earnings'
-                        ? 'border-[#ff9f2f4d] bg-[rgba(255,159,47,0.1)] text-[#ffca97]'
-                        : 'border-[#53c2ff40] bg-[rgba(83,194,255,0.08)] text-[#9bd8ff]'
+                        ? 'border-warning/30 bg-warning/10 text-warning'
+                        : 'border-system/25 bg-system/10 text-system'
                     "
                   >
                     {{ eventTypeLabelMap[event.event_type] ?? event.event_type }}
                   </span>
-                  <span class="text-[11px] font-semibold tabular-nums text-text-soft">
+                  <span class="num text-[11px] font-semibold text-text-soft">
                     {{ daysUntilLabel(event.days_until) }}
                   </span>
                 </div>
@@ -249,10 +249,10 @@ onMounted(() => {
 @keyframes calendar-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 rgba(255, 159, 47, 0);
+    box-shadow: 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 22px rgba(255, 159, 47, 0.16);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--warning) 16%, transparent);
   }
 }
 

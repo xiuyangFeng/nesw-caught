@@ -3,11 +3,11 @@ import { computed, onMounted, onBeforeUnmount } from 'vue';
 import type { NewsEventMarker } from '../../types/api';
 
 const SENTIMENT_COLORS: Record<string, string> = {
-  positive: '#ff5a72',
-  negative: '#1fd39a',
-  neutral: '#5fb8ff',
-  mixed: '#8b7cff',
-  unknown: '#8794a8',
+  positive: 'var(--positive)',
+  negative: 'var(--negative)',
+  neutral: 'var(--system)',
+  mixed: 'var(--ai)',
+  unknown: 'var(--text-faint)',
 };
 
 const SENTIMENT_LABELS: Record<string, string> = {
@@ -17,6 +17,12 @@ const SENTIMENT_LABELS: Record<string, string> = {
   mixed: '混合',
   unknown: '未知',
 };
+
+// 徽章底色 = 情绪色 13% 透明叠加（对应原 hex + '22' 后缀的视觉效果）。
+function sentimentBadgeStyle(sentiment: string) {
+  const color = SENTIMENT_COLORS[sentiment] ?? 'var(--text-faint)';
+  return { backgroundColor: `color-mix(in srgb, ${color} 13%, transparent)`, color };
+}
 
 const props = defineProps<{
   event: NewsEventMarker;
@@ -60,7 +66,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
       <div
         v-if="visible"
         data-role="kline-news-popup"
-        class="fixed z-50 max-h-[360px] w-[320px] overflow-y-auto rounded-[14px] border border-border/70 bg-[rgba(7,12,22,0.96)] px-3.5 py-3 shadow-xl"
+        class="fixed z-50 max-h-[360px] w-[320px] overflow-y-auto rounded-[14px] border border-border/70 bg-panel-stronger/95 px-3.5 py-3 shadow-xl"
         :style="popupStyle"
       >
         <header class="mb-2 flex items-center justify-between">
@@ -68,11 +74,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown));
           <button type="button" class="text-[11px] text-text-faint hover:text-text" @click="emit('close')">×</button>
         </header>
         <div class="grid gap-2.5">
-          <article v-for="item in event.items" :key="item.id" class="grid gap-1 rounded-[10px] border border-border/40 bg-[rgba(255,255,255,0.02)] px-2.5 py-2">
+          <article v-for="item in event.items" :key="item.id" class="grid gap-1 rounded-[10px] border border-border/40 bg-panel-soft px-2.5 py-2">
             <div class="flex items-start gap-2">
               <span
                 class="mt-[3px] shrink-0 rounded-full px-1.5 py-[1px] text-[9px] font-medium uppercase"
-                :style="{ backgroundColor: SENTIMENT_COLORS[item.sentiment] + '22', color: SENTIMENT_COLORS[item.sentiment] }"
+                :style="sentimentBadgeStyle(item.sentiment)"
               >
                 {{ SENTIMENT_LABELS[item.sentiment] ?? item.sentiment }}
               </span>

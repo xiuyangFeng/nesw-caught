@@ -9,6 +9,7 @@ import {
 import { computed, type ComputedRef, type Ref } from 'vue';
 
 import type { KlineCandle, KlineSubIndicator, StockKlineResponse } from '../types/api';
+import { readCssVar, readCssVarWithAlpha } from '../utils/cssVars';
 import { calculateRsi, type RenderedOverlayLine } from '../utils/klineIndicators';
 
 type UseKlineChartLifecycleOptions = {
@@ -23,6 +24,23 @@ type UseKlineChartLifecycleOptions = {
 
 export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
   const { mainChartRef, subChartRef, candles, activeLines, activeSubIndicator, klineData, onMarkersBind } = options;
+
+  // canvas 不识别 var(--xxx)：图表初始化时快照一次设计令牌（单主题），fallback 为既有视觉值。
+  const colors = {
+    text: readCssVar('--text-soft', 'rgba(226,232,240,0.72)'),
+    subText: readCssVar('--text-faint', 'rgba(148,163,184,0.72)'),
+    grid: readCssVar('--border', 'rgba(150,160,200,0.08)'),
+    gridSoft: readCssVar('--border', 'rgba(150,160,200,0.06)'),
+    up: readCssVar('--positive', '#ff5a72'),
+    down: readCssVar('--negative', '#1fd39a'),
+    upBar: readCssVarWithAlpha('--positive', 0.5, '#ff5a72'),
+    downBar: readCssVarWithAlpha('--negative', 0.42, '#1fd39a'),
+    accent: readCssVar('--accent', '#3ad2e6'),
+    system: readCssVar('--system', '#7dd3fc'),
+    tertiary: readCssVar('--danger', '#fb7185'),
+    rsi: readCssVar('--success', '#34d399'),
+    seriesWash: readCssVar('--accent-soft', 'rgba(58,210,230,0.28)'),
+  };
 
   let chart: IChartApi | null = null;
   let subChart: IChartApi | null = null;
@@ -69,24 +87,24 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
       height: 420,
       layout: {
         background: { color: 'transparent' },
-        textColor: 'rgba(226,232,240,0.72)',
+        textColor: colors.text,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: 'rgba(150,160,200,0.08)' },
-        horzLines: { color: 'rgba(150,160,200,0.08)' },
+        vertLines: { color: colors.grid },
+        horzLines: { color: colors.grid },
       },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
     });
     // 红涨绿跌：对齐设计令牌 --positive(#ff5a72) / --negative(#1fd39a)
     candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#ff5a72',
-      downColor: '#1fd39a',
-      borderUpColor: '#ff5a72',
-      borderDownColor: '#1fd39a',
-      wickUpColor: '#ff5a72',
-      wickDownColor: '#1fd39a',
+      upColor: colors.up,
+      downColor: colors.down,
+      borderUpColor: colors.up,
+      borderDownColor: colors.down,
+      wickUpColor: colors.up,
+      wickDownColor: colors.down,
       priceLineVisible: false,
       lastValueVisible: false,
     });
@@ -101,12 +119,12 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
       height: 140,
       layout: {
         background: { color: 'transparent' },
-        textColor: 'rgba(148,163,184,0.72)',
+        textColor: colors.subText,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: 'rgba(150,160,200,0.06)' },
-        horzLines: { color: 'rgba(150,160,200,0.08)' },
+        vertLines: { color: colors.gridSoft },
+        horzLines: { color: colors.grid },
       },
       rightPriceScale: { borderVisible: false },
       timeScale: { borderVisible: false },
@@ -115,45 +133,45 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
       priceFormat: { type: 'volume' },
       priceLineVisible: false,
       lastValueVisible: false,
-      color: 'rgba(58,210,230,0.28)',
+      color: colors.seriesWash,
     });
     macdHistogramSeries = subChart.addSeries(HistogramSeries, {
       priceLineVisible: false,
       lastValueVisible: false,
-      color: 'rgba(58,210,230,0.28)',
+      color: colors.seriesWash,
     });
     macdDifSeries = subChart.addSeries(LineSeries, {
-      color: '#3ad2e6',
+      color: colors.accent,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     macdDeaSeries = subChart.addSeries(LineSeries, {
-      color: '#7dd3fc',
+      color: colors.system,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     kSeries = subChart.addSeries(LineSeries, {
-      color: '#3ad2e6',
+      color: colors.accent,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     dSeries = subChart.addSeries(LineSeries, {
-      color: '#7dd3fc',
+      color: colors.system,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     jSeries = subChart.addSeries(LineSeries, {
-      color: '#fb7185',
+      color: colors.tertiary,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
     });
     rsiSeries = subChart.addSeries(LineSeries, {
-      color: '#34d399',
+      color: colors.rsi,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -203,7 +221,7 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         klineData.value.candles.map((candle) => ({
           time: candle.time,
           value: candle.volume ?? 0,
-          color: candle.close >= candle.open ? 'rgba(255,90,114,0.5)' : 'rgba(31,211,154,0.42)',
+          color: candle.close >= candle.open ? colors.upBar : colors.downBar,
         })),
       );
     } else if (activeSubIndicator.value === 'MACD') {
@@ -213,7 +231,7 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
         macd.map((point) => ({
           time: point.time,
           value: point.histogram,
-          color: point.histogram >= 0 ? 'rgba(255,90,114,0.5)' : 'rgba(31,211,154,0.42)',
+          color: point.histogram >= 0 ? colors.upBar : colors.downBar,
         })),
       );
       macdDifSeries?.setData(macd.map((point) => ({ time: point.time, value: point.dif })));

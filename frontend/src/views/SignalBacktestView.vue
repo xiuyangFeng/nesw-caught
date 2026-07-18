@@ -184,14 +184,14 @@ const generatedAtLabel = computed(() => {
   <div class="grid gap-4">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Analytics · Validation Loop</p>
+        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-accent">Analytics · Validation Loop</p>
         <h1 class="page-title">Signal Backtest</h1>
         <p class="page-subtitle">
           信号有效性回测：对历史利好/利空判断，回看发布后前视时间窗内被提及股票的实际价格变动，闭环验证命中率与后续收益。
         </p>
       </div>
       <div class="flex items-center gap-2 self-start text-[11px] uppercase tracking-[0.14em] text-muted">
-        <span class="rounded-full border border-border bg-white/[0.03] px-3 py-1">Generated {{ generatedAtLabel }}</span>
+        <span class="num rounded-full border border-border bg-white/[0.03] px-3 py-1">Generated {{ generatedAtLabel }}</span>
       </div>
     </header>
 
@@ -257,11 +257,11 @@ const generatedAtLabel = computed(() => {
       <article
         v-for="metric in overviewMetrics"
         :key="metric.label"
-        class="surface rounded-[16px] border border-border/80 bg-[linear-gradient(180deg,rgba(12,19,30,0.96),rgba(8,14,23,0.98))] px-4 py-3.5 grid gap-1.5"
+        class="surface rounded-[16px] border border-border/80 px-4 py-3.5 grid gap-1.5"
         data-role="backtest-metric"
       >
         <span class="text-[10px] uppercase tracking-[0.16em] text-muted">{{ metric.label }}</span>
-        <strong class="text-[26px] leading-none text-text" :class="{ 'opacity-40': loading }">{{ metric.value }}</strong>
+        <strong class="num text-[26px] leading-none text-text" :class="{ 'opacity-40': loading }">{{ metric.value }}</strong>
         <small class="text-[11px] leading-4 text-muted">{{ metric.note }}</small>
       </article>
     </section>
@@ -272,7 +272,7 @@ const generatedAtLabel = computed(() => {
         v-for="card in directionCards"
         :key="card.key"
         class="surface rounded-[18px] border px-5 py-4 grid gap-3"
-        :class="card.tone === 'positive' ? 'border-[#ff6f8633]' : 'border-[#39c88433]'"
+        :class="card.tone === 'positive' ? 'border-positive/20' : 'border-negative/20'"
         data-role="backtest-direction"
       >
         <div class="flex items-start justify-between gap-3">
@@ -284,14 +284,14 @@ const generatedAtLabel = computed(() => {
         </div>
         <div class="flex items-end gap-4">
           <div>
-            <strong class="block text-[36px] leading-none" :class="card.tone === 'positive' ? 'text-positive' : 'text-negative'">
+            <strong class="num block text-[36px] leading-none" :class="card.tone === 'positive' ? 'text-positive' : 'text-negative'">
               {{ formatPercent(card.stats.hit_rate) }}
             </strong>
-            <small class="text-[11px] text-muted">命中 {{ card.stats.hit_count }} / {{ card.stats.sample_count }} 样本</small>
+            <small class="num text-[11px] text-muted">命中 {{ card.stats.hit_count }} / {{ card.stats.sample_count }} 样本</small>
           </div>
           <div class="ml-auto text-right">
             <span class="block text-[11px] uppercase tracking-[0.14em] text-muted">平均前视收益</span>
-            <strong class="text-[20px] leading-tight" :class="(card.stats.avg_forward_return ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+            <strong class="num text-[20px] leading-tight" :class="(card.stats.avg_forward_return ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
               {{ formatSignedPercent(card.stats.avg_forward_return) }}
             </strong>
           </div>
@@ -323,7 +323,7 @@ const generatedAtLabel = computed(() => {
             :y1="zeroLineY"
             :x2="chartWidth - chartPaddingX"
             :y2="zeroLineY"
-            stroke="rgba(255,255,255,0.12)"
+            stroke="var(--border-strong)"
             stroke-width="1"
             stroke-dasharray="4,4"
           />

@@ -2,6 +2,8 @@
 import { createChart, LineSeries, type IChartApi, type ISeriesApi } from 'lightweight-charts';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { readCssVar } from '../../utils/cssVars';
+
 const props = defineProps<{
   prices: number[];
 }>();
@@ -10,16 +12,22 @@ const containerRef = ref<HTMLElement | null>(null);
 let chart: IChartApi | null = null;
 let lineSeries: ISeriesApi<'Line'> | null = null;
 
+// canvas 不识别 var(--xxx)：挂载时读取一次设计令牌，fallback 为既有视觉值。
+const accentColor = readCssVar('--accent', '#3ad2e6');
+const upColor = readCssVar('--positive', '#ff5a72');
+const downColor = readCssVar('--negative', '#1fd39a');
+const axisTextColor = readCssVar('--text-soft', 'rgba(226,232,240,0.72)');
+
 // 涨跌染色：红涨绿跌，数据不足时回落到主色单青。
 const strokeColor = computed(() => {
   const prices = props.prices;
   if (prices.length < 2) {
-    return '#3ad2e6';
+    return accentColor;
   }
   const delta = prices[prices.length - 1] - prices[0];
-  if (delta > 0) return '#ff5a72';
-  if (delta < 0) return '#1fd39a';
-  return '#3ad2e6';
+  if (delta > 0) return upColor;
+  if (delta < 0) return downColor;
+  return accentColor;
 });
 
 function buildData(prices: number[]) {
@@ -48,7 +56,7 @@ onMounted(() => {
     height: 44,
     layout: {
       background: { color: 'transparent' },
-      textColor: 'rgba(226,232,240,0.72)',
+      textColor: axisTextColor,
       attributionLogo: false,
     },
     grid: {

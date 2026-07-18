@@ -121,7 +121,7 @@ function formatLastSuccess(source: NewsRuntimeSource) {
   gap: 10px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel-soft);
   padding: 8px 12px;
 }
 
@@ -135,6 +135,6 @@ function formatLastSuccess(source: NewsRuntimeSource) {
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 4%, transparent);
 }
 </style>

@@ -3,32 +3,42 @@
 @tailwind utilities;
 
 /* ============================================================
-   智能量化台（偏 B）· 设计令牌
-   量化密度(B) 为骨架 · AI 智能感(C) 仅点亮 AI 触点
-   见 docs/superpowers/specs/2026-07-13-frontend-redesign-design.md
+   霓虹终端（克制版）· 设计令牌
+   深色实心面板 + 电青主色 + 低透明度网格纹理，AI 触点紫→青渐变
+   见 docs/superpowers/specs/2026-07-18-cyber-terminal-restyle-design.md
+   （前身：2026-07-13 智能量化台改版）
    ============================================================ */
 :root {
   color-scheme: dark;
-  --font-sans: "HarmonyOS Sans SC", "Inter", "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "IBM Plex Mono", "SFMono-Regular", "Menlo", monospace;
+  --font-sans: "HarmonyOS Sans SC", "Inter", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "Menlo", monospace;
   font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
 
-  /* 底色与面板：玻璃 → 实心（偏 B 核心改动），冷深海军蓝 */
-  --bg: #070a12;
-  --bg-elevated: #0b0f1a;
-  --panel: #0d111b;
-  --panel-strong: #10151f;
-  --panel-stronger: #0c1017;
-  --panel-soft: #0e131d;
-  --field-bg: #0a0e18;
-  --interactive-hover: rgba(58, 210, 230, 0.07);
-  --interactive-selected: rgba(58, 210, 230, 0.12);
-  --focus-ring: rgba(58, 210, 230, 0.22);
+  /* 底色与面板：实心深蓝黑（克制赛博），文字亮度不动以保证对比度 */
+  --bg: #05070d;
+  --bg-elevated: #090d16;
+  --panel: #0b0f18;
+  --panel-strong: #0e131d;
+  --panel-stronger: #0a0e15;
+  --panel-soft: #0c111a;
+  --field-bg: #080c14;
+  --interactive-hover: rgba(62, 230, 255, 0.07);
+  --interactive-selected: rgba(62, 230, 255, 0.12);
+  --focus-ring: rgba(62, 230, 255, 0.22);
   --bg-accent:
-    radial-gradient(680px 260px at 94% -10%, rgba(58, 210, 230, 0.08), transparent 60%),
-    linear-gradient(180deg, #080c15 0%, #05080f 100%);
+    radial-gradient(680px 260px at 94% -10%, rgba(62, 230, 255, 0.07), transparent 60%),
+    linear-gradient(180deg, #060a12 0%, #04060c 100%);
+
+  /* 赛博网格纹理：极低透明度青白线，仅作背景氛围（克制档） */
+  --grid-line: rgba(150, 190, 235, 0.04);
+  --bg-grid:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+
+  /* 面板顶部 1px 内高光：增加层次但不玻璃 */
+  --surface-highlight: inset 0 1px 0 rgba(216, 240, 255, 0.045);
 
   /* 边框与文字 */
   --border: rgba(150, 160, 200, 0.12);
@@ -50,10 +60,10 @@
   --danger: #ff5a72;
   --danger-soft: rgba(255, 90, 114, 0.14);
 
-  /* 主色 = 单一青；neutral 对齐主色 */
-  --accent: #3ad2e6;
-  --accent-soft: rgba(58, 210, 230, 0.12);
-  --neutral: #3ad2e6;
+  /* 主色 = 电青；neutral 对齐主色 */
+  --accent: #3ee6ff;
+  --accent-soft: rgba(62, 230, 255, 0.12);
+  --neutral: #3ee6ff;
 
   /* 🔧 修复：warning 从青色拆出为琥珀，与主色/涨跌解耦 */
   --warning: #ffcf5a;
@@ -65,12 +75,12 @@
 
   /* AI 触点：紫→青渐变，仅用于 AI 徽标 / AI 研判卡 / 品牌字 */
   --ai: #8b7cff;
-  --ai-2: #3ad2e6;
+  --ai-2: #3ee6ff;
   --ai-soft: rgba(139, 124, 255, 0.14);
-  --grad-ai: linear-gradient(100deg, #8b7cff, #3ad2e6);
+  --grad-ai: linear-gradient(100deg, #8b7cff, #3ee6ff);
 
   /* 层级：克制辉光，仅 AI 卡与图表端点 */
-  --glow-accent: 0 0 10px rgba(58, 210, 230, 0.28);
+  --glow-accent: 0 0 10px rgba(62, 230, 255, 0.28);
   --glow-ai: 0 6px 22px rgba(94, 124, 220, 0.18);
   --shadow: 0 20px 48px rgba(2, 6, 12, 0.42);
 
@@ -98,7 +108,8 @@
 
   body {
     min-width: 1120px;
-    background: var(--bg-accent);
+    background: var(--bg-grid), var(--bg-accent);
+    background-size: 44px 44px, 44px 44px, auto, auto;
     color: var(--text);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -152,18 +163,27 @@
     line-height: 1.7;
   }
 
-  /* 实心卡 + 发丝细边框（去玻璃、去大阴影） */
+  /* 实心卡 + 发丝细边框 + 顶部内高光（去玻璃、去大阴影） */
   .surface {
     background: var(--panel);
     border: 1px solid var(--border);
-    box-shadow: none;
+    box-shadow: var(--surface-highlight);
   }
 
-  /* terminal-surface 下线：并入 surface，令旧引用自动继承新风格 */
-  .terminal-surface {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    box-shadow: none;
+  /* 网格纹理工具类：用于需要"监控屏"质感的局部容器 */
+  .bg-grid {
+    background-image: var(--bg-grid);
+    background-size: 44px 44px;
+  }
+
+  /* 新消息/卡片入场：轻微上浮淡入（克制动效） */
+  .anim-fade-up {
+    animation: fade-up 0.35s ease-out both;
+  }
+
+  /* live 状态点脉冲辉光（克制动效），颜色可用 --pulse-color 覆盖 */
+  .pulse-dot {
+    animation: pulse-dot 2.2s ease-out infinite;
   }
 
   /* 数字工具类：等宽 + tabular 对齐 */
@@ -259,6 +279,33 @@
   }
 }
 
+/* 全局统一动效 keyframes：克制的入场与 live 脉冲 */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0% {
+    box-shadow: 0 0 0 0 var(--pulse-color, rgba(62, 230, 255, 0.35));
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 /* 交叉淡入淡出转场动画 */
 .fade-cross-enter-active,
 .fade-cross-leave-active {
@@ -270,9 +317,14 @@
   opacity: 0;
 }
 
+/* 全站统一尊重减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
-  .fade-cross-enter-active,
-  .fade-cross-leave-active {
-    transition: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

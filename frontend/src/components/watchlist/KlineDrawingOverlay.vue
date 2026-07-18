@@ -536,7 +536,7 @@ onBeforeUnmount(() => {
             :key="`${level.key}-text`"
             :x="Math.max(drawingPoints(drawing)[0]?.x ?? 0, drawingPoints(drawing)[1]?.x ?? 0) + 6"
             :y="level.y + 4"
-            fill="#f8fafc"
+            fill="var(--text)"
             font-size="11"
           >
             {{ level.label }}
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
           :data-role="`price-note-label-${drawing.id}`"
           :x="Math.min((drawingPoints(drawing)[0]?.x ?? 0) + 8, Math.max(overlaySize.width - 80, 8))"
           :y="(drawingPoints(drawing)[0]?.y ?? 0) - 8"
-          fill="#f8fafc"
+          fill="var(--text)"
           font-size="12"
           @dblclick.stop="openLabelEditor(drawing)"
           @touchstart.stop
@@ -561,25 +561,25 @@ onBeforeUnmount(() => {
           :cx="point.x"
           :cy="point.y"
           r="5"
-          fill="#f8fafc"
-          stroke="#0f172a"
+          fill="var(--text)"
+          stroke="var(--panel-strong)"
           stroke-width="1.5"
           @mousedown.stop="beginAnchorDrag(drawing.id, index, $event)"
           @touchstart.stop
         />
       </g>
       <g v-if="crosshair">
-        <line data-role="crosshair-vertical" :x1="crosshair.x" y1="0" :x2="crosshair.x" :y2="overlaySize.height" stroke="rgba(58,210,230,0.45)" stroke-dasharray="5 4" />
-        <line data-role="crosshair-horizontal" x1="0" :y1="crosshair.y" :x2="overlaySize.width" :y2="crosshair.y" stroke="rgba(58,210,230,0.35)" stroke-dasharray="5 4" />
-        <text data-role="crosshair-time-label" :x="Math.max(8, crosshair.x - 34)" :y="overlaySize.height - 8" fill="#f8fafc" font-size="11">
+        <line data-role="crosshair-vertical" :x1="crosshair.x" y1="0" :x2="crosshair.x" :y2="overlaySize.height" stroke="var(--accent)" stroke-opacity="0.45" stroke-dasharray="5 4" />
+        <line data-role="crosshair-horizontal" x1="0" :y1="crosshair.y" :x2="overlaySize.width" :y2="crosshair.y" stroke="var(--accent)" stroke-opacity="0.35" stroke-dasharray="5 4" />
+        <text data-role="crosshair-time-label" :x="Math.max(8, crosshair.x - 34)" :y="overlaySize.height - 8" fill="var(--text)" font-size="11">
           {{ crosshair.timeLabel }}
         </text>
-        <text data-role="crosshair-price-label" :x="Math.max(8, overlaySize.width - 56)" :y="Math.max(14, crosshair.y - 6)" fill="#3ad2e6" font-size="11">
+        <text data-role="crosshair-price-label" :x="Math.max(8, overlaySize.width - 56)" :y="Math.max(14, crosshair.y - 6)" fill="var(--accent)" font-size="11">
           {{ crosshair.priceLabel }}
         </text>
       </g>
       <g v-if="hasDraft" data-role="drawing-draft-preview">
-        <line x1="20" y1="20" x2="120" y2="120" stroke="#3ad2e6" stroke-width="2" stroke-dasharray="6 4" />
+        <line x1="20" y1="20" x2="120" y2="120" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 4" />
       </g>
     </svg>
     <div
@@ -590,7 +590,7 @@ onBeforeUnmount(() => {
         ref="editorInputRef"
         data-role="price-note-editor-input"
         v-model="editingLabel.text"
-        class="w-40 rounded-md border border-border bg-[rgba(7,12,22,0.96)] px-2 py-1 text-xs text-text outline-none"
+        class="w-40 rounded-md border border-border bg-panel-stronger/95 px-2 py-1 text-xs text-text outline-none"
         autofocus
         maxlength="24"
         @keydown.enter.stop.prevent="commitLabelEdit"

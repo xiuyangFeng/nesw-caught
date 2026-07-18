@@ -199,7 +199,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
             </div>
             <button
               v-if="research"
-              class="flex items-center gap-1 rounded-lg bg-white/[0.05] px-2.5 py-1 text-[11px] text-purple-300 transition-colors hover:bg-white/[0.1]"
+              class="flex items-center gap-1 rounded-lg bg-ai/10 px-2.5 py-1 text-[11px] text-ai transition-colors hover:bg-ai/20"
               type="button"
               @click="copyResearch"
             >
@@ -274,7 +274,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
               </div>
               <span
                 class="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                :class="research.mode === 'llm' ? 'bg-purple-500/10 text-purple-300' : 'bg-white/[0.05] text-text-faint'"
+                :class="research.mode === 'llm' ? 'bg-ai/10 text-ai' : 'bg-white/[0.05] text-text-faint'"
               >
                 {{ research.mode === 'llm' ? `AI · ${research.model_name ?? 'LLM'}` : '规则汇总' }}
               </span>
@@ -366,7 +366,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
               <ol class="grid gap-2 border-l border-border/40 pl-3">
                 <li v-for="(event, idx) in keyEvents" :key="idx" class="relative grid gap-0.5">
                   <span
-                    class="absolute -left-[15px] top-1.5 h-2 w-2 rounded-full ring-2 ring-[#0b0f18]"
+                    class="absolute -left-[15px] top-1.5 h-2 w-2 rounded-full ring-2 ring-panel"
                     :class="impactDotClass(event.impact)"
                   />
                   <div class="flex items-baseline gap-2">

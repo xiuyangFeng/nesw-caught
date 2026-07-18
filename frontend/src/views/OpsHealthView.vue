@@ -74,7 +74,7 @@ const overallBadge = computed(() => {
   <div class="grid gap-4" data-role="ops-health-view">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Operations</p>
+        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-warning">Operations</p>
         <h1 class="page-title">System Health</h1>
         <p class="page-subtitle">
           统一运维看板：按需聚合后台 worker、新闻源 / X 源健康、近 24h LLM 用量、事件层与数据库体积，并给出结构化告警。每 15s 自动刷新。
@@ -120,7 +120,7 @@ const overallBadge = computed(() => {
     </div>
 
     <footer class="text-[11px] uppercase tracking-[0.12em] text-text-faint" data-role="ops-footer">
-      最近刷新 {{ lastLoadedAt ? timeLabel(lastLoadedAt) : '--' }} · 自动轮询 15s
+      最近刷新 <span class="num">{{ lastLoadedAt ? timeLabel(lastLoadedAt) : '--' }}</span> · 自动轮询 15s
     </footer>
   </div>
 </template>
@@ -132,7 +132,7 @@ const overallBadge = computed(() => {
   gap: 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--panel);
   padding: 7px 12px;
   font-size: 12px;
   font-weight: 700;
@@ -148,24 +148,24 @@ const overallBadge = computed(() => {
 }
 
 .ops-overall-badge--ok {
-  color: #7ed89e;
-  border-color: rgba(57, 200, 132, 0.28);
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
 }
 
 .ops-overall-badge--warning {
-  color: #ffb264;
-  border-color: rgba(255, 159, 47, 0.34);
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 34%, transparent);
 }
 
 .ops-overall-badge--critical {
-  color: #ff8a9c;
-  border-color: rgba(255, 111, 134, 0.36);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 36%, transparent);
 }
 
 .ops-refresh-btn {
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
   padding: 7px 14px;
   font-size: 12px;
   font-weight: 600;
@@ -174,8 +174,8 @@ const overallBadge = computed(() => {
 }
 
 .ops-refresh-btn:hover:not(:disabled) {
-  border-color: rgba(83, 194, 255, 0.4);
-  background: rgba(83, 194, 255, 0.08);
+  border-color: color-mix(in srgb, var(--system) 40%, transparent);
+  background: color-mix(in srgb, var(--system) 8%, transparent);
 }
 
 .ops-refresh-btn:disabled {
@@ -186,11 +186,11 @@ const overallBadge = computed(() => {
 .ops-error {
   margin: 0;
   border-radius: 12px;
-  border: 1px solid rgba(255, 111, 134, 0.34);
-  background: rgba(255, 111, 134, 0.08);
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
   padding: 10px 12px;
   font-size: 13px;
-  color: #ff8a9c;
+  color: var(--danger);
 }
 
 /* --- 呼吸灯信号点（顶部总体状态徽标复用；与现有 shadow-signal 风格一致的辉光） --- */
@@ -203,20 +203,20 @@ const overallBadge = computed(() => {
 }
 
 .ops-signal-dot--ok {
-  background: #39c884;
-  box-shadow: 0 0 10px rgba(57, 200, 132, 0.5);
+  background: var(--success);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 50%, transparent);
   animation: ops-breathe-ok 2.4s ease-in-out infinite;
 }
 
 .ops-signal-dot--warning {
-  background: #ff9f2f;
-  box-shadow: 0 0 12px rgba(255, 159, 47, 0.55);
+  background: var(--warning);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--warning) 55%, transparent);
   animation: ops-breathe-warn 1.6s ease-in-out infinite;
 }
 
 .ops-signal-dot--critical {
-  background: #ff6f86;
-  box-shadow: 0 0 14px rgba(255, 111, 134, 0.65);
+  background: var(--danger);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--danger) 65%, transparent);
   animation: ops-breathe-crit 1s ease-in-out infinite;
 }
 

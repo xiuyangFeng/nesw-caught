@@ -52,8 +52,9 @@ function getTimestampLabel(item: NewsItem) {
             <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted">
               <span
                 v-if="(item as any).editorial_score >= 8.5"
-                class="inline-flex h-2 w-2 rounded-full shrink-0 animate-pulse"
+                class="inline-flex h-2 w-2 rounded-full shrink-0 animate-pulse pulse-dot"
                 :class="item.sentiment_label === 'positive' ? 'bg-positive' : 'bg-negative'"
+                :style="{ '--pulse-color': item.sentiment_label === 'positive' ? 'color-mix(in srgb, var(--positive) 35%, transparent)' : 'color-mix(in srgb, var(--negative) 35%, transparent)' }"
               />
               <span class="pill" :class="item.sentiment_label">{{ item.sentiment_label }}</span>
               <span>{{ item.source_name }}</span>
@@ -95,7 +96,7 @@ function getTimestampLabel(item: NewsItem) {
   width: 100%;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel-soft);
   padding: 12px 12px;
   text-align: left;
   cursor: pointer;
@@ -105,7 +106,7 @@ function getTimestampLabel(item: NewsItem) {
 .dashboard-feed-item:hover {
   transform: translateY(-1px);
   border-color: rgba(58, 210, 230, 0.35);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--panel-strong);
 }
 
 .dashboard-feed-item:focus-visible {

@@ -84,7 +84,7 @@ watch(
       <div v-if="eventDetail" class="grid gap-4">
         <section
           data-role="event-detail-header"
-          class="grid gap-4 overflow-hidden rounded-[26px] border border-border bg-[linear-gradient(180deg,rgba(18,26,43,0.96),rgba(10,14,24,0.94))] px-5 py-5 shadow-[0_18px_50px_rgba(0,0,0,0.28)]"
+          class="grid gap-4 overflow-hidden rounded-[26px] border border-border bg-panel px-5 py-5 shadow-[var(--shadow)]"
         >
           <div class="grid gap-2">
             <div class="flex flex-wrap items-center gap-2 text-muted">
@@ -105,9 +105,9 @@ watch(
 
           <div class="flex flex-wrap gap-2 text-[13px] text-muted">
             <span class="metric-chip">{{ eventDetail.related_symbols.join(' · ') || '未关联股票' }}</span>
-            <span class="metric-chip">Sources {{ eventDetail.source_count }}</span>
-            <span class="metric-chip">News {{ eventDetail.news_count }}</span>
-            <span class="metric-chip">
+            <span class="metric-chip num">Sources {{ eventDetail.source_count }}</span>
+            <span class="metric-chip num">News {{ eventDetail.news_count }}</span>
+            <span class="metric-chip num">
               {{ eventDetail.last_seen_at ? `${formatMarketTime(eventDetail.last_seen_at, eventDetail.market)} ${getMarketTimezoneLabel(eventDetail.market)}` : '时间待补' }}
             </span>
           </div>
@@ -130,7 +130,7 @@ watch(
                   <span data-role="event-stage-label" class="stage-pill">{{ eventStageLabel(index) }}</span>
                   <span data-role="event-source-name" class="pill neutral">{{ item.source_name }}</span>
                   <span data-role="event-sentiment-pill" class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
-                  <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
+                  <span class="num">{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                 </div>
 
                 <h2 class="timeline-title m-0 text-text" data-role="event-timeline-title">{{ item.title }}</h2>
@@ -173,8 +173,8 @@ watch(
   align-items: center;
   padding: 5px 9px;
   border-radius: 999px;
-  background: rgba(92, 174, 255, 0.14);
-  color: #9fd0ff;
+  background: var(--system-soft);
+  color: var(--system);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -185,8 +185,8 @@ watch(
   align-items: center;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(132, 156, 189, 0.18);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-strong);
 }
 
 .timeline-row {
@@ -206,14 +206,14 @@ watch(
   height: 9px;
   margin-top: 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #9fd0ff, #2d7dd2);
-  box-shadow: 0 0 0 4px rgba(92, 174, 255, 0.12);
+  background: linear-gradient(135deg, var(--system), var(--accent));
+  box-shadow: 0 0 0 4px var(--system-soft);
 }
 
 .timeline-line {
   width: 1px;
   min-height: 100%;
-  background: linear-gradient(180deg, rgba(159, 208, 255, 0.28), rgba(159, 208, 255, 0));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--system) 28%, transparent), transparent);
 }
 
 .timeline-line.is-hidden {
@@ -225,8 +225,8 @@ watch(
   gap: 8px;
   padding: 10px 12px;
   border-radius: 18px;
-  border: 1px solid rgba(132, 156, 189, 0.16);
-  background: linear-gradient(180deg, rgba(17, 24, 39, 0.86), rgba(12, 18, 30, 0.92));
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
 }
 
 .timeline-meta-row {
@@ -259,8 +259,8 @@ watch(
   align-items: center;
   padding: 4px 9px;
   border-radius: 999px;
-  background: rgba(249, 196, 88, 0.14);
-  color: #f3cf7a;
+  background: var(--warning-soft);
+  color: var(--warning);
   font-size: 10px;
   letter-spacing: 0.08em;
 }
@@ -272,8 +272,8 @@ watch(
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid rgba(132, 156, 189, 0.18);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-soft);
   color: var(--color-text-soft);
   font-size: 12px;
   text-decoration: none;
@@ -281,14 +281,14 @@ watch(
 }
 
 .timeline-action:hover {
-  border-color: rgba(159, 208, 255, 0.34);
+  border-color: color-mix(in srgb, var(--system) 34%, transparent);
   color: var(--color-text);
   transform: translateY(-1px);
 }
 
 .timeline-action-primary {
-  background: linear-gradient(135deg, rgba(23, 104, 194, 0.95), rgba(58, 169, 245, 0.95));
-  color: white;
+  background: var(--accent);
+  color: var(--bg);
   border-color: transparent;
 }
 

@@ -40,17 +40,17 @@ defineProps<{
   }
 }
 
-.dashboard-topic-column :deep(.terminal-surface) {
+.dashboard-topic-column :deep(.topic-card) {
   border-radius: 16px;
   padding: 12px;
 }
 
-.dashboard-topic-column :deep(.terminal-surface strong.text-base) {
+.dashboard-topic-column :deep(.topic-card strong.text-base) {
   font-size: 14px;
   line-height: 1.35;
 }
 
-.dashboard-topic-column :deep(.terminal-surface p.my-3) {
+.dashboard-topic-column :deep(.topic-card p.my-3) {
   margin: 8px 0;
   font-size: 12px;
   line-height: 1.55;

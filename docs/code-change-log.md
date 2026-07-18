@@ -2,6 +2,81 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-18 克制赛博：设计令牌层升级 + 字体自托管 + 壳层打磨
+
+- 修改人：Kimi Code（主线）
+- 修改范围：设计令牌（`main.css`）、`tailwind.config.js`、`index.html`、`main.ts`、`AppShell.vue`、`.terminal-surface` 残留引用清理。
+- 变更内容：
+  1. **令牌层升级**（`frontend/src/assets/main.css`）：底色面板整体压深（`--bg #070a12→#05070d`、`--panel #0d111b→#0b0f18` 等 7 档，`--text` 亮度不动保对比度）；主色 `#3ad2e6→#3ee6ff` 电青（`--accent/--neutral/--ai-2/--grad-ai` 及 interactive/focus/glow 系列 rgba 同步）；新增 `--grid-line`/`--bg-grid`（3% 透明度网格纹理，body 背景叠加，监控大屏氛围）、`--surface-highlight`（`.surface` 顶部 1px 内高光）；新增工具类 `.bg-grid`、`.anim-fade-up`、`.pulse-dot`（`--pulse-color` 可覆盖）与全局 `@keyframes fade-up/pulse-dot`；`prefers-reduced-motion` 改为全站通用守卫（`animation/transition 0.01ms`），替代原仅 fade-cross 的局部处理。
+  2. **`.terminal-surface` 别名删除**：`PortfolioView.vue`（4 处）去冗余类；`TopicBoard.vue` 根元素改 `surface topic-card`；`DashboardTopicColumn.vue` 3 处 `:deep(.terminal-surface)` 选择器改 `:deep(.topic-card)`。
+  3. **字体自托管**：`index.html` 删除 Google Fonts CDN（preconnect + css2 链接）；新增依赖 `@fontsource/inter`、`@fontsource/jetbrains-mono`，`main.ts` 引入 400/500/600/700 四档字重；字体栈移除不再加载的 IBM Plex Sans/Mono（`main.css` 与 `tailwind.config.js` 同步）。中文仍回落系统字体（PingFang SC 等），不自托管 CJK 大字库。
+  4. **AppShell 打磨**：状态条信号灯色值由硬编码 rgba 改 `color-mix(in srgb, var(--success/--warning/--danger) …)` 令牌驱动；live 状态信号灯启用 `pulse-dot` 脉冲（`--pulse-color` 取 success 35%）；导航激活竖条加 `shadow-glow`。
+- 影响文件：`frontend/src/assets/main.css`、`frontend/tailwind.config.js`、`frontend/index.html`、`frontend/src/main.ts`、`frontend/package.json`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/views/PortfolioView.vue`、`frontend/src/components/dashboard/TopicBoard.vue`、`frontend/src/components/dashboard/DashboardTopicColumn.vue`；设计与计划文档 `docs/superpowers/specs/2026-07-18-cyber-terminal-restyle-design.md`、`docs/superpowers/plans/2026-07-18-cyber-terminal-restyle-plan.md`；本变更记录。
+- 接口/数据结构变化：无（纯样式/资源变更；`data-role`、`nav-active-signal`、`shell-status-rail-signal` 等测试钩子保留）。
+- 验证情况：`npm --prefix frontend run build` → 通过（dist 内含 woff2 字体与 `pulse-dot`/`bg-grid`/`anim-fade-up` 类）；`npx vitest run`（frontend 全量）→ **78 文件 / 400 tests 全部通过**；`npm --prefix frontend run check:api-drift` → OK 无漂移。
+- 风险或后续事项：底色加深后需 dev server 目检对比度（`--text` 未动，理论无退化）；新增两个 fontsource npm 依赖（构建期内联，本地部署不再依赖外网字体）；`bg-white/[0.0x]` 类低透明工具类尚有零星残留（语义中性，后续可统一评估）。
+
+## 2026-07-18 克制赛博扫尾：残留 Tailwind 色板/白色覆盖层清零 + 动效收敛
+
+
+- 修改人：Kimi Code（子任务 / 克制赛博改造最后扫尾）
+- 修改范围：`frontend/src/components/llm`（3）、`frontend/src/components/watchlist`（4）、`frontend/src/components/dashboard`（5）、`frontend/src/views`（2）、`frontend/src/utils/markdown.ts`（+其测试断言 1 处）。
+- 变更内容：
+  1. **Tailwind 色板色 → 语义类**：`TokenUsageConsole.vue` 全部 `text-emerald-400`(/80)→`text-success`(/80)、`text-red-400`→`text-danger`、`text-purple-400`→`text-ai`，预算横幅 `border-red-500/60 bg-red-500/10 text-red-300`→`border-danger/60 bg-danger/10 text-danger`、`border-emerald-500/40 bg-emerald-500/[0.06]`→`border-success/40 bg-success/[0.06]`；`LlmConfigList.vue` 禁用按钮 amber→`warning`、设默认按钮 blue→`system`；`StockDetailPanel.vue` AI 复制按钮/spinner/加载文案 purple→`ai`；`WatchlistDetailView.vue` 复制按钮 `bg-white/[0.05] text-purple-300`→`bg-ai/10 text-ai hover:bg-ai/20`、mode 徽章 `'bg-purple-500/10 text-purple-300'`→`'bg-ai/10 text-ai'`；`markdown.ts:19` 行内代码 `text-yellow-300`→`text-warning`（同步更新 `markdown.test.ts:22` 断言，唯一允许的测试改动）。
+  2. **SVG/悬浮框色值令牌化**：`TokenTrendChart.vue` 网格线 `rgba(255,255,255,0.04)`→`color-mix(in srgb, var(--text) 4%, transparent)`、轴文字 0.4→`var(--text-faint)`、0.25→`color-mix(... 25%, ...)`；tooltip `border-cyan-500/30 bg-black/90`→`border-accent/30 bg-panel-stronger/95`，删 `backdrop-blur-md` 与 `shadow-cyan-950/20`（保留 `shadow-lg`），`text-cyan-400`→`text-accent`、`border-white/10`→`border-border`；`SentimentGauge.vue` 4 处 stroke（0.08/0.06/0.05/0.15）→`color-mix(in srgb, var(--text) 8%/6%/5%/15%, transparent)`。
+  3. **白色低透明覆盖层 → 面板令牌**：`DashboardNewsFeedColumn.vue`（0.025→`--panel-soft`、0.05→`--panel-strong`）、`DashboardHeader.vue`（0.035→`--panel-soft`、圆点辉光→`color-mix(var(--text) 4%)`）、`DashboardMoversColumn.vue`（0.03→`--panel-soft`）、`SourceHealthGrid.vue`（0.025→`--panel-soft`、圆点辉光同上前）、`KlineChart.vue`（HUD `bg-[rgba(7,12,22,0.82)]`→`bg-panel-stronger/80`，两处 `bg-[rgba(255,255,255,0.02/0.025)]`→`bg-panel-soft`）、`KlineNewsPopup.vue`、`WatchlistAddModal.vue`（背板 `bg-[rgba(3,7,13,0.72)]`→`bg-[color-mix(in_srgb,var(--bg)_72%,transparent)]`，`0.02`→`bg-panel-soft`）。
+  4. **动效收敛**：`NewsFeedView.vue:502` live 点 `shadow-glow animate-pulse`→`pulse-dot`（去掉 shadow-glow 避免与脉冲 box-shadow 冲突）；delta 横幅与流内 NewsCard 加全局 `.anim-fade-up` 类，scoped 的 `.fade-in-*`/`.list-fade-in-*` 动画实现删除（`<transition name="fade-in">`/`<transition-group name="list-fade-in">` 名钩子保留为无样式挂载点）；`DashboardNewsFeedColumn.vue:55` live 点加 `pulse-dot` 并按点色用 `:style` 覆盖 `--pulse-color`（positive/negative 35%）。其余 `animate-pulse`（骨架屏/加载文案/⚡）与 breathe/shimmer keyframes 未动。
+  5. 未动业务逻辑/props/emit/`data-role`；除 `markdown.test.ts:22` 外未改任何测试。
+- 影响文件：`TokenUsageConsole.vue`、`LlmConfigList.vue`、`TokenTrendChart.vue`、`StockDetailPanel.vue`、`KlineChart.vue`、`KlineNewsPopup.vue`、`WatchlistAddModal.vue`、`DashboardNewsFeedColumn.vue`、`DashboardHeader.vue`、`DashboardMoversColumn.vue`、`SourceHealthGrid.vue`、`SentimentGauge.vue`、`NewsFeedView.vue`、`WatchlistDetailView.vue`、`utils/markdown.ts`、`utils/markdown.test.ts`；本变更记录。
+- 接口/数据结构变化：无（纯样式类名/CSS 值变更）。
+- 验证情况：`npx vitest run`（frontend 全量）→ **78 文件 / 400 tests 全部通过**；`npm run build` → 通过；dist CSS 确认生成 `bg-panel-soft`/`text-ai`/`bg-panel-stronger`/`text-success`/`pulse-dot`/`anim-fade-up` 等工具类；全仓 `grep` 残留色板类（emerald/purple/yellow/cyan/amber/blue/red-*）与 `rgba(255,255,255,*`/`rgba(7,12,22`/`rgba(3,7,13` 零命中。
+- 风险或后续事项：`DashboardNewsFeedColumn.vue:55` 的 live 点**保留 `animate-pulse` 类**（`DashboardNewsFeedColumn.test.ts:65` 与 `DashboardView.test.ts:239` 硬断言该类名，约束不允许改测试），与 `pulse-dot` 叠加——透明度脉冲+环形脉冲同时生效，视觉克制可接受；NewsFeedView 初始渲染时全部可见 NewsCard 会播放一次 `anim-fade-up` 入场（原 transition-group 无 appear，初始不动），为改用全局类的预期行为差异；`bg-white/[0.0x]` 等非本批枚举的白色透明度工具类仍有少量残留（LlmConfigList 等按钮底），待后续统一评估。
+
+## 2026-07-18 克制赛博：K 线簇 + LLM 簇 canvas/JS 色值接入设计令牌
+
+- 修改人：Kimi Code（子任务 / watchlist K 线簇 + llm 簇 + SentimentGauge 改造）
+- 修改范围：`frontend/src/composables`（2）、`frontend/src/utils`（3）、`frontend/src/components/watchlist`（8）、`frontend/src/components/llm`（4）、`frontend/src/components/dashboard/SentimentGauge.vue`。
+- 变更内容：
+  1. **新增共享 helper `frontend/src/utils/cssVars.ts`**：`readCssVar(name, fallback)` 用 `getComputedStyle(document.documentElement)` 读 `:root` 令牌计算值，jsdom 等无令牌环境回落 fallback；`readCssVarWithAlpha(name, alpha, fallbackHex)` 把 hex 令牌转 `rgba(r, g, b, a)`（canvas 只吃具体色值，不吃 `var()`/`color-mix`）。
+  2. **canvas 图表（lightweight-charts）**：`useKlineChartLifecycle.ts` 初始化时快照一次令牌——K 线红涨绿跌 `--positive`/`--negative`、网格 `--border`、文字 `--text-soft`/`--text-faint`、VOL/MACD 柱 `--positive/negative`+0.5/0.42 alpha、MACD/KDJ 线 `--accent`/`--system`/`--danger`、RSI `--success`、系列底色 `--accent-soft`；`StockSparkline.vue` 涨跌线色同法；`useKlineMarkers.ts` 情绪标记色 `--positive/--negative/--system/--ai/--muted`；`klineDrawings.ts` 画线工具默认色 `--warning/--system/--success/--ai/--danger`；`klineIndicators.ts` MA/EMA 色板（6+4）与 BOLL 通道（`--success`+alpha）。全部 fallback = 原视觉值，jsdom 测试零变化。
+  3. **SVG/DOM 模板**：`KlineDrawingOverlay.vue`（锚点/十字线/草稿线 `#f8fafc`/`#0f172a`/`#3ad2e6` → `var(--text)`/`var(--panel-strong)`/`var(--accent)`，十字线透明度移入 `stroke-opacity`）；`KlineNewsTooltip/Popup` 情绪色记录改 `var(--xxx)`，Popup 徽章 `hex+'22'` 拼接改 `color-mix(in srgb, var(--xxx) 13%, transparent)`；深色浮层 `rgba(7,12,22,*)`/`rgba(10,17,27,0.95)` → `bg-panel-stronger/90~95`；`KlineDrawingSelectionPopover` 色板 emit 值用 `readCssVar('--warning'/'--system')`（持久化数据仍是具体 hex）；`TokenTrendChart.vue` 折线 `#22d3ee` → `--accent`（测试断言 path stroke 为具体 hex，故该处用 helper 绑定，渐变/十字线/圆点直接 `var()`）；`SentimentGauge.vue` 指针 `#ffffff` → `var(--text)`、枢轴 `rgba(11,18,28,0.9)` → `var(--panel)`+`fill-opacity`。
+  4. **语义类映射**：`TokenUsageConsole` 四条辉光边条（蓝/绿/紫/琥珀 → `system`/`success`/`ai`/`warning`，`shadow-[0_0_8px_var(--xxx)]`）；`LlmConfigList` 默认配置橙高亮 `#ff9f2f*` → `warning` 语义类（徽章改实心 `bg-warning` + 深色字），两个失配辉光 rgba → `var(--success-soft)`/`var(--danger-soft)`；`LlmConfigForm` 主按钮蓝渐变 → `linear-gradient(135deg,var(--system),var(--accent))`；`WatchlistSidebar`/`WatchlistAddModal` accent 按钮文字 `#04141a` → `text-[var(--bg)]`；`StockCard` 告警灯 `bg-red-500/600`+`#ef4444` 辉光 → `danger`，财报呼吸关键帧 rgba(255,207,90) → `color-mix(var(--warning))`。
+  5. **等宽数字**：TokenUsageConsole 指标值/In-Out/占比/预算条/明细行补 `tabular-nums` 或 `.num`；TokenTrendChart 悬浮明细、LlmConfigList 时延徽章补 `tabular-nums`；KlineNewsTooltip "+N more" 补 `.num`。
+  6. `StockCard.vue` 的 `prefers-reduced-motion` 媒体查询保留；未动业务逻辑/props/emit/`data-role`；未改任何 .test.ts。
+- 影响文件：`frontend/src/utils/cssVars.ts`（新）、`useKlineChartLifecycle.ts`、`useKlineMarkers.ts`、`klineDrawings.ts`、`klineIndicators.ts`、`KlineDrawingOverlay.vue`、`KlineNewsTooltip.vue`、`KlineNewsPopup.vue`、`KlineDrawingSelectionPopover.vue`、`StockSparkline.vue`、`WatchlistSidebar.vue`、`WatchlistAddModal.vue`、`StockCard.vue`、`TokenTrendChart.vue`、`TokenUsageConsole.vue`、`LlmConfigList.vue`、`LlmConfigForm.vue`、`SentimentGauge.vue`；本变更记录。
+- 接口/数据结构变化：无（`SENTIMENT_COLORS`/画线默认色在浏览器内取令牌值，jsdom 内为原 fallback 值；持久化画线色仍为 hex 字符串）。
+- 验证情况：`npx vitest run src/components/watchlist src/components/llm src/composables src/utils src/components/dashboard` → **32 文件 / 136 tests 全部通过**；`npm run build` → 通过；dist CSS 中确认生成 `var(--danger)`/`var(--warning)`/`var(--panel-stronger)` 等新工具类。
+- 风险或后续事项：`utils/markdown.ts` 行内代码色 `text-yellow-300` **保留未动**——`markdown.test.ts:22` 硬断言该类名，改 `text-warning` 会红；如要换令牌需同步改测试。K 线簇视觉微调：网格线 alpha 0.08→`--border`(0.12)、VOL 柱 0.28→`--accent-soft`(0.12)、MA 第 6 色 `#f59e0b`→`--accent`、EMA 粉 `#f472b6`→`--ai`（均为令牌内最近色相，设计意图）。遗留未扫：白色系低透明覆盖层（`rgba(255,255,255,0.02~0.15)`、`bg-white/*`）、`KlineChart.vue` 面板底 rgba、`WatchlistAddModal` 背板 `rgba(3,7,13,0.72)`、TokenUsageConsole 预算红绿 Tailwind 色板类（red-400/emerald-400 等）、TokenTrendChart 悬浮框 cyan 色板类——非 hex/rgba 字面量或本批枚举外，待统一扫尾。
+
+## 2026-07-18 克制赛博：Ops 健康看板 7 文件去玻璃拟态 + 硬编码色值清零
+
+- 修改人：Kimi Code（子任务 / ops 组件 + OpsHealthView 改造）
+- 修改范围：`frontend/src/components/ops/` 6 个组件 + `frontend/src/views/OpsHealthView.vue`（上一批 13 视图遗留的 OpsHealthView 批次）。
+- 变更内容：
+  1. **去玻璃拟态**：5 张卡片根元素改用全局 `surface` 类（`class="surface ops-card"`），scoped `.ops-card` 删除 `backdrop-filter: blur(12px)`、`var(--shadow)` 大阴影与重复的背景/边框声明，仅保留圆角与内边距；告警条/徽标/按钮的半透明白底（`rgba(255,255,255,0.02~0.06)`）→ 实心面板令牌（行/统计块 `var(--panel-soft)`、计数徽章 `var(--panel-strong)`、告警条/按钮 `var(--panel)`）。
+  2. **硬编码色清零**：系统健康语义——绿 `#39c884`/`#5bd49a`/`#7ed89e` → `var(--success)`（soft 底用 `--success-soft`）；告警橙 `#ff9f2f`/`#ffb25c`/`#ffb264` → `var(--warning)`；故障红 `#ff6f86`/`#ff8a9c` → `var(--danger)`（soft 底对应 `--warning-soft`/`--danger-soft`）；中性蓝 `#53c2ff` → `var(--system)`；eyebrow 橙 `#ffb77d`（含模板 `text-[#ffb77d]`）→ `warning`；带透明度的边框/辉光/渐变一律 `color-mix(in srgb, var(--xxx) P%, transparent)`，透明度沿用原值。
+  3. **pill 收敛**：`ops-pill-warn`/`ops-pill-crit` 的 scoped 硬编码样式删除（main.css 已内置 `.pill.warning`/`.pill.danger`），模板补上 `warning`/`danger` 语义类，原 `ops-pill-warn`/`ops-pill-crit` 类名保留为测试钩子。
+  4. **等宽数字**：成功率/连败/时延/HTTP 计数/心跳/成败计数/token 统计/时间等数字插值补 `.num`；`"IBM Plex Mono", monospace` → `var(--font-mono)`。
+  5. 未动业务逻辑/props/emit、`data-role` 属性与 `.pill` 语义类钩子；未改任何 .test.ts。
+- 影响文件：`OpsSourcesCard.vue`、`OpsWorkersCard.vue`、`OpsXSourcesCard.vue`、`OpsAlertsPanel.vue`、`OpsSystemStatusCard.vue`、`OpsLlmUsageCard.vue`、`OpsHealthView.vue`；本变更记录。
+- 接口/数据结构变化：无（纯样式类名/CSS 值变更，测试钩子保持不变）。
+- 验证情况：`npx vitest run src/components/ops src/views/OpsHealthView.test.ts` → **8 文件 / 38 tests 全部通过**；`npm run build` → 通过；`grep -E '#[0-9a-fA-F]{3,8}|rgba?\(|backdrop-filter'` 在上述 7 文件中零命中。
+- 风险或后续事项：eyebrow 由橙 `#ffb77d` 变为琥珀 `--warning`（令牌内最近色相，设计意图）；告警灯辉光颜色随令牌微调（橙→琥珀、红→danger 红）；卡片圆角 18px 未纳入 `--r-*` 刻度（非色值，本批不动）。
+
+## 2026-07-18 克制赛博：13 个视图硬编码色值 → 语义设计令牌
+
+- 修改人：Kimi Code（子任务 / views 批量改造）
+- 修改范围：`frontend/src/views/` 下 13 个含硬编码 hex/rgba 的视图（OpsHealthView 不在本批）。
+- 变更内容：
+  1. 模板任意值色值全部换成 Tailwind 语义类：蓝色渐变主按钮（`#1768c2→#3aa9f5`）→ `bg-accent text-bg`；橙色「临近/组合」强调（`#ff9f2f`/`#ffca97` 等）→ `warning` 或 `accent`（按语义：日历临近=warning，组合/ eyebrow 高亮=accent）；信息蓝（`#53c2ff`/`#9fd0ff`/`rgba(92,174,255,*)`）→ `system`；告警红（`#fecaca`/`#fca5a5`/`#7f1d1d`）→ `danger`；回测方向卡 `#ff6f86`/`#39c884` → `positive`/`negative`；面板渐变底 → `bg-panel`/`bg-panel-strong`。
+  2. scoped style 色值改 `var(--xxx)`；带透明度色值用 `color-mix(in srgb, var(--xxx) P%, transparent)`；NewsDetailView 的 AI 按钮紫红渐变 → `var(--grad-ai)`。
+  3. 数字（金额/百分比/计数/时间戳/优先级分）补 `.num` 或 `tabular-nums`。
+  4. 未动业务逻辑/props/emit、`data-role` 与 `.pill` 语义类；CalendarView 的 `prefers-reduced-motion` 媒体查询保留。
+- 影响文件：`XMonitorView.vue`、`CalendarView.vue`、`NewsDetailView.vue`、`PortfolioView.vue`、`TopicDetailView.vue`、`NotifySettingsView.vue`、`EventDetailView.vue`、`SignalBacktestView.vue`、`DigestView.vue`、`WatchlistDetailView.vue`、`SentimentNewsView.vue`、`SentimentEvalView.vue`、`LlmSettingsView.vue`；本变更记录。
+- 接口/数据结构变化：无（纯样式类名/CSS 值变更，测试钩子保持不变）。
+- 验证情况：`npx vitest run src/views` → **18 文件 / 97 tests 全部通过**；`npm run build` → 通过；`grep -E '#[0-9a-fA-F]{3,6}|rgba?\(' src/views` 仅剩 OpsHealthView（本批范围外）。
+- 风险或后续事项：OpsHealthView 仍有 ~20 处硬编码色值待下一批处理；主按钮视觉从蓝色渐变变为实心电青（设计意图）；NewsDetailView 按钮 hover 阴影改为 accent/ai 色系 color-mix。
+
 ## 2026-07-17 审查跟进：时区/冷却/空批计数
 
 - 修改人：Cursor（主线 / cursor-grok-4.5-high-fast）

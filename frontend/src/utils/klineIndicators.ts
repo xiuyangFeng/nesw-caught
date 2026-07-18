@@ -4,6 +4,7 @@ import type {
   KlineSubIndicator,
   KlineValuePoint,
 } from '../types/api';
+import { readCssVar, readCssVarWithAlpha } from './cssVars';
 
 export interface RenderedOverlayLine {
   key: string;
@@ -13,8 +14,21 @@ export interface RenderedOverlayLine {
   lineStyle?: 0 | 2;
 }
 
-const MA_COLORS = ['#ffd166', '#7dd3fc', '#c084fc', '#fb7185', '#34d399', '#f59e0b'];
-const EMA_COLORS = ['#ff9f2f', '#38bdf8', '#f472b6', '#22c55e'];
+// 叠加指标线色板：canvas 渲染需具体色值，读取设计令牌（fallback 为既有视觉值）。
+const MA_COLORS = [
+  readCssVar('--warning', '#ffd166'),
+  readCssVar('--system', '#7dd3fc'),
+  readCssVar('--ai', '#c084fc'),
+  readCssVar('--danger', '#fb7185'),
+  readCssVar('--success', '#34d399'),
+  readCssVar('--accent', '#f59e0b'),
+];
+const EMA_COLORS = [
+  readCssVar('--warning', '#ff9f2f'),
+  readCssVar('--system', '#38bdf8'),
+  readCssVar('--ai', '#f472b6'),
+  readCssVar('--success', '#22c55e'),
+];
 
 function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -133,15 +147,15 @@ export function buildOverlayLines(template: KlineIndicatorTemplate, candles: Kli
         middle.push(base[index]);
         lower.push({ time: candle.time, value: round(mean - deviation) });
       });
-      lines.push({ key: 'boll-upper', label: 'BOLL上轨', color: 'rgba(52,211,153,0.65)', points: upper });
+      lines.push({ key: 'boll-upper', label: 'BOLL上轨', color: readCssVarWithAlpha('--success', 0.65, '#34d399'), points: upper });
       lines.push({
         key: 'boll-middle',
         label: 'BOLL中轨',
-        color: 'rgba(52,211,153,0.45)',
+        color: readCssVarWithAlpha('--success', 0.45, '#34d399'),
         points: middle,
         lineStyle: 2,
       });
-      lines.push({ key: 'boll-lower', label: 'BOLL下轨', color: 'rgba(52,211,153,0.65)', points: lower });
+      lines.push({ key: 'boll-lower', label: 'BOLL下轨', color: readCssVarWithAlpha('--success', 0.65, '#34d399'), points: lower });
     }
   });
   return lines;

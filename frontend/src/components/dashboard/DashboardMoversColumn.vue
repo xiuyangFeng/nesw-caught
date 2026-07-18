@@ -143,7 +143,7 @@ const topMoverReason = computed(() => {
   gap: 12px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel-soft);
   padding: 12px 12px;
 }
 

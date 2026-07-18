@@ -78,7 +78,7 @@ watch(
           <article
             v-for="item in orderedItems"
             :key="item.id"
-            class="cursor-pointer rounded-[18px] border border-border bg-white/[0.03] p-[18px] transition duration-150 ease-out hover:-translate-y-px hover:border-[#3aa9f59e] hover:bg-[rgba(15,39,61,0.92)]"
+            class="cursor-pointer rounded-[18px] border border-border bg-white/[0.03] p-[18px] transition duration-150 ease-out hover:-translate-y-px hover:border-system/60 hover:bg-panel-strong"
             data-role="sentiment-news-card"
             @click="openStory(item.id)"
           >

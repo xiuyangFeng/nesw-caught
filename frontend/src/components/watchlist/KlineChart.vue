@@ -390,7 +390,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="pointer-events-none absolute left-3 top-20 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-md border border-border bg-[rgba(7,12,22,0.82)] px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
+          <div class="pointer-events-none absolute left-3 top-20 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-md border border-border bg-panel-stronger/80 px-3 py-2 text-[11px] uppercase tracking-[0.14em]" data-role="kline-hud">
             <span class="text-text-faint">开 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.open) }}</strong></span>
             <span class="text-text-faint">高 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.high) }}</strong></span>
             <span class="text-text-faint">低 <strong class="ml-1 text-text">{{ formatNumber(activeHudCandle?.low) }}</strong></span>
@@ -466,7 +466,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div ref="subChartRef" class="mt-3 h-[140px] w-full" />
-              <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-[rgba(255,255,255,0.02)] px-3 py-2.5" data-role="kline-subindicator-panel">
+              <div class="mt-3 grid gap-2 rounded-[14px] border border-border/60 bg-panel-soft px-3 py-2.5" data-role="kline-subindicator-panel">
                 <div class="flex items-center justify-between gap-3">
                   <span class="text-[10px] uppercase tracking-[0.18em] text-accent">{{ activeSubIndicator }}</span>
                   <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">最新读数</span>
@@ -517,7 +517,7 @@ onBeforeUnmount(() => {
           @subindicator-change="chartStore.setSubIndicator($event)"
         />
 
-        <div class="grid gap-2 rounded-[14px] border border-border/70 bg-[rgba(255,255,255,0.025)] px-3 py-3">
+        <div class="grid gap-2 rounded-[14px] border border-border/70 bg-panel-soft px-3 py-3">
           <div class="flex items-center justify-between gap-2">
             <span class="text-[10px] uppercase tracking-[0.18em] text-text-faint">图表读数</span>
             <strong class="text-sm text-text">{{ formatNumber(activeHudCandle?.close) }}</strong>

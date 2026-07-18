@@ -142,7 +142,7 @@ watch(
           </div>
           <button
             v-if="detail.topic"
-            class="mt-3 rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white"
+            class="mt-3 rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg"
             type="button"
             @click="openTopic(detail.topic.id)"
           >
@@ -166,7 +166,7 @@ watch(
                 </template>
               </div>
               <button
-                class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+                class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
                 type="button"
                 :disabled="analysisLoading"
                 @click="runAnalysis"
@@ -213,7 +213,7 @@ watch(
                 >
                   <div class="flex justify-between gap-2.5">
                     <strong>{{ candidate.symbol }}</strong>
-                    <span class="text-text-faint">{{ Math.round((candidate.confidence ?? 0) * 100) }}%</span>
+                    <span class="num text-text-faint">{{ Math.round((candidate.confidence ?? 0) * 100) }}%</span>
                   </div>
                   <p class="text-text-faint">{{ candidate.company_name ?? '未提供公司名' }}</p>
                   <p>{{ candidate.reason }}</p>
@@ -230,11 +230,11 @@ watch(
           <div v-if="topicDetail && currentTopicIndex >= 0" class="grid gap-3">
             <div class="grid gap-1 text-muted">
               <strong>{{ topicDetail.topic_title }}</strong>
-              <span>当前第 {{ currentTopicIndex + 1 }} / {{ topicDetail.sources.length }} 条来源</span>
+              <span class="num">当前第 {{ currentTopicIndex + 1 }} / {{ topicDetail.sources.length }} 条来源</span>
             </div>
             <div class="flex flex-wrap gap-2.5">
               <button
-                class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+                class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
                 type="button"
                 :disabled="!previousSource"
                 @click="previousSource && openSibling(previousSource.id)"
@@ -242,7 +242,7 @@ watch(
                 上一条来源
               </button>
               <button
-                class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+                class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
                 type="button"
                 :disabled="!nextSource"
                 @click="nextSource && openSibling(nextSource.id)"
@@ -274,8 +274,8 @@ watch(
   min-height: 42px;
   padding: 0 16px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #1768c2, #3aa9f5);
-  color: #fff;
+  background: var(--accent);
+  color: var(--bg);
   font-weight: 600;
   text-decoration: none;
   transition: transform 160ms ease, box-shadow 160ms ease;
@@ -283,7 +283,7 @@ watch(
 
 .detail-primary-action:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(17, 94, 177, 0.24);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 .detail-ai-action {
@@ -293,8 +293,8 @@ watch(
   min-height: 42px;
   padding: 0 16px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #7c3aed, #db2777);
-  color: #fff;
+  background: var(--grad-ai);
+  color: var(--text);
   font-weight: 600;
   border: none;
   cursor: pointer;
@@ -303,7 +303,7 @@ watch(
 
 .detail-ai-action:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.35);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--ai) 35%, transparent);
 }
 
 @media (max-width: 720px) {

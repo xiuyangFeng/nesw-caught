@@ -94,27 +94,31 @@ const shellStatusRail = computed(() => {
     return {
       label: 'SSE LIVE',
       detail: '实时流畅',
-      signalClass: 'bg-success shadow-[0_0_10px_rgba(31,211,154,0.38)]',
+      signalClass: 'bg-success',
+      pulse: true,
     } as const;
   }
   if (connectionStore.state === 'degraded') {
     return {
       label: 'SSE DEGRADED',
       detail: '降级至 Mock',
-      signalClass: 'bg-warning shadow-[0_0_10px_rgba(255,207,90,0.34)]',
+      signalClass: 'bg-warning shadow-[0_0_10px_color-mix(in_srgb,var(--warning)_34%,transparent)]',
+      pulse: false,
     } as const;
   }
   if (connectionStore.state === 'offline') {
     return {
       label: 'SSE OFF',
       detail: '重连待机',
-      signalClass: 'bg-danger shadow-[0_0_10px_rgba(255,90,114,0.32)]',
+      signalClass: 'bg-danger shadow-[0_0_10px_color-mix(in_srgb,var(--danger)_32%,transparent)]',
+      pulse: false,
     } as const;
   }
   return {
     label: 'SSE WAIT',
     detail: '握手中',
-    signalClass: 'bg-warning shadow-[0_0_10px_rgba(255,207,90,0.34)]',
+    signalClass: 'bg-warning shadow-[0_0_10px_color-mix(in_srgb,var(--warning)_34%,transparent)]',
+    pulse: false,
   } as const;
 });
 
@@ -365,7 +369,7 @@ onBeforeUnmount(() => {
             >
               <span
                 v-if="isNavItemActive(item.to)"
-                class="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent"
+                class="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent shadow-glow"
                 data-role="nav-active-signal"
               />
               <span class="flex min-w-0 flex-col gap-0.5">
@@ -448,7 +452,16 @@ onBeforeUnmount(() => {
       >
         <div class="flex flex-wrap items-center gap-3">
           <span class="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-            <span class="h-2 w-2 rounded-full" :class="shellStatusRail.signalClass" data-role="shell-status-rail-signal" />
+            <span
+              class="h-2 w-2 rounded-full"
+              :class="[shellStatusRail.signalClass, shellStatusRail.pulse ? 'pulse-dot' : '']"
+              :style="
+                shellStatusRail.pulse
+                  ? { '--pulse-color': 'color-mix(in srgb, var(--success) 35%, transparent)' }
+                  : undefined
+              "
+              data-role="shell-status-rail-signal"
+            />
             {{ shellStatusRail.label }}
           </span>
           <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ shellStatusRail.detail }}</span>

@@ -42,7 +42,7 @@ defineProps<{
   gap: 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--panel-soft);
   padding: 7px 10px;
   font-size: 11px;
   line-height: 1;
@@ -61,7 +61,7 @@ defineProps<{
   height: 7px;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .dashboard-status-badge--success {

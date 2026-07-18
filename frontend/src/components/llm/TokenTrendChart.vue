@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
+import { readCssVar } from '../../utils/cssVars';
 import type { TokenDailyStats } from './types';
 
 const props = defineProps<{
   daily: TokenDailyStats[];
 }>();
+
+// 折线主色 = 电青令牌；path stroke 需具体色值（测试环境无令牌时回落既有青）。
+const accentColor = readCssVar('--accent', '#22d3ee');
 
 const hoveredIdx = ref<number | null>(null);
 const dailyData = computed(() => props.daily || []);
@@ -80,13 +84,13 @@ const areaPath = computed(() => {
       >
         <defs>
           <linearGradient id="chartAreaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.25" />
-            <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.0" />
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0" />
           </linearGradient>
         </defs>
 
         <!-- Horizontal grid lines -->
-        <g stroke="rgba(255,255,255,0.04)" stroke-dasharray="2 3">
+        <g stroke="color-mix(in srgb, var(--text) 4%, transparent)" stroke-dasharray="2 3">
           <line x1="40" y1="15" x2="480" y2="15" />
           <line x1="40" y1="50" x2="480" y2="50" />
           <line x1="40" y1="85" x2="480" y2="85" />
@@ -94,14 +98,14 @@ const areaPath = computed(() => {
         </g>
 
         <!-- X Axis Labels -->
-        <g fill="rgba(255,255,255,0.4)" font-size="8" font-family="monospace" text-anchor="middle">
+        <g fill="var(--text-faint)" font-size="8" font-family="monospace" text-anchor="middle">
           <text v-for="(p, i) in chartPoints" :key="i" :x="p.x" y="134">
             {{ p.date && typeof p.date === 'string' ? p.date.substring(5) : (p.date || '--') }}
           </text>
         </g>
 
         <!-- Y Axis indicators (Max / Min) -->
-        <g fill="rgba(255,255,255,0.25)" font-size="7" font-family="monospace" text-anchor="end">
+        <g fill="color-mix(in srgb, var(--text) 25%, transparent)" font-size="7" font-family="monospace" text-anchor="end">
           <text x="32" y="18">{{ Math.max(...dailyData.map(d => d.total_tokens), 0).toLocaleString() }}</text>
           <text x="32" y="123">0</text>
         </g>
@@ -110,7 +114,7 @@ const areaPath = computed(() => {
         <path :d="areaPath" fill="url(#chartAreaGrad)" />
 
         <!-- Highlight line -->
-        <path :d="linePath" fill="none" stroke="#22d3ee" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        <path :d="linePath" fill="none" :stroke="accentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
 
         <!-- Cursor crosshair vertical line -->
         <line
@@ -119,7 +123,7 @@ const areaPath = computed(() => {
           y1="15"
           :x2="chartPoints[hoveredIdx].x"
           y2="120"
-          stroke="#22d3ee"
+          stroke="var(--accent)"
           stroke-opacity="0.3"
           stroke-dasharray="2 2"
         />
@@ -131,8 +135,8 @@ const areaPath = computed(() => {
           :cx="p.x"
           :cy="p.y"
           r="3.5"
-          fill="#0f172a"
-          :stroke="hoveredIdx === i ? '#ffffff' : '#22d3ee'"
+          fill="var(--panel-strong)"
+          :stroke="hoveredIdx === i ? 'var(--text)' : accentColor"
           stroke-width="1.5"
           :style="{ transform: hoveredIdx === i ? 'scale(1.5)' : 'none' }"
           class="transition-all duration-100 origin-center"
@@ -142,17 +146,17 @@ const areaPath = computed(() => {
       <!-- Interactive HTML tooltip popover -->
       <div
         v-if="hoveredIdx !== null && chartPoints[hoveredIdx]"
-        class="absolute pointer-events-none rounded-xl border border-cyan-500/30 bg-black/90 p-2.5 text-[10px] text-text-faint font-mono shadow-lg shadow-cyan-950/20 backdrop-blur-md z-10 space-y-1 w-28"
+        class="absolute pointer-events-none rounded-xl border border-accent/30 bg-panel-stronger/95 p-2.5 text-[10px] text-text-faint font-mono tabular-nums shadow-lg z-10 space-y-1 w-28"
         :style="{
           left: `${(chartPoints[hoveredIdx].x / chartWidth) * 100}%`,
           top: `${(chartPoints[hoveredIdx].y / chartHeight) * 100 - 50}%`,
           transform: 'translate(-50%, -100%)'
         }"
       >
-        <div class="text-text font-bold border-b border-white/10 pb-0.5 mb-1">{{ chartPoints[hoveredIdx].date }}</div>
+        <div class="text-text font-bold border-b border-border pb-0.5 mb-1">{{ chartPoints[hoveredIdx].date }}</div>
         <div class="flex justify-between gap-1">
           <span>Total:</span>
-          <span class="text-cyan-400 font-bold">{{ chartPoints[hoveredIdx].total_tokens.toLocaleString() }}</span>
+          <span class="text-accent font-bold">{{ chartPoints[hoveredIdx].total_tokens.toLocaleString() }}</span>
         </div>
         <div class="flex justify-between gap-1 text-[9px] text-muted">
           <span>Prompt:</span>

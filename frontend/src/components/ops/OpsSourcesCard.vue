@@ -9,13 +9,13 @@ defineProps<{
 
 <template>
   <!-- News sources -->
-  <section class="ops-card" data-role="ops-sources">
+  <section class="surface ops-card" data-role="ops-sources">
     <div class="ops-card-head">
       <div>
         <p class="ops-eyebrow">Ingestion</p>
         <h2 class="ops-card-title">新闻源健康</h2>
       </div>
-      <span class="ops-count">{{ sources.length }}</span>
+      <span class="num ops-count">{{ sources.length }}</span>
     </div>
     <div v-if="sources.length === 0" class="ops-empty">暂无新闻源记录</div>
     <div v-else class="ops-scroller grid gap-2">
@@ -29,22 +29,22 @@ defineProps<{
           <div class="flex items-center gap-2">
             <span class="ops-mini-dot" :class="`ops-mini-dot--${sourceTone(source.consecutive_failures, source.is_disabled)}`" />
             <strong class="truncate text-[13px]">{{ source.source_name }}</strong>
-            <span class="text-[10px] uppercase tracking-[0.14em] text-[#ffb77d]">{{ source.market }}</span>
+            <span class="text-[10px] uppercase tracking-[0.14em] text-warning">{{ source.market }}</span>
             <span
               v-if="source.last_status"
               class="pill ops-status-pill"
               :data-status="source.last_status"
             >{{ source.last_status }}</span>
-            <span v-if="source.is_disabled" class="pill ops-pill-crit">disabled</span>
+            <span v-if="source.is_disabled" class="pill danger ops-pill-crit">disabled</span>
           </div>
           <div class="ops-meta">
-            成功率 {{ ratePct(source.success_rate) }} · 连败 {{ source.consecutive_failures }} · 时延 {{ latencyLabel(source.avg_latency_ms) }} · {{ source.source_type }}
+            成功率 <span class="num">{{ ratePct(source.success_rate) }}</span> · 连败 <span class="num">{{ source.consecutive_failures }}</span> · 时延 <span class="num">{{ latencyLabel(source.avg_latency_ms) }}</span> · {{ source.source_type }}
           </div>
           <div class="ops-diagnostics" data-role="ops-source-diagnostics">
-            <span v-if="source.last_http_status != null">HTTP {{ source.last_http_status }}</span>
-            <span>解析 {{ source.last_fetched_count ?? 0 }}</span>
-            <span>入库 {{ source.last_inserted_count ?? 0 }}</span>
-            <span>空批 {{ source.consecutive_empty_batches ?? 0 }}</span>
+            <span v-if="source.last_http_status != null">HTTP <span class="num">{{ source.last_http_status }}</span></span>
+            <span>解析 <span class="num">{{ source.last_fetched_count ?? 0 }}</span></span>
+            <span>入库 <span class="num">{{ source.last_inserted_count ?? 0 }}</span></span>
+            <span>空批 <span class="num">{{ source.consecutive_empty_batches ?? 0 }}</span></span>
           </div>
           <div v-if="source.last_error" class="ops-error-line" data-role="ops-source-error">
             {{ source.last_error }}
@@ -52,7 +52,7 @@ defineProps<{
         </div>
         <div class="ops-row-aside">
           <span class="text-[10px] uppercase tracking-[0.12em] text-text-faint">最近成功</span>
-          <span class="text-[11px] text-muted">{{ timeLabel(source.last_success_at) }}</span>
+          <span class="num text-[11px] text-muted">{{ timeLabel(source.last_success_at) }}</span>
         </div>
       </article>
     </div>
@@ -61,12 +61,8 @@ defineProps<{
 
 <style scoped>
 .ops-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
   border-radius: 18px;
   padding: 16px 16px;
-  backdrop-filter: blur(12px);
 }
 
 .ops-card-head {
@@ -82,7 +78,7 @@ defineProps<{
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: #ffb77d;
+  color: var(--warning);
 }
 
 .ops-card-title {
@@ -98,7 +94,7 @@ defineProps<{
   color: var(--muted);
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel-strong);
   padding: 4px 10px;
 }
 
@@ -124,7 +120,7 @@ defineProps<{
   gap: 12px;
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel-soft);
   padding: 10px 12px;
 }
 
@@ -161,7 +157,7 @@ defineProps<{
   margin-top: 4px;
   font-size: 11px;
   line-height: 1.4;
-  color: #ff8a9c;
+  color: var(--danger);
   word-break: break-word;
 }
 
@@ -169,25 +165,25 @@ defineProps<{
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--panel-strong);
   color: var(--text-soft);
 }
 
 .pill.ops-status-pill[data-status='ok'],
 .pill.ops-status-pill[data-status='not_modified'] {
-  background: rgba(57, 200, 132, 0.14);
-  color: #5bd49a;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .pill.ops-status-pill[data-status='empty'] {
-  background: rgba(255, 159, 47, 0.14);
-  color: #ffb25c;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .pill.ops-status-pill[data-status='parse_error'],
 .pill.ops-status-pill[data-status='http_error'] {
-  background: rgba(255, 111, 134, 0.14);
-  color: #ff8a9c;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .ops-mini-dot {
@@ -198,14 +194,8 @@ defineProps<{
   background: var(--muted);
 }
 
-.ops-mini-dot--ok { background: #39c884; box-shadow: 0 0 6px rgba(57, 200, 132, 0.5); }
-.ops-mini-dot--warning { background: #ff9f2f; box-shadow: 0 0 6px rgba(255, 159, 47, 0.5); }
-.ops-mini-dot--critical { background: #ff6f86; box-shadow: 0 0 6px rgba(255, 111, 134, 0.55); }
-.ops-mini-dot--neutral { background: #53c2ff; box-shadow: 0 0 6px rgba(83, 194, 255, 0.4); }
-
-/* 复用 pill 结构的严重红变体（main.css 未内置该色 pill） */
-.pill.ops-pill-crit {
-  background: rgba(255, 111, 134, 0.14);
-  color: #ff8a9c;
-}
+.ops-mini-dot--ok { background: var(--success); box-shadow: 0 0 6px color-mix(in srgb, var(--success) 50%, transparent); }
+.ops-mini-dot--warning { background: var(--warning); box-shadow: 0 0 6px color-mix(in srgb, var(--warning) 50%, transparent); }
+.ops-mini-dot--critical { background: var(--danger); box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 55%, transparent); }
+.ops-mini-dot--neutral { background: var(--system); box-shadow: 0 0 6px color-mix(in srgb, var(--system) 40%, transparent); }
 </style>

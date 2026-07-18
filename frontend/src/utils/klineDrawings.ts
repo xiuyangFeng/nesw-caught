@@ -6,15 +6,17 @@ import type {
   KlineDrawingTool,
   VersionedPersistedValue,
 } from '../types/api';
+import { readCssVar } from './cssVars';
 
 const STORAGE_VERSION = 1;
 
+// 画线工具默认色：JS 数据会喂给 SVG/canvas 渲染，统一走设计令牌（fallback 为既有视觉值）。
 const TOOL_DEFAULT_STYLE: Record<Exclude<KlineDrawingTool, 'select'>, KlineDrawingStyle> = {
-  trend_line: { color: '#ffb66d', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.18 },
-  horizontal_line: { color: '#7dd3fc', lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
-  price_range: { color: '#34d399', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.16 },
-  fibonacci_retracement: { color: '#c084fc', lineWidth: 1, lineStyle: 'solid', fillOpacity: 0.12 },
-  price_note: { color: '#fb7185', lineWidth: 2, lineStyle: 'solid', fillOpacity: 0 },
+  trend_line: { color: readCssVar('--warning', '#ffb66d'), lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.18 },
+  horizontal_line: { color: readCssVar('--system', '#7dd3fc'), lineWidth: 2, lineStyle: 'dashed', fillOpacity: 0 },
+  price_range: { color: readCssVar('--success', '#34d399'), lineWidth: 2, lineStyle: 'solid', fillOpacity: 0.16 },
+  fibonacci_retracement: { color: readCssVar('--ai', '#c084fc'), lineWidth: 1, lineStyle: 'solid', fillOpacity: 0.12 },
+  price_note: { color: readCssVar('--danger', '#fb7185'), lineWidth: 2, lineStyle: 'solid', fillOpacity: 0 },
 };
 
 function nowIso() {

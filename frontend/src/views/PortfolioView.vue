@@ -64,14 +64,14 @@ onMounted(() => {
 
 <template>
   <div class="grid gap-4" data-role="portfolio-view">
-    <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-[linear-gradient(135deg,rgba(19,27,39,0.96),rgba(10,15,24,0.98))] p-5 xl:flex-row xl:items-end xl:justify-between">
+    <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-panel p-5 xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.24em] text-[#ffb77d]">Portfolio</p>
+        <p class="text-[11px] uppercase tracking-[0.24em] text-accent">Portfolio</p>
         <h1 class="page-title mb-2">持仓 · 组合</h1>
         <p class="page-subtitle">按持仓量与成本核算实时盈亏，并把影响你最多钱的新闻排到最前。</p>
       </div>
       <button
-        class="w-fit rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.08)] px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-[#ffca97] transition hover:bg-[rgba(255,159,47,0.14)] disabled:cursor-progress disabled:opacity-60"
+        class="w-fit rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/20 disabled:cursor-progress disabled:opacity-60"
         :disabled="loading"
         data-role="portfolio-refresh"
         @click="loadPortfolio"
@@ -89,28 +89,28 @@ onMounted(() => {
     <template v-else-if="summary && hasHoldings">
       <!-- 汇总卡片 -->
       <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-role="portfolio-summary">
-        <article class="surface terminal-surface grid gap-1 rounded-[18px] p-4">
+        <article class="surface grid gap-1 rounded-[18px] p-4">
           <span class="text-[11px] uppercase tracking-[0.18em] text-muted">总市值</span>
-          <strong class="text-2xl text-text">{{ formatNumber(summary.total_market_value) }}</strong>
-          <span class="text-[11px] text-text-faint">{{ summary.priced_position_count }}/{{ summary.position_count }} 只有实时行情</span>
+          <strong class="num text-2xl text-text">{{ formatNumber(summary.total_market_value) }}</strong>
+          <span class="num text-[11px] text-text-faint">{{ summary.priced_position_count }}/{{ summary.position_count }} 只有实时行情</span>
         </article>
-        <article class="surface terminal-surface grid gap-1 rounded-[18px] p-4">
+        <article class="surface grid gap-1 rounded-[18px] p-4">
           <span class="text-[11px] uppercase tracking-[0.18em] text-muted">总未实现盈亏</span>
-          <strong class="text-2xl" :class="pnlToneClass(summary.total_unrealized_pnl)">
+          <strong class="num text-2xl" :class="pnlToneClass(summary.total_unrealized_pnl)">
             {{ formatSignedMoney(summary.total_unrealized_pnl) }}
           </strong>
-          <span class="text-[11px]" :class="pnlToneClass(summary.total_unrealized_pnl_percent)">
+          <span class="num text-[11px]" :class="pnlToneClass(summary.total_unrealized_pnl_percent)">
             {{ formatPercent(summary.total_unrealized_pnl_percent) }}
           </span>
         </article>
-        <article class="surface terminal-surface grid gap-1 rounded-[18px] p-4">
+        <article class="surface grid gap-1 rounded-[18px] p-4">
           <span class="text-[11px] uppercase tracking-[0.18em] text-muted">总成本</span>
-          <strong class="text-2xl text-text">{{ formatNumber(summary.total_cost_basis) }}</strong>
+          <strong class="num text-2xl text-text">{{ formatNumber(summary.total_cost_basis) }}</strong>
         </article>
-        <article class="surface terminal-surface grid gap-1 rounded-[18px] p-4">
+        <article class="surface grid gap-1 rounded-[18px] p-4">
           <span class="text-[11px] uppercase tracking-[0.18em] text-muted">持仓数量</span>
-          <strong class="text-2xl text-text">{{ summary.position_count }}</strong>
-          <span v-if="generatedAtLabel" class="text-[11px] text-text-faint">{{ generatedAtLabel }} 更新</span>
+          <strong class="num text-2xl text-text">{{ summary.position_count }}</strong>
+          <span v-if="generatedAtLabel" class="num text-[11px] text-text-faint">{{ generatedAtLabel }} 更新</span>
         </article>
       </section>
 
@@ -145,9 +145,9 @@ onMounted(() => {
                     <span class="text-[11px] text-muted">{{ position.display_name }}</span>
                   </RouterLink>
                 </td>
-                <td class="py-3 px-3 text-right font-mono text-text-soft">{{ formatNumber(position.position_size) }}</td>
-                <td class="py-3 px-3 text-right font-mono text-text-soft">{{ formatNumber(position.average_cost) }}</td>
-                <td class="py-3 px-3 text-right font-mono">
+                <td class="py-3 px-3 text-right font-mono tabular-nums text-text-soft">{{ formatNumber(position.position_size) }}</td>
+                <td class="py-3 px-3 text-right font-mono tabular-nums text-text-soft">{{ formatNumber(position.average_cost) }}</td>
+                <td class="py-3 px-3 text-right font-mono tabular-nums">
                   <span v-if="position.current_price !== null" class="text-text-soft">
                     {{ formatNumber(position.current_price) }}
                   </span>
@@ -155,14 +155,14 @@ onMounted(() => {
                     {{ position.price_status }}
                   </span>
                 </td>
-                <td class="py-3 px-3 text-right font-mono text-text-soft">{{ formatNumber(position.market_value) }}</td>
-                <td class="py-3 px-3 text-right font-mono" :class="pnlToneClass(position.unrealized_pnl)">
+                <td class="py-3 px-3 text-right font-mono tabular-nums text-text-soft">{{ formatNumber(position.market_value) }}</td>
+                <td class="py-3 px-3 text-right font-mono tabular-nums" :class="pnlToneClass(position.unrealized_pnl)">
                   <div class="grid gap-0.5">
                     <span>{{ formatSignedMoney(position.unrealized_pnl) }}</span>
                     <span class="text-[11px]">{{ formatPercent(position.unrealized_pnl_percent) }}</span>
                   </div>
                 </td>
-                <td class="py-3 pl-3 text-right font-mono text-text-soft">{{ weightLabel(position.weight) }}</td>
+                <td class="py-3 pl-3 text-right font-mono tabular-nums text-text-soft">{{ weightLabel(position.weight) }}</td>
               </tr>
             </tbody>
           </table>
@@ -185,11 +185,11 @@ onMounted(() => {
             class="grid gap-2 rounded-[16px] border border-border bg-white/[0.02] p-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
             data-role="weighted-news-item"
           >
-            <span class="font-mono text-[13px] text-[#ffb77d]">#{{ index + 1 }}</span>
+            <span class="num font-mono text-[13px] text-accent">#{{ index + 1 }}</span>
             <div class="grid gap-1">
               <RouterLink
                 :to="{ name: 'news-detail', params: { id: entry.news_item.id } }"
-                class="text-[14px] leading-snug text-text hover:text-[#ffca97]"
+                class="text-[14px] leading-snug text-text hover:text-accent"
               >
                 {{ entry.news_item.title }}
               </RouterLink>
@@ -200,7 +200,7 @@ onMounted(() => {
                 <span
                   v-for="sym in entry.symbols"
                   :key="sym"
-                  class="rounded-full border border-[#ff9f2f33] bg-[rgba(255,159,47,0.06)] px-2 py-0.5 font-mono text-[#ffca97]"
+                  class="rounded-full border border-accent/30 bg-accent/[0.06] px-2 py-0.5 font-mono text-accent"
                 >
                   {{ sym }}
                 </span>
@@ -209,7 +209,7 @@ onMounted(() => {
             </div>
             <div class="grid justify-items-end gap-0.5 text-right">
               <span class="text-[11px] uppercase tracking-[0.12em] text-muted">影响分</span>
-              <strong class="font-mono text-sm" :class="pnlToneClass(entry.signed_impact)">
+              <strong class="num font-mono text-sm" :class="pnlToneClass(entry.signed_impact)">
                 {{ entry.impact_score.toFixed(3) }}
               </strong>
             </div>
@@ -221,7 +221,7 @@ onMounted(() => {
     <SectionCard v-else-if="summary" title="尚无持仓" subtitle="为自选股填写持仓量与成本后，这里会展示组合盈亏">
       <p class="text-text-faint">
         前往
-        <RouterLink to="/watchlist" class="text-[#ffca97]">自选股</RouterLink>
+        <RouterLink to="/watchlist" class="text-accent">自选股</RouterLink>
         页，为任意标的填写「持仓量 / 成本」即可开始跟踪组合盈亏与加权新闻。
       </p>
     </SectionCard>

@@ -9,25 +9,25 @@ defineProps<{
 
 <template>
   <!-- LLM usage -->
-  <section class="ops-card" data-role="ops-llm">
+  <section class="surface ops-card" data-role="ops-llm">
     <div class="ops-card-head">
       <div>
         <p class="ops-eyebrow">Cost</p>
         <h2 class="ops-card-title">LLM 用量 · 近 {{ llmUsage?.window_hours ?? 24 }}h</h2>
       </div>
-      <span class="ops-count">{{ numberLabel(llmUsage?.call_count ?? 0) }} 次</span>
+      <span class="ops-count"><span class="num">{{ numberLabel(llmUsage?.call_count ?? 0) }}</span> 次</span>
     </div>
     <div class="ops-stat-grid">
       <div class="ops-stat">
-        <span class="ops-stat-val">{{ numberLabel(llmUsage?.total_tokens ?? 0) }}</span>
+        <span class="num ops-stat-val">{{ numberLabel(llmUsage?.total_tokens ?? 0) }}</span>
         <span class="ops-stat-label">总 tokens</span>
       </div>
       <div class="ops-stat">
-        <span class="ops-stat-val">{{ numberLabel(llmUsage?.prompt_tokens ?? 0) }}</span>
+        <span class="num ops-stat-val">{{ numberLabel(llmUsage?.prompt_tokens ?? 0) }}</span>
         <span class="ops-stat-label">prompt</span>
       </div>
       <div class="ops-stat">
-        <span class="ops-stat-val">{{ numberLabel(llmUsage?.completion_tokens ?? 0) }}</span>
+        <span class="num ops-stat-val">{{ numberLabel(llmUsage?.completion_tokens ?? 0) }}</span>
         <span class="ops-stat-label">completion</span>
       </div>
     </div>
@@ -38,7 +38,7 @@ defineProps<{
         class="ops-model-row"
       >
         <span class="truncate text-[12px] text-text-soft">{{ model.model_name }}</span>
-        <span class="text-[11px] text-muted">{{ numberLabel(model.total_tokens) }} tok · {{ model.call_count }} 次</span>
+        <span class="text-[11px] text-muted"><span class="num">{{ numberLabel(model.total_tokens) }}</span> tok · <span class="num">{{ model.call_count }}</span> 次</span>
       </div>
     </div>
     <div v-else class="ops-empty">近 24h 无 LLM 调用</div>
@@ -47,12 +47,8 @@ defineProps<{
 
 <style scoped>
 .ops-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
   border-radius: 18px;
   padding: 16px 16px;
-  backdrop-filter: blur(12px);
 }
 
 .ops-card-head {
@@ -68,7 +64,7 @@ defineProps<{
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: #ffb77d;
+  color: var(--warning);
 }
 
 .ops-card-title {
@@ -84,7 +80,7 @@ defineProps<{
   color: var(--muted);
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel-strong);
   padding: 4px 10px;
 }
 
@@ -108,7 +104,7 @@ defineProps<{
   gap: 2px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel-soft);
   padding: 10px 12px;
 }
 
@@ -132,7 +128,7 @@ defineProps<{
   gap: 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel-soft);
   padding: 8px 10px;
 }
 </style>

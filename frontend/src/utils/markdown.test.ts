@@ -19,7 +19,7 @@ describe('parseMarkdown', () => {
   it('parses inline code', () => {
     const raw = 'Run `npm run dev` to start.';
     const parsed = parseMarkdown(raw);
-    expect(parsed).toContain('<code class="px-1.5 py-0.5 bg-white/10 rounded font-mono text-[11px] text-yellow-300">npm run dev</code>');
+    expect(parsed).toContain('<code class="px-1.5 py-0.5 bg-white/10 rounded font-mono text-[11px] text-warning">npm run dev</code>');
   });
 
   it('parses lists', () => {

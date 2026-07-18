@@ -8,13 +8,13 @@ defineProps<{
 </script>
 
 <template>
-  <section class="ops-card" data-role="ops-x-sources">
+  <section class="surface ops-card" data-role="ops-x-sources">
     <div class="ops-card-head">
       <div>
         <p class="ops-eyebrow">Social</p>
         <h2 class="ops-card-title">X 数据源</h2>
       </div>
-      <span class="ops-count">{{ xSources.length }}</span>
+      <span class="num ops-count">{{ xSources.length }}</span>
     </div>
     <div v-if="xSources.length === 0" class="ops-empty">暂无 X 源记录</div>
     <div v-else class="grid gap-2">
@@ -30,13 +30,13 @@ defineProps<{
             <strong class="truncate text-[13px]">{{ x.provider_name }}</strong>
           </div>
           <div class="ops-meta">
-            成功率 {{ ratePct(x.success_rate) }} · 连败 {{ x.consecutive_failures }} · 时延 {{ latencyLabel(x.avg_latency_ms) }}
+            成功率 <span class="num">{{ ratePct(x.success_rate) }}</span> · 连败 <span class="num">{{ x.consecutive_failures }}</span> · 时延 <span class="num">{{ latencyLabel(x.avg_latency_ms) }}</span>
           </div>
           <div v-if="x.last_error" class="ops-error-line">最近错误：{{ x.last_error }}</div>
         </div>
         <div class="ops-row-aside">
           <span class="text-[10px] uppercase tracking-[0.12em] text-text-faint">最近成功</span>
-          <span class="text-[11px] text-muted">{{ timeLabel(x.last_success_at) }}</span>
+          <span class="num text-[11px] text-muted">{{ timeLabel(x.last_success_at) }}</span>
         </div>
       </article>
     </div>
@@ -45,12 +45,8 @@ defineProps<{
 
 <style scoped>
 .ops-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
   border-radius: 18px;
   padding: 16px 16px;
-  backdrop-filter: blur(12px);
 }
 
 .ops-card-head {
@@ -66,7 +62,7 @@ defineProps<{
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: #ffb77d;
+  color: var(--warning);
 }
 
 .ops-card-title {
@@ -82,7 +78,7 @@ defineProps<{
   color: var(--muted);
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel-strong);
   padding: 4px 10px;
 }
 
@@ -102,7 +98,7 @@ defineProps<{
   gap: 12px;
   border-radius: 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel-soft);
   padding: 10px 12px;
 }
 
@@ -124,7 +120,7 @@ defineProps<{
   margin-top: 4px;
   font-size: 11px;
   line-height: 1.5;
-  color: #ff8a9c;
+  color: var(--danger);
   word-break: break-word;
 }
 
@@ -136,8 +132,8 @@ defineProps<{
   background: var(--muted);
 }
 
-.ops-mini-dot--ok { background: #39c884; box-shadow: 0 0 6px rgba(57, 200, 132, 0.5); }
-.ops-mini-dot--warning { background: #ff9f2f; box-shadow: 0 0 6px rgba(255, 159, 47, 0.5); }
-.ops-mini-dot--critical { background: #ff6f86; box-shadow: 0 0 6px rgba(255, 111, 134, 0.55); }
-.ops-mini-dot--neutral { background: #53c2ff; box-shadow: 0 0 6px rgba(83, 194, 255, 0.4); }
+.ops-mini-dot--ok { background: var(--success); box-shadow: 0 0 6px color-mix(in srgb, var(--success) 50%, transparent); }
+.ops-mini-dot--warning { background: var(--warning); box-shadow: 0 0 6px color-mix(in srgb, var(--warning) 50%, transparent); }
+.ops-mini-dot--critical { background: var(--danger); box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 55%, transparent); }
+.ops-mini-dot--neutral { background: var(--system); box-shadow: 0 0 6px color-mix(in srgb, var(--system) 40%, transparent); }
 </style>

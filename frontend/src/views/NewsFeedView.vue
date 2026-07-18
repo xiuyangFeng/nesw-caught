@@ -495,11 +495,11 @@ watch(loadMoreSentinelRef, (node, previous) => {
           <transition name="fade-in">
             <div
               v-if="pendingNewItems.length > 0"
-              class="mb-3.5 flex items-center justify-between gap-3 rounded-md border border-border bg-[var(--accent-soft)] px-4 py-2.5 text-xs text-accent transition-colors hover:border-border-strong cursor-pointer select-none"
+              class="mb-3.5 flex items-center justify-between gap-3 rounded-md border border-border bg-[var(--accent-soft)] px-4 py-2.5 text-xs text-accent anim-fade-up transition-colors hover:border-border-strong cursor-pointer select-none"
               @click="applyPendingNews"
             >
               <div class="flex items-center gap-2">
-                <span class="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-glow animate-pulse"></span>
+                <span class="inline-block h-1.5 w-1.5 rounded-full bg-accent pulse-dot"></span>
                 <span>发现 <strong class="num">{{ pendingNewItems.length }}</strong> 条最新资讯</span>
               </div>
               <span class="font-semibold">点击置入 ↓</span>
@@ -520,6 +520,7 @@ watch(loadMoreSentinelRef, (node, previous) => {
               <NewsCard
                 v-for="entry in displayEntries"
                 :key="entry.item.id"
+                class="anim-fade-up"
                 :entry="entry"
                 variant="stream-compact"
                 :read="readIds.has(entry.item.id)"
@@ -563,30 +564,6 @@ watch(loadMoreSentinelRef, (node, previous) => {
 </template>
 
 <style scoped>
-/* 渐显动画 */
-.fade-in-enter-active,
-.fade-in-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-.fade-in-enter-from,
-.fade-in-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-/* 列表条目置入动效 */
-.list-fade-in-enter-active {
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.list-fade-in-enter-from {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-.list-fade-in-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
 .fold-toggle {
   width: 100%;
   padding: 10px;

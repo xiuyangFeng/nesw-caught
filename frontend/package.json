@@ -13,6 +13,8 @@
     "check:api-drift": "node scripts/generate-api.mjs --check"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "lightweight-charts": "^5.1.0",
     "pinia": "^3.0.1",
     "vue": "^3.5.13",

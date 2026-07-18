@@ -111,7 +111,7 @@ onMounted(() => {
   <div class="grid gap-4">
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-[#ffb77d]">Model Quality</p>
+        <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-accent">Model Quality</p>
         <h1 class="page-title">Sentiment Eval</h1>
         <p class="page-subtitle">
           情绪 / 利好利空分类评测闭环：对内置金标集即时评一遍，给出 per-label P/R/F1、混淆矩阵与两套模型配置的 A/B 对比。

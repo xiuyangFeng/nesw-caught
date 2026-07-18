@@ -263,8 +263,8 @@ onMounted(() => {
 
           <div class="mt-1 rounded-xl border border-border bg-white/[0.02] p-4">
             <div class="mb-1 flex items-center gap-2">
-              <span class="text-sm font-semibold text-[#3aa9f5]">告警治理</span>
-              <span class="rounded-full border border-[#3aa9f5]/40 bg-[#3aa9f5]/10 px-2 py-0.5 text-[10px] font-semibold text-[#3aa9f5]">
+              <span class="text-sm font-semibold text-system">告警治理</span>
+              <span class="rounded-full border border-system/40 bg-system/10 px-2 py-0.5 text-[10px] font-semibold text-system">
                 去重 · 免打扰 · 分级 · 合并
               </span>
             </div>
@@ -368,7 +368,7 @@ onMounted(() => {
 
           <div class="flex flex-wrap items-center gap-3">
             <button
-              class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-5 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              class="rounded-full bg-accent px-5 py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-50"
               type="submit"
               :disabled="!canSave || notifyStore.saving"
             >

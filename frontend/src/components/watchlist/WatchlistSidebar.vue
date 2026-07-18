@@ -43,7 +43,7 @@ const filteredRows = computed(() => {
         </div>
         <button
           type="button"
-          class="rounded-full bg-accent px-3.5 py-1.5 text-xs font-semibold text-[#04141a] transition hover:brightness-110"
+          class="rounded-full bg-accent px-3.5 py-1.5 text-xs font-semibold text-[var(--bg)] transition hover:brightness-110"
           data-role="watchlist-open-add-modal"
           @click="emit('openAddModal')"
         >

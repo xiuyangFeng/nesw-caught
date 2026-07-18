@@ -245,7 +245,7 @@ defineExpose({ startEdit });
 
       <div class="flex flex-wrap items-center gap-3 mt-1">
         <button
-          class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-5 py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          class="rounded-full bg-[linear-gradient(135deg,var(--system),var(--accent))] px-5 py-2.5 font-semibold text-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
           type="submit"
           :disabled="!canSave || llmStore.saving"
         >

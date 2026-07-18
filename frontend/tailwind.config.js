@@ -56,8 +56,8 @@ export default {
         'glow-ai': 'var(--glow-ai)',
       },
       fontFamily: {
-        sans: ['HarmonyOS Sans SC', 'Inter', 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'IBM Plex Mono', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: ['HarmonyOS Sans SC', 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       backgroundImage: {
         app: 'var(--bg-accent)',

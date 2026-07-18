@@ -153,7 +153,7 @@ onMounted(async () => {
         <SectionCard title="全部信息来源" subtitle="按来源分组，组内按时间倒序，支持原文直达和详情下钻">
           <template #actions>
             <div
-              class="flex flex-wrap items-center gap-2 rounded-[16px] border border-border/80 bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-2.5"
+              class="flex flex-wrap items-center gap-2 rounded-[16px] border border-border/80 bg-panel p-2.5"
               data-role="topic-toolbar"
               data-shell="topic-toolbar-shell"
             >
@@ -181,7 +181,7 @@ onMounted(async () => {
               </div>
               <button
                 class="rounded-full px-3 py-2 text-xs font-semibold"
-                :class="viewMode === 'grouped' ? 'bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] text-white' : 'bg-system/10 text-system'"
+                :class="viewMode === 'grouped' ? 'bg-accent text-bg' : 'bg-system/10 text-system'"
                 type="button"
                 @click="viewMode = 'grouped'"
               >
@@ -189,7 +189,7 @@ onMounted(async () => {
               </button>
               <button
                 class="rounded-full px-3 py-2 text-xs font-semibold"
-                :class="viewMode === 'timeline' ? 'bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] text-white' : 'bg-system/10 text-system'"
+                :class="viewMode === 'timeline' ? 'bg-accent text-bg' : 'bg-system/10 text-system'"
                 type="button"
                 @click="viewMode = 'timeline'"
               >
@@ -202,16 +202,16 @@ onMounted(async () => {
             <section
               v-for="group in sourceGroups"
               :key="group.sourceName"
-              class="grid gap-3 rounded-[16px] border border-border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-4"
+              class="grid gap-3 rounded-[16px] border border-border bg-panel p-4"
             >
               <header class="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
                 <div>
                   <strong>{{ group.sourceName }}</strong>
-                  <span class="block text-xs text-muted">{{ group.count }} 条来源</span>
+                  <span class="num block text-xs text-muted">{{ group.count }} 条来源</span>
                 </div>
                 <div class="grid gap-1 text-right text-xs text-muted">
-                  <span>首条：{{ formatMarketTime(group.firstPublishedAt, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
-                  <span>最新：{{ formatMarketTime(group.latestPublishedAt, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
+                  <span class="num">首条：{{ formatMarketTime(group.firstPublishedAt, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
+                  <span class="num">最新：{{ formatMarketTime(group.latestPublishedAt, detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
                 </div>
               </header>
               <div class="text-[13px] text-muted">{{ sentimentSummary(group.sentimentCounts) }}</div>
@@ -220,7 +220,7 @@ onMounted(async () => {
                   v-for="item in group.items"
                   :key="item.id"
                   class="grid gap-3 rounded-[18px] border bg-panel-stronger p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-system/25"
-                  :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_rgba(83,194,255,0.12)]' : 'border-border'"
+                  :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_var(--system-soft)]' : 'border-border'"
                   data-role="topic-source-card"
                   role="button"
                   tabindex="0"
@@ -229,7 +229,7 @@ onMounted(async () => {
                 >
                   <div class="mb-1 flex flex-wrap gap-2 text-xs text-muted">
                     <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
-                    <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
+                    <span class="num">{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                   </div>
                   <strong>{{ item.title }}</strong>
                   <p class="text-text-soft">{{ item.summary ?? '摘要待补充' }}</p>
@@ -257,20 +257,20 @@ onMounted(async () => {
             <article
               v-for="item in sortedSources"
               :key="item.id"
-              class="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5 rounded-[16px] border bg-[linear-gradient(180deg,rgba(11,18,28,0.96),rgba(8,14,23,0.96))] p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-[#ff9f2f4f]"
-              :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_rgba(83,194,255,0.12)]' : 'border-border'"
+              class="grid grid-cols-[14px_minmax(0,1fr)] gap-3.5 rounded-[16px] border bg-panel p-4 transition duration-150 ease-out hover:-translate-y-px hover:border-accent/40"
+              :class="isHighlighted(item) ? 'border-system/40 shadow-[0_10px_24px_var(--system-soft)]' : 'border-border'"
               data-role="topic-timeline-card"
               role="button"
               tabindex="0"
               @click="openNews(item.id)"
               @keydown.enter="openNews(item.id)"
             >
-              <div class="rounded-full bg-[linear-gradient(180deg,#ff9f2f,rgba(255,159,47,0.12))]" />
+              <div class="rounded-full bg-[linear-gradient(180deg,var(--accent),var(--accent-soft))]" />
               <div class="grid gap-2.5">
                 <div class="flex flex-wrap gap-2 text-xs text-muted">
                   <span class="pill" :class="item.sentiment_label">{{ sentimentText(item.sentiment_label) }}</span>
                   <span>{{ item.source_name }}</span>
-                  <span>{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
+                  <span class="num">{{ formatMarketTime(getNewsDisplayTimestamp(item), item.market) }} {{ getMarketTimezoneLabel(item.market) }}</span>
                 </div>
                 <strong>{{ item.title }}</strong>
                 <p class="text-text-soft">{{ item.summary ?? '摘要待补充' }}</p>

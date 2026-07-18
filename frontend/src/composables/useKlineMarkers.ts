@@ -3,13 +3,15 @@ import type { ISeriesApi } from 'lightweight-charts';
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import type { NewsEventMarker, NewsEventMarkerItem, StockKlineResponse } from '../types/api';
+import { readCssVar } from '../utils/cssVars';
 
+// canvas 标记无法消费 CSS 变量：模块加载时读取令牌计算值，无令牌环境(jsdom)回落到既定色。
 export const SENTIMENT_COLORS: Record<string, string> = {
-  positive: '#ff6f86',
-  negative: '#39c884',
-  neutral: '#3b82f6',
-  mixed: '#a855f7',
-  unknown: '#94a3b8',
+  positive: readCssVar('--positive', '#ff6f86'),
+  negative: readCssVar('--negative', '#39c884'),
+  neutral: readCssVar('--system', '#3b82f6'),
+  mixed: readCssVar('--ai', '#a855f7'),
+  unknown: readCssVar('--muted', '#94a3b8'),
 };
 
 export type ChartMarker = {
@@ -35,7 +37,7 @@ export function buildMarkers(events: NewsEventMarker[]): ChartMarker[] {
     return {
       time: event.time,
       position: 'belowBar' as const,
-      color: SENTIMENT_COLORS[dominant] ?? '#94a3b8',
+      color: SENTIMENT_COLORS[dominant] ?? SENTIMENT_COLORS.unknown,
       shape: 'circle' as const,
       text: `${event.items.length}`,
       size: Math.min(2 + event.items.length, 6),

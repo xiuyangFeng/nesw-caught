@@ -16,7 +16,7 @@ function replaceInline(str: string): string {
   return str
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-white/10 rounded font-mono text-[11px] text-yellow-300">$1</code>');
+    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-white/10 rounded font-mono text-[11px] text-warning">$1</code>');
 }
 
 function renderTable(rows: string[][]): string {

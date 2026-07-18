@@ -24,7 +24,7 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="fixed inset-0 z-40 flex items-center justify-center bg-[rgba(3,7,13,0.72)] px-4 py-8"
+    class="fixed inset-0 z-40 flex items-center justify-center bg-[color-mix(in_srgb,var(--bg)_72%,transparent)] px-4 py-8"
     :class="open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'"
     :aria-hidden="open ? 'false' : 'true'"
     aria-modal="true"
@@ -87,7 +87,7 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <section class="rounded-[20px] border border-border/80 bg-[rgba(255,255,255,0.02)] p-4">
+        <section class="rounded-[20px] border border-border/80 bg-panel-soft p-4">
           <p class="text-[10px] uppercase tracking-[0.2em] text-accent">Selection</p>
           <div v-if="selectedCandidate" class="mt-3 grid gap-3">
             <div class="rounded-md border border-accent/40 bg-accent/10 p-4">
@@ -135,7 +135,7 @@ const emit = defineEmits<{
             </button>
             <button
               type="button"
-              class="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[#04141a] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!selectedCandidate || createLoading"
               data-role="watchlist-add-submit"
               @click="emit('submit')"

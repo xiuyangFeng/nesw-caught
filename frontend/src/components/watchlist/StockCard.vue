@@ -60,8 +60,8 @@ const toneClass = computed(() => {
           </span>
           <!-- 雷达警报灯 -->
           <div v-if="row.has_hot_alert" class="relative flex h-2 w-2 shrink-0 ml-1" title="12小时内有重大警报新闻">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-red-600 shadow-[0_0_8px_#ef4444]"></span>
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-danger shadow-[0_0_8px_var(--danger)]"></span>
           </div>
           <!-- 距财报角标：数据来自 /calendar 接口，无未来财报则不显示 -->
           <span
@@ -120,10 +120,10 @@ const toneClass = computed(() => {
 @keyframes stock-card-earnings-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 rgba(255, 207, 90, 0);
+    box-shadow: 0 0 0 color-mix(in srgb, var(--warning) 0%, transparent);
   }
   50% {
-    box-shadow: 0 0 10px rgba(255, 207, 90, 0.4);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--warning) 40%, transparent);
   }
 }
 

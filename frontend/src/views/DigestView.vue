@@ -55,7 +55,7 @@ onMounted(() => {
             class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition"
             :class="
               digestStore.marketScope === option.value
-                ? 'border-[#ff9f2f55] bg-white/[0.06] text-text'
+                ? 'border-accent/40 bg-accent/10 text-text'
                 : 'border-border bg-white/[0.02] text-muted hover:border-system/20 hover:text-text'
             "
             :disabled="digestStore.generating"
@@ -65,7 +65,7 @@ onMounted(() => {
           </button>
         </div>
         <button
-          class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-5 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          class="rounded-full bg-accent px-5 py-2 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-50"
           data-role="digest-generate-button"
           :disabled="digestStore.generating"
           @click="handleGenerate"

@@ -21,7 +21,7 @@ function openTopic(topicId: number) {
     <article
       v-for="topic in topics"
       :key="topic.id"
-      class="terminal-surface cursor-pointer rounded-lg border border-border p-4 transition duration-150 ease-out hover:-translate-y-0.5 hover:border-accent/40"
+      class="surface topic-card cursor-pointer rounded-lg border border-border p-4 transition duration-150 ease-out hover:-translate-y-0.5 hover:border-accent/40"
       data-surface="terminal-card"
       role="button"
       tabindex="0"

@@ -143,7 +143,7 @@ onMounted(async () => {
 
     <StatusBanner :title="bannerTitle" :tone="bannerTone" :detail="bannerDetail">
       <button
-        class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+        class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
         type="button"
         :disabled="xMonitorStore.refreshLoading"
         @click="xMonitorStore.refreshPosts()"
@@ -161,7 +161,7 @@ onMounted(async () => {
       <div class="grid gap-4">
         <SectionCard title="Priority Radar" subtitle="按优先级排序的早期异动信号，而不是原始帖子时间流">
           <LoadingBlock :loading="xMonitorStore.radarLoading || xMonitorStore.healthLoading" :empty="prioritySignals.length === 0" empty-text="当前还没有优先异动信号">
-            <div class="mb-3 grid gap-1.5 rounded-[14px] border-l-[3px] border-l-system bg-[linear-gradient(135deg,rgba(15,27,40,0.96),rgba(10,19,31,0.86))] px-4 py-3" data-role="feed-summary">
+            <div class="mb-3 grid gap-1.5 rounded-[14px] border-l-[3px] border-l-system bg-panel-strong px-4 py-3" data-role="feed-summary">
               <p class="m-0 text-[0.68rem] uppercase tracking-[0.14em] text-system">Radar Status</p>
               <p class="m-0 text-[1.05rem] leading-[1.45]" data-role="feed-summary-title">{{ signalSummaryTitle }}</p>
               <p class="m-0 text-[0.8rem] leading-[1.45] text-text-faint" data-role="feed-summary-detail">{{ feedSummaryDetail }}</p>
@@ -187,9 +187,9 @@ onMounted(async () => {
                 <p class="m-0 text-sm leading-6 text-text-soft">{{ signal.summary }}</p>
                 <div class="flex flex-wrap gap-2 text-xs text-text-faint">
                   <span>信号类型 {{ signal.signal_type }}</span>
-                  <span>来源 {{ signal.source_count }} 个</span>
-                  <span>置信度 {{ signal.confidence_score.toFixed(2) }}</span>
-                  <span>最近时间 {{ formatMarketTime(signal.last_seen_at, signal.market) }} {{ getMarketTimezoneLabel(signal.market) }}</span>
+                  <span class="num">来源 {{ signal.source_count }} 个</span>
+                  <span class="num">置信度 {{ signal.confidence_score.toFixed(2) }}</span>
+                  <span class="num">最近时间 {{ formatMarketTime(signal.last_seen_at, signal.market) }} {{ getMarketTimezoneLabel(signal.market) }}</span>
                 </div>
               </article>
             </div>
@@ -219,7 +219,7 @@ onMounted(async () => {
         <SectionCard title="Evidence Feed" subtitle="原始帖子作为证据层保留，便于快速核查上下文">
           <LoadingBlock :loading="xMonitorStore.loading || xMonitorStore.healthLoading" :empty="visiblePosts.length === 0" empty-text="当前没有可展示的 X 帖子">
             <div
-              class="grid rounded-2xl border border-system/10 bg-[rgba(10,18,29,0.58)] shell:max-h-[clamp(420px,56vh,720px)] shell:overflow-y-auto"
+              class="grid rounded-2xl border border-system/10 bg-panel-strong/60 shell:max-h-[clamp(420px,56vh,720px)] shell:overflow-y-auto"
               data-role="post-feed"
             >
               <article
@@ -232,7 +232,7 @@ onMounted(async () => {
                   <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                     <strong>{{ post.account_display_name }}</strong>
                     <span class="text-text-faint">@{{ post.account_handle }}</span>
-                    <span class="text-text-faint">{{ formatMarketTime(post.posted_at ?? post.captured_at, post.market) }} {{ getMarketTimezoneLabel(post.market) }}</span>
+                    <span class="num text-text-faint">{{ formatMarketTime(post.posted_at ?? post.captured_at, post.market) }} {{ getMarketTimezoneLabel(post.market) }}</span>
                     <span class="text-text-faint">{{ post.market.toUpperCase() }}</span>
                   </div>
                   <span class="pill" :class="post.sentiment_label">{{ sentimentText(post.sentiment_label) }}</span>
@@ -240,7 +240,7 @@ onMounted(async () => {
                 <p class="m-0 text-[0.92rem] leading-[1.45] text-text-soft">{{ post.content_text }}</p>
                 <div class="flex flex-wrap items-center gap-2.5">
                   <button
-                    class="rounded-full border border-system/25 bg-[rgba(16,31,45,0.92)] px-3 py-1.5 text-[0.82rem] font-semibold text-[#d7f1ff] disabled:cursor-not-allowed disabled:opacity-60"
+                    class="rounded-full border border-system/25 bg-system/10 px-3 py-1.5 text-[0.82rem] font-semibold text-system disabled:cursor-not-allowed disabled:opacity-60"
                     data-role="translate-button"
                     type="button"
                     :disabled="translationState(post).status === 'loading'"
@@ -248,15 +248,15 @@ onMounted(async () => {
                   >
                     {{ translationState(post).status === 'loading' ? '翻译中...' : '翻译' }}
                   </button>
-                  <p v-if="translationState(post).status === 'error' && translationState(post).error" class="m-0 text-[0.84rem] text-[#fca5a5]">
+                  <p v-if="translationState(post).status === 'error' && translationState(post).error" class="m-0 text-[0.84rem] text-danger">
                     {{ translationState(post).error }}
                   </p>
                 </div>
-                <p v-if="translationState(post).status === 'success' && translationState(post).translated_text" class="m-0 text-[0.84rem] text-[#d9edf8]">
+                <p v-if="translationState(post).status === 'success' && translationState(post).translated_text" class="m-0 text-[0.84rem] text-text-soft">
                   {{ translationState(post).translated_text }}
                 </p>
                 <div class="mt-0 flex flex-wrap gap-2 text-[0.82rem] text-muted">
-                  <span>相关度 {{ post.relevance_score?.toFixed(2) ?? '--' }}</span>
+                  <span class="num">相关度 {{ post.relevance_score?.toFixed(2) ?? '--' }}</span>
                   <span v-if="post.symbols.length > 0">{{ post.symbols.join(' · ') }}</span>
                   <span v-else>暂无股票命中</span>
                   <a v-if="post.canonical_url" :href="post.canonical_url" target="_blank" rel="noreferrer">打开原帖</a>
@@ -368,7 +368,7 @@ onMounted(async () => {
             </div>
             <div class="flex justify-end">
               <button
-                class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+                class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
                 type="submit"
                 :disabled="xMonitorStore.accountMutationLoading || !createForm.handle.trim() || !createForm.display_name.trim()"
               >
@@ -403,7 +403,7 @@ onMounted(async () => {
                   {{ account.is_active ? '停用' : '启用' }}
                 </button>
                 <button
-                  class="rounded-full border border-[#7f1d1d] bg-[rgba(69,16,16,0.6)] px-3 py-1.5 text-sm text-[#fecaca]"
+                  class="rounded-full border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger"
                   data-role="delete-account"
                   type="button"
                   @click="removeAccount(account.handle)"
@@ -421,7 +421,7 @@ onMounted(async () => {
       <form class="flex items-center gap-2.5" @submit.prevent="xMonitorStore.searchPosts()">
         <input v-model.trim="xMonitorStore.searchQuery" class="flex-1 rounded-xl border border-border bg-field px-3 py-2.5 text-text" type="search" placeholder="输入关键词、ticker 或组合查询" />
         <button
-          class="rounded-full bg-[linear-gradient(135deg,#1768c2,#3aa9f5)] px-[14px] py-2.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+          class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
           type="submit"
           :disabled="xMonitorStore.searchLoading || !xMonitorStore.searchQuery.trim()"
         >
@@ -446,7 +446,7 @@ onMounted(async () => {
             <p class="m-0 text-text-soft">{{ post.content_text }}</p>
             <div class="flex flex-wrap items-center gap-2.5">
               <button
-                class="rounded-full border border-system/25 bg-[rgba(16,31,45,0.92)] px-3 py-1.5 text-[0.82rem] font-semibold text-[#d7f1ff] disabled:cursor-not-allowed disabled:opacity-60"
+                class="rounded-full border border-system/25 bg-system/10 px-3 py-1.5 text-[0.82rem] font-semibold text-system disabled:cursor-not-allowed disabled:opacity-60"
                 data-role="translate-button"
                 type="button"
                 :disabled="translationState(post).status === 'loading'"
@@ -454,15 +454,15 @@ onMounted(async () => {
               >
                 {{ translationState(post).status === 'loading' ? '翻译中...' : '翻译' }}
               </button>
-              <p v-if="translationState(post).status === 'error' && translationState(post).error" class="m-0 text-[0.84rem] text-[#fca5a5]">
+              <p v-if="translationState(post).status === 'error' && translationState(post).error" class="m-0 text-[0.84rem] text-danger">
                 {{ translationState(post).error }}
               </p>
             </div>
-            <p v-if="translationState(post).status === 'success' && translationState(post).translated_text" class="m-0 text-[0.84rem] text-[#d9edf8]">
+            <p v-if="translationState(post).status === 'success' && translationState(post).translated_text" class="m-0 text-[0.84rem] text-text-soft">
               {{ translationState(post).translated_text }}
             </p>
             <div class="flex flex-wrap gap-2 text-muted">
-              <span>{{ formatMarketTime(post.posted_at ?? post.captured_at, post.market) }} {{ getMarketTimezoneLabel(post.market) }}</span>
+              <span class="num">{{ formatMarketTime(post.posted_at ?? post.captured_at, post.market) }} {{ getMarketTimezoneLabel(post.market) }}</span>
               <span>{{ post.market.toUpperCase() }}</span>
             </div>
             <div class="flex flex-wrap gap-2 text-muted">

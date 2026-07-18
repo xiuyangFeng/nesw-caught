@@ -98,7 +98,7 @@ const displayPercentage = computed(() => {
         <path
           d="M 6 100 A 94 94 0 0 1 194 100"
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="color-mix(in srgb, var(--text) 8%, transparent)"
           stroke-width="1.5"
           stroke-dasharray="2, 6"
         />
@@ -107,7 +107,7 @@ const displayPercentage = computed(() => {
         <path
           d="M 20 100 A 80 80 0 0 1 180 100"
           fill="none"
-          stroke="rgba(255,255,255,0.06)"
+          stroke="color-mix(in srgb, var(--text) 6%, transparent)"
           stroke-width="12"
           stroke-linecap="round"
         />
@@ -127,12 +127,12 @@ const displayPercentage = computed(() => {
         <path
           d="M 32 100 A 68 68 0 0 1 168 100"
           fill="none"
-          stroke="rgba(255,255,255,0.05)"
+          stroke="color-mix(in srgb, var(--text) 5%, transparent)"
           stroke-width="1"
         />
 
         <!-- 中心枢轴 -->
-        <circle cx="100" cy="100" r="14" fill="rgba(11,18,28,0.9)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+        <circle cx="100" cy="100" r="14" fill="var(--panel)" fill-opacity="0.9" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="1" />
         <circle cx="100" cy="100" r="6" fill="var(--text)" />
 
         <!-- 指针组合组 (带有旋转动效和尖端发光) -->
@@ -149,7 +149,7 @@ const displayPercentage = computed(() => {
             y1="100"
             x2="100"
             y2="34"
-            stroke="#ffffff"
+            stroke="var(--text)"
             stroke-width="2.5"
             stroke-linecap="round"
           />

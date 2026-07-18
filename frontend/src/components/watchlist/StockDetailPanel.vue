@@ -218,7 +218,7 @@ async function copyInsight() {
           <div v-if="aiInsight?.text" class="flex items-center gap-2">
             <!-- 一键复制 -->
             <button
-              class="rounded-lg bg-purple-500/10 hover:bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-400 font-semibold transition-colors flex items-center gap-1 active:scale-95"
+              class="rounded-lg bg-ai/10 hover:bg-ai/20 px-2.5 py-1 text-[11px] text-ai font-semibold transition-colors flex items-center gap-1 active:scale-95"
               type="button"
               @click="copyInsight"
             >
@@ -253,10 +253,10 @@ async function copyInsight() {
           <!-- 加载中 -->
           <div v-else-if="aiInsight.loading" class="flex flex-col items-center justify-center py-8">
             <div class="relative h-9 w-9">
-              <div class="absolute inset-0 rounded-full border-2 border-purple-500/20" />
-              <div class="absolute inset-0 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+              <div class="absolute inset-0 rounded-full border-2 border-ai/20" />
+              <div class="absolute inset-0 rounded-full border-2 border-ai border-t-transparent animate-spin" />
             </div>
-            <p class="text-xs text-purple-400 font-semibold mt-4 animate-pulse">
+            <p class="text-xs text-ai font-semibold mt-4 animate-pulse">
               正在汇聚近期新闻并生成 AI 研判报告…
             </p>
           </div>

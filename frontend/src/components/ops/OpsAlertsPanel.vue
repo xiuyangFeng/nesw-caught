@@ -51,20 +51,20 @@ defineProps<{
 }
 
 .ops-signal-dot--ok {
-  background: #39c884;
-  box-shadow: 0 0 10px rgba(57, 200, 132, 0.5);
+  background: var(--success);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 50%, transparent);
   animation: ops-breathe-ok 2.4s ease-in-out infinite;
 }
 
 .ops-signal-dot--warning {
-  background: #ff9f2f;
-  box-shadow: 0 0 12px rgba(255, 159, 47, 0.55);
+  background: var(--warning);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--warning) 55%, transparent);
   animation: ops-breathe-warn 1.6s ease-in-out infinite;
 }
 
 .ops-signal-dot--critical {
-  background: #ff6f86;
-  box-shadow: 0 0 14px rgba(255, 111, 134, 0.65);
+  background: var(--danger);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--danger) 65%, transparent);
   animation: ops-breathe-crit 1s ease-in-out infinite;
 }
 
@@ -90,23 +90,23 @@ defineProps<{
   gap: 12px;
   border-radius: 16px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--panel);
   padding: 12px 14px;
 }
 
 .ops-alert--ok {
-  border-color: rgba(57, 200, 132, 0.24);
-  background: rgba(57, 200, 132, 0.06);
+  border-color: color-mix(in srgb, var(--success) 24%, transparent);
+  background: color-mix(in srgb, var(--success) 6%, transparent);
 }
 
 .ops-alert--warning {
-  border-color: rgba(255, 159, 47, 0.34);
-  background: linear-gradient(90deg, rgba(255, 159, 47, 0.1) 0%, rgba(255, 159, 47, 0.02) 60%, rgba(255, 255, 255, 0.025) 100%);
+  border-color: color-mix(in srgb, var(--warning) 34%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--warning) 10%, transparent) 0%, color-mix(in srgb, var(--warning) 2%, transparent) 60%, var(--panel) 100%);
 }
 
 .ops-alert--critical {
-  border-color: rgba(255, 111, 134, 0.4);
-  background: linear-gradient(90deg, rgba(255, 111, 134, 0.12) 0%, rgba(255, 111, 134, 0.03) 60%, rgba(255, 255, 255, 0.025) 100%);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--danger) 12%, transparent) 0%, color-mix(in srgb, var(--danger) 3%, transparent) 60%, var(--panel) 100%);
 }
 
 .ops-alert-level {
@@ -119,17 +119,17 @@ defineProps<{
 }
 
 .ops-alert-level--warning {
-  background: rgba(255, 159, 47, 0.16);
-  color: #ffb264;
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
 }
 
 .ops-alert-level--critical {
-  background: rgba(255, 111, 134, 0.16);
-  color: #ff8a9c;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
 }
 
 .ops-alert-code {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--system);
 }

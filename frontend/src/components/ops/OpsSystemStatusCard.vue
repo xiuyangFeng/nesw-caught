@@ -9,7 +9,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="ops-card" data-role="ops-event-bus">
+  <section class="surface ops-card" data-role="ops-event-bus">
     <div class="ops-card-head">
       <div>
         <p class="ops-eyebrow">Streaming</p>
@@ -18,7 +18,7 @@ defineProps<{
       <span
         v-if="eventBus"
         class="pill"
-        :class="eventBus.status === 'ok' ? 'success' : 'ops-pill-warn'"
+        :class="eventBus.status === 'ok' ? 'success' : 'warning ops-pill-warn'"
       >
         {{ eventBus.status }}
       </span>
@@ -27,22 +27,22 @@ defineProps<{
       <div class="ops-kv"><span>backend</span><span>{{ eventBus.backend }}</span></div>
       <div class="ops-kv"><span>redis</span><span>{{ eventBus.redis_enabled ? '已启用' : '未启用' }}</span></div>
       <div class="ops-kv"><span>最近事件</span><span>{{ eventBus.last_event_name ?? '--' }}</span></div>
-      <div class="ops-kv"><span>最近发布</span><span>{{ timeLabel(eventBus.last_published_at) }}</span></div>
+      <div class="ops-kv"><span>最近发布</span><span class="num">{{ timeLabel(eventBus.last_published_at) }}</span></div>
       <div v-if="eventBus.last_error" class="ops-error-line">错误：{{ eventBus.last_error }}</div>
     </div>
     <div v-else class="ops-empty">加载中…</div>
   </section>
 
-  <section class="ops-card" data-role="ops-database">
+  <section class="surface ops-card" data-role="ops-database">
     <div class="ops-card-head">
       <div>
         <p class="ops-eyebrow">Storage</p>
         <h2 class="ops-card-title">数据库体积</h2>
       </div>
-      <span v-if="database" class="ops-count">{{ database.size_mb.toFixed(2) }} MB</span>
+      <span v-if="database" class="num ops-count">{{ database.size_mb.toFixed(2) }} MB</span>
     </div>
     <div v-if="database" class="grid gap-1.5 text-[12px] text-text-soft">
-      <div class="ops-kv"><span>字节</span><span>{{ numberLabel(database.size_bytes) }}</span></div>
+      <div class="ops-kv"><span>字节</span><span class="num">{{ numberLabel(database.size_bytes) }}</span></div>
       <div class="ops-kv"><span>存在</span><span>{{ database.exists ? '是' : '否' }}</span></div>
       <div v-if="database.path" class="ops-db-path">{{ database.path }}</div>
     </div>
@@ -52,12 +52,8 @@ defineProps<{
 
 <style scoped>
 .ops-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
   border-radius: 18px;
   padding: 16px 16px;
-  backdrop-filter: blur(12px);
 }
 
 .ops-card-head {
@@ -73,7 +69,7 @@ defineProps<{
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: #ffb77d;
+  color: var(--warning);
 }
 
 .ops-card-title {
@@ -89,7 +85,7 @@ defineProps<{
   color: var(--muted);
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel-strong);
   padding: 4px 10px;
 }
 
@@ -106,7 +102,7 @@ defineProps<{
   margin-top: 4px;
   font-size: 11px;
   line-height: 1.5;
-  color: #ff8a9c;
+  color: var(--danger);
   word-break: break-word;
 }
 
@@ -126,15 +122,9 @@ defineProps<{
 
 .ops-db-path {
   margin-top: 2px;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   color: var(--muted);
   word-break: break-all;
-}
-
-/* 复用 pill 结构的告警橙变体（main.css 未内置橙色 pill） */
-.pill.ops-pill-warn {
-  background: rgba(255, 159, 47, 0.14);
-  color: #ffb264;
 }
 </style>

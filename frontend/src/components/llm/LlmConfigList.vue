@@ -56,7 +56,7 @@ async function handleToggleActive(id: number, currentActive: boolean) {
         v-for="cfg in llmStore.configs"
         :key="cfg.id ?? 0"
         class="relative flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-[20px] border border-border/80 bg-white/[0.02] p-4.5 transition duration-150 hover:border-border hover:bg-white/[0.03]"
-        :class="cfg.is_default ? 'border-[#ff9f2f3a] bg-[#ff9f2f04]' : ''"
+        :class="cfg.is_default ? 'border-warning/25 bg-warning/[0.02]' : ''"
       >
         <div class="flex items-start gap-3.5">
           <!-- 状态呼吸灯 -->
@@ -75,7 +75,7 @@ async function handleToggleActive(id: number, currentActive: boolean) {
               </span>
               <span
                 v-if="cfg.is_default"
-                class="rounded-full bg-[linear-gradient(135deg,#ff9f2f,#ff7e00)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm"
+                class="rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--bg)] shadow-sm"
               >
                 默认
               </span>
@@ -87,13 +87,13 @@ async function handleToggleActive(id: number, currentActive: boolean) {
               </span>
               <span
                 v-else-if="llmStore.pingStatuses[cfg.id!]?.latency != null"
-                class="rounded-full px-2 py-0.5 text-[10px] font-bold font-mono tracking-wider shadow-sm text-success bg-success/10 border border-success/30 shadow-[0_0_8px_rgba(126,216,158,0.15)]"
+                class="rounded-full px-2 py-0.5 text-[10px] font-bold font-mono tabular-nums tracking-wider shadow-sm text-success bg-success/10 border border-success/30 shadow-[0_0_8px_var(--success-soft)]"
               >
                 {{ llmStore.pingStatuses[cfg.id!].latency }} ms
               </span>
               <span
                 v-else-if="llmStore.pingStatuses[cfg.id!]?.error != null"
-                class="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider text-danger bg-danger/10 border border-danger/30 shadow-[0_0_8px_rgba(239,123,123,0.15)] cursor-help"
+                class="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider text-danger bg-danger/10 border border-danger/30 shadow-[0_0_8px_var(--danger-soft)] cursor-help"
                 :title="llmStore.pingStatuses[cfg.id!].error!"
               >
                 连接失败
@@ -129,14 +129,14 @@ async function handleToggleActive(id: number, currentActive: boolean) {
           <button
             class="rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
             type="button"
-            :class="cfg.is_active ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400' : 'bg-success/10 hover:bg-success/20 text-success'"
+            :class="cfg.is_active ? 'bg-warning/10 hover:bg-warning/20 text-warning' : 'bg-success/10 hover:bg-success/20 text-success'"
             @click="handleToggleActive(cfg.id!, cfg.is_active ?? false)"
           >
             {{ cfg.is_active ? '禁用' : '启用' }}
           </button>
           <button
             v-if="cfg.is_active && !cfg.is_default"
-            class="rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition"
+            class="rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-system/10 hover:bg-system/20 text-system transition"
             type="button"
             @click="handleSetDefault(cfg.id!)"
           >
