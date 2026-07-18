@@ -401,16 +401,16 @@ describe('apiClient.getNewsEventDetail', () => {
     const response = await apiClient.getNewsEventDetail('topic-1');
 
     expect(fetch).toHaveBeenCalledWith('/api/news/events/topic-1', {
-      method: 'GET',
       headers: {
         Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
     });
     expect(response.degraded).toBe(false);
     expect(response.data.event_key).toBe('topic-1');
   });
 
-  it('preserves backend 404 errors for the caller', async () => {
+  it('falls back to mock event detail when the backend 404s, like other read endpoints', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -420,13 +420,13 @@ describe('apiClient.getNewsEventDetail', () => {
       }),
     );
 
-    await expect(apiClient.getNewsEventDetail('topic-504')).rejects.toMatchObject({
-      message: 'event not found',
-      status: 404,
-    });
+    const response = await apiClient.getNewsEventDetail('topic-504');
+
+    expect(response.degraded).toBe(true);
+    expect(response.data.event_key).toBe('topic-504');
   });
 
-  it('preserves backend 500 errors for the caller', async () => {
+  it('falls back to mock event detail when the backend 500s, like other read endpoints', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -436,18 +436,28 @@ describe('apiClient.getNewsEventDetail', () => {
       }),
     );
 
-    await expect(apiClient.getNewsEventDetail('topic-504')).rejects.toMatchObject({
-      message: 'event detail rebuild failed',
-      status: 500,
-    });
+    const response = await apiClient.getNewsEventDetail('topic-504');
+
+    expect(response.degraded).toBe(true);
+    expect(response.data.event_key).toBe('topic-504');
   });
 
-  it('surfaces network failures instead of falling back to mock data', async () => {
+  it('falls back to mock event detail on network failures in dev builds', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network offline')));
 
-    await expect(apiClient.getNewsEventDetail('topic-1')).rejects.toMatchObject({
-      message: 'network offline',
-    });
+    const response = await apiClient.getNewsEventDetail('topic-1');
+
+    expect(response.degraded).toBe(true);
+    expect(response.data.event_key).toBeTruthy();
+  });
+
+  it('propagates event detail failures instead of serving mock data when not in dev', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.getNewsEventDetail('topic-1')).rejects.toThrow('backend offline');
+
+    vi.unstubAllEnvs();
   });
 });
 

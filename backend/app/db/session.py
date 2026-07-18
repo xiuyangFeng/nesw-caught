@@ -15,6 +15,12 @@ engine = create_engine(settings.database_url, future=True, connect_args=_connect
 def set_sqlite_pragma(dbapi_connection, connection_record):
     if settings.database_url.startswith("sqlite"):
         cursor = dbapi_connection.cursor()
+        # auto_vacuum 只在“空库”状态下设置才会生效，且必须排在 journal_mode=WAL
+        # 之前——WAL 会先落一次写入，令库不再是空库，导致该 pragma 变成空操作。
+        # 新库从第一次连接起就是 incremental 模式，才能让 cleanup.py 的
+        # PRAGMA incremental_vacuum 真正回收空间；既有库需要 VACUUM 才能切换模式，
+        # 见 alembic revision f3a7c1e9b5d2。
+        cursor.execute("PRAGMA auto_vacuum=INCREMENTAL")
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA busy_timeout=30000")

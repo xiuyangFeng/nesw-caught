@@ -8,6 +8,7 @@ import { isStale } from '../utils/time';
 export const useTopicStore = defineStore('topicStore', () => {
   const topics = ref<TopicItem[]>([]);
   const loading = ref(false);
+  const error = ref<string | null>(null);
   const usingMock = ref(false);
   const lastLoadedAt = ref<string | null>(null);
   const detailMap = ref<Record<number, TopicDetail | null>>({});
@@ -18,11 +19,18 @@ export const useTopicStore = defineStore('topicStore', () => {
 
   async function loadTopics() {
     loading.value = true;
-    const response = await apiClient.getTopics();
-    topics.value = response.data;
-    usingMock.value = response.degraded;
-    lastLoadedAt.value = new Date().toISOString();
-    loading.value = false;
+    error.value = null;
+    try {
+      const response = await apiClient.getTopics();
+      topics.value = response.data;
+      usingMock.value = response.degraded;
+      lastLoadedAt.value = new Date().toISOString();
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '话题加载失败';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
   }
 
   function upsertTopic(topic: TopicItem) {
@@ -47,6 +55,7 @@ export const useTopicStore = defineStore('topicStore', () => {
     topics,
     detailMap,
     loading,
+    error,
     detailLoading,
     usingMock,
     lastLoadedAt,

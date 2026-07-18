@@ -149,12 +149,6 @@ vi.mock('../components/watchlist/KlineChart.vue', () => ({
   },
 }));
 
-vi.mock('../components/watchlist/IndicatorChart.vue', () => ({
-  default: {
-    template: '<section data-role="indicator-chart-stub"></section>',
-  },
-}));
-
 vi.mock('../components/watchlist/RelatedNewsSidebar.vue', () => ({
   default: {
     props: ['items', 'highlightedEventTime'],

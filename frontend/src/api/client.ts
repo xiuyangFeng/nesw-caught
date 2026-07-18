@@ -129,19 +129,10 @@ export const apiClient = {
     );
   },
   getNewsEventDetail(eventKey: string) {
-    return fetch(`/api/news/events/${eventKey}`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new HttpError((await response.json()).detail ?? 'event not found', response.status);
-        }
-        return response.json() as Promise<NewsEventDetail>;
-      })
-      .then((data) => ({ data, degraded: false }));
+    return withMockFallback<NewsEventDetail>(
+      () => getJson(`/api/news/events/${eventKey}`),
+      (mock) => mock.mockNewsEventDetails[eventKey] ?? Object.values(mock.mockNewsEventDetails)[0],
+    );
   },
   getNewsDetail(id: number) {
     return withMockFallback<NewsDetail | null>(

@@ -8,6 +8,7 @@ import { isStale } from '../utils/time';
 export const useMarketStore = defineStore('marketStore', () => {
   const snapshots = ref<MarketSnapshot[]>([]);
   const loading = ref(false);
+  const error = ref<string | null>(null);
   const usingMock = ref(false);
   const lastLoadedAt = ref<string | null>(null);
 
@@ -16,11 +17,18 @@ export const useMarketStore = defineStore('marketStore', () => {
 
   async function loadSnapshots() {
     loading.value = true;
-    const response = await apiClient.getMarketSnapshots();
-    snapshots.value = response.data;
-    usingMock.value = response.degraded;
-    lastLoadedAt.value = new Date().toISOString();
-    loading.value = false;
+    error.value = null;
+    try {
+      const response = await apiClient.getMarketSnapshots();
+      snapshots.value = response.data;
+      usingMock.value = response.degraded;
+      lastLoadedAt.value = new Date().toISOString();
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '行情加载失败';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
   }
 
   function upsertSnapshot(snapshot: MarketSnapshot) {
@@ -36,6 +44,7 @@ export const useMarketStore = defineStore('marketStore', () => {
   return {
     snapshots,
     loading,
+    error,
     usingMock,
     lastLoadedAt,
     abnormalMovers,
