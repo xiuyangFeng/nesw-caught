@@ -44,7 +44,7 @@
 
 ### 1. pipeline 在写事务里同步爬全文,长时间占住 SQLite 写锁
 
-> **状态：✅ 已完成**——`backend/app/services/news_signal_pipeline.py` 已实现方案 A 两阶段拆分：`_ensure_articles`（阶段1）用独立 `session_factory` 逐条短事务提交正文抓取，`process_news_ids`（阶段2）仅在本地数据就绪后开事务做分类落库。
+> **状态：✅ 已完成**（2026-07-18 二次闭环）——`backend/app/services/news_signal_pipeline.py` 已实现方案 A 两阶段拆分。2026-07-18 复核发现 scheduler `_drain_signal_backlog` 与 `refresh_all` 无插入分支两条路径仍不传 session_factory、串行 LLM 持写锁，且三入口无认领重复消费 pending；已改为 pending 处理只留 BackgroundQueueWorker 单入口（scheduler 仅投递 analysis_queue，refresh_all 不再就地处理），写锁根因彻底消除。
 
 `app/services/news_signal_pipeline.py::process_news_ids` 在**一个 session 内**,对每条无正文新闻 `crawl_and_extract_article(url)` 同步抓取(每条可能数秒),抓完 `flush`,再逐条 `classify`(可能含 LLM 调用)。整个过程事务未提交 → 这段时间内**所有其他 worker/请求的写操作都在排队**,这是 `database is locked` 的主要来源。
 
@@ -240,7 +240,7 @@ from app.services.ingestion.article_crawler import crawl_and_extract_article
 
 ### 6. `analysis_queue` 是进程内 `queue.Queue`,重启即丢、无法水平扩展
 
-> **状态：⚠️ 部分完成**——`backend/app/workers/queue_worker.py` 中 `analysis_queue` 本身仍是内存 `queue.Queue`（未采用方案 A"去掉内存队列"），但 `do_cycle` 新增了自愈轮询：队列为空时按 `fallback_scan_interval_seconds`（默认 30 秒）定期调用 `pipeline.list_pending_news_ids(limit=50)` 兜底补扫，形成"内存队列即时通知 + 自愈轮询补偿"双轮驱动，缓解而非根除重启丢失问题。
+> **状态：⚠️ 部分完成**（2026-07-18 复核回填）——`analysis_queue` 仍为内存 `queue.Queue`，但 pending 处理已于 2026-07-18 收敛为 queue_worker 单入口（scheduler drain 仅投递、refresh_all 不再就地处理），配合 30s 自愈轮询兜底，重启丢失有补偿、重复消费已消除。持久化队列（方案 A/C）未做，当前规模下非瓶颈。
 
 `app/workers/queue_worker.py` 顶部 `analysis_queue: queue.Queue[list[int]] = queue.Queue()`。系统已经为**通知**做了持久化队列(`notification_job` 表 + `lease_token` 租约),但**分析任务**还停在内存队列——一旦进程重启,已入库未分析的新闻丢失触发信号,只能靠 `signal_status` 兜底补扫。
 
@@ -424,7 +424,7 @@ session.execute(text("PRAGMA incremental_vacuum(1000)")) # 每次回收有限页
 
 ### 14. 详情页 `get_news_detail` 顺序 4 次查询,可合并
 
-> **状态：⬜ 未做**——仓库内未检索到任何 `selectinload` 用法；`backend/app/api/routes/news.py::get_news_detail` 仍是 `repository.get_by_id` + `get_article` + `list_mentions` + `get_topic_for_news` 4 次串行仓库查询，与本条描述现状完全一致，未合并。
+> **状态：✅ 已完成**（2026-07-18 复核回填）——`backend/app/repositories/news_repository.py` 已实现 `get_detail_bundle`（三表 LEFT JOIN + mentions，2 次查询），路由 `news.py` 已改用 bundle。原 2026-07-14 的"未做"标注过期。
 
 `news.py` 里 `get_by_id` + `get_article` + `list_mentions` + `get_topic_for_news` 串行 4 次往返。可用 `selectinload` 关系一次取,或并入一个聚合查询。收益不大但顺手。
 

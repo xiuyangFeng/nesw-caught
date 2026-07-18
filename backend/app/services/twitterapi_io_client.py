@@ -17,6 +17,7 @@ class TwitterApiIoClient:
     _last_probe_checked_at: float | None = None
     _last_probe_handle: str | None = None
     _last_probe_error: str | None = None
+    _shared_client: httpx.Client | None = None
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -24,6 +25,25 @@ class TwitterApiIoClient:
     @property
     def configured(self) -> bool:
         return bool(self.settings.twitterapi_io_api_key)
+
+    @classmethod
+    def _get_shared_client(cls, timeout_seconds: float) -> httpx.Client:
+        """进程级共享 client(httpx.Client 线程安全):跨请求复用 TCP/TLS 连接,
+        不要按请求 close;测试通过类属性重置来替换底层 httpx.Client 实现。"""
+        if cls._shared_client is None:
+            cls._shared_client = httpx.Client(
+                base_url="https://api.twitterapi.io",
+                timeout=timeout_seconds,
+            )
+        return cls._shared_client
+
+    @classmethod
+    def close_shared_client(cls) -> None:
+        client = cls._shared_client
+        cls._shared_client = None
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
 
     def _wait_for_rate_limit(self) -> None:
         min_interval_seconds = max(0.0, float(getattr(self.settings, "twitterapi_io_min_interval_seconds", 0.0)))
@@ -53,15 +73,12 @@ class TwitterApiIoClient:
             self._wait_for_rate_limit()
 
         try:
-            with httpx.Client(
-                base_url="https://api.twitterapi.io",
-                timeout=self.settings.twitterapi_io_timeout_seconds,
-            ) as client:
-                response = client.get(
-                    path,
-                    headers={"X-API-Key": str(self.settings.twitterapi_io_api_key)},
-                    params=params,
-                )
+            client = self._get_shared_client(float(self.settings.twitterapi_io_timeout_seconds))
+            response = client.get(
+                path,
+                headers={"X-API-Key": str(self.settings.twitterapi_io_api_key)},
+                params=params,
+            )
         except httpx.TimeoutException as exc:
             raise TwitterApiIoError("twitterapi.io request timed out") from exc
         except httpx.HTTPError as exc:

@@ -44,7 +44,12 @@ class NewsAnalysisService:
         context = self._build_context(news_item, article)
 
         try:
-            payload = build_provider(config).analyze_json(prompt=context.prompt)
+            payload = build_provider(config).analyze_json(
+                prompt=context.prompt,
+                title=news_item.title,
+                summary=news_item.summary,
+                market=news_item.market,
+            )
         except LLMProviderError as exc:
             self.analysis_repository.upsert_error(
                 news_id=news_id,

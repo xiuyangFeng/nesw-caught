@@ -50,9 +50,14 @@ async function toHttpError(response: Response, path: string): Promise<HttpError>
   return new HttpError(message, response.status);
 }
 
-export async function getJson<T>(path: string): Promise<T> {
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     headers: JSON_HEADERS,
+    signal,
   });
 
   if (!response.ok) {
@@ -62,11 +67,12 @@ export async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function postJson<T>(path: string, payload: unknown): Promise<T> {
+export async function postJson<T>(path: string, payload: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify(payload),
+    signal,
   });
 
   if (!response.ok) {

@@ -26,9 +26,14 @@ class BaseWorker:
         *,
         session_factory: Callable[[], Session],
         logger: logging.Logger | None = None,
+        heartbeat_interval_seconds: float = 30.0,
     ) -> None:
         self.session_factory = session_factory
         self.logger = logger or logging.getLogger(self.__class__.__module__)
+        # 空闲周期(processed_count==0)的心跳写库节流:距上次心跳不足该间隔时跳过,
+        # 避免高频轮询 worker 每秒一次的 get+update 写放大。
+        self.heartbeat_interval_seconds = heartbeat_interval_seconds
+        self._last_heartbeat_at = float("-inf")
         self._stop_event = Event()
         self._thread: Thread | None = None
         self._is_running = False
@@ -89,6 +94,11 @@ class BaseWorker:
     def _record_success(self, processed_count: Any = 0) -> None:
         try:
             count = processed_count if isinstance(processed_count, int) else 0
+            now = time.monotonic()
+            if count == 0 and now - self._last_heartbeat_at < self.heartbeat_interval_seconds:
+                return
+            # 无论本次写库成败都先刷新心跳时间戳:故障期同样节流,避免每周期重试写放大。
+            self._last_heartbeat_at = now
             with self.session_factory() as session:
                 WorkerRuntimeStatusRepository(session).record_success(
                     worker_name=self.worker_name,

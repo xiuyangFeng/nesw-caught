@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { reactive, nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -246,6 +246,42 @@ describe('NewsFeedView', () => {
 
     expect(newsStore.loadFeedLayout).toHaveBeenCalled();
     expect(newsStore.loadFeedNews).toHaveBeenCalled();
+  });
+
+  it('passes an AbortSignal when reloading the feed after filter changes', async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(NewsFeedView);
+    await flushPromises();
+
+    newsStore.loadFeedNews.mockClear();
+    newsStore.loadFeedLayout.mockClear();
+
+    await wrapper.find('input[type="search"]').setValue('nvidia');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+
+    expect(newsStore.loadFeedNews).toHaveBeenCalledTimes(1);
+    const [query, signal] = newsStore.loadFeedNews.mock.calls[0] as unknown as [
+      { q?: string },
+      AbortSignal,
+    ];
+    expect(query.q).toBe('nvidia');
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal.aborted).toBe(false);
+    // 搜索不切换市场时不重拉 layout
+    expect(newsStore.loadFeedLayout).not.toHaveBeenCalled();
+
+    // 再次输入会 abort 上一轮的 signal
+    const previousSignal = signal;
+    await wrapper.find('input[type="search"]').setValue('nvidia tsmc');
+    await vi.advanceTimersByTimeAsync(300);
+    await flushPromises();
+
+    expect(previousSignal.aborted).toBe(true);
+    expect(newsStore.loadFeedNews).toHaveBeenCalledTimes(2);
+
+    wrapper.unmount();
+    vi.useRealTimers();
   });
 
   it('routes event cards to the event detail page on open-event', async () => {
@@ -590,6 +626,9 @@ describe('NewsFeedView', () => {
     const virtualList = wrapper.findComponent({ name: 'NewsVirtualList' });
     expect(virtualList.exists()).toBe(true);
     await virtualList.vm.$emit('visible-ids', [3, 4, 5]);
+    // feedItems 同步 watcher 已改为 flush:'post',hydra 链路内部也有 nextTick 排队,
+    // 这里用 flushPromises 让在途的 detail 补水完全结算后再清零断言基线。
+    await flushPromises();
     await nextTick();
     newsStore.loadDetail.mockClear();
 

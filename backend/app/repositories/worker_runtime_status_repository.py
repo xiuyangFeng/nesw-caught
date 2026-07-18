@@ -32,7 +32,6 @@ class WorkerRuntimeStatusRepository:
         status.last_quotes_count = quotes_count
         self.session.add(status)
         self.session.flush()
-        self.session.refresh(status)
         return status
 
     def record_failure(self, *, worker_name: str, error: str) -> WorkerRuntimeStatus:
@@ -46,7 +45,6 @@ class WorkerRuntimeStatusRepository:
         status.failure_count += 1
         self.session.add(status)
         self.session.flush()
-        self.session.refresh(status)
         return status
 
     def _get_or_create(self, worker_name: str) -> WorkerRuntimeStatus:

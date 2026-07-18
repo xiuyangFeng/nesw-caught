@@ -5,16 +5,16 @@ import App from './App.vue';
 import router from './router';
 import { recoverFromChunkError } from './utils/lazyImport';
 
-// 字体自托管（替代原 Google Fonts CDN），仅拉丁 Inter + 等宽 JetBrains Mono，
+// 字体自托管（替代原 Google Fonts CDN），仅拉丁子集 Inter + JetBrains Mono，
 // 中文回落系统字体。见 docs/superpowers/specs/2026-07-18-cyber-terminal-restyle-design.md §5
-import '@fontsource/inter/400.css';
-import '@fontsource/inter/500.css';
-import '@fontsource/inter/600.css';
-import '@fontsource/inter/700.css';
-import '@fontsource/jetbrains-mono/400.css';
-import '@fontsource/jetbrains-mono/500.css';
-import '@fontsource/jetbrains-mono/600.css';
-import '@fontsource/jetbrains-mono/700.css';
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-400.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
+import '@fontsource/jetbrains-mono/latin-600.css';
+import '@fontsource/jetbrains-mono/latin-700.css';
 import './assets/main.css';
 
 const app = createApp(App);

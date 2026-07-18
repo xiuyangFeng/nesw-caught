@@ -265,7 +265,7 @@ def test_post_news_analysis_returns_structured_result_and_persists_latest_analys
         },
     )
 
-    def fake_analyze_json(self, *, prompt: str):  # type: ignore[no-untyped-def]
+    def fake_analyze_json(self, *, prompt: str, title=None, summary=None, market=None):  # type: ignore[no-untyped-def]
         assert "Tencent expands enterprise AI product suite" in prompt
         return {
             "top_pick": {
@@ -349,7 +349,7 @@ def test_post_news_analysis_marks_context_limitations_when_article_body_missing(
         session.commit()
         news_id = news_item.id
 
-    def fake_analyze_json(self, *, prompt: str):  # type: ignore[no-untyped-def]
+    def fake_analyze_json(self, *, prompt: str, title=None, summary=None, market=None):  # type: ignore[no-untyped-def]
         assert "Cloud software vendor signs major AI infrastructure deal" in prompt
         return {
             "top_pick": None,
@@ -392,7 +392,7 @@ def test_post_news_analysis_rejects_invalid_provider_payload(monkeypatch) -> Non
         },
     )
 
-    def fake_analyze_json(self, *, prompt: str):  # type: ignore[no-untyped-def]
+    def fake_analyze_json(self, *, prompt: str, title=None, summary=None, market=None):  # type: ignore[no-untyped-def]
         return "not-json"
 
     monkeypatch.setattr(

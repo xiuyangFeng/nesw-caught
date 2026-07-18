@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -67,6 +68,9 @@ class HybridEventBus:
         redis_publisher: RedisStreamPublisher | Any | None = None,
         stream_map: dict[str, str] | None = None,
         publisher_id: str | None = None,
+        circuit_breaker_threshold: int = 3,
+        circuit_breaker_cooldown_seconds: float = 60.0,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.backend = backend
         self.local_bus = local_bus or InMemoryEventBus()
@@ -75,6 +79,12 @@ class HybridEventBus:
         self.publisher_id = publisher_id or getattr(redis_publisher, "publisher_id", None) or uuid4().hex
         if redis_publisher is not None and getattr(redis_publisher, "publisher_id", None) is None:
             redis_publisher.publisher_id = self.publisher_id
+        # redis 发布熔断:连续失败 threshold 次后暂停发布 cooldown 秒,期间只走内存总线。
+        self._circuit_breaker_threshold = circuit_breaker_threshold
+        self._circuit_breaker_cooldown_seconds = circuit_breaker_cooldown_seconds
+        self._clock = clock
+        self._redis_consecutive_failures = 0
+        self._redis_circuit_open_until = 0.0
         self._status = EventBusStatus(
             backend=backend,
             status="ok",
@@ -95,13 +105,24 @@ class HybridEventBus:
         if should_publish_to_redis:
             stream_name = self.stream_map.get(event_name)
             if stream_name:
-                try:
-                    self.redis_publisher.publish(stream_name, payload, event_name=event_name)
-                    self._status.status = "ok"
-                    self._status.last_error = None
-                except Exception as exc:  # pragma: no cover - exercised via tests with fakes
+                if self._clock() < self._redis_circuit_open_until:
+                    # 熔断开启:暂停 redis 发布,只走内存总线,避免每事件阻塞至 socket 超时。
                     self._status.status = "degraded"
-                    self._status.last_error = str(exc)
+                    self._status.last_error = self._status.last_error or "redis circuit open"
+                else:
+                    try:
+                        self.redis_publisher.publish(stream_name, payload, event_name=event_name)
+                        self._redis_consecutive_failures = 0
+                        self._status.status = "ok"
+                        self._status.last_error = None
+                    except Exception as exc:  # pragma: no cover - exercised via tests with fakes
+                        self._redis_consecutive_failures += 1
+                        self._status.status = "degraded"
+                        self._status.last_error = str(exc)
+                        if self._redis_consecutive_failures >= self._circuit_breaker_threshold:
+                            # 熔断冷却窗口;窗口过后下一次发布即半开重试。
+                            self._redis_circuit_open_until = self._clock() + self._circuit_breaker_cooldown_seconds
+                            self._redis_consecutive_failures = 0
 
         self.local_bus.publish(event_name, payload)
         if self.local_bus.last_error:

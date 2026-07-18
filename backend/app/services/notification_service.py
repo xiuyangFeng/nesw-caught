@@ -173,19 +173,44 @@ class NotificationService:
         if not config or not config.news_enabled:
             return
 
-        if config.news_keywords:
-            keywords = [k.strip().lower() for k in config.news_keywords.split(",") if k.strip()]
-            title = (payload.get("title") or "").lower()
-            summary = (payload.get("summary") or "").lower()
-            text = f"{title} {summary}"
-            if not any(kw in text for kw in keywords):
-                return
+        if not self._matches_news_keywords(config, payload):
+            return
 
         dedupe_key = self._build_news_source_dedupe_key(payload)
         with SessionLocal() as session:
             repo = NotificationJobRepository(session)
             repo.enqueue_source_event(payload=payload, dedupe_key=dedupe_key)
             session.commit()
+
+    def on_news_created_batch(self, payloads: list[dict[str, Any]]) -> None:
+        """批量入队新闻源事件：一次配置加载 + 批量 enqueue + 一次提交。
+
+        与单条 on_news_created 的过滤 / 去重语义一致，但避免逐条开关 session。
+        """
+        if not payloads:
+            return
+        config = self._load_config()
+        if not config or not config.news_enabled:
+            return
+
+        with SessionLocal() as session:
+            repo = NotificationJobRepository(session)
+            for payload in payloads:
+                if not self._matches_news_keywords(config, payload):
+                    continue
+                dedupe_key = self._build_news_source_dedupe_key(payload)
+                repo.enqueue_source_event(payload=payload, dedupe_key=dedupe_key)
+            session.commit()
+
+    @staticmethod
+    def _matches_news_keywords(config: FeishuNotifyConfig, payload: dict[str, Any]) -> bool:
+        if not config.news_keywords:
+            return True
+        keywords = [k.strip().lower() for k in config.news_keywords.split(",") if k.strip()]
+        title = (payload.get("title") or "").lower()
+        summary = (payload.get("summary") or "").lower()
+        text = f"{title} {summary}"
+        return any(kw in text for kw in keywords)
 
     def on_watchlist_alert(self, payload: dict[str, Any]) -> None:
         symbol = payload.get("symbol")

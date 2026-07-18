@@ -134,6 +134,11 @@ def test_scheduler_backoff_is_capped(monkeypatch) -> None:
 
 
 def test_scheduler_drains_signal_backlog(monkeypatch) -> None:
+    from app.workers.queue_worker import analysis_queue
+
+    while not analysis_queue.empty():
+        analysis_queue.get_nowait()
+
     processed: list[list[int]] = []
 
     class FakePipelineService:
@@ -166,4 +171,6 @@ def test_scheduler_drains_signal_backlog(monkeypatch) -> None:
     monkeypatch.setattr(scheduler, "_record_success", lambda **kwargs: None)
 
     scheduler.run_cycle()
-    assert processed == [[1, 2, 3]]
+    # drain 不再就地处理(避免与 queue_worker 并行重复消费),而是投入分析队列
+    assert processed == []
+    assert analysis_queue.get_nowait() == [1, 2, 3]

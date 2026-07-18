@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models.news_item import NewsItem
@@ -81,14 +81,41 @@ class NewsRuntimeService:
         source_keys = {(row.source_name, row.market) for row in source_health_rows}
 
         latest_news_by_source: dict[tuple[str, str], NewsItem] = {}
+        if source_keys:
+            # SQL 聚合替代全表物化：先按 (source_name, market) GROUP BY 取 MAX(fetched_at)，
+            # 再回表取该行字段；物化行数从 N 降到“表内 (源, 市场) 组合数 + 并列行”。
+            latest_per_source = (
+                select(
+                    NewsItem.source_name.label("source_name"),
+                    NewsItem.market.label("market"),
+                    func.max(NewsItem.fetched_at).label("max_fetched_at"),
+                )
+                .group_by(NewsItem.source_name, NewsItem.market)
+                .subquery()
+            )
+            stmt = select(NewsItem).join(
+                latest_per_source,
+                and_(
+                    NewsItem.source_name == latest_per_source.c.source_name,
+                    NewsItem.market == latest_per_source.c.market,
+                    NewsItem.fetched_at == latest_per_source.c.max_fetched_at,
+                ),
+            )
+            for row in self.session.scalars(stmt):
+                source_key = (row.source_name, row.market)
+                if source_key not in source_keys:
+                    continue
+                # fetched_at 并列时 join 会带回多行，与旧算法（id DESC）一致取大 id
+                existing = latest_news_by_source.get(source_key)
+                if existing is None or row.id > existing.id:
+                    latest_news_by_source[source_key] = row
+
+        # 市场最新 = 各在册源最新行中 (fetched_at, id) 最大者，与旧全表折叠算法等价
         latest_news_by_market: dict[str, NewsItem] = {}
-        for row in self.session.scalars(
-            select(NewsItem).order_by(NewsItem.market.asc(), NewsItem.fetched_at.desc(), NewsItem.id.desc())
-        ):
-            source_key = (row.source_name, row.market)
-            if source_key in source_keys:
-                latest_news_by_source.setdefault(source_key, row)
-                latest_news_by_market.setdefault(row.market, row)
+        for row in latest_news_by_source.values():
+            existing = latest_news_by_market.get(row.market)
+            if existing is None or (row.fetched_at, row.id) > (existing.fetched_at, existing.id):
+                latest_news_by_market[row.market] = row
 
         source_views: list[NewsRuntimeSourceView] = []
         market_source_facts: dict[str, list[dict[str, object]]] = defaultdict(list)

@@ -9,12 +9,13 @@ class NewsMentionsRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def list_related_news(self, symbol: str) -> list[NewsItem]:
+    def list_related_news(self, symbol: str, *, limit: int = 200) -> list[NewsItem]:
         stmt = (
             select(NewsItem)
             .join(NewsStockMention, NewsStockMention.news_id == NewsItem.id)
             .where(NewsStockMention.symbol == symbol.upper())
             .order_by(NewsItem.published_at.desc(), NewsItem.fetched_at.desc())
+            .limit(limit)
         )
         return list(self.session.scalars(stmt))
 

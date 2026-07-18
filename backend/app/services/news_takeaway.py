@@ -70,7 +70,12 @@ class NewsTakeawayService:
                 ]
             )
             try:
-                payload = build_provider(config).analyze_json(prompt=prompt)
+                payload = build_provider(config).analyze_json(
+                    prompt=prompt,
+                    title=item.title,
+                    summary=item.summary,
+                    market=item.market,
+                )
             except Exception as exc:
                 # 单条失败保留 NULL，便于后续重试；不中断批次
                 logger.warning("takeaway generation failed for news %s: %s", item.id, exc)

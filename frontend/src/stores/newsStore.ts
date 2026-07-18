@@ -107,13 +107,13 @@ export const useNewsStore = defineStore('newsStore', () => {
     });
   }
 
-  async function loadFeedNews(query: NewsQuery = feedQuery.value) {
+  async function loadFeedNews(query: NewsQuery = feedQuery.value, signal?: AbortSignal) {
     feedPendingRequests.value += 1;
     feedLoading.value = true;
     const requestId = ++feedNewsRequestId.value;
     try {
       feedQuery.value = { ...query };
-      const response = await apiClient.getNews(feedQuery.value);
+      const response = await apiClient.getNews(feedQuery.value, signal);
       if (requestId === feedNewsRequestId.value) {
         feedItems.value = response.data.items;
         feedNextCursor.value = response.data.next_cursor ?? null;
@@ -152,13 +152,13 @@ export const useNewsStore = defineStore('newsStore', () => {
     }
   }
 
-  async function loadFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}) {
+  async function loadFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}, signal?: AbortSignal) {
     feedPendingRequests.value += 1;
     feedLoading.value = true;
     const requestId = ++feedLayoutRequestId.value;
     feedLayoutStreamLimit.value = query.limit_stream ?? feedLayoutStreamLimit.value;
     try {
-      const response = await apiClient.getNewsFeedLayout(query);
+      const response = await apiClient.getNewsFeedLayout(query, signal);
       if (requestId === feedLayoutRequestId.value) {
         feedLayout.value = response.data;
         feedLayoutDegraded.value = response.degraded;
@@ -196,7 +196,10 @@ export const useNewsStore = defineStore('newsStore', () => {
 
     const existingIndex = itemsRef.value.findIndex((candidate) => candidate.id === item.id);
     if (existingIndex >= 0) {
-      itemsRef.value.splice(existingIndex, 1, item);
+      // 替换整个数组引用（而非原地 splice），让浅层 watch 也能感知增量更新。
+      const next = [...itemsRef.value];
+      next[existingIndex] = item;
+      itemsRef.value = next;
     } else {
       insertScopedItem(itemsRef, query, item);
     }
@@ -206,23 +209,26 @@ export const useNewsStore = defineStore('newsStore', () => {
     // Pagination (loadMoreFeedNews) can grow the list far beyond query.limit,
     // so the cap must never shrink the list back to the base page size.
     const maxLength = Math.max(query.limit ?? 0, itemsRef.value.length);
-    itemsRef.value.unshift(item);
-    if (maxLength > 0 && itemsRef.value.length > maxLength) {
-      itemsRef.value.length = maxLength;
+    const next = [item, ...itemsRef.value];
+    if (maxLength > 0 && next.length > maxLength) {
+      next.length = maxLength;
     }
+    itemsRef.value = next;
   }
 
   function upsertScopedUpdate(itemsRef: typeof dashboardItems, query: NewsQuery, item: NewsItem) {
     const existingIndex = itemsRef.value.findIndex((candidate) => candidate.id === item.id);
     if (!matchesQuery(item, query)) {
       if (existingIndex >= 0) {
-        itemsRef.value.splice(existingIndex, 1);
+        itemsRef.value = itemsRef.value.filter((candidate) => candidate.id !== item.id);
       }
       return;
     }
 
     if (existingIndex >= 0) {
-      itemsRef.value.splice(existingIndex, 1, item);
+      const next = [...itemsRef.value];
+      next[existingIndex] = item;
+      itemsRef.value = next;
     } else {
       insertScopedItem(itemsRef, query, item);
     }

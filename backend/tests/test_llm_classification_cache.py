@@ -102,3 +102,68 @@ def test_classification_cache_miss_on_different_content() -> None:
     assert first == {"n": 1}
     assert second == {"n": 2}
     assert mock_complete.call_count == 2
+
+
+def test_classification_cache_hits_on_same_title_summary_despite_different_body() -> None:
+    """缓存键改为 (title+summary+market):正文不同但标题/摘要/市场相同 => 命中缓存,不再发 LLM 请求。"""
+    _clear_cache()
+    provider = _provider()
+
+    with patch.object(
+        OpenAICompatibleProvider,
+        "complete",
+        return_value=CompletionResult(
+            content='{"takeaway": "利好"}',
+            prompt_tokens=10,
+            completion_tokens=20,
+        ),
+    ) as mock_complete:
+        first = provider.analyze_json(
+            prompt="Title: 腾讯业绩超预期\nSummary: 二季度利润大增\nBody: " + "正文甲" * 200,
+            title="腾讯业绩超预期",
+            summary="二季度利润大增",
+            market="hk",
+        )
+        second = provider.analyze_json(
+            prompt="Title: 腾讯业绩超预期\nSummary: 二季度利润大增\nBody: 完全不同的正文乙",
+            title="腾讯业绩超预期",
+            summary="二季度利润大增",
+            market="hk",
+        )
+
+    assert first == {"takeaway": "利好"}
+    assert second == {"takeaway": "利好"}
+    # 正文唯一但缓存键不含正文:第二次命中,只发一次 LLM 请求。
+    assert mock_complete.call_count == 1
+
+
+def test_classification_cache_miss_on_different_title_with_same_body() -> None:
+    """title 不同(即使正文相同)视为不同内容,各自调用 LLM。"""
+    _clear_cache()
+    provider = _provider()
+
+    with patch.object(
+        OpenAICompatibleProvider,
+        "complete",
+        side_effect=[
+            CompletionResult(content='{"n": 1}', prompt_tokens=1, completion_tokens=1),
+            CompletionResult(content='{"n": 2}', prompt_tokens=1, completion_tokens=1),
+        ],
+    ) as mock_complete:
+        first = provider.analyze_json(prompt="same body", title="标题一", summary="s", market="hk")
+        second = provider.analyze_json(prompt="same body", title="标题二", summary="s", market="hk")
+
+    assert first == {"n": 1}
+    assert second == {"n": 2}
+    assert mock_complete.call_count == 2
+
+
+def test_compute_classification_fields_hash_normalizes_and_distinguishes_market() -> None:
+    from app.services.llm_providers import compute_classification_fields_hash
+
+    assert compute_classification_fields_hash(" 腾讯  业绩 ", "大增", "hk") == compute_classification_fields_hash(
+        "腾讯 业绩", "大增", "hk"
+    )
+    assert compute_classification_fields_hash("腾讯业绩", "大增", "hk") != compute_classification_fields_hash(
+        "腾讯业绩", "大增", "us"
+    )

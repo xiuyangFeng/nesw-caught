@@ -1086,6 +1086,121 @@ def test_market_chart_service_falls_back_to_memory_cache_when_redis_unavailable(
     assert cached["symbol"] == "HK0100"
 
 
+class _NullRedis:
+    """get 永远未命中、set 永远成功的 redis 替身,让缓存只走进程内字典。"""
+
+    def get(self, key: str):
+        return None
+
+    def set(self, key: str, value: str, ex: int) -> bool:
+        return True
+
+
+def _seed_watchlist_symbol(symbol: str, market: str) -> None:
+    with SessionLocal() as session:
+        session.query(WatchlistItem).filter(WatchlistItem.symbol == symbol).delete()
+        session.add(
+            WatchlistItem(
+                symbol=symbol,
+                market=market,
+                display_name=f"{symbol} 测试标的",
+                is_active=True,
+                alert_threshold=None,
+                alert_mode="fixed",
+            )
+        )
+        session.commit()
+
+
+def _kline_history_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Open": [100.0, 101.0],
+            "High": [102.0, 103.0],
+            "Low": [99.0, 100.0],
+            "Close": [101.0, 102.0],
+            "Volume": [1000, 1100],
+        },
+        index=pd.to_datetime(["2026-07-16", "2026-07-17"]),
+    )
+
+
+def test_market_chart_service_serves_fresh_kline_from_cache_without_redownload() -> None:
+    """TTL 内第二次 get_kline 直接返回缓存,不再触发 yf.download。"""
+    symbol = "HK7000"
+    _seed_watchlist_symbol(symbol, "hk")
+    MarketChartService._cache.pop(f"market:kline:{symbol}:1d:6mo", None)
+    service = MarketChartService(redis_client=_NullRedis())
+
+    with patch("yfinance.download", return_value=_kline_history_frame()) as mock_download:
+        with SessionLocal() as session:
+            first = service.get_kline(symbol, "1d", "6mo", session)
+        with SessionLocal() as session:
+            second = service.get_kline(symbol, "1d", "6mo", session)
+
+    assert mock_download.call_count == 1
+    assert first["symbol"] == symbol
+    assert first["stale"] is False
+    assert second == first
+
+
+def test_market_chart_service_returns_stale_cache_when_download_fails() -> None:
+    """缓存已过 TTL 且下载失败时,按 stale 兜底返回旧缓存并标记 stale=True。"""
+    symbol = "HK7001"
+    _seed_watchlist_symbol(symbol, "hk")
+    service = MarketChartService(redis_client=_NullRedis())
+    payload = {
+        "symbol": symbol,
+        "interval": "1d",
+        "range": "6mo",
+        "stale": False,
+        "candles": [],
+        "indicators": {"ma5": [], "ma10": [], "ma20": [], "ma60": [], "macd": [], "kdj": [], "bollinger": []},
+        "news_events": [],
+    }
+    # ttl 为负 => 写入即过期,模拟"有旧缓存但已过 TTL"。
+    service._set_cache(f"market:kline:{symbol}:1d:6mo", payload, ttl_seconds=-1)
+
+    with patch("yfinance.download", side_effect=RuntimeError("yf down")):
+        with SessionLocal() as session:
+            result = service.get_kline(symbol, "1d", "6mo", session)
+
+    assert result["stale"] is True
+    assert result["symbol"] == symbol
+
+
+def test_news_mentions_repository_list_related_news_applies_limit() -> None:
+    """list_related_news 默认/显式 limit 生效,避免无界查询。"""
+    from app.models.news_item import NewsItem
+    from app.models.news_stock_mention import NewsStockMention
+    from app.repositories.news_mentions_repository import NewsMentionsRepository
+
+    symbol = "HK7002"
+    with SessionLocal() as session:
+        session.query(NewsStockMention).filter(NewsStockMention.symbol == symbol).delete()
+        for index in range(3):
+            news = NewsItem(
+                source_name="Limit Test",
+                source_url="https://example.com/limit",
+                title=f"Limit test news {index}",
+                summary="limit test",
+                canonical_url=f"https://example.com/limit-{symbol}-{index}",
+                url_hash=f"limit-{symbol}-{index}",
+                market="hk",
+                language="zh",
+                published_at=datetime(2026, 7, 17, 9, index, tzinfo=UTC),
+                fetched_at=datetime(2026, 7, 17, 10, 0, tzinfo=UTC),
+            )
+            session.add(news)
+            session.flush()
+            session.add(NewsStockMention(news_id=news.id, symbol=symbol, market="hk"))
+        session.commit()
+
+        repo = NewsMentionsRepository(session)
+        assert len(repo.list_related_news(symbol)) == 3
+        assert len(repo.list_related_news(symbol, limit=2)) == 2
+
+
 def test_market_chart_service_flattens_yfinance_multiindex_history() -> None:
     service = MarketChartService()
     history = pd.DataFrame(

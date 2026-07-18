@@ -10,7 +10,6 @@ from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
 from app.services.ingestion.dedup_gate import DuplicateGate
-from app.services.ingestion.parser import _parse_minimax_detail_html
 from app.services.ingestion.sources import _should_promote_source_metadata
 from app.services.ingestion.types import (
     SourceDefinition,
@@ -78,12 +77,8 @@ class ItemPersister:
 
         try:
             items = outcome.items
-            if source.name == "MiniMax News":
-                from app.services import news_ingestion
-                # 详情页补全需要读库判断是否已完整,因此放在串行阶段执行。
-                with news_ingestion.HttpClientFactory().create() as client:
-                    items = [self.hydrate_minimax_detail_item(client, source, item) for item in items]
-
+            # 详情页水合(如 MiniMax)已挪到并发抓取阶段(service._hydrate_outcome_details),
+            # 本串行落库段不再发任何 HTTP 请求。
             if not items:
                 health.consecutive_empty_batches += 1
                 health.consecutive_failures = 0
@@ -142,8 +137,7 @@ class ItemPersister:
             # try/except 的 `for outcome in outcomes:` 循环串行调用本方法 —— 一旦
             # 这里让异常逃逸,会中断同批后续 source 的落库(已抓取但未及处理的
             # source 结果全部丢失)。批内异常主要来自 SQLAlchemy 写入
-            # (session.add/flush/commit 等 SQLAlchemyError 及其子类),但 MiniMax
-            # 分支还会经由 hydrate_minimax_detail_item 触达 httpx 网络层,类型面
+            # (session.add/flush/commit 等 SQLAlchemyError 及其子类),类型面
             # 较宽,无法安全穷举收窄,因此维持 Exception 兜底,仅补充带 source
             # 上下文的日志(此前完全没有日志,属于"吞错不留痕"）。
             self.session.rollback()
@@ -317,71 +311,3 @@ class ItemPersister:
             article.content_text = item.content_text
             article.content_html = item.content_html
             article.extracted_at = _utc_now()
-
-    def hydrate_minimax_detail_item(
-        self,
-        client,
-        source: SourceDefinition,
-        item: SourceItem,
-    ) -> SourceItem:
-        canonical_url = item.canonical_url
-        url_hash = sha256(canonical_url.encode("utf-8")).hexdigest()
-        existing = self.session.scalar(select(NewsItem).where(NewsItem.url_hash == url_hash))
-        if existing is not None:
-            article = self.session.scalar(select(ArticleContent).where(ArticleContent.news_id == existing.id))
-            article_looks_complete = (
-                article is not None
-                and article.extract_status == "success"
-                and not (article.content_text or "").startswith("模型 文本 ")
-            )
-            if existing.published_at is not None and article_looks_complete:
-                return item
-
-        try:
-            response = client.get(canonical_url)
-            response.raise_for_status()
-            detail_item = _parse_minimax_detail_html(
-                response.text,
-                source,
-                canonical_url=canonical_url,
-                fallback_title=item.title,
-            )
-            if existing is not None and existing.summary and not detail_item.summary:
-                detail_item = SourceItem(
-                    title=detail_item.title,
-                    canonical_url=detail_item.canonical_url,
-                    summary=existing.summary,
-                    content_text=detail_item.content_text,
-                    published_at=detail_item.published_at,
-                    content_html=detail_item.content_html,
-                    extract_status=detail_item.extract_status,
-                    extract_error=detail_item.extract_error,
-                )
-            return detail_item
-        except Exception as exc:
-            # 兜底范围刻意保持宽泛:失败时优雅降级为回退 item(而非向上抛出),
-            # 让调用方 persist_outcome 把该 source 的其余 item 正常落库,不因单条
-            # MiniMax 详情页失败拖垮整批。可能的异常包括 httpx 网络层
-            # (含不属于 httpx.HTTPError 体系的 httpx.InvalidURL/StreamError 等)
-            # 与 _parse_minimax_detail_html 显式抛出的 ValueError,类型面无法安全
-            # 穷举收窄,因此维持 Exception 兜底,仅补充带 URL 上下文的日志
-            # (此前完全没有日志)。
-            logger.warning(
-                "minimax detail hydration failed: source=%s url=%s error=%s",
-                source.name,
-                canonical_url,
-                exc,
-                exc_info=True,
-            )
-            if existing is not None and existing.published_at is not None:
-                return item
-            return SourceItem(
-                title=item.title,
-                canonical_url=item.canonical_url,
-                summary=item.summary,
-                content_text=None,
-                content_html=None,
-                published_at=item.published_at,
-                extract_status="failed",
-                extract_error=str(exc),
-            )

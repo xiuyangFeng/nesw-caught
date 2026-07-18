@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 
 from app.core.config import get_settings
 from app.models.news_item import NewsItem
@@ -11,6 +12,17 @@ from app.services.ingestion.types import (
     VALID_SOURCE_TYPES,
     SourceDefinition,
 )
+
+# 进程内注册表缓存:path -> ((mtime_ns, size) | None, sources)。
+# news_sources_file 签名未变时直接返回缓存,避免 persister 每个重复 item、
+# scheduler 每个 tick 都 open + json.load + 校验。SourceDefinition 是 frozen
+# dataclass 可安全共享;返回时拷贝列表本身,防调用方原地修改污染缓存。
+_sources_file_cache: dict[str, tuple[tuple[int, int] | None, list[SourceDefinition]]] = {}
+
+
+def clear_sources_cache() -> None:
+    """清空 load_sources 的进程内缓存(测试钩子 / 配置文件热更新后调用)。"""
+    _sources_file_cache.clear()
 
 
 def _default_sources() -> list[SourceDefinition]:
@@ -161,15 +173,33 @@ def _should_promote_source_metadata(news_item: NewsItem, source: SourceDefinitio
 
 def load_sources() -> list[SourceDefinition]:
     settings = get_settings()
-    sources = _default_sources()
     if not settings.news_sources_file:
+        return _default_sources()
+
+    path = settings.news_sources_file
+    try:
+        stat = os.stat(path)
+        signature: tuple[int, int] | None = (stat.st_mtime_ns, stat.st_size)
+    except FileNotFoundError:
+        signature = None
+
+    cached = _sources_file_cache.get(path)
+    if cached is not None and cached[0] == signature:
+        return list(cached[1])
+
+    sources = _load_sources_with_registry(path, signature)
+    _sources_file_cache[path] = (signature, sources)
+    return list(sources)
+
+
+def _load_sources_with_registry(path: str, signature: tuple[int, int] | None) -> list[SourceDefinition]:
+    sources = _default_sources()
+    if signature is None:
+        # 配置的文件不存在:与旧行为一致,退回默认源列表。
         return sources
 
-    try:
-        with open(settings.news_sources_file, encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except FileNotFoundError:
-        return sources
+    with open(path, encoding="utf-8") as handle:
+        payload = json.load(handle)
 
     if not isinstance(payload, dict):
         raise ValueError("sources registry payload must be an object")

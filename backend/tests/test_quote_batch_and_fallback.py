@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 from unittest.mock import patch
 
+import pandas as pd
+import pytest
+
 from app.db.session import SessionLocal
 from app.models.price_snapshot import PriceSnapshot
 from app.models.watchlist_item import WatchlistItem
@@ -8,8 +11,166 @@ from app.services.quote_provider import (
     NormalizedSymbol,
     QuoteRecord,
     TencentQuoteProvider,
+    YahooFinanceQuoteProvider,
 )
 from app.services.quote_service import QuoteService
+
+
+def _make_download_frame(tickers_rows: dict[str, list[tuple]]) -> pd.DataFrame:
+    """构造 yf.download(group_by="ticker") 风格的 MultiIndex 列 DataFrame。
+
+    tickers_rows: {ticker: [(open, high, low, close, volume), ...]}，按日期升序。
+    """
+    index = pd.DatetimeIndex(
+        [pd.Timestamp("2026-07-16"), pd.Timestamp("2026-07-17")][: max(len(rows) for rows in tickers_rows.values())]
+    )
+    fields = ["Open", "High", "Low", "Close", "Volume"]
+    columns = pd.MultiIndex.from_tuples(
+        [(ticker, field) for ticker in tickers_rows for field in fields]
+    )
+    data = []
+    for day_idx in range(len(index)):
+        row = []
+        for _ticker, rows in tickers_rows.items():
+            row.extend(rows[day_idx])
+        data.append(row)
+    return pd.DataFrame(data, index=index, columns=columns)
+
+
+def test_yahoo_batch_download_parses_multiindex(monkeypatch) -> None:
+    """yf.download 单次批量请求即可解析出各 symbol 最新价与涨跌，不再逐票请求。"""
+    provider = YahooFinanceQuoteProvider()
+    ns1 = NormalizedSymbol(symbol="AAPL", market="us", provider_symbol="AAPL")
+    ns2 = NormalizedSymbol(symbol="600519.SH", market="cn", provider_symbol="600519.SS")
+
+    frame = _make_download_frame(
+        {
+            "AAPL": [(200.0, 202.0, 199.0, 201.0, 1000000), (205.0, 207.0, 204.0, 206.5, 1200000)],
+            "600519.SS": [(1200.0, 1210.0, 1190.0, 1205.0, 50000), (1210.0, 1218.0, 1208.0, 1215.5, 62000)],
+        }
+    )
+    calls: list[tuple] = []
+
+    def fake_download(tickers, **kwargs):
+        calls.append((tickers, kwargs))
+        return frame
+
+    monkeypatch.setattr("yfinance.download", fake_download)
+    # 批量路径覆盖全部 symbol 时不允许退到单票请求。
+    monkeypatch.setattr(
+        provider,
+        "fetch_quote",
+        lambda ns: pytest.fail(f"unexpected single-symbol fetch for {ns.provider_symbol}"),
+    )
+
+    records = provider.fetch_quotes_batch([ns1, ns2])
+
+    assert len(calls) == 1
+    assert set(calls[0][0]) == {"AAPL", "600519.SS"}
+    assert len(records) == 2
+
+    r1 = next(r for r in records if r.symbol == "AAPL")
+    assert r1.status == "ok"
+    assert r1.source == "yahoo_finance"
+    assert r1.price == 206.5
+    assert r1.previous_close == 201.0
+    assert r1.change_amount == pytest.approx(5.5)
+    assert r1.change_percent == pytest.approx(5.5 / 201.0 * 100)
+    assert r1.open_price == 205.0
+    assert r1.day_high == 207.0
+    assert r1.day_low == 204.0
+    assert r1.volume == 1200000
+
+    r2 = next(r for r in records if r.symbol == "600519.SH")
+    assert r2.status == "ok"
+    assert r2.price == 1215.5
+    assert r2.previous_close == 1205.0
+    assert r2.change_amount == pytest.approx(10.5)
+
+
+def test_yahoo_batch_download_falls_back_to_single_for_missing_symbol(monkeypatch) -> None:
+    """批量响应未覆盖的 symbol 走现有单票路径，其余 symbol 不受影响。"""
+    provider = YahooFinanceQuoteProvider()
+    ns1 = NormalizedSymbol(symbol="AAPL", market="us", provider_symbol="AAPL")
+    ns2 = NormalizedSymbol(symbol="0700.HK", market="hk", provider_symbol="0700.HK")
+
+    frame = _make_download_frame(
+        {"AAPL": [(200.0, 202.0, 199.0, 201.0, 1000000), (205.0, 207.0, 204.0, 206.5, 1200000)]}
+    )
+    monkeypatch.setattr("yfinance.download", lambda tickers, **kwargs: frame)
+
+    single_calls: list[str] = []
+
+    def fake_fetch_quote(ns):
+        single_calls.append(ns.provider_symbol)
+        return QuoteRecord(
+            symbol=ns.symbol,
+            market=ns.market,
+            provider_symbol=ns.provider_symbol,
+            price=462.8,
+            change_amount=5.6,
+            change_percent=1.22,
+            open_price=466.0,
+            previous_close=457.2,
+            day_high=467.0,
+            day_low=459.4,
+            volume=17788779,
+            status="ok",
+            source="yahoo_finance",
+            message=None,
+            fetched_at=datetime.now(UTC),
+        )
+
+    monkeypatch.setattr(provider, "fetch_quote", fake_fetch_quote)
+
+    records = provider.fetch_quotes_batch([ns1, ns2])
+
+    assert single_calls == ["0700.HK"]
+    r1 = next(r for r in records if r.symbol == "AAPL")
+    r2 = next(r for r in records if r.symbol == "0700.HK")
+    assert r1.status == "ok" and r1.price == 206.5
+    assert r2.status == "ok" and r2.price == 462.8
+
+
+def test_yahoo_batch_download_exception_falls_back_to_single(monkeypatch) -> None:
+    """yf.download 整体失败时，所有 symbol 回退到现有单票并发路径。"""
+    provider = YahooFinanceQuoteProvider()
+    ns1 = NormalizedSymbol(symbol="AAPL", market="us", provider_symbol="AAPL")
+    ns2 = NormalizedSymbol(symbol="MSFT", market="us", provider_symbol="MSFT")
+
+    def boom(tickers, **kwargs):
+        raise RuntimeError("yahoo batch limit exceeded")
+
+    monkeypatch.setattr("yfinance.download", boom)
+
+    single_calls: list[str] = []
+
+    def fake_fetch_quote(ns):
+        single_calls.append(ns.provider_symbol)
+        return QuoteRecord(
+            symbol=ns.symbol,
+            market=ns.market,
+            provider_symbol=ns.provider_symbol,
+            price=100.0,
+            change_amount=None,
+            change_percent=None,
+            open_price=None,
+            previous_close=None,
+            day_high=None,
+            day_low=None,
+            volume=None,
+            status="ok",
+            source="yahoo_finance",
+            message=None,
+            fetched_at=datetime.now(UTC),
+        )
+
+    monkeypatch.setattr(provider, "fetch_quote", fake_fetch_quote)
+
+    records = provider.fetch_quotes_batch([ns1, ns2])
+
+    assert sorted(single_calls) == ["AAPL", "MSFT"]
+    assert all(r.status == "ok" for r in records)
 
 
 def test_tencent_quote_provider_parse_cn() -> None:

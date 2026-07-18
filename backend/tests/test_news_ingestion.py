@@ -224,6 +224,57 @@ def test_parse_zhipu_inline_json_source_items() -> None:
     assert items[0].summary == "智谱新闻摘要"
 
 
+def test_load_sources_caches_registry_until_mtime_changes(tmp_path, monkeypatch) -> None:
+    """news_sources_file 的 (mtime, size) 未变时命中进程内缓存,变化后重读。"""
+    from app.services.ingestion.sources import clear_sources_cache
+
+    # 两个名称等长,保证重写后文件大小不变,可单独控制 mtime 变量。
+    def _payload(name: str) -> str:
+        return json.dumps(
+            {
+                "sources": [
+                    {
+                        "name": name,
+                        "source_type": "rss",
+                        "url": "https://example.com/cached-feed.xml",
+                        "market": "us",
+                    }
+                ]
+            }
+        )
+
+    config = tmp_path / "sources.json"
+    config.write_text(_payload("Cached Feed Alpha"), encoding="utf-8")
+    original_stat = config.stat()
+
+    monkeypatch.setenv("NEWS_SOURCES_FILE", str(config))
+    get_settings.cache_clear()
+    clear_sources_cache()
+    try:
+        first = load_sources()
+        assert any(item.name == "Cached Feed Alpha" for item in first)
+
+        # 同大小重写 + 还原 mtime:内容已变但 (mtime, size) 未变 → 命中缓存,不重读。
+        config.write_text(_payload("Cached Feed Omega"), encoding="utf-8")
+        os.utime(config, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        second = load_sources()
+        assert any(item.name == "Cached Feed Alpha" for item in second)
+        assert not any(item.name == "Cached Feed Omega" for item in second)
+
+        # mtime 前进 → 缓存失效,重新读取文件内容。
+        os.utime(config, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns + 1_000_000_000))
+        third = load_sources()
+        assert any(item.name == "Cached Feed Omega" for item in third)
+
+        # clear_sources_cache 后即使签名不变也强制重读。
+        clear_sources_cache()
+        fourth = load_sources()
+        assert any(item.name == "Cached Feed Omega" for item in fourth)
+    finally:
+        clear_sources_cache()
+        get_settings.cache_clear()
+
+
 def test_load_sources_backfills_registry_defaults_from_legacy_config(tmp_path, monkeypatch) -> None:
     config = tmp_path / "sources.json"
     config.write_text(
@@ -492,12 +543,8 @@ def test_refresh_source_tracks_health_per_source_market_pair(monkeypatch) -> Non
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
     source_name = "Multi Market Feed"
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
 
     try:
         with SessionLocal() as session:
@@ -723,11 +770,7 @@ def test_refresh_source_supports_api_news_payload(monkeypatch) -> None:
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     source = SourceDefinition(
         name="The News API",
         source_type="api",
@@ -805,11 +848,7 @@ def test_refresh_source_skips_same_window_duplicate_titles_from_same_host(monkey
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     source = SourceDefinition(
         name="The News API",
         source_type="api",
@@ -878,11 +917,7 @@ def test_refresh_source_promotes_duplicate_to_primary_source_metadata(monkeypatc
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     primary_source = SourceDefinition(
         name="HKEX",
         source_type="api",
@@ -965,11 +1000,7 @@ def test_refresh_source_deduplicates_same_window_chinese_titles(monkeypatch) -> 
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     source = SourceDefinition(
         name="The News API CN",
         source_type="api",
@@ -1069,8 +1100,8 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         def __init__(self) -> None:
             self.news_payloads: list[dict] = []
 
-        def on_news_created(self, payload: dict) -> None:
-            self.news_payloads.append(payload)
+        def on_news_created_batch(self, payloads: list[dict]) -> None:
+            self.news_payloads.extend(payloads)
 
     class FakeNewsRepository:
         def __init__(self, session) -> None:
@@ -1192,10 +1223,6 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
             assert url == source.url
             return FakeResponse(feed)
 
-    class FakeFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
     calls: list[list[int]] = []
 
     class FakeEventBus:
@@ -1215,7 +1242,7 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
     bus.subscribe("news.created_batch", lambda payload: calls.append(payload["news_ids"]))
 
     monkeypatch.setattr("app.services.news_ingestion.load_sources", lambda: [source])
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", lambda: FakeFactory())
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     monkeypatch.setattr("app.services.news_ingestion.get_event_bus", lambda: bus)
 
     with SessionLocal() as session:
@@ -1256,7 +1283,7 @@ def test_refresh_all_publishes_news_created_for_each_insert(monkeypatch) -> None
         session.commit()
 
 
-def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> None:
+def test_refresh_all_does_not_process_pending_when_no_new_items(monkeypatch) -> None:
     source = SourceDefinition(
         name="Pipeline Backfill",
         source_type="rss",
@@ -1297,10 +1324,6 @@ def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> No
             assert url == source.url
             return FakeResponse(feed)
 
-    class FakeFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
     calls: list[list[int]] = []
 
     class FakePipelineService:
@@ -1315,7 +1338,7 @@ def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> No
             calls.append(news_ids)
 
     monkeypatch.setattr("app.services.news_ingestion.load_sources", lambda: [source])
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", lambda: FakeFactory())
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     monkeypatch.setattr("app.services.news_ingestion.NewsSignalPipelineService", FakePipelineService)
 
     with SessionLocal() as session:
@@ -1345,11 +1368,98 @@ def test_refresh_all_backfills_pending_news_when_no_new_items(monkeypatch) -> No
         summary = NewsIngestionService(session).refresh_all()
 
         assert summary.inserted_count == 0
-        assert calls == [[pending.id]]
+        # pending 由 BackgroundQueueWorker 单入口处理,refresh_all 不再就地消费
+        assert calls == []
 
         session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.url_hash == url_hash))))
         session.execute(delete(NewsItem).where(NewsItem.url_hash == url_hash))
         session.commit()
+
+
+def test_refresh_all_hydrates_minimax_details_in_fetch_phase(monkeypatch) -> None:
+    """MiniMax 详情水合在并发抓取阶段完成:refresh_all 落库的记录带 published_at/正文。"""
+    from app.services.ingestion.detail_hydration import minimax_detail_cooldown
+
+    source = SourceDefinition(
+        name="MiniMax News",
+        source_type="html",
+        url="https://www.minimaxi.com/news",
+        market="hk",
+        parser="anchor_list_html",
+        entry_selector="a[href^='/news/']",
+        item_limit=20,
+    )
+    detail_url = "https://www.minimaxi.com/news/refresh-hydration-test"
+    feed = '<html><body><a href="/news/refresh-hydration-test">MiniMax revenue surges on AI chip demand</a></body></html>'
+    detail_html = r"""
+    <html>
+      <head><title>MiniMax revenue surges on AI chip demand - MiniMax News | MiniMax</title></head>
+      <body>
+        <script>
+          self.__next_f.push([1,"6:[[\"$\",\"$L17\",null,{\"data\":{\"base_resp\":{\"status_code\":0},\"title\":\"MiniMax revenue surges on AI chip demand\",\"content\":[{\"id\":\"article-title\",\"type\":\"ArticleTitle\",\"props\":{\"date\":\"2026-03-04\",\"title\":\"MiniMax revenue surges on AI chip demand\"},\"children\":[]}],\"slug\":\"refresh-hydration-test\"}}]]"]);
+        </script>
+        <script>
+          self.__next_f.push([1,"\u003cdiv style=\"max-width: 768px;\"\u003e
+          \u003cp\u003eMiniMax reported record revenue as AI chip demand lifted guidance.\u003c/p\u003e
+          \u003c/div\u003e"]);
+        </script>
+      </body>
+    </html>
+    """
+
+    class FakeResponse:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+        def raise_for_status(self) -> None:
+            return None
+
+    requested: list[str] = []
+
+    class FakeClient:
+        def get(self, url: str, headers=None) -> FakeResponse:
+            requested.append(url)
+            if url == source.url:
+                return FakeResponse(feed)
+            return FakeResponse(detail_html)
+
+    class FakeEventBus:
+        def __init__(self) -> None:
+            self.published: list[tuple[str, dict[str, object]]] = []
+
+        def subscribe(self, event_name: str, handler) -> None:
+            return None
+
+        def publish(self, event_name: str, payload: dict[str, object]) -> None:
+            self.published.append((event_name, payload))
+
+    monkeypatch.setattr("app.services.news_ingestion.load_sources", lambda: [source])
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
+    monkeypatch.setattr("app.services.news_ingestion.get_event_bus", lambda: FakeEventBus())
+    minimax_detail_cooldown.clear()
+
+    with SessionLocal() as session:
+        session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.canonical_url == detail_url))))
+        session.execute(delete(NewsItem).where(NewsItem.canonical_url == detail_url))
+        session.commit()
+
+        try:
+            summary = NewsIngestionService(session).refresh_all()
+
+            assert summary.inserted_count == 1
+            assert detail_url in requested
+
+            stored = session.scalar(select(NewsItem).where(NewsItem.canonical_url == detail_url))
+            article = session.scalar(select(ArticleContent).where(ArticleContent.news_id == stored.id))
+            assert stored is not None
+            assert stored.published_at == datetime(2026, 3, 4, 0, 0)
+            assert article is not None
+            assert article.extract_status == "success"
+            assert "record revenue" in (article.content_text or "")
+        finally:
+            session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(select(NewsItem.id).where(NewsItem.canonical_url == detail_url))))
+            session.execute(delete(NewsItem).where(NewsItem.canonical_url == detail_url))
+            session.commit()
 
 
 def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypatch) -> None:
@@ -1409,7 +1519,7 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
             return [FakeNewsItem(nid) for nid in news_ids]
 
     class FakeNotificationService:
-        def on_news_created(self, payload: dict) -> None: pass
+        def on_news_created_batch(self, payloads: list[dict]) -> None: pass
 
     fake_bus = FakeBus()
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
@@ -1481,11 +1591,7 @@ def test_refresh_source_deduplicates_across_hour_boundary(monkeypatch) -> None:
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     source = SourceDefinition(
         name="The News API",
         source_type="api",
@@ -1549,11 +1655,7 @@ def test_refresh_all_limits_to_given_sources(monkeypatch) -> None:
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     source = SourceDefinition(
         name="Only Source",
         source_type="rss",
@@ -1609,11 +1711,7 @@ def test_refresh_source_deduplicates_cross_source_similar_titles(monkeypatch) ->
         def get(self, url: str) -> FakeResponse:
             return FakeResponse()
 
-    class FakeHttpClientFactory:
-        def create(self) -> FakeClient:
-            return FakeClient()
-
-    monkeypatch.setattr("app.services.news_ingestion.HttpClientFactory", FakeHttpClientFactory)
+    monkeypatch.setattr("app.services.http_pool.get_feed_client", lambda: FakeClient())
     source = SourceDefinition(
         name="The News API",
         source_type="api",

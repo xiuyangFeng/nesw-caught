@@ -20,9 +20,13 @@ def _keywords(raw_keywords: str | None) -> list[str]:
 def list_topics(session: Session = Depends(get_db_session)) -> list[TopicItemView]:
     repository = TopicRepository(session)
     topics = repository.list_all()
+    # 批量取数替代逐 topic 的 list_news_for_topic / list_related_symbols，消除 1 + 2T 查询
+    topic_ids = [topic.id for topic in topics]
+    news_by_topic = repository.batch_news_for_topics(topic_ids)
+    symbols_by_topic = repository.batch_related_symbols(topic_ids)
     response: list[TopicItemView] = []
     for topic in topics:
-        news_items = repository.list_news_for_topic(topic.id)
+        news_items = news_by_topic.get(topic.id, [])
         keywords = _keywords(topic.keywords)
         display_name, alias_zh = topic_naming_fields(
             topic_key=topic.topic_key,
@@ -42,7 +46,7 @@ def list_topics(session: Session = Depends(get_db_session)) -> list[TopicItemVie
                 importance_score=topic.importance_score or 0.0,
                 news_count=len(news_items),
                 last_seen_at=topic.last_seen_at,
-                related_symbols=repository.list_related_symbols(topic.id),
+                related_symbols=symbols_by_topic.get(topic.id, []),
             )
         )
     return response

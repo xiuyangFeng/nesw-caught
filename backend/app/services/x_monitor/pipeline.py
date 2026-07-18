@@ -87,21 +87,29 @@ class XFetchPipeline:
                 next_refresh_at=next_refresh_at,
             )
 
-        try:
-            by_handle: dict[str, list[dict[str, object]]] = {}
-            for account in active_accounts:
+        # 逐账号容错:单账号失败只记账跳过,成功账号继续正常落库;
+        # 只有全部账号都失败时才按整轮失败记账(保持旧语义)。
+        by_handle: dict[str, list[dict[str, object]]] = {}
+        account_errors: list[str] = []
+        for account in active_accounts:
+            try:
                 by_handle[account.handle.lower()] = self.provider.get_user_last_tweets(account.handle)
-        except (TwitterApiIoError, OSError, json.JSONDecodeError, ValueError) as exc:
+            except (TwitterApiIoError, OSError, json.JSONDecodeError, ValueError) as exc:
+                account_errors.append(f"{account.handle}: {exc}")
+                by_handle[account.handle.lower()] = []
+
+        if account_errors and len(account_errors) == len(active_accounts):
+            error = "; ".join(account_errors)
             finished_at = _utc_now()
             latency_ms = (finished_at - started_at).total_seconds() * 1000
-            _record_fetch_failure(health, finished_at=finished_at, latency_ms=latency_ms, error=str(exc))
+            _record_fetch_failure(health, finished_at=finished_at, latency_ms=latency_ms, error=error)
             self.session.commit()
             return XRefreshSummary(
                 started_at=started_at,
                 finished_at=finished_at,
                 fetched_count=0,
                 inserted_count=0,
-                error=str(exc),
+                error=error,
                 latency_ms=latency_ms,
                 next_refresh_at=next_refresh_at,
             )
@@ -161,7 +169,8 @@ class XFetchPipeline:
             finished_at=finished_at,
             fetched_count=fetched_count,
             inserted_count=inserted_count,
-            error=None,
+            # 部分账号失败:整轮仍记成功,但把失败账号明细带回给调用方。
+            error="; ".join(account_errors) if account_errors else None,
             latency_ms=latency_ms,
             next_refresh_at=self._cooldown_next_refresh_at(finished_at),
         )

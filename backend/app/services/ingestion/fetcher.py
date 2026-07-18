@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 
+from app.services import http_pool
 from app.services.ingestion.parser import (
     _parse_anchor_list_html,
     _parse_rss_or_atom,
@@ -22,8 +23,6 @@ def fetch_source_items(
     last_modified: str | None = None
 ) -> SourceFetchOutcome:
     """纯网络抓取与解析,不触碰数据库,可在线程池中并发执行。"""
-    from app.services import news_ingestion
-
     started = time.perf_counter()
     headers = {}
     if etag:
@@ -32,79 +31,81 @@ def fetch_source_items(
         headers["If-Modified-Since"] = last_modified
 
     try:
-        with news_ingestion.HttpClientFactory().create() as client:
-            try:
-                response = client.get(source.url, headers=headers)
-            except TypeError:
-                response = client.get(source.url)
+        # 共享 feed client(httpx.Client 线程安全):跨源跨轮复用 TCP/TLS 连接,
+        # 不要在这里 close,进程退出时由 http_pool.close_llm_client() 统一回收。
+        client = http_pool.get_feed_client()
+        try:
+            response = client.get(source.url, headers=headers)
+        except TypeError:
+            response = client.get(source.url)
 
-            status_code = getattr(response, "status_code", 200)
-            if status_code == 304:
-                latency_ms = round((time.perf_counter() - started) * 1000, 2)
-                return SourceFetchOutcome(
-                    source=source,
-                    items=[],
-                    error=None,
-                    latency_ms=latency_ms,
-                    etag=etag,
-                    last_modified=last_modified,
-                    is_not_modified=True,
-                    http_status=304,
-                )
+        status_code = getattr(response, "status_code", 200)
+        if status_code == 304:
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            return SourceFetchOutcome(
+                source=source,
+                items=[],
+                error=None,
+                latency_ms=latency_ms,
+                etag=etag,
+                last_modified=last_modified,
+                is_not_modified=True,
+                http_status=304,
+            )
 
-            try:
-                response.raise_for_status()
-            except Exception as exc:
-                latency_ms = round((time.perf_counter() - started) * 1000, 2)
-                return SourceFetchOutcome(
-                    source=source,
-                    items=[],
-                    error=str(exc),
-                    latency_ms=latency_ms,
-                    etag=etag,
-                    last_modified=last_modified,
-                    http_status=status_code,
-                    error_kind="http_error",
-                )
+        try:
+            response.raise_for_status()
+        except Exception as exc:
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            return SourceFetchOutcome(
+                source=source,
+                items=[],
+                error=str(exc),
+                latency_ms=latency_ms,
+                etag=etag,
+                last_modified=last_modified,
+                http_status=status_code,
+                error_kind="http_error",
+            )
 
-            resp_headers = getattr(response, "headers", None) or {}
-            new_etag = resp_headers.get("ETag")
-            new_last_modified = resp_headers.get("Last-Modified")
+        resp_headers = getattr(response, "headers", None) or {}
+        new_etag = resp_headers.get("ETag")
+        new_last_modified = resp_headers.get("Last-Modified")
 
-            try:
-                if source.source_type == "rss":
-                    items = _parse_rss_or_atom(response.text, source)
-                elif source.source_type == "api":
-                    items = _parse_the_news_api_json(response.text, source)
-                elif source.parser == "anchor_list_html":
-                    items = _parse_anchor_list_html(response.text, source)
-                elif source.parser == "zhipu_news_inline_json":
-                    items = _parse_zhipu_news_inline_json(response.text, source)
-                elif source.parser == "selector_html":
-                    items = _parse_selector_html(response.text, source)
-                else:
-                    raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
-            except Exception as exc:
-                latency_ms = round((time.perf_counter() - started) * 1000, 2)
-                logger.warning(
-                    "news source parse failed: source=%s type=%s url=%s latency_ms=%s error=%s",
-                    source.name,
-                    source.source_type,
-                    source.url,
-                    latency_ms,
-                    exc,
-                    exc_info=True,
-                )
-                return SourceFetchOutcome(
-                    source=source,
-                    items=[],
-                    error=str(exc),
-                    latency_ms=latency_ms,
-                    etag=new_etag,
-                    last_modified=new_last_modified,
-                    http_status=status_code,
-                    error_kind="parse_error",
-                )
+        try:
+            if source.source_type == "rss":
+                items = _parse_rss_or_atom(response.text, source)
+            elif source.source_type == "api":
+                items = _parse_the_news_api_json(response.text, source)
+            elif source.parser == "anchor_list_html":
+                items = _parse_anchor_list_html(response.text, source)
+            elif source.parser == "zhipu_news_inline_json":
+                items = _parse_zhipu_news_inline_json(response.text, source)
+            elif source.parser == "selector_html":
+                items = _parse_selector_html(response.text, source)
+            else:
+                raise ValueError(f"unsupported parser for source {source.name}: {source.parser}")
+        except Exception as exc:
+            latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            logger.warning(
+                "news source parse failed: source=%s type=%s url=%s latency_ms=%s error=%s",
+                source.name,
+                source.source_type,
+                source.url,
+                latency_ms,
+                exc,
+                exc_info=True,
+            )
+            return SourceFetchOutcome(
+                source=source,
+                items=[],
+                error=str(exc),
+                latency_ms=latency_ms,
+                etag=new_etag,
+                last_modified=new_last_modified,
+                http_status=status_code,
+                error_kind="parse_error",
+            )
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         return SourceFetchOutcome(
             source=source,

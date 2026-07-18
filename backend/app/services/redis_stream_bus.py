@@ -70,6 +70,7 @@ class RedisStreamConsumer:
         poll_interval_seconds: float = 0.5,
         block_ms: int = 500,
         initial_id: str = "$",
+        error_log_interval_seconds: float = 60.0,
     ) -> None:
         self.client = client or Redis.from_url(redis_url, socket_timeout=timeout_seconds, decode_responses=True)
         self.streams = list(dict.fromkeys(streams))
@@ -81,6 +82,15 @@ class RedisStreamConsumer:
         self._last_ids: dict[str, str] = {name: initial_id for name in self.streams}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # 异常日志降频:redis 持续故障时每 interval 最多一条,避免刷屏。
+        self.error_log_interval_seconds = max(error_log_interval_seconds, 0.0)
+        self._last_error_log_at = float("-inf")
+
+    def _log_error_throttled(self, message: str) -> None:
+        now = time.monotonic()
+        if now - self._last_error_log_at >= self.error_log_interval_seconds:
+            self._last_error_log_at = now
+            logger.exception(message)
 
     def poll_once(self, *, count: int = 50) -> int:
         if not self.streams:
@@ -93,7 +103,7 @@ class RedisStreamConsumer:
         except TypeError:
             rows = self.client.xread(streams, count=count, block=0)
         except Exception:
-            logger.exception("redis stream xread failed")
+            self._log_error_throttled("redis stream xread failed")
             return 0
 
         if not rows:
@@ -154,5 +164,5 @@ class RedisStreamConsumer:
                 if consumed == 0:
                     time.sleep(self.poll_interval_seconds)
             except Exception:
-                logger.exception("redis stream consumer loop failed")
+                self._log_error_throttled("redis stream consumer loop failed")
                 time.sleep(self.poll_interval_seconds)

@@ -165,3 +165,28 @@ def test_hybrid_publish_forwards_event_name_to_redis() -> None:
     _, fields = fake.streams["stream:news:ingested"][0]
     assert fields["event_name"] == "news.created"
     assert fields["publisher_id"] == "scheduler"
+
+
+def test_consumer_throttles_repeated_xread_error_logs(caplog) -> None:
+    """redis 持续故障时,xread 异常日志按窗口降频(默认每 60s 最多一条),避免刷屏。"""
+    import logging
+
+    class AlwaysFailingRedis:
+        def xread(self, streams, count: int = 10, block: int = 0):
+            del streams, count, block
+            raise RuntimeError("redis down")
+
+    consumer = RedisStreamConsumer(
+        redis_url="redis://unused",
+        streams=["stream:news:ingested"],
+        inject=lambda event_name, payload: None,
+        client=AlwaysFailingRedis(),  # type: ignore[arg-type]
+        error_log_interval_seconds=60.0,
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.services.redis_stream_bus"):
+        for _ in range(5):
+            assert consumer.poll_once() == 0
+
+    error_logs = [record for record in caplog.records if "xread failed" in record.message]
+    assert len(error_logs) == 1

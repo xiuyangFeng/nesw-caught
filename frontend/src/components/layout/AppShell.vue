@@ -24,7 +24,11 @@ const runtimePollIntervalMs = 60_000;
 const runtimePollFreshnessSeconds = 45;
 const newsFeedLayoutStreamLimit = 100;
 const feedLayoutDebounceMs = 500;
+// layout 全量刷新只走低频轮询：news.created/updated 已由 store 本地增量覆盖,
+// 只有 topic.updated(结构变化无法本地增量)与周期兜底才触发全量。
+const feedLayoutPollIntervalMs = 60_000;
 let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
+let feedLayoutPollHandle: ReturnType<typeof setInterval> | null = null;
 let feedLayoutDebounceHandle: ReturnType<typeof setTimeout> | null = null;
 let shellDisposed = false;
 
@@ -212,7 +216,20 @@ function stopRuntimeStatusPolling() {
   runtimeStatusPollHandle = null;
 }
 
-function refreshNewsFeedLayoutIfVisible() {
+function refreshNewsFeedLayout() {
+  if (shellDisposed || !route.path.startsWith('/news')) {
+    return;
+  }
+  const market = newsStore.feedQuery?.market || undefined;
+  void newsStore.loadFeedLayout({
+    market,
+    limit_events: 6,
+    limit_topics: 6,
+    limit_stream: newsFeedLayoutStreamLimit,
+  });
+}
+
+function scheduleNewsFeedLayoutRefresh() {
   if (!route.path.startsWith('/news')) {
     return;
   }
@@ -221,17 +238,21 @@ function refreshNewsFeedLayoutIfVisible() {
   }
   feedLayoutDebounceHandle = setTimeout(() => {
     feedLayoutDebounceHandle = null;
-    if (shellDisposed || !route.path.startsWith('/news')) {
-      return;
-    }
-    const market = newsStore.feedQuery?.market || undefined;
-    void newsStore.loadFeedLayout({
-      market,
-      limit_events: 6,
-      limit_topics: 6,
-      limit_stream: newsFeedLayoutStreamLimit,
-    });
+    refreshNewsFeedLayout();
   }, feedLayoutDebounceMs);
+}
+
+function stopFeedLayoutPolling() {
+  if (feedLayoutPollHandle === null) {
+    return;
+  }
+  clearInterval(feedLayoutPollHandle);
+  feedLayoutPollHandle = null;
+}
+
+function startFeedLayoutPolling() {
+  stopFeedLayoutPolling();
+  feedLayoutPollHandle = setInterval(refreshNewsFeedLayout, feedLayoutPollIntervalMs);
 }
 
 function reconcileNewsSnapshot() {
@@ -240,7 +261,7 @@ function reconcileNewsSnapshot() {
   }
   void newsStore.loadDashboardNews({ limit: 200 });
   void newsStore.loadNewsRuntime();
-  refreshNewsFeedLayoutIfVisible();
+  scheduleNewsFeedLayoutRefresh();
 }
 
 function startRuntimeStatusPolling() {
@@ -269,21 +290,18 @@ async function bootstrap() {
   }
 
   startRuntimeStatusPolling();
+  startFeedLayoutPolling();
 
   connectionStore.connect(
     (event) => {
       if (event.type === 'news.created') {
+        // 只走 store 本地增量(feedItems/layout stream 均已覆盖),不再触发 layout 全量刷新
         newsStore.upsertNews(event.payload);
-        refreshNewsFeedLayoutIfVisible();
         return;
       }
       if (event.type === 'news.updated') {
+        // 单条字段更新同样本地增量,sort/文案变化由 store 替换数组引用驱动视图
         newsStore.upsertNewsUpdate(event.payload);
-        // takeaway 补齐只更新卡片文案,不影响排序——跳过 layout 全量刷新,避免批量生成期抖动
-        const fields = event.payload.updated_fields;
-        if (!(fields.length === 1 && fields[0] === 'ai_takeaway')) {
-          refreshNewsFeedLayoutIfVisible();
-        }
         return;
       }
       if (event.type === 'topic.updated') {
@@ -294,7 +312,8 @@ async function bootstrap() {
           sentiment_label: 'unknown',
           related_symbols: [],
         });
-        refreshNewsFeedLayoutIfVisible();
+        // topic 结构变化本地无法增量,防抖后全量刷新 layout
+        scheduleNewsFeedLayoutRefresh();
         return;
       }
       if (event.type === 'watchlist.movement') {
@@ -321,6 +340,7 @@ onBeforeUnmount(() => {
     clearTimeout(feedLayoutDebounceHandle);
     feedLayoutDebounceHandle = null;
   }
+  stopFeedLayoutPolling();
   stopRuntimeStatusPolling();
   connectionStore.disconnect();
 });
@@ -445,7 +465,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
 
-    <main class="grid min-w-0 gap-3">
+    <main class="grid min-w-0 content-start gap-3">
       <section
         class="surface flex min-h-12 items-center justify-between gap-4 rounded-[18px] px-4 py-3"
         data-role="shell-status-rail"

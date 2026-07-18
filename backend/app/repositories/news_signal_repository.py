@@ -17,6 +17,11 @@ from app.models.topic_news_link import TopicNewsLink
 class NewsSignalRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+        # 批内话题候选缓存:关键词兜底首次使用时一次性载入,避免每条待分类新闻
+        # 都全表扫描 TopicCluster。create_topic 后新 topic 同步纳入,保持与
+        # 逐条全表查询一致的 id 升序匹配语义(keywords 仍在匹配时实时读取,
+        # 批内对 topic.keywords 的更新对后续匹配可见)。
+        self._topic_candidates: list[TopicCluster] | None = None
 
     def list_news(self, news_ids: list[int]) -> list[NewsItem]:
         stmt = select(NewsItem).where(NewsItem.id.in_(news_ids)).order_by(NewsItem.id.asc())
@@ -66,7 +71,7 @@ class NewsSignalRepository:
         if not keywords:
             return None
 
-        for topic in self.session.scalars(select(TopicCluster).order_by(TopicCluster.id.asc())):
+        for topic in self._get_topic_candidates():
             existing_keywords = {item.strip().lower() for item in (topic.keywords or "").split(",") if item.strip()}
             if not existing_keywords:
                 continue
@@ -74,6 +79,14 @@ class NewsSignalRepository:
             if overlap >= min(2, len(keywords)):
                 return topic
         return None
+
+    def _get_topic_candidates(self) -> list[TopicCluster]:
+        """批内预载的话题候选(id 升序);每个 repository 实例只全表载入一次。"""
+        if self._topic_candidates is None:
+            self._topic_candidates = list(
+                self.session.scalars(select(TopicCluster).order_by(TopicCluster.id.asc()))
+            )
+        return self._topic_candidates
 
     def create_topic(
         self,
@@ -96,6 +109,9 @@ class NewsSignalRepository:
         )
         self.session.add(topic)
         self.session.flush()
+        # 新 topic 纳入批内候选(尾部追加即保持 id 升序),后续 find_topic 可见。
+        if self._topic_candidates is not None:
+            self._topic_candidates.append(topic)
         return topic
 
     def ensure_link(self, *, topic_id: int, news_id: int) -> None:

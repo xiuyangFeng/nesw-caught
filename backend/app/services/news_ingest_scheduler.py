@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.services.news_ingestion import NewsIngestionService, SourceDefinition, load_sources
 from app.services.news_signal_pipeline import NewsSignalPipelineService
 from app.workers.base_worker import BaseWorker
+from app.workers.queue_worker import analysis_queue
 
 DEFAULT_TICK_SECONDS = 5.0
 DEFAULT_MAX_BACKOFF_MULTIPLIER = 8
@@ -26,7 +27,7 @@ class NewsIngestScheduler(BaseWorker):
     - 每个源按自身 cadence_seconds 独立到期,抓取由 NewsIngestionService 并发执行、串行落库;
     - 硬失败(http/parse_error)按指数退避降频:delay = cadence * min(2^failures, max_multiplier);
     - 连续 empty 达到阈值后进入低频探测,不计入硬失败 streak;
-    - 每轮顺带消化信号 pipeline 积压,修复“有新新闻时积压被饿死”的旧逻辑。
+    - 每轮把信号 pipeline 积压转交给 BackgroundQueueWorker(单入口,避免重复消费/重复 LLM)。
     """
 
     worker_name = "news_ingest_scheduler"
@@ -125,16 +126,20 @@ class NewsIngestScheduler(BaseWorker):
         return summary.inserted_count
 
     def _drain_signal_backlog(self) -> int:
-        """消化历史积压的未分类新闻(刚插入的新闻由事件订阅方处理)。"""
+        """把历史积压的未分类新闻投给 BackgroundQueueWorker 的分析队列。
+
+        pending 处理只保留 queue_worker 单入口：此处不做爬正文/LLM，
+        避免与 queue_worker 并行重复消费同一批 pending（重复爬取 + 双倍 token），
+        也避免在调度线程内持写锁跑秒级 LLM 调用。
+        """
         try:
             with self.session_factory() as session:
                 pipeline = NewsSignalPipelineService(session)
                 pending_ids = pipeline.list_pending_news_ids(limit=SIGNAL_BACKLOG_BATCH_SIZE)
-                if not pending_ids:
-                    return 0
-                pipeline.process_news_ids(pending_ids)
-                session.commit()
-                return len(pending_ids)
+            if not pending_ids:
+                return 0
+            analysis_queue.put(pending_ids)
+            return len(pending_ids)
         except Exception:
-            self.logger.exception("signal backlog processing failed")
+            self.logger.exception("signal backlog enqueue failed")
             return 0

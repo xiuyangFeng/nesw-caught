@@ -2,6 +2,98 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-18 修复：FTS 同步触发器丢失（迁移 d7f0a3b5c9e2）
+
+- 修改人：Kimi Code（主线）
+- 修改范围：`backend/alembic/versions/d7f0a3b5c9e2_restore_news_fts_triggers.py`（新）；开发库 `backend/data/app.db`（经启动初始化自动应用迁移）。
+- 变更内容：历史迁移 c4f8a1d3e6b2（batch_alter_table 加 ai_takeaway 列）在 SQLite 上整表重建 news_item，连带丢弃 ec84dec88ae5 建立的三个 FTS 同步触发器（news_fts_ai/ad/au），此后 news_fts 停止增量同步、搜索静默退化为 LIKE 全表扫。新迁移：幂等建 FTS 虚表 → DROP+CREATE 三个触发器（保证定义确定性）→ `VALUES('rebuild')` 全量重建 FTS 内容清除漂移。
+- 影响文件：迁移文件；本变更记录。
+- 接口/数据结构变化：DB 恢复 3 个触发器 + FTS 内容重建（对应用透明，恢复 ec84dec88ae5 的原有设计）。
+- 验证情况：dev 库副本实测迁移链 f3a7→…→d7f0 通过；运行中的 dev 服务经 --reload 自动应用迁移后，实测 insert/update/delete 三路触发器同步正确（FTS 命中 1/1/0），news_fts 与 news_item 行数一致（286）；`NEWS_CAUGHT_TEST_DB` 独立库全量 pytest → 547 passed。
+- 风险或后续事项：教训——今后对 news_item 使用 batch_alter_table 的迁移必须复查触发器存活（批次 A 的幂等 raw SQL 风格即为规避此问题）；测试库的 initialize_database 各路径已随全量测试覆盖。
+
+## 2026-07-18 性能优化批次 D：K 线缓存修复 + 事件扇出/redis/心跳/分类缓存收口
+
+- 修改人：Kimi Code（子任务 / 后端收口）
+- 修改范围：`market_chart_service.py`、`notification_service.py`、`queue_worker.py`、`event_bus.py`、`redis_stream_bus.py`、`news_signal_repository.py`、`base_worker.py`、`worker_runtime_status_repository.py`、`llm_providers.py` 及调用方。
+- 变更内容：
+  1. **K 线缓存命中即返回**：`get_kline` 原"缓存只写不读、每次真实 yf.download"，改为 TTL 内命中直返、build 异常时 stale 兜底；`list_related_news` 加 LIMIT 200。
+  2. **事件扇出批量化**：新增 `on_news_created_batch`（一次 config 加载 + 单 session 批量 enqueue + 一次 commit），queue_worker 改批量调用，原单条接口保留。
+  3. **redis 熔断**：`HybridEventBus` 连续失败 3 次熔断 60s（期间仅内存总线，半开恢复）；`RedisStreamConsumer` 异常日志降频 60s/条。
+  4. **find_topic 批内预载**：关键词兜底的 TopicCluster 全表扫描每批一次，`create_topic` 后追加候选，匹配语义不变。
+  5. **心跳节流下沉 BaseWorker**：空闲 30s 节流（原仅 queue_worker），删除多余 `session.refresh`。
+  6. **分类缓存键修正**：整篇 prompt sha256（命中率≈0）→ (title+summary+market) 结构化字段 sha256；`get/store_classification` 支持调用方 session 复用。
+- 影响文件：上述文件 + 新增/修改测试（test_news_signal_repository、test_market、test_feishu_notify、test_event_bus、test_redis_stream_consumer、test_base_worker、test_llm_classification_cache 等）。
+- 接口/数据结构变化：无 API 变化；`analyze_json` 增可选 kwargs（title/summary/market），`notification_service` 增批量方法，均向后兼容。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/nc_test_D.db pytest tests -q` → 543 passed（批次内）；TDD 先红后绿。
+- 风险或后续事项：`news_signal_classifier` 链路无 market 可传，同题跨市场新闻共享分类缓存结果（takeaway/analysis 链路含 market 不受影响）；缓存 session 复用入口已留但未深入 provider 层。
+
+## 2026-07-18 性能优化批次 B：行情批量报价 + 抓取链路（连接池/水合/源配置缓存/X 容错）
+
+- 修改人：Kimi Code（子任务 / 抓取链路）
+- 修改范围：`quote_provider.py`、`http_pool.py`、`ingestion/fetcher.py`、`ingestion/persister.py`、`ingestion/service.py`、`ingestion/sources.py`、`ingestion/detail_hydration.py`（新）、`twitterapi_io_client.py`、`x_monitor/pipeline.py`、`core/config.py`。
+- 变更内容：
+  1. **行情批量报价**：Yahoo 单票 `Ticker.history(5d)`+fast_info（2-3 请求/票）→ `yf.download` 单次批量（2d），MultiIndex/单 symbol 兼容解析；未覆盖 symbol 回落原单票路径，腾讯兜底不动。
+  2. **feed/X 共享连接池**：新增 `http_pool.get_feed_client()` 替代每源每轮新建 Client；X client 改类级共享。每轮省去逐源 TCP+TLS 握手。
+  3. **MiniMax 详情水合挪出串行落库段**：新模块 `detail_hydration.py`，4 线程并发抓取详情页 + 内存冷却表（24h 窗口最多 3 次）；persister 串行段不再发 HTTP。
+  4. **load_sources mtime 缓存**：(mtime_ns, size) 签名命中跳过重读+解析，消除每重复 item 一次磁盘读与 scheduler 每 5s 一次重读；`clear_sources_cache()` 供测试/热更新。
+  5. **X 抓取逐账号容错**：任一账号失败不再整轮作废（部分失败记成功并带明细）；`twitterapi_io_min_interval_seconds` 默认 0→1.0s。
+- 影响文件：上述文件 + test_quote_batch_and_fallback（新）、test_ingest_caching、test_news_ingestion、test_x_monitor 等。
+- 接口/数据结构变化：无 API 变化；config 默认值一项变更（X 限速 1.0s，可通过环境变量覆盖）。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/nc_test_B.db pytest tests -q` → 547 passed；网络层全部 mock，无真实请求。
+- 风险或后续事项：MiniMax 冷却表为进程内存态，重启清零；`HttpClientFactory` 已无生产调用方，后续可评估废弃。
+
+## 2026-07-18 性能优化批次 A：查询层防退化 + 索引（runtime/snapshots/topics/pending）
+
+- 修改人：Kimi Code（子任务 / 后端查询层）
+- 修改范围：`news_runtime.py`、`market_repository.py`、`api/routes/topics.py`、`models/news_item.py`、`models/price_snapshot.py`、Alembic 迁移 ×2。
+- 变更内容：
+  1. **/news/runtime 全表物化 → SQL 聚合**：GROUP BY source/market + MAX(fetched_at) 回表 join，物化行数 N→源组合数，返回结构不变。
+  2. **price_snapshot 读取退化修复**：`list_latest`/`list_latest_by_symbols` 改 MAX+GROUP BY 回表取行（原为全表/全历史物化）；新增 `ix_price_snapshot_symbol_fetched(symbol, fetched_at)` 复合索引（迁移 `c6e9a2b4d8f1`）。
+  3. **pending partial index**：`ix_news_pending(id) WHERE signal_status IS NULL`（迁移 `b5d8f1a3c7e2`）；同迁移删除 `news_item.title`/`market`/`published_at` 冗余单列索引（前缀已被复合索引覆盖）。迁移用幂等 raw SQL，避免 batch 整表重建破坏 FTS 触发器。
+  4. **/topics N+1 → 批量**：复用 `batch_news_for_topics`/`batch_related_symbols`，1+2T → 3 条 SELECT，排序语义不变。
+- 影响文件：上述文件 + 新增 `backend/tests/test_query_perf_batch_a.py`（10 测试：schema/EXPLAIN/结果等价性）。
+- 接口/数据结构变化：API 响应结构不变；DB 新增 2 个索引、删除 3 个冗余索引（Alembic 迁移，downgrade 可还原）。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/nc_test_A.db pytest tests -q` → 546 passed；EXPLAIN 留证（partial index/覆盖索引命中）；scratch 库升降级两条路径实测（含 FTS 触发器存活）。
+- 风险或后续事项：聚合 MAX(fetched_at) 依赖存量时间格式一致（实测均 UTC）；**pre-existing 发现**：dev 库 `backend/data/app.db` 的 FTS 同步触发器在历史迁移后已丢失（FTS 增量同步可能失效），建议另行排查修复。
+
+## 2026-07-18 性能优化批次 C：前端 SSE 降频 + watch 浅化 + markdown LRU + SVG sparkline + AbortSignal
+
+- 修改人：Kimi Code（子任务 / 前端）
+- 修改范围：`AppShell.vue`、`NewsFeedView.vue`、`newsStore.ts`、`utils/markdown.ts`、`StockSparkline.vue`、`api/http.ts`、`api/client.ts`。
+- 变更内容：
+  1. **SSE layout 刷新降频**：news.created/updated 只走 store 本地增量（不再 500ms 防抖全量 loadFeedLayout）；topic.updated 保留防抖全量；新增 60s 周期全量刷新；重连恢复路径不变。
+  2. **NewsFeedView watch 浅化**：displayedFeedItems 深拷贝+deep/sync watch → shallowRef + flush:'post'；newsStore 数组更新改整体替换引用以驱动浅 watch。
+  3. **markdown LRU**：parseMarkdown 加 Map-based LRU（上限 100），流式打字机期间重复解析 O(1) 命中；调用侧零改动。
+  4. **StockSparkline → SVG**：每股一个 lightweight-charts 实例（含 ResizeObserver）→ 复用纯 SVG `common/Sparkline.vue`，涨跌色走 CSS 变量。
+  5. **AbortSignal 接通**：getJson/postJson 加可选 signal；NewsFeedView 搜索/筛选切换真正 abort 过期请求（原 AbortController 空转），乱序仍由 store requestId 兜底。
+- 影响文件：上述文件 + AppShell.test/NewsFeedView.test/StockSparkline.test/markdown.test 更新。
+- 接口/数据结构变化：无（apiClient/store 方法增可选 signal 参数，向后兼容）。
+- 验证情况：`npx vitest run` → 78 文件 / 405 tests 全绿；`npm run build` → 通过。
+- 风险或后续事项：layout 的 events/topics 区块新鲜度降为 ≤60s（新闻流本体走本地增量无感）；流式消息纯文本降级渲染未做（LRU 已覆盖主要开销）。
+
+## 2026-07-18 性能优化阶段 1 止血：信号 pipeline 单入口化 + 字体拉丁子集
+
+- 修改人：Kimi Code（主线）
+- 修改范围：`backend/app/services/news_ingest_scheduler.py`、`backend/app/services/ingestion/service.py`、`frontend/src/main.ts`。
+- 变更内容：
+  1. **pipeline 单入口化**：`signal_status IS NULL` 的 pending 集原被三个入口无认领消费（queue_worker 30s、scheduler drain 5s、refresh_all 无插入分支），后两者不传 session_factory 导致串行 LLM 期间持 SQLite 写锁、同批 id 被重复爬正文+重复 LLM。改为：scheduler `_drain_signal_backlog` 仅把 pending id 投入 `analysis_queue`，`refresh_all` 删除无插入时的就地处理分支，pending 处理只留 BackgroundQueueWorker 单入口（单线程无并行重复，无需额外认领状态）。
+  2. **字体拉丁子集**：fontsource 全子集引入（dist 92 个字体文件/1.4MB，占产物 60%）→ `latin-*.css` 仅拉丁子集（8 个 woff2），dist 总体积 2.3MB→1.3MB。
+- 影响文件：上述文件 + `backend/tests/test_news_ingest_scheduler.py`、`backend/tests/test_news_ingestion.py`（断言更新为新行为）。
+- 接口/数据结构变化：无（pending 处理时序变化：无新插入时积压由 scheduler 5s 内转交 worker，较原路径更快）。
+- 验证情况：`pytest test_news_ingest_scheduler/test_news_ingestion/test_source_health_status/test_news_signal_pipeline` → 54 passed；终轮全量 547 passed；前端 build 通过（dist 字体 8 个 woff2）。
+- 风险或后续事项：queue_worker 进程崩溃时 analysis_queue 内存任务丢失，仍有 30s 兜底轮询自愈（与原设计一致）。
+
+## 2026-07-18 修复：短页面下壳层状态条被网格拉伸撑大
+
+- 修改人：Kimi Code（主线）
+- 修改范围：`frontend/src/components/layout/AppShell.vue` 主区容器。
+- 变更内容：`<main>` 类由 `grid min-w-0 gap-3` 改为 `grid min-w-0 content-start gap-3`。原因：外层壳网格把 main 拉伸到整屏高，而 main 是 grid，其 auto 行（状态条 + 视图）在默认 `align-content: stretch` 下均分剩余空间，导致日历等短内容页面顶部状态条被拉成巨块；改为 `content-start` 后行高按内容收敛。已确认全站 17 个视图根均不依赖父行高度（仅 ChatView 自带 `h-[calc(100vh-100px))]` 视口高度，不受影响）。该问题为改版前已存在的存量 bug，非本次样式回归。
+- 影响文件：`frontend/src/components/layout/AppShell.vue`；本变更记录。
+- 接口/数据结构变化：无。
+- 验证情况：`npx vitest run src/components/layout src/views/CalendarView.test.ts` → 17 tests 通过；`npm run build` → 通过。
+- 风险或后续事项：短页面底部出现留白属预期（内容不再强行撑满）；如个别视图希望恢复撑满高度，需在该视图根显式声明视口高度。
+
 ## 2026-07-18 克制赛博：设计令牌层升级 + 字体自托管 + 壳层打磨
 
 - 修改人：Kimi Code（主线）

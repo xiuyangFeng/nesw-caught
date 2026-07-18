@@ -15,7 +15,7 @@ class _FakeProvider:
         self._payload = payload
         self.calls = 0
 
-    def analyze_json(self, *, prompt: str) -> object:
+    def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
         self.calls += 1
         return self._payload
 
@@ -100,7 +100,7 @@ def test_generate_persists_empty_takeaway_and_prevents_retry() -> None:
 
 def test_generate_respects_batch_limit_and_tolerates_failure() -> None:
     class _FailingProvider:
-        def analyze_json(self, *, prompt: str) -> object:
+        def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
             raise RuntimeError("llm down")
 
     with SessionLocal() as session:
@@ -157,7 +157,7 @@ def test_generate_continues_batch_after_single_item_failure() -> None:
             self._payload = payload
             self.calls = 0
 
-        def analyze_json(self, *, prompt: str) -> object:
+        def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
             self.calls += 1
             if self.calls == 1:
                 raise RuntimeError("llm down")

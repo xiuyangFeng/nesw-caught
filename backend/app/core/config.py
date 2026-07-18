@@ -37,7 +37,9 @@ class Settings(BaseSettings):
     x_monitor_accounts_file: str | None = None
     twitterapi_io_api_key: str | None = None
     twitterapi_io_timeout_seconds: float = 60.0
-    twitterapi_io_min_interval_seconds: float = 0.0
+    # twitterapi.io 请求最小间隔(秒):账号间逐个请求,由 TwitterApiIoClient
+    # ._wait_for_rate_limit 按此间隔 sleep;默认 1.0 避免多账号轮询打满限流。
+    twitterapi_io_min_interval_seconds: float = 1.0
     x_monitor_refresh_cooldown_hours: int = 3
     x_radar_rules_file: str | None = None
     market_quote_provider: str = "yahoo_finance"

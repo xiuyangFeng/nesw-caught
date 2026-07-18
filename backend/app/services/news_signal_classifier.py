@@ -246,7 +246,7 @@ class NewsSignalClassifier:
             ]
         )
         try:
-            payload = build_provider(config).analyze_json(prompt=prompt)
+            payload = build_provider(config).analyze_json(prompt=prompt, title=title, summary=summary)
         except Exception as exc:
             return ClassificationResult(
                 **{**baseline.__dict__, "classifier_type": "hybrid", "llm_error": str(exc)}

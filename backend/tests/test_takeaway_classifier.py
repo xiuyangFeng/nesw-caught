@@ -9,7 +9,7 @@ class _FakeProvider:
     def __init__(self, payload: object) -> None:
         self._payload = payload
 
-    def analyze_json(self, *, prompt: str) -> object:
+    def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
         assert "takeaway" in prompt
         return self._payload
 

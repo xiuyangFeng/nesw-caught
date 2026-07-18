@@ -315,7 +315,45 @@ describe('AppShell', () => {
     expect(connectionStore.disconnect).toHaveBeenCalledTimes(1);
   });
 
-  it('refreshes the news feed layout safely when feedQuery is missing', async () => {
+  it('keeps news.created on the local incremental path without a layout refetch', async () => {
+    vi.useFakeTimers();
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
+    expect(handleEvent).toBeTypeOf('function');
+
+    const createdItem = {
+      id: 8,
+      title: 'Fresh headline',
+      summary: 'Fresh summary',
+      source_name: 'Reuters',
+      canonical_url: 'https://example.com/fresh',
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-03-25T02:30:00Z',
+      fetched_at: '2026-03-25T02:31:00Z',
+    };
+
+    newsStore.loadFeedLayout.mockClear();
+    handleEvent({
+      type: 'news.created',
+      occurred_at: '2026-03-25T02:31:00Z',
+      payload: createdItem,
+    });
+
+    expect(newsStore.upsertNews).toHaveBeenCalledWith(createdItem);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(newsStore.loadFeedLayout).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('refreshes the layout on topic.updated and on the 60s poll, safely when feedQuery is missing', async () => {
     vi.useFakeTimers();
     (newsStore as { feedQuery?: { market?: string } | undefined }).feedQuery = undefined;
 
@@ -325,34 +363,40 @@ describe('AppShell', () => {
     const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
     expect(handleEvent).toBeTypeOf('function');
 
+    newsStore.loadFeedLayout.mockClear();
+
     expect(() =>
       handleEvent({
-        type: 'news.created',
+        type: 'topic.updated',
         occurred_at: '2026-03-25T02:31:00Z',
         payload: {
-          id: 8,
-          title: 'Fresh headline',
-          summary: 'Fresh summary',
-          source_name: 'Reuters',
-          canonical_url: 'https://example.com/fresh',
-          market: 'us',
-          sentiment_label: 'neutral',
-          published_at: '2026-03-25T02:30:00Z',
-          fetched_at: '2026-03-25T02:31:00Z',
+          id: 3,
+          topic_title: 'AI Infra',
+          importance_score: 0.9,
+          news_count: 4,
+          last_seen_at: '2026-03-25T02:30:00Z',
         },
       }),
     ).not.toThrow();
 
     await vi.advanceTimersByTimeAsync(500);
 
-    expect(newsStore.loadFeedLayout).toHaveBeenCalledWith({
+    expect(newsStore.loadFeedLayout).toHaveBeenCalledTimes(1);
+    expect(newsStore.loadFeedLayout).toHaveBeenLastCalledWith({
       market: undefined,
       limit_events: 6,
       limit_topics: 6,
       limit_stream: 100,
     });
 
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(newsStore.loadFeedLayout).toHaveBeenCalledTimes(2);
+
     wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(newsStore.loadFeedLayout).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
 

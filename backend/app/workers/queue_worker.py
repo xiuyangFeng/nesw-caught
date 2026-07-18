@@ -4,7 +4,6 @@ import logging
 import queue
 import time
 from collections.abc import Callable
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -31,25 +30,19 @@ class BackgroundQueueWorker(BaseWorker):
         heartbeat_interval_seconds: float = 30.0,
         logger: logging.Logger | None = None,
     ) -> None:
-        super().__init__(session_factory=session_factory, logger=logger)
+        super().__init__(
+            session_factory=session_factory,
+            logger=logger,
+            # 空转周期的心跳写事务降频(在 BaseWorker 统一实现),避免每秒一次的无意义写放大。
+            heartbeat_interval_seconds=heartbeat_interval_seconds,
+        )
         self.poll_interval_seconds = poll_interval_seconds
         # 兜底扫描是无索引可用的 Pending 全表查询,不需要每秒执行一次。
         self.fallback_scan_interval_seconds = fallback_scan_interval_seconds
-        # 空转周期的心跳写事务降频,避免每秒一次的无意义写放大。
-        self.heartbeat_interval_seconds = heartbeat_interval_seconds
         self._next_fallback_scan_at = 0.0
-        self._last_heartbeat_at = float("-inf")
 
     def get_interval(self) -> float:
         return self.poll_interval_seconds
-
-    def _record_success(self, processed_count: Any = 0) -> None:
-        count = processed_count if isinstance(processed_count, int) else 0
-        now = time.monotonic()
-        if count == 0 and now - self._last_heartbeat_at < self.heartbeat_interval_seconds:
-            return
-        self._last_heartbeat_at = now
-        super()._record_success(processed_count)
 
     def do_cycle(self) -> int:
         """异步消化分析队列。"""
@@ -100,21 +93,27 @@ class BackgroundQueueWorker(BaseWorker):
 
             session.commit()
 
-            # 3. 广播已评分事件，并进行通知草稿入队
+            # 3. 广播已评分事件，并批量进行通知草稿入队(一次配置加载 + 一次提交)
+            notification_payloads = []
             for item, payload in update_payloads:
                 event_bus.publish("news.updated", payload)
+                notification_payloads.append(
+                    {
+                        "title": item.title,
+                        "summary": item.summary,
+                        "source_name": item.source_name,
+                        "market": item.market,
+                        "published_at": item.published_at.isoformat() if item.published_at else None,
+                    }
+                )
+            if notification_payloads:
                 try:
-                    notification_service.on_news_created(
-                        {
-                            "title": item.title,
-                            "summary": item.summary,
-                            "source_name": item.source_name,
-                            "market": item.market,
-                            "published_at": item.published_at.isoformat() if item.published_at else None,
-                        }
-                    )
+                    notification_service.on_news_created_batch(notification_payloads)
                 except Exception:
-                    self.logger.exception("Failed to enqueue feishu notification for news id %s", item.id)
+                    self.logger.exception(
+                        "Failed to enqueue feishu notifications for %s news items",
+                        len(notification_payloads),
+                    )
 
         if summary.processed_count > 0:
             event_bus.publish(

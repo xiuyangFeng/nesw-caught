@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseMarkdown } from './markdown';
+import { getMarkdownCacheSize, parseMarkdown } from './markdown';
 
 describe('parseMarkdown', () => {
   it('escapes raw HTML to prevent XSS', () => {
@@ -51,5 +51,23 @@ describe('parseMarkdown', () => {
     expect(parsed).toContain('<p class="mb-3 last:mb-0 leading-relaxed text-text-muted">Intro paragraph.</p>');
     expect(parsed).toContain('<p class="mb-3 last:mb-0 leading-relaxed text-text-muted">Outro paragraph.</p>');
     expect(parsed).not.toContain('<p class="mb-3 last:mb-0 leading-relaxed text-text-muted"><div class="code-block-wrapper');
+  });
+
+  it('serves repeated parses from the LRU cache and caps it at 100 entries', () => {
+    const sizeBefore = getMarkdownCacheSize();
+
+    parseMarkdown('cache probe **bold**');
+    expect(getMarkdownCacheSize()).toBe(sizeBefore + 1);
+
+    // 相同文本命中缓存,条目数不再增长(即没有重解析)
+    parseMarkdown('cache probe **bold**');
+    expect(getMarkdownCacheSize()).toBe(sizeBefore + 1);
+
+    // 超过容量后旧条目被淘汰,缓存保持有界且解析结果仍然正确
+    for (let i = 0; i < 150; i++) {
+      parseMarkdown(`unique paragraph ${i}`);
+    }
+    expect(getMarkdownCacheSize()).toBeLessThanOrEqual(100);
+    expect(parseMarkdown('cache probe **bold**')).toContain('<strong>bold</strong>');
   });
 });

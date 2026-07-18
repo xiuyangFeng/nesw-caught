@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_float(value: object) -> float | None:
@@ -185,42 +188,128 @@ class YahooFinanceQuoteProvider:
         if not normalized_list:
             return []
 
-        max_workers = min(len(normalized_list), 10)
         results_map: dict[str, QuoteRecord] = {}
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_ns = {
-                executor.submit(self.fetch_quote, ns): ns
-                for ns in normalized_list
-            }
-            for future in as_completed(future_to_ns):
-                ns = future_to_ns[future]
-                try:
-                    record = future.result()
-                    results_map[ns.symbol] = record
-                except Exception as exc:
-                    results_map[ns.symbol] = QuoteRecord(
-                        symbol=ns.symbol,
-                        market=ns.market,
-                        provider_symbol=ns.provider_symbol,
-                        price=None,
-                        change_amount=None,
-                        change_percent=None,
-                        # These fields are only ever populated on the success path inside
-                        # fetch_quote(); they are never assigned in this method's scope, so
-                        # this branch always falls back to None (preserved as-is below).
-                        open_price=None,
-                        previous_close=None,
-                        day_high=None,
-                        day_low=None,
-                        volume=None,
-                        status="fetch_failed",
-                        source=self.source_name,
-                        message=str(exc),
-                        fetched_at=datetime.now(UTC),
-                    )
+        # 优先走 yf.download 单次批量请求(一次 HTTP 取回全部 symbol 的日线),
+        # 未覆盖或批量整体失败的 symbol 再回退到逐票并发请求。
+        try:
+            results_map.update(self._fetch_quotes_download(normalized_list))
+        except Exception as exc:
+            logger.warning("yahoo batch download failed, falling back to per-symbol fetch: %s", exc)
+
+        remaining = [ns for ns in normalized_list if ns.symbol not in results_map]
+        if remaining:
+            max_workers = min(len(remaining), 10)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_ns = {
+                    executor.submit(self.fetch_quote, ns): ns
+                    for ns in remaining
+                }
+                for future in as_completed(future_to_ns):
+                    ns = future_to_ns[future]
+                    try:
+                        record = future.result()
+                        results_map[ns.symbol] = record
+                    except Exception as exc:
+                        results_map[ns.symbol] = QuoteRecord(
+                            symbol=ns.symbol,
+                            market=ns.market,
+                            provider_symbol=ns.provider_symbol,
+                            price=None,
+                            change_amount=None,
+                            change_percent=None,
+                            open_price=None,
+                            previous_close=None,
+                            day_high=None,
+                            day_low=None,
+                            volume=None,
+                            status="fetch_failed",
+                            source=self.source_name,
+                            message=str(exc),
+                            fetched_at=datetime.now(UTC),
+                        )
 
         return [results_map[ns.symbol] for ns in normalized_list]
+
+    def _fetch_quotes_download(self, normalized_list: list[NormalizedSymbol]) -> dict[str, QuoteRecord]:
+        """用 yf.download 一次批量取回日线,解析出各 symbol 的最新价/涨跌。
+
+        多 symbol + group_by="ticker" 时返回 (ticker, field) 的 MultiIndex 列;
+        单 symbol 时部分 yfinance 版本退化为普通列,两种结构都兼容。
+        """
+        try:
+            import yfinance as yf
+        except ImportError as exc:  # pragma: no cover - depends on environment
+            raise RuntimeError("yfinance is not installed") from exc
+
+        frame = yf.download(
+            tickers=[ns.provider_symbol for ns in normalized_list],
+            period="2d",
+            interval="1d",
+            group_by="ticker",
+            threads=True,
+            auto_adjust=False,
+            progress=False,
+        )
+        records: dict[str, QuoteRecord] = {}
+        if frame is None or frame.empty:
+            return records
+
+        for ns in normalized_list:
+            sub = self._extract_ticker_frame(frame, ns.provider_symbol, single=len(normalized_list) == 1)
+            if sub is None or sub.empty or "Close" not in sub.columns:
+                continue
+            sub = sub.dropna(subset=["Close"])
+            if sub.empty:
+                continue
+            record = self._record_from_download_rows(ns, sub)
+            if record is not None:
+                records[ns.symbol] = record
+        return records
+
+    @staticmethod
+    def _extract_ticker_frame(frame, provider_symbol: str, *, single: bool):
+        import pandas as pd
+
+        if isinstance(frame.columns, pd.MultiIndex):
+            if provider_symbol in frame.columns.get_level_values(0):
+                return frame[provider_symbol]
+            return None
+        # 非 MultiIndex 列只在单 symbol 请求时可安全归属。
+        return frame if single else None
+
+    def _record_from_download_rows(self, normalized: NormalizedSymbol, history) -> QuoteRecord | None:
+        latest = history.iloc[-1]
+        previous_row = history.iloc[-2] if len(history.index) >= 2 else None
+
+        price = _coerce_float(latest.get("Close"))
+        if price is None:
+            return None
+        previous_close = _coerce_float(previous_row.get("Close")) if previous_row is not None else None
+        open_price = _coerce_float(latest.get("Open"))
+        day_high = _coerce_float(latest.get("High"))
+        day_low = _coerce_float(latest.get("Low"))
+        volume = _coerce_int(latest.get("Volume"))
+        change_amount = price - previous_close if previous_close is not None else None
+        change_percent = ((change_amount / previous_close) * 100) if change_amount is not None and previous_close else None
+
+        return QuoteRecord(
+            symbol=normalized.symbol,
+            market=normalized.market,
+            provider_symbol=normalized.provider_symbol,
+            price=price,
+            change_amount=change_amount,
+            change_percent=change_percent,
+            open_price=open_price,
+            previous_close=previous_close,
+            day_high=day_high,
+            day_low=day_low,
+            volume=volume,
+            status="ok",
+            source=self.source_name,
+            message=None,
+            fetched_at=datetime.now(UTC),
+        )
 
 
 class TencentQuoteProvider:

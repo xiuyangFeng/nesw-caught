@@ -39,11 +39,22 @@ def reset_twitterapi_client_state():
     module.TwitterApiIoClient._last_probe_checked_at = None
     module.TwitterApiIoClient._last_probe_handle = None
     module.TwitterApiIoClient._last_probe_error = None
+    # 共享 httpx.Client 是类级缓存:每个测试 monkeypatch httpx.Client 前必须重置,
+    # 否则会沿用到上一个测试(或真实)的 client 实例。
+    module.TwitterApiIoClient._shared_client = None
     yield
     module.TwitterApiIoClient._last_request_started_at = None
     module.TwitterApiIoClient._last_probe_checked_at = None
     module.TwitterApiIoClient._last_probe_handle = None
     module.TwitterApiIoClient._last_probe_error = None
+    module.TwitterApiIoClient.close_shared_client()
+
+
+def test_twitterapi_io_min_interval_defaults_to_one_second() -> None:
+    """限速默认值:twitterapi_io_min_interval_seconds 默认 1.0s(不再是 0)。"""
+    from app.core.config import Settings
+
+    assert Settings.model_fields["twitterapi_io_min_interval_seconds"].default == 1.0
 
 
 def test_twitterapi_io_client_get_user_last_tweets_sends_api_key(monkeypatch) -> None:
@@ -233,6 +244,112 @@ def test_twitterapi_io_client_advanced_search_passes_limit(monkeypatch) -> None:
 
     client = module.TwitterApiIoClient()
     assert client.advanced_search("NVDA", limit=7) == [{"id": "190001"}]
+
+
+def test_x_monitor_refresh_skips_failed_account_and_persists_others(monkeypatch, tmp_path: Path) -> None:
+    """单账号抓取失败只记账跳过,不再作废整轮;成功账号正常落库。"""
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        '{"accounts":['
+        '{"handle":"BrokenAcct","display_name":"Broken","market_focus":"us","is_active":true,"priority":100},'
+        '{"handle":"GoodAcct","display_name":"Good","market_focus":"us","is_active":true,"priority":90}'
+        "]}",
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            if handle == "BrokenAcct":
+                raise import_module("app.services.twitterapi_io_client").TwitterApiIoError(
+                    "twitterapi.io request failed with status 429"
+                )
+            return [
+                {
+                    "id": "190002",
+                    "text": "NVDA guidance raised on AI demand",
+                    "createdAt": "2026-03-16T07:00:00Z",
+                    "url": "https://x.com/GoodAcct/status/190002",
+                    "symbols": ["NVDA"],
+                    "author": {"userName": "GoodAcct", "name": "Good"},
+                }
+            ]
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.service.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+        summary = service.refresh()
+
+        assert summary.fetched_count == 1
+        assert summary.inserted_count == 1
+        assert summary.error is not None
+        assert "BrokenAcct" in summary.error
+
+        rows = service.posts.list_posts(account_handle="GoodAcct", symbol=None, market=None, query=None, limit=10)
+        assert len(rows) == 1
+
+        # 部分失败仍算一轮成功:不累积 consecutive_failures。
+        health = service.health_repo.get_or_create("twitterapi.io")
+        assert health.consecutive_failures == 0
+        assert health.last_success_at is not None
+
+
+def test_x_monitor_refresh_records_failure_when_all_accounts_fail(monkeypatch, tmp_path: Path) -> None:
+    """全部账号失败时保持旧语义:整轮记失败,不落库。"""
+    accounts_file = tmp_path / "accounts.json"
+    accounts_file.write_text(
+        '{"accounts":['
+        '{"handle":"BrokenOne","display_name":"One","market_focus":"us","is_active":true,"priority":100},'
+        '{"handle":"BrokenTwo","display_name":"Two","market_focus":"us","is_active":true,"priority":90}'
+        "]}",
+        encoding="utf-8",
+    )
+
+    class FakeTwitterApiIoClient:
+        configured = True
+
+        def get_user_last_tweets(self, handle: str, limit: int = 20) -> list[dict[str, object]]:
+            raise import_module("app.services.twitterapi_io_client").TwitterApiIoError(f"{handle} exploded")
+
+    monkeypatch.setattr(
+        "app.services.x_monitor.service.get_settings",
+        lambda: SimpleNamespace(
+            x_monitor_enabled=True,
+            x_monitor_accounts_file=str(accounts_file),
+            twitterapi_io_api_key="test-key",
+            twitterapi_io_timeout_seconds=30.0,
+            x_monitor_refresh_cooldown_hours=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.x_monitor.service.TwitterApiIoClient", FakeTwitterApiIoClient)
+
+    with _test_session() as session:
+        service = XMonitorService(session)
+        service.import_accounts_from_file()
+        summary = service.refresh()
+
+        assert summary.fetched_count == 0
+        assert summary.inserted_count == 0
+        assert summary.error is not None
+        assert "BrokenOne" in summary.error and "BrokenTwo" in summary.error
+
+        health = service.health_repo.get_or_create("twitterapi.io")
+        assert health.consecutive_failures == 1
+        assert health.total_failures == 1
+        assert health.last_success_at is None
 
 
 def test_x_monitor_refresh_deduplicates_posts_by_tweet_id(monkeypatch, tmp_path: Path) -> None:

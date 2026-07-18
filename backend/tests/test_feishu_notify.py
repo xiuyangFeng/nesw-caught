@@ -191,6 +191,50 @@ def test_notification_service_news_filter():
     assert _job_payload(source_jobs[0])["title"] == "Tencent AI launch"
 
 
+def test_on_news_created_batch_loads_config_once_and_commits_once(monkeypatch):
+    """批量接口:一次配置加载 + 一次会话提交(与条数无关),关键词过滤语义与单条一致。"""
+    from app.services import notification_service as notification_service_module
+    from app.services.notification_service import NotificationService
+
+    _create_config(news_enabled=True, news_keywords="tencent")
+    service = NotificationService()
+
+    real_session_local = notification_service_module.SessionLocal
+    session_call_count = 0
+
+    class CountingSessionLocal:
+        def __call__(self, *args, **kwargs):
+            nonlocal session_call_count
+            session_call_count += 1
+            return real_session_local(*args, **kwargs)
+
+    monkeypatch.setattr(notification_service_module, "SessionLocal", CountingSessionLocal())
+
+    service.on_news_created_batch([
+        {"title": "Tencent AI launch", "summary": "test", "source_name": "Reuters", "market": "hk"},
+        {"title": "Apple supply update", "summary": "chip demand", "source_name": "Bloomberg", "market": "us"},
+        {"title": "Tencent cloud growth", "summary": "q3", "source_name": "Caixin", "market": "cn"},
+    ])
+
+    jobs = _load_notification_jobs()
+    source_jobs = [job for job in jobs if job.event_type == "news_source_event"]
+    assert [_job_payload(job)["title"] for job in source_jobs] == ["Tencent AI launch", "Tencent cloud growth"]
+    # 1 次加载配置 + 1 次批量入队会话;逐条接口会是 2 * 3 = 6 次。
+    assert session_call_count == 2
+
+
+def test_on_news_created_batch_noop_when_disabled_or_empty():
+    from app.services.notification_service import NotificationService
+
+    _create_config(news_enabled=False)
+    service = NotificationService()
+    service.on_news_created_batch([{"title": "Tencent AI launch", "summary": "test"}])
+    service.on_news_created_batch([])
+
+    jobs = _load_notification_jobs()
+    assert [job for job in jobs if job.event_type == "news_source_event"] == []
+
+
 def test_analysis_completion_enqueues_job_instead_of_sending_inline():
     from app.services.notification_service import NotificationService
 

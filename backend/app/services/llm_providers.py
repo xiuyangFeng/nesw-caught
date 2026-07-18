@@ -5,7 +5,7 @@ import json
 import logging
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 from urllib.parse import urlparse
 
 import httpx
@@ -15,6 +15,9 @@ from app.db.session import SessionLocal
 from app.models.llm_provider_config import LLMProviderConfig
 from app.services.http_pool import get_async_llm_client, get_llm_client
 from app.services.token_usage_buffer import token_usage_buffer
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -70,35 +73,61 @@ def compute_classification_hash(content: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def get_cached_classification(content_hash: str) -> str | None:
-    """按内容 hash 读取缓存的分类结果 JSON；读取失败静默降级为未命中。"""
+def compute_classification_fields_hash(title: str, summary: str | None, market: str | None) -> str:
+    """按 (title, summary, market) 计算分类缓存键。
+
+    正文唯一导致以整篇 prompt 为键时命中率≈0;改为结构化字段键后,
+    相同标题+摘要+市场的新闻(如同题转载)直接命中缓存。
+    """
+    normalized = "\x1f".join(normalize_classification_content(part or "") for part in (title, summary, market))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def get_cached_classification(content_hash: str, session: Session | None = None) -> str | None:
+    """按内容 hash 读取缓存的分类结果 JSON；读取失败静默降级为未命中。
+
+    调用方已有 session 时可传入复用,否则自开一个 SessionLocal。
+    """
     from app.repositories.llm_classification_cache_repository import (
         LLMClassificationCacheRepository,
     )
 
     try:
-        with SessionLocal() as session:
+        if session is not None:
             entry = LLMClassificationCacheRepository(session).get_by_hash(content_hash)
+            return entry.result_json if entry is not None else None
+        with SessionLocal() as owned_session:
+            entry = LLMClassificationCacheRepository(owned_session).get_by_hash(content_hash)
             return entry.result_json if entry is not None else None
     except Exception as exc:
         logger.warning(f"Failed to read classification cache: {exc}")
         return None
 
 
-def store_classification(content_hash: str, result_json: str, model_name: str | None) -> None:
-    """写入分类结果缓存；写入失败仅告警，绝不影响主分类流程。"""
+def store_classification(content_hash: str, result_json: str, model_name: str | None, session: Session | None = None) -> None:
+    """写入分类结果缓存；写入失败仅告警，绝不影响主分类流程。
+
+    调用方已有 session 时可传入复用(提交边界归调用方),否则自开 SessionLocal 并提交。
+    """
     from app.repositories.llm_classification_cache_repository import (
         LLMClassificationCacheRepository,
     )
 
     try:
-        with SessionLocal() as session:
+        if session is not None:
             LLMClassificationCacheRepository(session).upsert(
                 content_hash=content_hash,
                 result_json=result_json,
                 model_name=model_name,
             )
-            session.commit()
+            return
+        with SessionLocal() as owned_session:
+            LLMClassificationCacheRepository(owned_session).upsert(
+                content_hash=content_hash,
+                result_json=result_json,
+                model_name=model_name,
+            )
+            owned_session.commit()
     except Exception as exc:
         logger.warning(f"Failed to write classification cache: {exc}")
 
@@ -374,12 +403,25 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
             self.failover_triggered = failover_info
             return OpenAICompatibleProvider(backup_config).embed_text(text, _retry_count=_retry_count + 1)
 
-    def analyze_json(self, *, prompt: str) -> dict[str, object] | object:
+    def analyze_json(
+        self,
+        *,
+        prompt: str,
+        title: str | None = None,
+        summary: str | None = None,
+        market: str | None = None,
+    ) -> dict[str, object] | object:
         # 分类缓存：相同内容命中缓存则直接返回，跳过 LLM 调用与 token 计量。
+        # 提供 title 时按 (title+summary+market) 建键(相同标题新闻命中);
+        # 否则回退到整篇 prompt 建键(保持旧调用方行为)。
         cache_enabled = get_settings().llm_classification_cache_enabled
         content_hash: str | None = None
         if cache_enabled:
-            content_hash = compute_classification_hash(prompt)
+            content_hash = (
+                compute_classification_fields_hash(title, summary, market)
+                if title is not None
+                else compute_classification_hash(prompt)
+            )
             cached_json = get_cached_classification(content_hash)
             if cached_json is not None:
                 try:

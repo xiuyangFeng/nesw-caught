@@ -52,7 +52,7 @@ import type {
   XRadarResponse,
   XRefreshResult,
 } from '../types/api';
-import { HttpError, deleteJson, getJson, patchJson, postJson } from './http';
+import { HttpError, deleteJson, getJson, isAbortError, patchJson, postJson } from './http';
 
 type MockModule = typeof import('./mock');
 
@@ -85,7 +85,9 @@ async function withMockFallback<T>(
     const data = await request();
     return { data, degraded: false };
   } catch (error) {
-    if (!import.meta.env.DEV) {
+    // Aborted requests must propagate so callers can drop stale results;
+    // falling back to mock would resurrect a request the caller cancelled.
+    if (isAbortError(error) || !import.meta.env.DEV) {
       throw error;
     }
     const mock = await import('./mock');
@@ -97,9 +99,9 @@ export const apiClient = {
   getHealth() {
     return withMockFallback<HealthStatus>(() => getJson('/api/health'), (mock) => mock.mockHealth);
   },
-  getNews(query: NewsQuery = {}) {
+  getNews(query: NewsQuery = {}, signal?: AbortSignal) {
     return withMockFallback<NewsListPage>(
-      () => getJson(withQuery('/api/news', query)),
+      () => getJson(withQuery('/api/news', query), signal),
       (mock) => {
         const filtered = mock.mockNews.filter((item) => {
           const marketOk = !query.market || item.market === query.market;
@@ -122,9 +124,9 @@ export const apiClient = {
       },
     );
   },
-  getNewsFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}) {
+  getNewsFeedLayout(query: { market?: string; limit_events?: number; limit_topics?: number; limit_stream?: number } = {}, signal?: AbortSignal) {
     return withMockFallback<NewsFeedLayout>(
-      () => getJson(withQuery('/api/news/feed-layout', query)),
+      () => getJson(withQuery('/api/news/feed-layout', query), signal),
       (mock) => mock.mockNewsFeedLayout,
     );
   },

@@ -82,9 +82,7 @@ if (typeof window !== 'undefined' && !(window as any).__copyCodeToClipboard) {
   };
 }
 
-export function parseMarkdown(text: string): string {
-  if (!text) return '';
-
+function renderMarkdown(text: string): string {
   // 1. Escape HTML for security
   const safeText = escapeHtml(text);
 
@@ -229,4 +227,39 @@ export function parseMarkdown(text: string): string {
   }
 
   return finalHtml;
+}
+
+/**
+ * LRU cache over rendered HTML, keyed by the raw input text.
+ * Streaming/typewriter UIs re-render the same finalized messages on every
+ * tick; caching keeps those re-renders O(1). Map insertion order doubles as
+ * the recency order: reads re-insert the key, eviction drops the oldest.
+ */
+const MARKDOWN_CACHE_LIMIT = 100;
+const markdownCache = new Map<string, string>();
+
+/** Test hook: lets specs observe cache behaviour without re-parse spies. */
+export function getMarkdownCacheSize(): number {
+  return markdownCache.size;
+}
+
+export function parseMarkdown(text: string): string {
+  if (!text) return '';
+
+  const cached = markdownCache.get(text);
+  if (cached !== undefined) {
+    markdownCache.delete(text);
+    markdownCache.set(text, cached);
+    return cached;
+  }
+
+  const html = renderMarkdown(text);
+  markdownCache.set(text, html);
+  if (markdownCache.size > MARKDOWN_CACHE_LIMIT) {
+    const oldest = markdownCache.keys().next().value;
+    if (oldest !== undefined) {
+      markdownCache.delete(oldest);
+    }
+  }
+  return html;
 }

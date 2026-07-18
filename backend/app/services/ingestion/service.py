@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 
 from sqlalchemy.orm import Session
 
@@ -8,12 +9,17 @@ from app.models.news_item import NewsItem
 from app.repositories.source_health_repository import SourceHealthRepository
 from app.schemas.news import NewsItemSummary
 from app.services import news_ingestion
+from app.services.ingestion.detail_hydration import (
+    MINIMAX_SOURCE_NAME,
+    hydrate_minimax_detail_items,
+)
 from app.services.ingestion.fetcher import fetch_source_items
 from app.services.ingestion.persister import ItemPersister
 from app.services.ingestion.types import (
     MAX_FETCH_WORKERS,
     RefreshSummary,
     SourceDefinition,
+    SourceFetchOutcome,
     SourceFetchResult,
     SourceItem,
 )
@@ -74,6 +80,10 @@ class NewsIngestionService:
                     )
                 outcomes = [f.result() for f in futures]
 
+        # 详情页水合(如 MiniMax)在落库前完成:数据库读取集中在调用方线程,
+        # 详情页网络抓取在内部线程池并发执行,不占用串行落库段。
+        outcomes = [self._hydrate_outcome_details(outcome) for outcome in outcomes]
+
         for outcome in outcomes:
             result = self.persister.persist_outcome(outcome)
             fetched_count += result.fetched_count
@@ -99,13 +109,18 @@ class NewsIngestionService:
                     NewsItemSummary.model_validate(item, from_attributes=True).model_dump(mode="json"),
                 )
             event_bus.publish("news.created_batch", {"news_ids": target_news_ids})
-        else:
-            pipeline = news_ingestion.NewsSignalPipelineService(self.session)
-            target_news_ids = pipeline.list_pending_news_ids(limit=50)
-            if target_news_ids:
-                pipeline.process_news_ids(target_news_ids)
-                self.session.commit()
+        # 无新插入时不再就地处理 pending：积压由 scheduler 转交 BackgroundQueueWorker
+        # 单入口处理，避免与 worker 并行重复消费（重复爬正文 + 双倍 LLM token）。
         return summary
+
+    def _hydrate_outcome_details(self, outcome: SourceFetchOutcome) -> SourceFetchOutcome:
+        """对需要详情页水合的 source(目前仅 MiniMax News)在落库前并发补全详情。"""
+        if outcome.error is not None or outcome.is_not_modified or not outcome.items:
+            return outcome
+        if outcome.source.name != MINIMAX_SOURCE_NAME:
+            return outcome
+        items = hydrate_minimax_detail_items(self.session, outcome.source, outcome.items)
+        return replace(outcome, items=items)
 
     def _refresh_source(self, source: SourceDefinition) -> SourceFetchResult:
         """单源同步刷新:抓取 + 落库。保留作测试与一次性脚本入口。"""
@@ -115,6 +130,7 @@ class NewsIngestionService:
             market=source.market,
         )
         outcome = fetch_source_items(source, etag=health.last_etag, last_modified=health.last_modified)
+        outcome = self._hydrate_outcome_details(outcome)
         return self.persister.persist_outcome(outcome)
 
     def _persist_item(self, source: SourceDefinition, item: SourceItem) -> NewsItem | None:

@@ -202,7 +202,7 @@ def test_process_news_ids_falls_back_to_rule_output_when_llm_fails(
 
     def _raise_provider_error(_config):
         class _FakeProvider:
-            def analyze_json(self, *, prompt: str):
+            def analyze_json(self, *, prompt: str, title=None, summary=None, market=None):
                 del prompt
                 raise LLMProviderError("simulated llm failure")
 
@@ -293,8 +293,8 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
             return [self.get_by_id(rid) for rid in requested_ids]
 
     class FakeNotificationService:
-        def on_news_created(self, payload: dict[str, object]) -> None:
-            del payload
+        def on_news_created_batch(self, payloads: list[dict[str, object]]) -> None:
+            del payloads
 
         def on_analysis_completed(self, payload: dict[str, object]) -> None:
             del payload

@@ -34,16 +34,21 @@ class MarketChartService:
     def get_kline(self, symbol: str, interval: str, range_name: str, session: Session) -> dict:
         watchlist_item = self._require_watchlist_symbol(symbol, session)
         cache_key = self._build_cache_key(watchlist_item.symbol, interval, range_name)
+        # TTL 内命中缓存直接返回,避免每次请求都走 yf.download(1-3s)。
         cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
 
         try:
             payload = self._build_kline_payload(watchlist_item.symbol, watchlist_item.market, interval, range_name, session)
             self._set_cache(cache_key, payload, ttl_seconds=self._ttl_for_interval(interval))
             return payload
         except Exception:
-            if cached is not None:
-                cached["stale"] = True
-                return cached
+            # 过期缓存仍可作 stale 兜底。
+            stale = self._get_cache(cache_key, allow_stale=True)
+            if stale is not None:
+                stale["stale"] = True
+                return stale
             raise
 
     def get_sparklines(self, symbols: list[str], session: Session) -> dict[str, dict[str, list[float]]]:
@@ -250,7 +255,7 @@ class MarketChartService:
     def _ttl_for_interval(self, interval: str) -> int:
         return 3600 if interval in {"1wk", "1mo"} else 300
 
-    def _get_cache(self, cache_key: str) -> dict | None:
+    def _get_cache(self, cache_key: str, *, allow_stale: bool = False) -> dict | None:
         redis_client = self._get_redis_client()
         if redis_client is not None:
             try:
@@ -263,8 +268,9 @@ class MarketChartService:
                 return json.loads(cached_payload)
 
         entry = self._cache.get(cache_key)
-        now = datetime.now(UTC)
-        if entry is None or entry.expires_at < now:
+        if entry is None:
+            return None
+        if entry.expires_at < datetime.now(UTC) and not allow_stale:
             return None
         return json.loads(entry.payload_json)
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
@@ -12,6 +12,7 @@ import EventCapsuleStrip from '../components/news/EventCapsuleStrip.vue';
 import TopicChipsRow from '../components/news/TopicChipsRow.vue';
 import NewsDetailDrawer from '../components/news/NewsDetailDrawer.vue';
 import { useFeedKeyboard } from '../composables/useFeedKeyboard';
+import { isAbortError } from '../api/http';
 import { partitionFoldableStream } from '../utils/newsFolding';
 import { markNewsRead, useReadNewsIds } from '../utils/readNews';
 import { useConnectionStore } from '../stores/connectionStore';
@@ -141,9 +142,11 @@ const layoutStreamScoreMap = computed(() => {
       .map((item) => [item.id, item.editorial_score ?? null]),
   );
 });
-const displayedFeedItems = ref<any[]>([...newsStore.feedItems]);
+const displayedFeedItems = shallowRef<any[]>([...newsStore.feedItems]);
 const pendingNewItems = ref<any[]>([]);
 
+// 浅层 watch：store 的 upsert 路径会替换数组引用,引用/长度变化即驱动同步,
+// 避免每条 SSE 都 O(n) 深遍历;flush:'post' 让同步发生在渲染之后。
 watch(() => newsStore.feedItems, (newVal) => {
   if (newsStore.feedLoading || newsStore.feedLoadingMore) {
     displayedFeedItems.value = [...newVal];
@@ -185,9 +188,10 @@ watch(() => newsStore.feedItems, (newVal) => {
       displayedFeedItems.value = newVal.filter(item => !pendingNewItems.value.some(p => p.id === item.id));
     }
   } else {
+    // 单条字段更新(如 ai_takeaway)也由 store 替换数组引用,走这里整体同步
     displayedFeedItems.value = [...newVal];
   }
-}, { deep: true, flush: 'sync' });
+}, { flush: 'post' });
 
 function applyPendingNews() {
   if (pendingNewItems.value.length === 0) return;
@@ -284,23 +288,37 @@ async function reloadFeedForFilters(options: { reloadLayout: boolean }) {
   feedSearchAbort = new AbortController();
   const signal = feedSearchAbort.signal;
   const tasks: Promise<unknown>[] = [
-    newsStore.loadFeedNews({
-      ...filters,
-      source_name: selectedSource.value || undefined,
-      limit: FEED_PAGE_SIZE,
-    }),
+    newsStore.loadFeedNews(
+      {
+        ...filters,
+        source_name: selectedSource.value || undefined,
+        limit: FEED_PAGE_SIZE,
+      },
+      signal,
+    ),
   ];
   if (options.reloadLayout) {
     tasks.unshift(
-      newsStore.loadFeedLayout({
-        market: filters.market || undefined,
-        limit_events: 6,
-        limit_topics: 6,
-        limit_stream: FEED_LAYOUT_STREAM_LIMIT,
-      }),
+      newsStore.loadFeedLayout(
+        {
+          market: filters.market || undefined,
+          limit_events: 6,
+          limit_topics: 6,
+          limit_stream: FEED_LAYOUT_STREAM_LIMIT,
+        },
+        signal,
+      ),
     );
   }
-  await Promise.all(tasks);
+  try {
+    await Promise.all(tasks);
+  } catch (error) {
+    // 过期请求被真正 abort：静默丢弃,排序由 store 层 requestId 兜底
+    if (isAbortError(error)) {
+      return;
+    }
+    throw error;
+  }
   if (signal.aborted) {
     return;
   }
@@ -399,12 +417,14 @@ onBeforeUnmount(() => {
   loadMoreObserver = null;
 });
 
+// flush:'post' 与 feedItems 同步 watcher 同序执行：displayedFeedItems 先同步,
+// hydration 再基于最新候选运行,避免流收缩过渡期对已移除条目发起多余 detail 请求。
 watch(hydrationCandidateIds, async (ids) => {
   if (!ids.length) {
     return;
   }
   await hydrateEditorialDetails();
-}, { immediate: true });
+}, { immediate: true, flush: 'post' });
 
 watch(useVirtualScrolling, (enabled) => {
   if (!enabled) {

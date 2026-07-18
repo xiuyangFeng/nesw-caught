@@ -145,3 +145,71 @@ def test_run_cycle_never_raises_when_record_failure_hits_non_sqlalchemy_session_
     worker = _FailingWorker(session_factory=lambda: _BareSession())
 
     assert worker.run_cycle() == 0
+
+
+class _RecordingSession:
+    """记录 commit 次数的最小 session 替身,供心跳节流断言写库次数。"""
+
+    def __init__(self) -> None:
+        self.commit_count = 0
+
+    def __enter__(self) -> _RecordingSession:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        return None
+
+    def scalar(self, *args, **kwargs):
+        return None
+
+    def add(self, instance) -> None:
+        return None
+
+    def flush(self) -> None:
+        return None
+
+    def commit(self) -> None:
+        self.commit_count += 1
+
+
+def test_record_success_throttles_idle_heartbeats_within_interval() -> None:
+    """空闲周期(processed_count==0)距上次心跳 <30s 时跳过写库;有处理量时不节流。"""
+    session = _RecordingSession()
+    worker = _StubWorker(session_factory=lambda: session)
+
+    worker._record_success(0)  # 首次心跳:写
+    worker._record_success(0)  # 30s 内空闲:跳过
+    worker._record_success(0)
+    assert session.commit_count == 1
+
+    worker._record_success(3)  # 有处理量:不受空闲节流限制
+    assert session.commit_count == 2
+
+
+def test_record_success_writes_idle_heartbeat_again_after_interval(monkeypatch) -> None:
+    """空闲超过节流间隔后,下一次心跳恢复写库。"""
+    session = _RecordingSession()
+    worker = _StubWorker(session_factory=lambda: session)
+    now = [1000.0]
+    monkeypatch.setattr("app.workers.base_worker.time.monotonic", lambda: now[0])
+
+    worker._record_success(0)
+    worker._record_success(0)
+    assert session.commit_count == 1
+
+    now[0] += 31.0
+    worker._record_success(0)
+    assert session.commit_count == 2
+
+
+def test_queue_worker_idle_throttle_uses_base_worker_implementation() -> None:
+    """queue_worker 的重复节流实现已下沉:子类不再自带 _last_heartbeat_at 覆盖逻辑。"""
+    from app.workers.queue_worker import BackgroundQueueWorker
+
+    session = _RecordingSession()
+    worker = BackgroundQueueWorker(session_factory=lambda: session)
+    assert "_record_success" not in BackgroundQueueWorker.__dict__
+
+    worker._record_success(0)
+    worker._record_success(0)
+    assert session.commit_count == 1
