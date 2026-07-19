@@ -1,5 +1,5 @@
-import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppShell from './AppShell.vue';
 
@@ -21,6 +21,7 @@ const newsStore = {
   loadNewsRuntime: vi.fn(async () => undefined),
   loadFeedLayout: vi.fn(async () => undefined),
   refreshDashboardNews: vi.fn(async () => false),
+  isRefreshing: false,
   feedQuery: {
     market: 'us',
   },
@@ -106,6 +107,13 @@ vi.mock('../../stores/runtimeStatusStore', () => ({
 }));
 
 describe('AppShell', () => {
+  // 本任务在 bootstrap() 中新增了 document 级别的 visibilitychange 监听。之前的部分用例
+  // 只 mount 未 unmount(依赖 wrapper 被 GC),这些"泄漏"的实例此前无副作用,但现在会在
+  // document 上累积监听器并对后续用例的 dispatchEvent 重复响应,导致断言次数被放大。
+  // enableAutoUnmount 让每个用例结束时自动 unmount 所有 wrapper,从根上消除跨用例污染,
+  // 且不需要逐个改写既有用例。
+  enableAutoUnmount(afterEach);
+
   beforeEach(() => {
     vi.useRealTimers();
     routeState.path = '/news';
@@ -119,6 +127,7 @@ describe('AppShell', () => {
     newsStore.loadNewsRuntime.mockClear();
     newsStore.loadFeedLayout.mockClear();
     newsStore.refreshDashboardNews.mockClear();
+    newsStore.isRefreshing = false;
     newsStore.feedQuery = {
       market: 'us',
     };
@@ -400,11 +409,11 @@ describe('AppShell', () => {
     vi.useRealTimers();
   });
 
-  it('does not auto-trigger full-source refresh on bootstrap and wires reconnect snapshot', async () => {
+  it('triggers a full-source refresh once on mount, but not again on reconnect', async () => {
     const wrapper = mount(AppShell);
     await flushPromises();
 
-    expect(newsStore.refreshDashboardNews).not.toHaveBeenCalled();
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
     expect(connectionStore.connect).toHaveBeenCalledWith(expect.any(Function), {
       onReconnect: expect.any(Function),
     });
@@ -414,9 +423,72 @@ describe('AppShell', () => {
     await flushPromises();
 
     expect(newsStore.loadDashboardNews).toHaveBeenCalled();
-    expect(newsStore.refreshDashboardNews).not.toHaveBeenCalled();
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
 
     wrapper.unmount();
+  });
+
+  it('polls a full-source refresh every 5 minutes while the tab stays visible', async () => {
+    vi.useFakeTimers();
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(3);
+
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it('pauses periodic refresh while hidden and refreshes immediately when visible again', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(3);
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('shows the syncing indicator while newsStore.isRefreshing is true', () => {
+    newsStore.isRefreshing = true;
+
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.find('[data-role="news-refresh-indicator"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="news-refresh-indicator"]').text()).toContain('同步中');
+  });
+
+  it('hides the syncing indicator when newsStore.isRefreshing is false', () => {
+    newsStore.isRefreshing = false;
+
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.find('[data-role="news-refresh-indicator"]').exists()).toBe(false);
   });
 
   it('redirects root navigation to the news discovery page', async () => {

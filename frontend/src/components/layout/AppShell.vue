@@ -27,8 +27,10 @@ const feedLayoutDebounceMs = 500;
 // layout 全量刷新只走低频轮询：news.created/updated 已由 store 本地增量覆盖,
 // 只有 topic.updated(结构变化无法本地增量)与周期兜底才触发全量。
 const feedLayoutPollIntervalMs = 60_000;
+const newsRefreshPollIntervalMs = 5 * 60_000;
 let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
 let feedLayoutPollHandle: ReturnType<typeof setInterval> | null = null;
+let newsRefreshPollHandle: ReturnType<typeof setInterval> | null = null;
 let feedLayoutDebounceHandle: ReturnType<typeof setTimeout> | null = null;
 let shellDisposed = false;
 
@@ -255,6 +257,38 @@ function startFeedLayoutPolling() {
   feedLayoutPollHandle = setInterval(refreshNewsFeedLayout, feedLayoutPollIntervalMs);
 }
 
+function triggerNewsRefresh() {
+  if (shellDisposed) {
+    return;
+  }
+  void newsStore.refreshDashboardNews();
+}
+
+function stopNewsRefreshPolling() {
+  if (newsRefreshPollHandle === null) {
+    return;
+  }
+  clearInterval(newsRefreshPollHandle);
+  newsRefreshPollHandle = null;
+}
+
+function startNewsRefreshPolling() {
+  stopNewsRefreshPolling();
+  newsRefreshPollHandle = setInterval(triggerNewsRefresh, newsRefreshPollIntervalMs);
+}
+
+function handleVisibilityChange() {
+  if (shellDisposed) {
+    return;
+  }
+  if (document.visibilityState === 'visible') {
+    triggerNewsRefresh();
+    startNewsRefreshPolling();
+  } else {
+    stopNewsRefreshPolling();
+  }
+}
+
 function reconcileNewsSnapshot() {
   if (shellDisposed) {
     return;
@@ -272,6 +306,7 @@ function startRuntimeStatusPolling() {
 }
 
 async function bootstrap() {
+  triggerNewsRefresh();
   await runtimeStatusStore.loadRuntimeStatus();
   if (shellDisposed) {
     return;
@@ -291,6 +326,8 @@ async function bootstrap() {
 
   startRuntimeStatusPolling();
   startFeedLayoutPolling();
+  startNewsRefreshPolling();
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   connectionStore.connect(
     (event) => {
@@ -342,6 +379,8 @@ onBeforeUnmount(() => {
   }
   stopFeedLayoutPolling();
   stopRuntimeStatusPolling();
+  stopNewsRefreshPolling();
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
   connectionStore.disconnect();
 });
 </script>
@@ -485,6 +524,17 @@ onBeforeUnmount(() => {
             {{ shellStatusRail.label }}
           </span>
           <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ shellStatusRail.detail }}</span>
+          <span
+            v-if="newsStore.isRefreshing"
+            class="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-accent"
+            data-role="news-refresh-indicator"
+          >
+            <span
+              class="h-1.5 w-1.5 rounded-full bg-accent pulse-dot"
+              style="--pulse-color: color-mix(in srgb, var(--accent) 35%, transparent)"
+            />
+            同步中
+          </span>
         </div>
         <div class="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.16em] text-muted">
           <span>
