@@ -1,6 +1,29 @@
 {
   "components": {
     "schemas": {
+      "AiServiceStatus": {
+        "description": "AI 服务状态：是否启用 + 最近一次 LLM 调用时间（无专门的 provider 健康表可查，用作存活参考）。",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "last_call_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Call At"
+          }
+        },
+        "title": "AiServiceStatus",
+        "type": "object"
+      },
       "AlertGovernanceUpdate": {
         "description": "告警治理运行期覆盖（保存在 NotificationService 内存，不落库）。全部可选。",
         "properties": {
@@ -728,9 +751,17 @@
       },
       "HealthResponse": {
         "properties": {
+          "active_stream_connections": {
+            "default": 0,
+            "title": "Active Stream Connections",
+            "type": "integer"
+          },
           "ai_enabled": {
             "title": "Ai Enabled",
             "type": "boolean"
+          },
+          "ai_status": {
+            "$ref": "#/components/schemas/AiServiceStatus"
           },
           "app_name": {
             "title": "App Name",
@@ -740,13 +771,43 @@
             "title": "Database",
             "type": "string"
           },
+          "database_healthy": {
+            "default": false,
+            "title": "Database Healthy",
+            "type": "boolean"
+          },
           "environment": {
             "title": "Environment",
             "type": "string"
           },
+          "last_market_quote_refresh_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Market Quote Refresh At"
+          },
+          "last_rss_fetch_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Rss Fetch At"
+          },
           "now_utc": {
             "title": "Now Utc",
             "type": "string"
+          },
+          "source_health_summary": {
+            "$ref": "#/components/schemas/SourceHealthSummary"
           },
           "status": {
             "title": "Status",
@@ -774,7 +835,9 @@
           "now_utc",
           "database",
           "stream_mode",
-          "ai_enabled"
+          "ai_enabled",
+          "source_health_summary",
+          "ai_status"
         ],
         "title": "HealthResponse",
         "type": "object"
@@ -4606,6 +4669,28 @@
           "latency_ms"
         ],
         "title": "SourceFetchResultView",
+        "type": "object"
+      },
+      "SourceHealthSummary": {
+        "description": "数据源健康汇总，避免请求方再单独调用 /health/sources 拼接。",
+        "properties": {
+          "consecutive_failing": {
+            "default": 0,
+            "title": "Consecutive Failing",
+            "type": "integer"
+          },
+          "disabled": {
+            "default": 0,
+            "title": "Disabled",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "SourceHealthSummary",
         "type": "object"
       },
       "SourceHealthView": {
@@ -8448,6 +8533,16 @@
             "schema": {
               "title": "News Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "async_mode",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Async Mode",
+              "type": "boolean"
             }
           },
           {
