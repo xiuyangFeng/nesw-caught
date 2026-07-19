@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NoReturn
@@ -33,6 +34,28 @@ class LLMProviderError(RuntimeError):
     pass
 
 
+# —— 可观测性:计量/缓存这类"旁路"写入失败时历来只 log warning 就吞掉,不影响主
+# 分类流程(保持这个"最佳努力"语义),但此前完全不可观测。这里只加进程内计数,
+# 由 `BackgroundQueueWorker` 周期性读取并把增量回写到既有 `worker_runtime_status` 表。
+_llm_metrics_lock = threading.Lock()
+_llm_error_counts: dict[str, int] = {
+    "token_usage_log_failed": 0,
+    "classification_cache_read_failed": 0,
+    "classification_cache_write_failed": 0,
+}
+
+
+def get_llm_provider_error_counts() -> dict[str, int]:
+    """返回本模块内累计的(被吞掉的)异常计数快照,供上层 worker 周期性上报。"""
+    with _llm_metrics_lock:
+        return dict(_llm_error_counts)
+
+
+def _incr_llm_error(key: str) -> None:
+    with _llm_metrics_lock:
+        _llm_error_counts[key] = _llm_error_counts.get(key, 0) + 1
+
+
 @dataclass
 class CompletionResult:
     """Structured result of a (non-streaming) chat completion."""
@@ -59,7 +82,9 @@ def log_token_usage(model_name: str, prompt_tokens: int, completion_tokens: int,
             operation_type=operation_type,
         )
     except Exception as exc:
+        # 可恢复:计量丢失不影响本次 LLM 调用结果,继续走既有"最佳努力"语义。
         logger.warning(f"Failed to log token usage to DB: {exc}")
+        _incr_llm_error("token_usage_log_failed")
 
 
 def normalize_classification_content(content: str) -> str:
@@ -100,7 +125,9 @@ def get_cached_classification(content_hash: str, session: Session | None = None)
             entry = LLMClassificationCacheRepository(owned_session).get_by_hash(content_hash)
             return entry.result_json if entry is not None else None
     except Exception as exc:
+        # 可恢复:读缓存失败按未命中处理,回退到正常 LLM 调用,不影响正确性。
         logger.warning(f"Failed to read classification cache: {exc}")
+        _incr_llm_error("classification_cache_read_failed")
         return None
 
 
@@ -129,7 +156,9 @@ def store_classification(content_hash: str, result_json: str, model_name: str | 
             )
             owned_session.commit()
     except Exception as exc:
+        # 可恢复:写缓存失败只是丢失这次缓存收益,不影响本次分类结果的正确性。
         logger.warning(f"Failed to write classification cache: {exc}")
+        _incr_llm_error("classification_cache_write_failed")
 
 
 def estimate_tokens(text: str) -> int:

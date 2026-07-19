@@ -26,12 +26,20 @@ class EventBusStatus:
     last_published_at: datetime | None = None
     last_event_name: str | None = None
     last_error: str | None = None
+    # 可观测性:被吞掉的异常累计计数(进程内),供 /ops 等只读消费方及
+    # BackgroundQueueWorker 的周期性回写使用;默认 0 保持向后兼容。
+    local_handler_error_count: int = 0
+    redis_publish_error_count: int = 0
 
 
 class InMemoryEventBus:
     def __init__(self) -> None:
         self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
         self.last_error: str | None = None
+        # 可观测性:单个订阅者失败不应影响其他订阅者(既有语义不变),但历史上
+        # 吞掉的异常完全不可数。这里只加一个累计计数,由 HybridEventBus.get_status()
+        # 透出,再由 BackgroundQueueWorker 周期性回写到既有 worker_runtime_status 表。
+        self.handler_error_count = 0
 
     def subscribe(self, event_name: str, handler: EventHandler) -> None:
         self._handlers[event_name].append(handler)
@@ -52,11 +60,14 @@ class InMemoryEventBus:
             try:
                 handler(payload)
             except Exception as exc:
+                # 可恢复:单个订阅者失败不影响其他订阅者继续消费同一事件(既有语义
+                # 不变),这里只补上累计计数使其可观测。
                 handler_name = getattr(handler, "__name__", str(handler))
                 logger.exception(
                     f"EventBus handler '{handler_name}' failed on event '{event_name}'"
                 )
                 self.last_error = f"Handler '{handler_name}' failed on event '{event_name}': {exc}"
+                self.handler_error_count += 1
 
 
 class HybridEventBus:
@@ -85,6 +96,9 @@ class HybridEventBus:
         self._clock = clock
         self._redis_consecutive_failures = 0
         self._redis_circuit_open_until = 0.0
+        # 与 `_redis_consecutive_failures`(用于熔断,失败即清零)不同,这里是
+        # 跨熔断周期的累计失败计数,专供可观测性上报使用。
+        self.redis_publish_error_count = 0
         self._status = EventBusStatus(
             backend=backend,
             status="ok",
@@ -116,7 +130,11 @@ class HybridEventBus:
                         self._status.status = "ok"
                         self._status.last_error = None
                     except Exception as exc:  # pragma: no cover - exercised via tests with fakes
+                        # 可恢复:redis 发布失败仍继续走内存总线(既有语义不变,
+                        # 见下方 self.local_bus.publish),这里补上累计计数(独立于
+                        # 熔断用的连续失败计数)使其可观测。
                         self._redis_consecutive_failures += 1
+                        self.redis_publish_error_count += 1
                         self._status.status = "degraded"
                         self._status.last_error = str(exc)
                         if self._redis_consecutive_failures >= self._circuit_breaker_threshold:
@@ -146,6 +164,8 @@ class HybridEventBus:
             last_published_at=self._status.last_published_at,
             last_event_name=self._status.last_event_name,
             last_error=self._status.last_error,
+            local_handler_error_count=self.local_bus.handler_error_count,
+            redis_publish_error_count=self.redis_publish_error_count,
         )
 
 

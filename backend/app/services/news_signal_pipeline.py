@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -19,6 +20,25 @@ logger = logging.getLogger(__name__)
 
 # 阶段 2 分类(可能触发 LLM 网络调用)的并发上限:取小值,避免打爆下游配额。
 MAX_CLASSIFY_WORKERS = 4
+
+# —— 可观测性:被 `except Exception` 吞掉的失败计数(进程内累计,模块级) ——
+# 单条抓取失败不影响整批(既有语义不变,已把结果落为 extract_status="failed"),
+# 但吞掉的异常此前完全不可观测;这里只加计数,不改变控制流。
+# `BackgroundQueueWorker` 会周期性读取该计数并把增量回写到既有的
+# `worker_runtime_status` 表,而不是引入新的外部指标依赖。
+_pipeline_metrics_lock = threading.Lock()
+_pipeline_error_counts: dict[str, int] = {"crawl_error": 0}
+
+
+def get_pipeline_error_counts() -> dict[str, int]:
+    """返回管线内部累计的(被吞掉的)异常计数快照,供上层 worker 周期性上报。"""
+    with _pipeline_metrics_lock:
+        return dict(_pipeline_error_counts)
+
+
+def _incr_pipeline_error(key: str) -> None:
+    with _pipeline_metrics_lock:
+        _pipeline_error_counts[key] = _pipeline_error_counts.get(key, 0) + 1
 
 
 def _utc_now() -> datetime:
@@ -81,6 +101,9 @@ class NewsSignalPipelineService:
                 return None, "failed", "Empty content extracted"
         except Exception as exc:
             logger.warning("Failed to automatically crawl article body for %s: %s", url, exc)
+            # 可恢复失败:不抛出,单条不影响整批;已经把结果落为 extract_status="failed"
+            # (调用方 _upsert_article_content 会写入),这里只补上计数使其可观测。
+            _incr_pipeline_error("crawl_error")
             return None, "failed", str(exc)
 
     def _ensure_articles(self, news_ids: list[int]) -> None:
