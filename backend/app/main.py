@@ -12,6 +12,7 @@ from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.repositories.news_repository import NewsRepository  # noqa: F401 -- monkeypatched by tests
 from app.repositories.watchlist_repository import WatchlistRepository
+from app.services.backup import build_backup_worker
 from app.services.cleanup import build_data_cleanup_worker
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
 from app.services.market_quote_producer import MarketQuoteProducer
@@ -120,6 +121,7 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     news_scheduler: NewsIngestScheduler | None = None
     cleanup_worker = None
+    backup_worker = None
     digest_worker = None
     redis_consumer = None
     event_bus = get_event_bus()
@@ -173,6 +175,10 @@ async def lifespan(_: FastAPI):
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
+    if settings.backup_enabled:
+        backup_worker = build_backup_worker(SessionLocal)
+        if backup_worker is not None:
+            backup_worker.start()
 
     # Periodic fallback flush for the token usage buffer: without it, buffered
     # rows below flush_n could linger in memory indefinitely on low traffic.
@@ -196,6 +202,8 @@ async def lifespan(_: FastAPI):
         digest_worker.stop()
     if cleanup_worker is not None:
         cleanup_worker.stop()
+    if backup_worker is not None:
+        backup_worker.stop()
     if news_scheduler is not None:
         news_scheduler.stop()
     queue_worker.stop()

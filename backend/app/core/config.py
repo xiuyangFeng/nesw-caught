@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     news_item_retention_days: int = 180
     article_content_retention_days: int = 90
     price_snapshot_retention_days: int = 30
+    # 删除前归档：保留期清理执行 DELETE 之前，把待删行落一份 JSON Lines 归档文件，
+    # 便于事后追溯/人工恢复。目录缺省为 backend/data/archive。
+    data_archive_dir: str | None = None
+    # SQLite 定时备份：使用 sqlite3.Connection.backup() 在线备份 API，避免直接复制
+    # 写入中的文件；目录缺省为 backend/data/backups，只保留最近 N 份。
+    backup_enabled: bool = True
+    backup_interval_seconds: float = 86400.0
+    backup_retention_count: int = 7
+    backup_dir: str | None = None
     dedup_secondary_judge: str | None = None
     # 情绪/利好利空评测金标集路径；缺省时用 backend/data/research 内置金标。
     sentiment_eval_dataset_file: str | None = None
