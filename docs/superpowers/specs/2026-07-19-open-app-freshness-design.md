@@ -26,7 +26,7 @@
 
 - `AppShell.vue` 的 `bootstrap()` 中，在读取本地数据的同时（不等待、不阻塞）触发一次 `newsStore.refreshNews()`。
 - `apiClient.refreshNews()`（`frontend/src/api/client.ts:224`）改为请求 `POST /api/news/refresh?async_mode=true`，服务端立即返回 202，真正抓取在后台线程跑。
-- 抓取产生的新条目通过既有事件总线推送：`news.created` / `news.created_batch` 事件已经走 SSE/WebSocket 推给前端（`connectionStore.connect`，`AppShell.vue:295-329`），并由 `newsStore.upsertNews` 增量更新到列表，因此刷新完成后**不需要**额外轮询或整页重新拉取。
+- 抓取产生的新条目通过既有事件总线推送：`refresh_all()` 对每条新插入条目都发布一个 `news.created` 事件（`backend/app/services/ingestion/service.py`），已经走 SSE 推给前端（`connectionStore.connect`，`AppShell.vue:295-329`），并由 `newsStore.upsertNews` 增量更新到列表，因此刷新完成后**不需要**额外轮询或整页重新拉取。`news.created_batch` 是后端内部事件（用于路由缓存失效等），SSE 层不转发给前端，前端无需监听。
 
 ### 2. 前台周期性补抓
 
