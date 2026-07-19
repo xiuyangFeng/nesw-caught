@@ -28,6 +28,8 @@ conda activate news-caught
 npm --prefix frontend install
 ```
 
+> Python 依赖以 `requirements.txt` 为唯一数据源（版本已锁定为 `==` 精确值），`environment.yml` 的 `pip` 段通过 `-r requirements.txt` 引用同一份文件。新增/升级 Python 依赖时只改 `requirements.txt` 一处即可，不要在 `environment.yml` 里另建一份依赖列表；改完后执行 `conda env update -f environment.yml --prune` 使其生效。
+
 ## 启动项目
 
 启动后端：
