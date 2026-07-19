@@ -474,6 +474,32 @@ describe('AppShell', () => {
     vi.useRealTimers();
   });
 
+  it('does not start periodic polling when the tab is hidden at mount, but resumes once visible', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+    // 挂载时的一次性 triggerNewsRefresh() 与 visibilityState 无关,始终会触发。
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    // 挂载时页面已隐藏,前台周期轮询不应启动,即便过去了 5 分钟以上。
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    // 变为可见后立即刷新一次,并恢复周期轮询。
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(newsStore.refreshDashboardNews).toHaveBeenCalledTimes(3);
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
   it('shows the syncing indicator while newsStore.isRefreshing is true', () => {
     newsStore.isRefreshing = true;
 

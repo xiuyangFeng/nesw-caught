@@ -326,8 +326,10 @@ async function bootstrap() {
 
   startRuntimeStatusPolling();
   startFeedLayoutPolling();
-  startNewsRefreshPolling();
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  if (document.visibilityState === 'visible') {
+    startNewsRefreshPolling();
+  }
 
   connectionStore.connect(
     (event) => {
