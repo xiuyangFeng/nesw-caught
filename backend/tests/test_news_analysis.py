@@ -312,6 +312,68 @@ def test_post_news_analysis_returns_structured_result_and_persists_latest_analys
     assert cached["provider_name"] == "openai_compatible"
 
 
+def test_post_news_analysis_async_mode_returns_202_and_persists_in_background(monkeypatch, caplog) -> None:
+    caplog.set_level("WARNING")
+    _cleanup_llm_tables()
+    client = TestClient(app)
+    client.post(
+        "/api/llm/config",
+        json={
+            "provider_name": "openai_compatible",
+            "display_name": "OpenAI Compatible",
+            "base_url": "https://example-llm.test/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-secret",
+        },
+    )
+
+    def fake_analyze_json(self, *, prompt: str, title=None, summary=None, market=None):  # type: ignore[no-untyped-def]
+        assert "Tencent expands enterprise AI product suite" in prompt
+        return {
+            "top_pick": {
+                "symbol": "0700.HK",
+                "market": "hk",
+                "company_name": "Tencent",
+                "confidence": 0.92,
+                "reason": "Enterprise AI product momentum directly benefits Tencent.",
+            },
+            "candidates": [
+                {
+                    "symbol": "0700.HK",
+                    "market": "hk",
+                    "company_name": "Tencent",
+                    "confidence": 0.92,
+                    "reason": "Enterprise AI product momentum directly benefits Tencent.",
+                }
+            ],
+            "summary": "Tencent enterprise AI momentum remains the clearest equity read-through.",
+            "risk_notes": "Body coverage is limited to a single source.",
+            "sentiment": "positive",
+            "context_limitations": None,
+        }
+
+    monkeypatch.setattr(
+        "app.services.llm_providers.OpenAICompatibleProvider.analyze_json",
+        fake_analyze_json,
+    )
+
+    response = client.post("/api/news/1/analyze?async_mode=true")
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "accepted"
+    assert payload["news_id"] == 1
+    assert payload["status_url"] == "/api/news/1/analysis"
+
+    # TestClient 在返回响应前会同步跑完 BackgroundTasks,因此此处直接可查到结果。
+    follow_up = client.get("/api/news/1/analysis")
+    assert follow_up.status_code == 200
+    cached = follow_up.json()
+    assert cached["top_pick"]["symbol"] == "0700.HK"
+    assert cached["provider_name"] == "openai_compatible"
+    assert not any("Background news analysis failed" in r.message for r in caplog.records)
+
+
 def test_post_news_analysis_marks_context_limitations_when_article_body_missing(monkeypatch) -> None:
     _cleanup_llm_tables()
     client = TestClient(app)

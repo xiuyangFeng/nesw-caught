@@ -162,8 +162,56 @@ def get_news_analysis(news_id: int, session: Session = Depends(get_db_session)) 
     return NewsAnalysisService(session).get_latest(news_id)
 
 
+def _publish_analysis_completed_event(session: Session, news_id: int, result: NewsAnalysisView) -> None:
+    if not (result.analysis_status == "success" and result.top_pick):
+        return
+    try:
+        news_repo = NewsRepository(session)
+        news_item = news_repo.get_by_id(news_id)
+        get_event_bus().publish("news.analysis_completed", {
+            "news_id": news_id,
+            "news_title": news_item.title if news_item else "",
+            "top_pick": result.top_pick.model_dump() if result.top_pick else None,
+            "candidates": [c.model_dump() for c in result.candidates],
+            "summary": result.summary,
+            "risk_notes": result.risk_notes,
+        })
+    except Exception:
+        logger.exception("failed to publish analysis event")
+
+
 @router.post("/{news_id}/analyze", response_model=NewsAnalysisView)
-def analyze_news(news_id: int, session: Session = Depends(get_db_session)) -> NewsAnalysisView:
+def analyze_news(
+    news_id: int,
+    background_tasks: BackgroundTasks,
+    async_mode: bool = Query(default=False),
+    session: Session = Depends(get_db_session),
+) -> Any:
+    if async_mode:
+        def do_async_analyze():
+            from app.db.session import SessionLocal
+            with SessionLocal() as s:
+                try:
+                    result = NewsAnalysisService(s).analyze_news(news_id)
+                    _publish_analysis_completed_event(s, news_id, result)
+                    # 后台任务不经过 get_db_session 依赖,需要自行提交成功结果
+                    # （analyze_news 的成功路径依赖调用方提交，见该方法内注释）。
+                    s.commit()
+                except Exception as exc:
+                    s.rollback()
+                    logger.warning(f"Background news analysis failed for news_id={news_id}: {exc}")
+
+        background_tasks.add_task(do_async_analyze)
+        return JSONResponse(
+            status_code=202,
+            content={
+                "status": "accepted",
+                "message": "News analysis started in background",
+                "news_id": news_id,
+                "status_url": f"/api/news/{news_id}/analysis",
+            },
+        )
+
     service = NewsAnalysisService(session)
     try:
         result = service.analyze_news(news_id)
@@ -175,20 +223,7 @@ def analyze_news(news_id: int, session: Session = Depends(get_db_session)) -> Ne
             raise HTTPException(status_code=400, detail=detail) from exc
         raise HTTPException(status_code=502, detail=detail) from exc
 
-    if result.analysis_status == "success" and result.top_pick:
-        try:
-            news_repo = NewsRepository(session)
-            news_item = news_repo.get_by_id(news_id)
-            get_event_bus().publish("news.analysis_completed", {
-                "news_id": news_id,
-                "news_title": news_item.title if news_item else "",
-                "top_pick": result.top_pick.model_dump() if result.top_pick else None,
-                "candidates": [c.model_dump() for c in result.candidates],
-                "summary": result.summary,
-                "risk_notes": result.risk_notes,
-            })
-        except Exception:
-            logger.exception("failed to publish analysis event")
+    _publish_analysis_completed_event(session, news_id, result)
 
     return result
 
