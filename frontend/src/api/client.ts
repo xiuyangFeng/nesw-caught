@@ -25,6 +25,7 @@ import type {
   NewsQuery,
   NewsRuntimeStatus,
   NewsRefreshResult,
+  NewsRefreshAcceptedResult,
   OpsHealth,
   PortfolioSummary,
   WatchlistPositionUpdate,
@@ -222,7 +223,9 @@ export const apiClient = {
     return postJson<NewsAnalysis>(`/api/news/${id}/analyze`, {}).then((data) => ({ data, degraded: false }));
   },
   refreshNews() {
-    return postJson<NewsRefreshResult>('/api/news/refresh', {}).then((data) => ({ data, degraded: false }));
+    return postJson<NewsRefreshAcceptedResult>(withQuery('/api/news/refresh', { async_mode: true }), {}).then(
+      (data) => ({ data, degraded: false }),
+    );
   },
   getNewsRuntime() {
     return withMockFallback<NewsRuntimeStatus>(() => getJson('/api/news/runtime'), (mock) => mock.mockNewsRuntimeStatus);

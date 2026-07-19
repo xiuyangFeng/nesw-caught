@@ -44,6 +44,14 @@ export type NewsFeedLayout = Schemas['NewsFeedLayoutView'];
 export type NewsListPage = Schemas['NewsListPageView'];
 export type NewsRefreshResult = Schemas['NewsRefreshResponse'];
 
+// 前端 UI 专用:POST /api/news/refresh?async_mode=true 分支返回的是手工拼装的
+// JSONResponse({"status": "accepted", "message": ...}),不是 response_model
+// 声明的 NewsRefreshResponse(那是同步分支的形状),OpenAPI 不覆盖,手写。
+export interface NewsRefreshAcceptedResult {
+  status: string;
+  message: string;
+}
+
 // SSE 带内协议:news.updated 事件负载在 NewsItemSummary 之上附加
 // updated_fields,由 stream 路由手工组装,OpenAPI 不覆盖。
 export interface NewsUpdateEvent extends NewsItem {

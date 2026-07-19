@@ -62,6 +62,22 @@ describe('apiClient write operations', () => {
     await expect(apiClient.refreshNews()).rejects.toThrow('backend offline');
     await expect(apiClient.analyzeNews(1)).rejects.toThrow('backend offline');
   });
+
+  it('requests an async-mode refresh so the scrape runs as a background task', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      json: async () => ({ status: 'accepted', message: 'News refresh started in background' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await apiClient.refreshNews();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/news/refresh?async_mode=true',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 });
 
 describe('apiClient read fallbacks in production builds', () => {
