@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import LoadingBlock from '../common/LoadingBlock.vue';
 import type { Market, NewsRuntimeSource } from '../../types/api';
 import { formatMarketTime, normalizeMarket } from '../../utils/time';
 
-const props = defineProps<{
-  sources: NewsRuntimeSource[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    sources: NewsRuntimeSource[];
+    loading?: boolean;
+  }>(),
+  {
+    loading: false,
+  },
+);
 
 const MARKET_LABELS: Record<Market, string> = {
   hk: '港股',
@@ -81,36 +88,42 @@ function formatLastSuccess(source: NewsRuntimeSource) {
       <span class="text-danger">OFFLINE {{ healthSummary.offline }}</span>
     </div>
 
-    <div class="grid gap-1.5">
-      <article
-        v-for="source in sortedSources"
-        :key="`${source.source_name}-${source.market}`"
-        class="source-health-row"
-        data-role="source-health-row"
-        :data-status="source.status"
-      >
-        <span class="source-health-row__dot" :class="statusMeta(source.status).dotClass" />
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <strong class="truncate text-[12px] text-text">{{ source.source_name }}</strong>
-            <span class="text-[10px] uppercase tracking-[0.12em] text-text-faint">{{ marketLabel(source.market) }}</span>
-            <span class="text-[10px] uppercase tracking-[0.12em] text-text-faint">{{ source.tier }}</span>
+    <LoadingBlock
+      :loading="loading"
+      :empty="sortedSources.length === 0"
+      empty-text="暂无来源健康数据"
+      :skeleton-type="'watchlist'"
+      :skeleton-count="3"
+    >
+      <div class="grid gap-1.5">
+        <article
+          v-for="source in sortedSources"
+          :key="`${source.source_name}-${source.market}`"
+          class="source-health-row"
+          data-role="source-health-row"
+          :data-status="source.status"
+        >
+          <span class="source-health-row__dot" :class="statusMeta(source.status).dotClass" />
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <strong class="truncate text-[12px] text-text">{{ source.source_name }}</strong>
+              <span class="text-[10px] uppercase tracking-[0.12em] text-text-faint">{{ marketLabel(source.market) }}</span>
+              <span class="text-[10px] uppercase tracking-[0.12em] text-text-faint">{{ source.tier }}</span>
+            </div>
+            <span class="block truncate text-[11px] text-muted">
+              最近成功 {{ formatLastSuccess(source) }}
+              <template v-if="source.consecutive_failures > 0"> · 连续失败 {{ source.consecutive_failures }}</template>
+            </span>
           </div>
-          <span class="block truncate text-[11px] text-muted">
-            最近成功 {{ formatLastSuccess(source) }}
-            <template v-if="source.consecutive_failures > 0"> · 连续失败 {{ source.consecutive_failures }}</template>
-          </span>
-        </div>
-        <div class="text-right">
-          <span class="block font-mono text-[11px]" :class="statusMeta(source.status).textClass">
-            {{ statusMeta(source.status).label }}
-          </span>
-          <span class="block font-mono text-[11px] text-text-faint">{{ formatLatency(source.avg_fetch_latency_ms) }}</span>
-        </div>
-      </article>
-    </div>
-
-    <p v-if="sortedSources.length === 0" class="m-0 text-[12px] text-muted">暂无来源健康数据</p>
+          <div class="text-right">
+            <span class="block font-mono text-[11px]" :class="statusMeta(source.status).textClass">
+              {{ statusMeta(source.status).label }}
+            </span>
+            <span class="block font-mono text-[11px] text-text-faint">{{ formatLatency(source.avg_fetch_latency_ms) }}</span>
+          </div>
+        </article>
+      </div>
+    </LoadingBlock>
   </section>
 </template>
 
