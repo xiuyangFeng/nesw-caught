@@ -297,7 +297,18 @@ export const useNewsStore = defineStore('newsStore', () => {
   }
 
   const REFRESH_COOLDOWN_MS = 60_000;
+  const REFRESHING_INDICATOR_TIMEOUT_MS = 15_000;
   let lastManualRefreshAt = 0;
+  let refreshingTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const isRefreshing = ref(false);
+
+  function clearRefreshingIndicator() {
+    isRefreshing.value = false;
+    if (refreshingTimeoutHandle !== null) {
+      clearTimeout(refreshingTimeoutHandle);
+      refreshingTimeoutHandle = null;
+    }
+  }
 
   async function refreshNews() {
     return refreshDashboardNews();
@@ -316,7 +327,14 @@ export const useNewsStore = defineStore('newsStore', () => {
       }
 
       lastManualRefreshAt = Date.now();
-      await loadDashboardNews(dashboardQuery.value);
+      isRefreshing.value = true;
+      if (refreshingTimeoutHandle !== null) {
+        clearTimeout(refreshingTimeoutHandle);
+      }
+      refreshingTimeoutHandle = setTimeout(() => {
+        refreshingTimeoutHandle = null;
+        isRefreshing.value = false;
+      }, REFRESHING_INDICATOR_TIMEOUT_MS);
       return true;
     } catch {
       // Refresh is a background convenience; callers only need success/failure.
@@ -332,6 +350,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     upsertLayoutStream(item);
     dashboardLastLoadedAt.value = new Date().toISOString();
     feedLastLoadedAt.value = new Date().toISOString();
+    clearRefreshingIndicator();
   }
 
   function upsertNewsUpdate(item: NewsUpdateEvent) {
@@ -349,6 +368,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     analysisErrorMap,
     detailLoading,
     usingMock,
+    isRefreshing,
     newsRuntimeStatus,
     lastIncrementalAt,
     sourceHealth,

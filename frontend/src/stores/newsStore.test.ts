@@ -632,13 +632,9 @@ describe('newsStore', () => {
     apiClient.refreshNews
       .mockRejectedValueOnce(new Error('backend offline'))
       .mockResolvedValueOnce({
-        data: { status: 'ok', results: [] },
+        data: { status: 'accepted', message: 'News refresh started in background' },
         degraded: false,
       });
-    apiClient.getNews.mockResolvedValue({
-      data: { items: [], next_cursor: null },
-      degraded: false,
-    });
 
     await expect((store as any).refreshDashboardNews()).resolves.toBe(false);
     await expect((store as any).refreshDashboardNews()).resolves.toBe(true);
@@ -654,11 +650,7 @@ describe('newsStore', () => {
     const store = useNewsStore();
 
     apiClient.refreshNews.mockResolvedValue({
-      data: { status: 'ok', results: [] },
-      degraded: false,
-    });
-    apiClient.getNews.mockResolvedValue({
-      data: { items: [], next_cursor: null },
+      data: { status: 'accepted', message: 'News refresh started in background' },
       degraded: false,
     });
 
@@ -670,5 +662,67 @@ describe('newsStore', () => {
     await expect((store as any).refreshDashboardNews()).resolves.toBe(true);
     expect(apiClient.refreshNews).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
+  });
+
+  it('sets isRefreshing on a successful trigger and clears it when a news.created upsert arrives', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.refreshNews.mockResolvedValue({
+      data: { status: 'accepted', message: 'News refresh started in background' },
+      degraded: false,
+    });
+
+    await (store as any).refreshDashboardNews();
+    expect((store as any).isRefreshing).toBe(true);
+
+    (store as any).upsertNews({
+      id: 42,
+      title: 'Fresh headline',
+      summary: 'Fresh summary',
+      source_name: 'Reuters',
+      canonical_url: 'https://example.com/fresh-42',
+      market: 'us',
+      sentiment_label: 'neutral',
+      published_at: '2026-07-19T02:30:00Z',
+      fetched_at: '2026-07-19T02:31:00Z',
+    });
+
+    expect((store as any).isRefreshing).toBe(false);
+  });
+
+  it('clears isRefreshing after the safety timeout when no new item arrives', async () => {
+    vi.useFakeTimers();
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.refreshNews.mockResolvedValue({
+      data: { status: 'accepted', message: 'News refresh started in background' },
+      degraded: false,
+    });
+
+    await (store as any).refreshDashboardNews();
+    expect((store as any).isRefreshing).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect((store as any).isRefreshing).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('does not set isRefreshing when the refresh request fails', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useNewsStore } = await import('./newsStore');
+    setActivePinia(createPinia());
+    const store = useNewsStore();
+
+    apiClient.refreshNews.mockRejectedValue(new Error('backend offline'));
+
+    await (store as any).refreshDashboardNews();
+    expect((store as any).isRefreshing).toBe(false);
   });
 });
