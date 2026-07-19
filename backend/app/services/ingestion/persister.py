@@ -122,6 +122,14 @@ class ItemPersister:
             health.last_inserted_count = inserted_count
             health.avg_latency_ms = _ema_latency(health.avg_latency_ms, outcome.latency_ms)
             self.session.commit()
+            logger.info(
+                "news source persisted: source=%s type=%s fetched=%s inserted=%s latency_ms=%s",
+                source.name,
+                source.source_type,
+                len(items),
+                inserted_count,
+                outcome.latency_ms,
+            )
             return SourceFetchResult(
                 source_name=source.name,
                 source_type=source.source_type,
@@ -180,6 +188,16 @@ class ItemPersister:
         health.last_fetched_count = 0
         health.last_inserted_count = 0
         self.session.commit()
+        logger.warning(
+            "news source fetch failed, recorded and moving to next cycle: source=%s type=%s status=%s "
+            "http_status=%s latency_ms=%s error=%s",
+            source.name,
+            source.source_type,
+            status,
+            http_status,
+            latency_ms,
+            error,
+        )
         return SourceFetchResult(
             source_name=source.name,
             source_type=source.source_type,

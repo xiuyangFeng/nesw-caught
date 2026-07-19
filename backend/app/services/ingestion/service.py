@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
@@ -25,6 +26,8 @@ from app.services.ingestion.types import (
 )
 from app.services.ingestion.utils import _utc_now
 
+logger = logging.getLogger(__name__)
+
 
 class NewsIngestionService:
     def __init__(self, session: Session) -> None:
@@ -47,6 +50,7 @@ class NewsIngestionService:
         active_sources = [
             source for source in (sources if sources is not None else news_ingestion.load_sources()) if not source.disabled
         ]
+        logger.info("news ingestion cycle started: active_sources=%s", len(active_sources))
 
         # 预先查出每个活跃源的本地 ETag / Last-Modified 缓存标志
         source_caches = {}
@@ -92,6 +96,14 @@ class NewsIngestionService:
             inserted_items.extend(result.inserted_items)
 
         finished_at = _utc_now()
+        elapsed_ms = round((finished_at - started_at).total_seconds() * 1000, 2)
+        logger.info(
+            "news ingestion cycle finished: active_sources=%s fetched=%s inserted=%s elapsed_ms=%s",
+            len(active_sources),
+            fetched_count,
+            inserted_count,
+            elapsed_ms,
+        )
         summary = RefreshSummary(
             started_at=started_at,
             finished_at=finished_at,

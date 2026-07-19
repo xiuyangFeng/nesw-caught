@@ -24,6 +24,12 @@ def fetch_source_items(
 ) -> SourceFetchOutcome:
     """纯网络抓取与解析,不触碰数据库,可在线程池中并发执行。"""
     started = time.perf_counter()
+    logger.info(
+        "news source fetch started: source=%s type=%s url=%s",
+        source.name,
+        source.source_type,
+        source.url,
+    )
     headers = {}
     if etag:
         headers["If-None-Match"] = etag
@@ -42,6 +48,12 @@ def fetch_source_items(
         status_code = getattr(response, "status_code", 200)
         if status_code == 304:
             latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            logger.info(
+                "news source fetch not modified: source=%s type=%s latency_ms=%s",
+                source.name,
+                source.source_type,
+                latency_ms,
+            )
             return SourceFetchOutcome(
                 source=source,
                 items=[],
@@ -107,6 +119,13 @@ def fetch_source_items(
                 error_kind="parse_error",
             )
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
+        logger.info(
+            "news source fetch succeeded: source=%s type=%s items=%s latency_ms=%s",
+            source.name,
+            source.source_type,
+            len(items),
+            latency_ms,
+        )
         return SourceFetchOutcome(
             source=source,
             items=items,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -30,9 +31,13 @@ class MarketQuoteProducer(BaseWorker):
         return self.poll_interval_seconds
 
     def do_cycle(self) -> int:
+        started = time.perf_counter()
+        self.logger.info("market quote refresh started")
         with self.session_factory() as session:
             quotes = self.quote_service_factory().refresh_watchlist_quotes(session)
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         if not quotes:
+            self.logger.info("market quote refresh finished: quotes=0 elapsed_ms=%s", elapsed_ms)
             return 0
         self.event_bus.publish(
             "market.watchlist_refreshed",
@@ -40,5 +45,8 @@ class MarketQuoteProducer(BaseWorker):
                 "symbols": [str(quote.get("symbol")) for quote in quotes if quote.get("symbol")],
                 "quotes": quotes,
             },
+        )
+        self.logger.info(
+            "market quote refresh finished: quotes=%s elapsed_ms=%s", len(quotes), elapsed_ms
         )
         return len(quotes)

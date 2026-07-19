@@ -17,6 +17,7 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     }
 
+    logger.info("article crawl started: url=%s", url)
     try:
         # 使用共享连接池抓取网页（httpx.Client 线程安全，支持自动重定向）
         client = get_crawl_client()
@@ -55,7 +56,11 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
                 # 简单过滤，如果长度足够，说明抽取正常
                 if len(text) > 120:
                     lines = [line.strip() for line in text.split("\n") if line.strip()]
-                    return "\n\n".join(lines)
+                    result = "\n\n".join(lines)
+                    logger.info(
+                        "article crawl succeeded: url=%s selector=%s length=%s", url, selector, len(result)
+                    )
+                    return result
 
         # 密度兜底法：合并独立段落标签内容
         paragraphs = []
@@ -75,7 +80,9 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
                 paragraphs.append(text)
 
         if paragraphs:
-            return "\n\n".join(paragraphs)
+            result = "\n\n".join(paragraphs)
+            logger.info("article crawl succeeded: url=%s selector=density_fallback length=%s", url, len(result))
+            return result
 
         # 终极兜底：直接提取 body 中的去除空行后的文字
         if soup.body:
@@ -84,7 +91,9 @@ def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
             text = soup.get_text("\n").strip()
 
         lines = [line.strip() for line in text.split("\n") if line.strip()]
-        return "\n\n".join(lines)
+        result = "\n\n".join(lines)
+        logger.info("article crawl succeeded: url=%s selector=body_fallback length=%s", url, len(result))
+        return result
     except Exception as exc:
         logger.error("Failed to parse article content from %s: %s", url, exc)
         raise RuntimeError(f"Webpage parse failed: {exc}") from exc

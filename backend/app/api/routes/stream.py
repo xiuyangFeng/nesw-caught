@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import UTC, datetime
 from queue import Empty, Queue
 
@@ -12,9 +13,20 @@ from app.repositories.worker_runtime_status_repository import WorkerRuntimeStatu
 from app.schemas.stream import MarketWorkerStatusView, StreamStatusResponse
 from app.services.event_bus import get_event_bus
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 STREAM_EVENT_NAMES = ("news.created", "news.updated")
 STREAM_KEEPALIVE_SECONDS = 15
+
+# 只读的 SSE 活跃连接计数器，供 /health 汇报"推送连接数"使用；仅在本模块内自增/自减，
+# 不改变 /events 本身的行为，避免侵入既有流式响应逻辑。
+_active_stream_connections = 0
+
+
+def get_active_stream_connection_count() -> int:
+    """当前进程内存活的 SSE (`/events`) 连接数，供健康检查只读展示。"""
+    return _active_stream_connections
 
 
 def _utc_now() -> datetime:
@@ -73,11 +85,23 @@ async def stream_events(request: Request, limit: int | None = None) -> Streaming
         event_bus.subscribe(event_name, _handler)
 
     async def _event_stream():
+        global _active_stream_connections
         sent = 0
         last_keepalive = _utc_now()
+        _active_stream_connections += 1
+        logger.info(
+            "SSE connection opened: events=%s active_connections=%s",
+            STREAM_EVENT_NAMES,
+            _active_stream_connections,
+        )
         try:
             while limit is None or sent < limit:
                 if await request.is_disconnected():
+                    logger.info(
+                        "SSE connection disconnected by client: sent=%s active_connections=%s",
+                        sent,
+                        _active_stream_connections,
+                    )
                     break
                 try:
                     # 使用 anyio 线程池非阻塞地等待队列，超时设为1秒，避免长期占用资源
@@ -91,6 +115,11 @@ async def stream_events(request: Request, limit: int | None = None) -> Streaming
                     }
                     yield f"data: {json.dumps(envelope, separators=(',', ':'))}\n\n"
                     sent += 1
+                    logger.info(
+                        "SSE event broadcast to connection: type=%s active_connections=%s",
+                        event_name,
+                        _active_stream_connections,
+                    )
                 except Empty:
                     # 只有达到 keepalive 周期时才发送
                     now = _utc_now()
@@ -104,6 +133,12 @@ async def stream_events(request: Request, limit: int | None = None) -> Streaming
                         last_keepalive = now
                         sent += 1
         finally:
+            _active_stream_connections -= 1
+            logger.info(
+                "SSE connection closed: sent=%s active_connections=%s",
+                sent,
+                _active_stream_connections,
+            )
             for event_name, handler in handlers.items():
                 unsubscribe = getattr(event_bus, "unsubscribe", None)
                 if unsubscribe is not None:
