@@ -1,0 +1,49 @@
+{
+  "_comment": "历史行情样本（手工构造，脱敏）：美股 AAPL 在 ET(America/New_York，含夏令时/冬令时) 下的价格快照，用于 tests/test_replay_quotes.py 验证跨 DST 边界时 UTC 转换的正确性。第一条落在 2025-03-09 美国夏令时切换当天切换前的 EST(-05:00)，第二条落在 7 月夏令时 EDT(-04:00) 且本地时间跨过 UTC 日期边界。",
+  "symbol": "AAPL",
+  "market": "us",
+  "snapshots": [
+    {
+      "symbol": "AAPL",
+      "market": "us",
+      "display_name": "Apple Inc.",
+      "provider_symbol": "AAPL",
+      "price": 172.5,
+      "change_amount": 1.1,
+      "change_percent": 0.64,
+      "open_price": 171.8,
+      "previous_close": 171.4,
+      "day_high": 173.0,
+      "day_low": 171.0,
+      "volume": 55000000,
+      "status": "ok",
+      "source": "yahoo_finance",
+      "message": null,
+      "fetched_at": "2025-03-09T01:30:00-05:00",
+      "has_hot_alert": false,
+      "is_abnormal": false,
+      "abnormal_reason": null
+    },
+    {
+      "symbol": "AAPL",
+      "market": "us",
+      "display_name": "Apple Inc.",
+      "provider_symbol": "AAPL",
+      "price": 175.9,
+      "change_amount": -0.6,
+      "change_percent": -0.34,
+      "open_price": 176.4,
+      "previous_close": 176.5,
+      "day_high": 176.8,
+      "day_low": 175.2,
+      "volume": 42000000,
+      "status": "ok",
+      "source": "yahoo_finance",
+      "message": null,
+      "fetched_at": "2025-07-04T23:45:00-04:00",
+      "has_hot_alert": false,
+      "is_abnormal": false,
+      "abnormal_reason": null
+    }
+  ]
+}

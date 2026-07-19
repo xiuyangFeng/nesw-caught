@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  历史样本快照（手工构造，脱敏）：模拟美股新闻源的 RSS 2.0 输出格式。
+  用于 tests/test_replay_rss.py 的回放测试，验证 ET（America/New_York，含 DST）样本转换为 UTC 的正确性。
+  覆盖点：
+    - item1: pubDate 带显式 -0500 偏移（冬令时 EST），本地时间跨过 UTC 日期边界
+    - item2: 裸时间戳（无偏移），market="us" 落到 America/New_York；日期落在夏令时(EDT, -04:00)区间，
+             验证 ZoneInfo 按日期自动选择夏令时偏移，且本地时间跨过 UTC 日期边界
+    - item3: 缺失发布时间字段（published_at 应解析为 None）
+-->
+<rss version="2.0">
+  <channel>
+    <title>US Market Wire (Sample)</title>
+    <link>https://example-us-wire.test/feed</link>
+    <item>
+      <title>Fed minutes preview headline (sample)</title>
+      <link>https://example-us-wire.test/story/fed-minutes-preview</link>
+      <description><![CDATA[<p>Sample summary text for Fed minutes preview.</p>]]></description>
+      <pubDate>Wed, 15 Jan 2025 23:50:00 -0500</pubDate>
+    </item>
+    <item>
+      <title>Apple guidance update (sample)</title>
+      <link>https://example-us-wire.test/story/apple-guidance-update</link>
+      <description><![CDATA[<p>Sample summary text for Apple guidance update.</p>]]></description>
+      <pubDate>2025-07-10T21:15:00</pubDate>
+    </item>
+    <item>
+      <title>Tesla delivery rumor (sample, no pubDate)</title>
+      <link>https://example-us-wire.test/story/tesla-delivery-rumor</link>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,49 @@
+{
+  "_comment": "历史行情样本（手工构造，脱敏）：港股 0700.HK 在 HKT(+08:00) 下的价格快照，用于 tests/test_replay_quotes.py 验证 UTCDateTime 归一化到 UTC 的正确性。第二条 fetched_at 为凌晨 00:15 HKT，落在 UTC 的前一日，用于覆盖跨日时区转换。",
+  "symbol": "0700.HK",
+  "market": "hk",
+  "snapshots": [
+    {
+      "symbol": "0700.HK",
+      "market": "hk",
+      "display_name": "腾讯控股",
+      "provider_symbol": "0700.HK",
+      "price": 331.2,
+      "change_amount": 2.4,
+      "change_percent": 0.73,
+      "open_price": 329.0,
+      "previous_close": 328.8,
+      "day_high": 332.0,
+      "day_low": 328.5,
+      "volume": 12345600,
+      "status": "ok",
+      "source": "tencent_finance",
+      "message": null,
+      "fetched_at": "2025-03-17T15:30:00+08:00",
+      "has_hot_alert": false,
+      "is_abnormal": false,
+      "abnormal_reason": null
+    },
+    {
+      "symbol": "0700.HK",
+      "market": "hk",
+      "display_name": "腾讯控股",
+      "provider_symbol": "0700.HK",
+      "price": 330.5,
+      "change_amount": -0.7,
+      "change_percent": -0.21,
+      "open_price": 331.0,
+      "previous_close": 331.2,
+      "day_high": 331.5,
+      "day_low": 330.0,
+      "volume": 4520000,
+      "status": "delayed",
+      "source": "tencent_finance",
+      "message": "stale quote snapshot",
+      "fetched_at": "2025-03-18T00:15:00+08:00",
+      "has_hot_alert": false,
+      "is_abnormal": false,
+      "abnormal_reason": null
+    }
+  ]
+}

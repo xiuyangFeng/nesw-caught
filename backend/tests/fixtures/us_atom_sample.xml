@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  历史样本快照（手工构造，脱敏）：模拟美股新闻源的 Atom 格式输出（走 _parse_rss_or_atom 的 entry 分支）。
+  用于 tests/test_replay_rss.py 的回放测试。
+  覆盖点：
+    - entry1: <updated> 带显式 -0400 偏移（夏令时 EDT，正好是 2025-11-02 美国 DST 结束当天、回拨前的时刻），
+              link 节点使用 rel="alternate"，验证 atom 专属 link 提取逻辑
+    - entry2: <published> 裸时间戳（无偏移），market="us" 落在冬令时(EST, -05:00)区间
+-->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>US Market Wire Atom (Sample)</title>
+  <entry>
+    <title>Regional bank earnings beat headline (sample)</title>
+    <link rel="alternate" href="https://example-us-wire.test/story/regional-bank-earnings-beat"/>
+    <summary>Sample summary text for regional bank earnings beat.</summary>
+    <updated>2025-11-02T01:30:00-04:00</updated>
+  </entry>
+  <entry>
+    <title>Retail holiday sales forecast (sample)</title>
+    <link rel="alternate" href="https://example-us-wire.test/story/retail-holiday-sales-forecast"/>
+    <summary>Sample summary text for retail holiday sales forecast.</summary>
+    <published>2025-12-25T08:00:00</published>
+  </entry>
+</feed>
