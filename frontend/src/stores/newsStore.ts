@@ -13,6 +13,7 @@ export const useNewsStore = defineStore('newsStore', () => {
   const detailLoading = ref(false);
   const usingMock = ref(false);
   const newsRuntimeStatus = ref<NewsRuntimeStatus | null>(null);
+  const runtimeStatusLoading = ref(false);
   const lastIncrementalAt = ref<string | null>(null);
   const sourceHealth = ref<NewsRuntimeSource[]>([]);
 
@@ -182,11 +183,16 @@ export const useNewsStore = defineStore('newsStore', () => {
   }
 
   async function loadNewsRuntime() {
-    const response = await apiClient.getNewsRuntime();
-    newsRuntimeStatus.value = response.data;
-    lastIncrementalAt.value = response.data.last_incremental_event_at ?? null;
-    sourceHealth.value = response.data.sources;
-    usingMock.value = usingMock.value || response.degraded;
+    runtimeStatusLoading.value = true;
+    try {
+      const response = await apiClient.getNewsRuntime();
+      newsRuntimeStatus.value = response.data;
+      lastIncrementalAt.value = response.data.last_incremental_event_at ?? null;
+      sourceHealth.value = response.data.sources;
+      usingMock.value = usingMock.value || response.degraded;
+    } finally {
+      runtimeStatusLoading.value = false;
+    }
   }
 
   function upsertScopedItems(itemsRef: typeof dashboardItems, query: NewsQuery, item: NewsItem) {
@@ -370,6 +376,7 @@ export const useNewsStore = defineStore('newsStore', () => {
     usingMock,
     isRefreshing,
     newsRuntimeStatus,
+    runtimeStatusLoading,
     lastIncrementalAt,
     sourceHealth,
     dashboardItems,

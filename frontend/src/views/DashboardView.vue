@@ -230,7 +230,7 @@ const metrics = computed(() => {
       subtitle="按状态排序:故障源置顶,EMA 时延与连续失败可见"
       data-role="dashboard-source-health"
     >
-      <SourceHealthGrid :sources="sourceHealthItems" />
+      <SourceHealthGrid :sources="sourceHealthItems" :loading="newsStore.runtimeStatusLoading" />
     </SectionCard>
 
     <!-- 极速右侧滑出预览抽屉 -->
