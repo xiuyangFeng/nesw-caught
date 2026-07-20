@@ -121,3 +121,37 @@
 - 自动化测试和页面回归类 skill
 
 当前已安装一个通用文档 skill；安全类 skill 未成功安装，但对应规范已在本文档中手工补齐。
+
+## 9. 安全与密钥管理
+
+本项目是本地单用户部署，不做多租户隔离，但涉及 LLM Provider API Key、行情/RSS 第三方数据源 API Key、应用内部签名密钥等敏感配置，仍需按以下约定管理。
+
+### 密钥存放位置约定
+
+- 所有第三方服务 API Key（LLM Provider Key、Tavily、TwitterAPI.io 等）统一放在 `.env` / `backend/.env`，不得写入任何会被提交到 git 的源码或配置文件。
+- 应用内部使用的签名密钥、鉴权 Token 分别存放在 `data/.secret_key`（用于加密/签名）和 `data/.app_token`（本地访问口令），这两个文件本地生成、本地使用，不通过任何接口回显明文。
+- 通过管理界面配置的第三方 Key（例如 LLM Provider Key、飞书 `app_secret`）落库前需加密存储，参考 `backend/app/repositories/llm_provider_config_repository.py`、`backend/app/services/feishu_client.py` 的现有实现，新增同类配置须遵循相同模式。
+- `.gitignore` 中已覆盖 `.env`、`.env.*`、`**/.env*`、`**/.secret_key`、`**/.app_token`；新增任何存放敏感信息的文件前，先确认其路径能被现有规则匹配，或补充对应忽略规则。
+
+### check_secrets.py 使用方式
+
+- 脚本位置：`scripts/check_secrets.py`，是一个不依赖第三方库的轻量静态扫描器，覆盖两类检测：
+  1. 已知服务商的固定前缀/格式特征（OpenAI/DeepSeek、Anthropic、Tavily、TwitterAPI.io、Google、AWS、Slack、GitHub Token、JWT、PEM 私钥头等）；
+  2. 通用检测：形如 `xxx_key` / `xxx_secret` / `xxx_token` / `password` 等字段名被赋值为带引号的高熵字符串字面量时判定为疑似泄露，同时通过占位符关键字（`test`、`fake`、`example` 等）和低熵过滤减少测试代码中的误报。
+- 手动运行：`conda run -n news-caught python scripts/check_secrets.py`；发现问题时退出码为 1 并逐条打印文件、行号、类型和脱敏后的匹配片段，未发现问题时退出码为 0。
+- 建议接入时机：
+  - 加入 pre-commit（或提交前的本地检查步骤），在开发者提交前拦截误粘贴的明文密钥；
+  - 加入 CI（如有），作为独立步骤在合并前跑一次，失败则阻断合并；
+  - 定期（例如每次发布前）手动跑一遍，尤其是在批量修改配置文件、迁移脚本或引入新的第三方服务集成之后。
+- 该脚本只做静态字符串模式匹配，无法替代人工代码审查，也不检测历史提交中已泄露的密钥；如怀疑历史提交中混入过明文密钥，需要单独用 `git log --all --full-history -- <path>` 等命令排查，并由人工决定是否需要重写历史或直接轮换密钥（脚本本身不执行任何历史重写操作）。
+
+### 密钥轮换建议
+
+- 常规轮换周期：第三方 API Key（LLM Provider、Tavily、TwitterAPI.io 等）建议每 3-6 个月轮换一次；如怀疑已泄露（例如误提交、误分享日志、误截图），需立即轮换，不等待周期。
+- 应用内部密钥（`data/.secret_key`、`data/.app_token`）变更影响面更大，仅在怀疑泄露或迁移部署环境时轮换，轮换后需要重启后端服务并确认依赖它们签名/鉴权的会话、Token 全部失效并可重新生成。
+- 轮换后需要同步检查的位置：
+  - `.env` / `backend/.env` 中对应变量是否已更新为新值；
+  - 数据库中通过管理界面加密存储的第三方 Key（如 LLM Provider 配置、飞书 `app_secret`）是否已在界面上重新保存；
+  - 依赖旧密钥签发的会话、Token、缓存是否需要一并失效；
+  - 轮换动作和时间建议留痕（例如提交信息或运维记录），便于事后排查密钥暴露窗口期。
+- 轮换旧密钥后应在对应服务商后台确认旧 Key 已禁用/删除，避免旧密钥继续可用造成后续泄露风险扩大。
