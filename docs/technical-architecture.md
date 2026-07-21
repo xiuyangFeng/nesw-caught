@@ -122,16 +122,24 @@
 - `importance_score`
 - `last_seen_at`
 
-### signal_event
+### notification_job（原 signal_event 设想已未采纳/已移除）
+
+早期设计中曾计划以独立的 `signal_event` 表作为通知系统地基，但该表从未建表、无迁移、代码无引用，属于死模型，已删除。实际通知链路以 `notification_job` 表落地：
 
 - `id`
+- `channel`
 - `event_type`
-- `event_level`
-- `related_symbol`
-- `related_topic_id`
-- `reason`
 - `payload_json`
-- `created_at`
+- `status`
+- `attempt_count`
+- `next_retry_at`
+- `dedupe_key`
+- `last_error`
+- `lease_until`
+- `lease_token`
+- `sent_at`
+
+投递由 `NotificationService` 轮询驱动，核心机制：300 秒租约防并发重复投递、失败按退避序列重试（最多 5 次）、`dedupe_key` 做幂等去重。详见 `backend/app/services/notification_service.py`。
 
 ### source_health
 
