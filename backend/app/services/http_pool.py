@@ -6,9 +6,11 @@ _client: httpx.Client | None = None
 _async_client: httpx.AsyncClient | None = None
 _crawl_client: httpx.Client | None = None
 _feed_client: httpx.Client | None = None
+_feishu_client: httpx.Client | None = None
 
 _LLM_LIMITS = dict(max_keepalive_connections=20, max_connections=50)
 _FEED_LIMITS = dict(max_keepalive_connections=10, max_connections=30)
+_FEISHU_TIMEOUT_SECONDS = 10.0
 
 
 def get_llm_client() -> httpx.Client:
@@ -51,7 +53,7 @@ def get_crawl_client() -> httpx.Client:
 def get_feed_client() -> httpx.Client:
     """Shared client for news feed fetching (thread-safe, reuses TCP/TLS connections).
 
-    超时与 UA 与 HttpClientFactory 保持一致;调用方不要在每次请求后 close,
+    超时与 UA 沿用统一的 http_timeout_seconds 配置;调用方不要在每次请求后 close,
     进程退出时由 close_llm_client() 统一回收。
     """
     global _feed_client
@@ -66,8 +68,20 @@ def get_feed_client() -> httpx.Client:
     return _feed_client
 
 
+def get_feishu_client() -> httpx.Client:
+    """飞书消息发送专用共享 client（线程安全，跨 FeishuClient 实例复用连接）。
+
+    构造时的超时只是兜底默认值；调用方（feishu_client.py）按需通过每请求
+    timeout 参数覆盖，进程退出时由 close_llm_client() 统一回收。
+    """
+    global _feishu_client
+    if _feishu_client is None:
+        _feishu_client = httpx.Client(timeout=_FEISHU_TIMEOUT_SECONDS)
+    return _feishu_client
+
+
 def close_llm_client() -> None:
-    global _client, _crawl_client, _feed_client
+    global _client, _crawl_client, _feed_client, _feishu_client
     if _client is not None:
         _client.close()
         _client = None
@@ -77,6 +91,9 @@ def close_llm_client() -> None:
     if _feed_client is not None:
         _feed_client.close()
         _feed_client = None
+    if _feishu_client is not None:
+        _feishu_client.close()
+        _feishu_client = None
 
 
 async def aclose_async_llm_client() -> None:

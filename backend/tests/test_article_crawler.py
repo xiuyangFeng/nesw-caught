@@ -6,8 +6,21 @@ import httpx
 from app.db.session import SessionLocal
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
-from app.services.ingestion.article_crawler import crawl_and_extract_article
+from app.services.ingestion.article_crawler import (
+    DEFAULT_CRAWL_TIMEOUT_SECONDS,
+    crawl_and_extract_article,
+)
 from app.services.news_signal_pipeline import NewsSignalPipelineService
+
+
+def test_default_crawl_timeout_is_module_level_constant():
+    # 15s 超时应是模块级常量而非散落在函数签名里的魔法数字，方便统一调整
+    assert DEFAULT_CRAWL_TIMEOUT_SECONDS == 15.0
+
+    import inspect
+
+    signature = inspect.signature(crawl_and_extract_article)
+    assert signature.parameters["timeout"].default == DEFAULT_CRAWL_TIMEOUT_SECONDS
 
 
 def test_article_crawler_extracts_core_text():

@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from app.services import http_pool
+
 logger = logging.getLogger(__name__)
 
 FEISHU_TOKEN_URL = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
@@ -35,17 +37,11 @@ class FeishuClient:
     app_secret: str
     timeout: float = 10.0
     _token: FeishuToken | None = field(default=None, init=False, repr=False)
-    _client: httpx.Client | None = field(default=None, init=False, repr=False)
-
-    def close(self) -> None:
-        if self._client is not None:
-            self._client.close()
-            self._client = None
 
     def _get_http_client(self) -> httpx.Client:
-        if self._client is None:
-            self._client = httpx.Client(timeout=self.timeout)
-        return self._client
+        # 改用 http_pool 的共享 client，避免每个 FeishuClient 实例各自持有连接；
+        # 生命周期由 http_pool.close_llm_client() 统一回收。
+        return http_pool.get_feishu_client()
 
     def _get_tenant_access_token(self, *, force_refresh: bool = False) -> str:
         now = time.time()
@@ -56,6 +52,7 @@ class FeishuClient:
         resp = client.post(
             FEISHU_TOKEN_URL,
             json={"app_id": self.app_id, "app_secret": self.app_secret},
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -94,6 +91,7 @@ class FeishuClient:
                 "msg_type": "interactive",
                 "content": json.dumps(card, ensure_ascii=False),
             },
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()

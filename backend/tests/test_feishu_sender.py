@@ -25,25 +25,24 @@ def _make_fake_httpx_client(
     *,
     token_responses: list[dict[str, Any]],
     message_responses: list[dict[str, Any]],
-) -> type:
+) -> Any:
+    """构造一个假的共享 client 实例，模拟 http_pool.get_feishu_client() 的返回值。
+
+    飞书 client 现在复用 http_pool 的共享连接，而不是每个 FeishuClient 实例
+    自建 httpx.Client，因此这里直接构造一个单例 fake client，而不是像之前
+    那样 monkeypatch `httpx.Client` 类本身。
+    """
     token_queue = list(token_responses)
     message_queue = list(message_responses)
 
     class _FakeHttpxClient:
         instances: list[_FakeHttpxClient] = []
-        posts: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []
+        posts: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None, float | None]] = []
 
-        def __init__(self, *, timeout: float) -> None:
-            self.timeout = timeout
+        def __init__(self) -> None:
             self.closed = False
-            self.instance_posts: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []
+            self.instance_posts: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None, float | None]] = []
             self.__class__.instances.append(self)
-
-        def __enter__(self) -> _FakeHttpxClient:
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:
-            self.closed = True
 
         def post(
             self,
@@ -52,8 +51,9 @@ def _make_fake_httpx_client(
             json: dict[str, Any] | None = None,
             params: dict[str, Any] | None = None,
             headers: dict[str, Any] | None = None,
+            timeout: float | None = None,
         ):
-            record = (url, json, params)
+            record = (url, json, params, timeout)
             self.__class__.posts.append(record)
             self.instance_posts.append(record)
             if url.endswith("/tenant_access_token/internal"):
@@ -66,7 +66,7 @@ def _make_fake_httpx_client(
     _FakeHttpxClient.__name__ = "FakeHttpxClient"
     _FakeHttpxClient.instances = []
     _FakeHttpxClient.posts = []
-    return _FakeHttpxClient
+    return _FakeHttpxClient()
 
 
 @pytest.fixture(autouse=True)
@@ -84,7 +84,7 @@ def test_get_shared_feishu_sender_reuses_instance_and_http_client(monkeypatch: p
         token_responses=[{"code": 0, "tenant_access_token": "token-1", "expire": 3600}],
         message_responses=[{"code": 0, "msg": "ok"}, {"code": 0, "msg": "ok"}],
     )
-    monkeypatch.setattr(feishu_client.httpx, "Client", fake_client)
+    monkeypatch.setattr("app.services.http_pool.get_feishu_client", lambda: fake_client)
 
     helper = getattr(feishu_client, "get_shared_feishu_sender", None)
     assert helper is not None
@@ -97,9 +97,12 @@ def test_get_shared_feishu_sender_reuses_instance_and_http_client(monkeypatch: p
     same_client.send_card(target_type="chat", target_id="oc_test_chat_id", card=card)
 
     assert client is same_client
+    # 底层 httpx client 来自 http_pool 共享池，全程只应有 1 个实例
     assert len(fake_client.instances) == 1
     assert len([item for item in fake_client.posts if item[0].endswith("/tenant_access_token/internal")]) == 1
     assert len([item for item in fake_client.posts if item[0].endswith("/im/v1/messages")]) == 2
+    # 每次请求仍要显式传 10s 超时(共享 client 构造时不再固定超时)
+    assert all(item[3] == 10.0 for item in fake_client.posts)
 
 
 def test_feishu_client_refreshes_token_once_after_invalid_token(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,7 +116,7 @@ def test_feishu_client_refreshes_token_once_after_invalid_token(monkeypatch: pyt
             {"code": 0, "msg": "ok"},
         ],
     )
-    monkeypatch.setattr(feishu_client.httpx, "Client", fake_client)
+    monkeypatch.setattr("app.services.http_pool.get_feishu_client", lambda: fake_client)
 
     client = feishu_client.FeishuClient(app_id="cli_test123", app_secret="secret_abc")
     card = {"header": {"title": {"content": "hello"}}}

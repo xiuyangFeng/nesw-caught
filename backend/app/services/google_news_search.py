@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 
 import httpx
 
+from app.services import http_pool
 from app.services.news_ingestion import SourceItem, _clean_text, _parse_feed_datetime
 
 GOOGLE_NEWS_RSS_BASE = "https://news.google.com/rss/search"
@@ -35,13 +36,11 @@ class GoogleNewsSearchClient:
     ) -> list[SourceItem]:
         url = _build_google_news_url(query, language=language)
         try:
-            with httpx.Client(
-                timeout=self.timeout,
-                headers={"User-Agent": "news-caught/0.1"},
-                follow_redirects=True,
-            ) as client:
-                response = client.get(url)
-                response.raise_for_status()
+            # 复用 http_pool 的共享 feed client（线程安全，自动跟随重定向），
+            # 不再每次新建连接；每请求 timeout 覆盖保留自定义超时行为。
+            client = http_pool.get_feed_client()
+            response = client.get(url, timeout=self.timeout)
+            response.raise_for_status()
         except httpx.HTTPError as exc:
             raise GoogleNewsSearchError(f"google news rss request failed: {exc}") from exc
 

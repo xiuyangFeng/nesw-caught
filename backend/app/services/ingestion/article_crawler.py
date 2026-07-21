@@ -6,7 +6,12 @@ from app.services.http_pool import get_crawl_client
 
 logger = logging.getLogger(__name__)
 
-def crawl_and_extract_article(url: str, timeout: float = 15.0) -> str:
+# 单次网页抓取的默认超时（秒）。抽成模块级常量便于统一调整，
+# 不接入 app.core.config——爬虫超时与业务配置解耦，保持独立可调。
+DEFAULT_CRAWL_TIMEOUT_SECONDS = 15.0
+
+
+def crawl_and_extract_article(url: str, timeout: float = DEFAULT_CRAWL_TIMEOUT_SECONDS) -> str:
     """给定网页 URL，异步爬取页面并智能提取干净的段落正文。"""
     headers = {
         "User-Agent": (
