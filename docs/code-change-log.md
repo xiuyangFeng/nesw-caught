@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-21 架构加固计划整分支终审（Wave 1~3b，bfc3220..HEAD）
+
+- 修改人：Claude Sonnet（主控，8 路并行查找子代理 + 逐条 1-vote 验证子代理，`code-review` 技能 high 档）
+- 修改范围：对整个架构加固计划的 16 个提交（Wave 1 六任务、Wave 2 三任务、Wave 3a 两任务、Wave 3b 一任务，外加各波次文档回填）做一次跨波次的整体复核，覆盖行级 diff 扫描、被删行为审计、跨文件调用链追踪、复用/简化/效率、altitude/约定共 8 个查找角度，4 个候选发现全部逐条验证后仍存活（2 CONFIRMED、2 PLAUSIBLE，见下）。修复 2 个，另 2 个记录为已知取舍/后续重构项，不在本次处理。
+- 变更内容：
+  1. **修复：`parse_embeddings_response` 未校验 embedding index 集合**（提交 5989209）：此前只校验返回向量条数，不校验 index 是否恰好构成 `0..expected_count-1`；provider 返回重复 index（如两条都标 0、缺 1）时条数恰好还对，排序后错误向量被悄悄放到某个位置且不抛异常，下游个股研判排序（`_rank_news`）会拿到错位的 embedding，静默产出错误排序结果。改为显式校验 index 集合。
+  2. **修复：`notification_job_repository.enqueue` 的 dedupe_key 空白规整时序错误**（提交 5989209）：真假判断在 `.strip()` 之前做（判的是原始未 strip 值），纯空白输入（如 `"  "`）先被判真、strip 后又变成 `""`；`""` 不是 `None`，会被 Wave 1 新增的部分唯一索引（`WHERE dedupe_key IS NOT NULL`，SQLite 里 `'' IS NOT NULL` 为真）覆盖，但因为下面的分支判断的是 strip 后的真假，`""` 又会被当成"无 key"，直接走无 SAVEPOINT/IntegrityError 保护的插入分支——两次传入同样的空白 key 会在这条无保护路径上直接撞唯一索引崩溃（测试复现：改前直接 `sqlalchemy.exc.IntegrityError` 未捕获抛出）。改为 strip 之后统一判真假，空白/空字符串规整为 `None`。当前全仓无调用方会传入纯空白 dedupe_key，属于此前未覆盖的边界防护，非线上事故修复。
+  3. **已知取舍，本次不改**：`AsyncOpenAICompatibleProvider.chat_stream` 在已经向调用方 yield 过 token（`first_byte_sent=True`）后若仍中断，会直接 failover 到 backup 并重新流式生成完整回答，前端把新流的 token 追加到已显示的部分回答后面，用户会看到"部分回答 A 紧跟着完整回答 B"的可见重复。经溯源确认这是 diff 之前就存在、且 Wave 2 Task 7 的测试（`test_chat_stream_does_not_retry_after_first_byte_goes_straight_to_failover`）已显式断言为预期行为（"不重试同一 provider,直接按既有语义判定 failover"）——这是一次已评审过的产品取舍（保留旧 failover 语义、只新增首字节前的同 provider 重试），不是本次终审的疏漏，本次不越权改动已测试的既有设计；若要收窄为"首字节后中断只报错、不重新生成"，需要单独立项评估前端展示影响。
+  4. **已知取舍，本次不改**：`llm_providers.py` 里"重试+退避+failover"的编排 while 循环在 sync `complete`/`embed_text`/`embed_texts`、async `complete`/`chat_stream` 共 5 处方法里近乎逐行复制（纯逻辑片段 `compute_backoff_delay`/`is_retryable_error`/`plan_failover` 已抽出共享，但编排循环本身没有），已出现真实 drift（`chat_stream` 独有 `first_byte_sent` 守卫，其余 4 处没有）。这是结构性可维护性问题，不是正确性 bug；5 个方法 sync/async、流式/非流式的签名差异较大，收敛成本不小，留作独立重构任务，不在本次终审范围内处理。
+- 影响文件：backend/app/services/llm_providers.py、backend/app/repositories/notification_job_repository.py、backend/tests/{test_llm_providers,test_notification_dedupe}.py。
+- 接口/数据结构变化：无。`parse_embeddings_response` 新增的校验只会让此前"应该报错但没报错"的畸形 provider 响应正确抛出 `LLMProviderError`（走既有 failover 语义），不改变正常响应的行为；`enqueue` 的 dedupe_key 规整只影响此前从未被任何调用方触发过的纯空白输入。
+- 验证情况：TDD 先红后绿——两个新测试在改动前对着现网代码分别复现"index 重复不报错"和"两次空白 key 直插分支撞唯一索引 IntegrityError 未捕获"；`NEWS_CAUGHT_TEST_DB=/tmp/nc_final_review.db conda run -n news-caught pytest backend/tests -q` → 628 passed（Wave 3b 后 626，+2）；`ruff check` 涉及文件干净。
+- 风险或后续事项：条目 3、4 已记录为后续台账项，非阻塞——3 需要产品侧决定流式中断后的前端展示策略；4 需要独立评估重试编排层的抽象设计（建议：抽一个 `_run_with_retry(build_request, parse_response)` 或类似的共享执行器，把 5 处循环收敛为 1 处）。架构加固计划（Wave 1~3b，12 个任务）到此全部完成并通过整分支终审。
+
 ## 2026-07-21 架构加固 Wave 3b：日志升级（文件轮转 + 可选 JSON 结构化）
 
 - 修改人：Claude Sonnet（主控+实现，Wave 3a 合入后单任务执行，计划见 docs/superpowers/plans/2026-07-21-architecture-hardening-plan.md）
