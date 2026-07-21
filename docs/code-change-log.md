@@ -2,6 +2,22 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-21 架构加固 Wave 1：并发修复 + 无界表清理 + 死代码/出包治理
+
+- 修改人：Claude Fable（主控）+ Sonnet 实现/评审子代理（subagent-driven，计划见 docs/superpowers/plans/2026-07-21-architecture-hardening-plan.md）
+- 修改范围：后端事件总线/chat 路由/通知幂等/数据清理/模型清理，前端 API mock 层。共 6 个任务、6 个提交（fe2d4b5、84d6d6c、afcb2b9、a67f2ce、1853fcc、7f76f1c），每任务独立 spec+质量评审通过。
+- 变更内容：
+  1. **事件总线加锁**（fe2d4b5）：`InMemoryEventBus._handlers` 原全程无锁，SSE 请求线程建断订阅与 worker 线程发布迭代存在竞态（压力测试实际复现丢失更新）。subscribe/unsubscribe 持锁原子化，publish 锁内快照、锁外调 handler。
+  2. **chat_with_llm 阻塞修复**（84d6d6c）：async 端点内 4 处同步 SQLite 读收拢为 `_load_chat_context`，单次 `anyio.to_thread.run_sync` 执行；此前撞 SQLite 写锁会阻塞事件循环上全部请求与 SSE。
+  3. **通知入队幂等 DB 化**（afcb2b9）：`notification_job.dedupe_key` 建部分唯一索引（迁移 0a513ac0e869，幂等 raw SQL；历史重复同 key 保留 id 最大、其余置 NULL；移除被替代的普通索引），repository SAVEPOINT 包插入 + IntegrityError 回退返回既有 job。
+  4. **LLM 两表纳入保留清理**（a67f2ce）：`llm_token_usage` 90 天（删前 JSONL 归档）、`llm_classification_cache` 30 天（直接删），新增 config `llm_token_usage_retention_days`/`llm_classification_cache_retention_days`；此前两表无界增长。
+  5. **signal_event 死模型移除**（1853fcc）：无迁移建表、无代码引用；technical-architecture/stability-and-evolution 通知段落改写为基于 notification_job 的 as-built。
+  6. **前端 mock 出包治理**（7f76f1c）：mock 动态 import 改编译期 DEV 守卫，生产包 mock chunk（18.4KB）消失、入口 156.9→153.8KB；内联 mock 数据迁入 api/mock/；LLMStats 类型别名归位 types/api.ts 适配层。
+- 影响文件：backend/app/services/{event_bus,cleanup}.py、backend/app/api/routes/llm.py、backend/app/models/{notification_job,__init__}.py（signal_event.py 删除）、backend/app/repositories/notification_job_repository.py、backend/app/core/config.py、backend/alembic/versions/0a513ac0e869\*.py、frontend/src/api/{client.ts,mock/llm.ts,client.test.ts}、frontend/src/types/api.ts、两份架构文档、对应测试（新增 test_llm_chat.py、test_notification_dedupe.py 等）。
+- 接口/数据结构变化：无 API 变化；DB 新增 1 个 partial unique index、移除 1 个普通索引（迁移可 downgrade，置 NULL 的历史 dedupe_key 不可逆，已在迁移注释说明）；config 新增 2 个 retention 字段（默认 90/30 天）。
+- 验证情况：波次收尾全量 `NEWS_CAUGHT_TEST_DB=/tmp/nc_wave1_final.db conda run -n news-caught pytest backend/tests -q` → 577 passed（基线 547，+30）；前端 typecheck/vitest 全量（417 tests）/build 通过，评审独立复核构建产物无 mock chunk。
+- 风险或后续事项：评审 Minor 项已记台账留终审 triage（classification_cache.created_at 无索引、event_bus 计数字段未加锁、createWatchlist 返回形状不一致——均为既有状态）；T2 评审发现 AsyncProvider failover/token flush 也在事件循环做同步 DB，已并入 Wave 2 Task 7 处理。
+
 ## 2026-07-18 修复：FTS 同步触发器丢失（迁移 d7f0a3b5c9e2）
 
 - 修改人：Kimi Code（主线）
