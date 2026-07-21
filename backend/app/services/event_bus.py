@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -35,6 +36,9 @@ class EventBusStatus:
 class InMemoryEventBus:
     def __init__(self) -> None:
         self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
+        # `_handlers` 会被请求线程(SSE 连接的 subscribe/unsubscribe)与 worker
+        # 线程(publish)并发读写,用这把锁保护它的全部修改,避免边迭代边改。
+        self._handlers_lock = threading.Lock()
         self.last_error: str | None = None
         # 可观测性:单个订阅者失败不应影响其他订阅者(既有语义不变),但历史上
         # 吞掉的异常完全不可数。这里只加一个累计计数,由 HybridEventBus.get_status()
@@ -42,21 +46,28 @@ class InMemoryEventBus:
         self.handler_error_count = 0
 
     def subscribe(self, event_name: str, handler: EventHandler) -> None:
-        self._handlers[event_name].append(handler)
+        with self._handlers_lock:
+            self._handlers[event_name].append(handler)
 
     def unsubscribe(self, event_name: str, handler: EventHandler) -> None:
-        handlers = self._handlers.get(event_name)
-        if not handlers:
-            return
-        self._handlers[event_name] = [item for item in handlers if item is not handler]
-        if not self._handlers[event_name]:
-            self._handlers.pop(event_name, None)
+        with self._handlers_lock:
+            handlers = self._handlers.get(event_name)
+            if not handlers:
+                return
+            self._handlers[event_name] = [item for item in handlers if item is not handler]
+            if not self._handlers[event_name]:
+                self._handlers.pop(event_name, None)
 
     def publish(self, event_name: str, payload: dict[str, Any]) -> None:
         import logging
         logger = logging.getLogger(__name__)
         self.last_error = None
-        for handler in self._handlers[event_name]:
+        # 锁内只取快照,锁外再调用 handler:避免持锁调用 handler(handler 内部
+        # 再次 subscribe/unsubscribe 会重入同一把锁造成死锁),也避免跨线程
+        # 边迭代边改这一原始列表对象。
+        with self._handlers_lock:
+            handlers_snapshot = list(self._handlers[event_name])
+        for handler in handlers_snapshot:
             try:
                 handler(payload)
             except Exception as exc:

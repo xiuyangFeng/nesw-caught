@@ -1,5 +1,8 @@
+import sys
+import threading
+
 from app.core.config import Settings
-from app.services.event_bus import HybridEventBus, InMemoryEventBus
+from app.services.event_bus import EventHandler, HybridEventBus, InMemoryEventBus
 
 
 class DummyRedisPublisher:
@@ -191,3 +194,122 @@ def test_redis_circuit_breaker_does_not_open_below_threshold() -> None:
     # 未达阈值:每次都仍尝试 redis。
     assert publisher.calls == 2
     assert bus.get_status().status == "degraded"
+
+
+def test_unsubscribe_stops_delivering_events() -> None:
+    local_bus = InMemoryEventBus()
+    received: list[dict[str, object]] = []
+
+    def handler(payload: dict[str, object]) -> None:
+        received.append(payload)
+
+    local_bus.subscribe("evt", handler)
+    local_bus.publish("evt", {"n": 1})
+    assert received == [{"n": 1}]
+
+    local_bus.unsubscribe("evt", handler)
+    local_bus.publish("evt", {"n": 2})
+    assert received == [{"n": 1}]
+
+
+def test_concurrent_publish_and_subscribe_unsubscribe_does_not_raise() -> None:
+    """模拟真实场景:worker 线程持续 publish,同时多个请求线程(如 SSE 连接)
+    并发 subscribe/unsubscribe 临时 handler。加锁前 `_handlers` 的 append /
+    整体重建在跨线程场景下边迭代边改,存在竞态;这里只断言不抛异常、
+    长期存在的订阅者能持续收到事件、且退订后不再收到。
+    """
+    local_bus = InMemoryEventBus()
+    event_name = "stream.event"
+    errors: list[BaseException] = []
+    stop = threading.Event()
+
+    stable_received: list[dict[str, object]] = []
+
+    def stable_handler(payload: dict[str, object]) -> None:
+        stable_received.append(payload)
+
+    local_bus.subscribe(event_name, stable_handler)
+
+    def publisher_worker() -> None:
+        i = 0
+        try:
+            while not stop.is_set():
+                local_bus.publish(event_name, {"i": i})
+                i += 1
+        except BaseException as exc:  # noqa: BLE001 - 需要捕获所有异常以证明无竞态崩溃
+            errors.append(exc)
+
+    def subscriber_worker() -> None:
+        try:
+            for _ in range(200):
+                def _noise_handler(payload: dict[str, object]) -> None:
+                    return None
+
+                local_bus.subscribe(event_name, _noise_handler)
+                local_bus.unsubscribe(event_name, _noise_handler)
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    publisher_threads = [threading.Thread(target=publisher_worker) for _ in range(3)]
+    subscriber_threads = [threading.Thread(target=subscriber_worker) for _ in range(5)]
+
+    for thread in publisher_threads + subscriber_threads:
+        thread.start()
+
+    for thread in subscriber_threads:
+        thread.join()
+    stop.set()
+    for thread in publisher_threads:
+        thread.join()
+
+    assert errors == []
+    assert len(stable_received) > 0
+
+    local_bus.unsubscribe(event_name, stable_handler)
+    count_before = len(stable_received)
+    local_bus.publish(event_name, {"final": True})
+    assert len(stable_received) == count_before
+
+
+def test_concurrent_unsubscribe_of_distinct_handlers_removes_all_and_no_exceptions() -> None:
+    """未加锁的 unsubscribe 是"读取整个列表 -> 生成新列表 -> 整体写回"的非原子
+    操作;多线程同时对同一 event_name 执行时可能发生丢失更新(后写覆盖先写,
+    先前已被移除的 handler 又被写回来)。加锁后应保证全部移除且不抛异常。
+    """
+    local_bus = InMemoryEventBus()
+    handler_count = 60
+    handlers: list[tuple[EventHandler, list[dict[str, object]]]] = []
+    for _ in range(handler_count):
+        received: list[dict[str, object]] = []
+
+        def handler(payload: dict[str, object], _received: list[dict[str, object]] = received) -> None:
+            _received.append(payload)
+
+        handlers.append((handler, received))
+        local_bus.subscribe("evt", handler)
+
+    errors: list[BaseException] = []
+
+    def _unsubscribe(target: EventHandler) -> None:
+        try:
+            local_bus.unsubscribe("evt", target)
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    # 缩短 GIL 切换间隔以放大竞态窗口,提升复现概率。
+    original_interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        threads = [threading.Thread(target=_unsubscribe, args=(handler,)) for handler, _ in handlers]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        sys.setswitchinterval(original_interval)
+
+    assert errors == []
+
+    local_bus.publish("evt", {"after": "unsubscribe"})
+    for _handler, received in handlers:
+        assert received == []
