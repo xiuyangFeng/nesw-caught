@@ -15,11 +15,15 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install backend dependencies
-        run: pip install -e ./backend[dev]
+        run: |
+          pip install -r requirements.txt
+          pip install -e ./backend
       - name: Ruff
         run: ruff check backend
       - name: Pytest
         run: pytest backend/tests
+      - name: Secret scan
+        run: python scripts/check_secrets.py
 
   frontend:
     runs-on: ubuntu-latest
