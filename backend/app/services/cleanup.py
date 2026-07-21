@@ -9,6 +9,8 @@ from sqlalchemy import delete, inspect as sa_inspect, select, text
 
 from app.core.config import get_settings
 from app.models.article_content import ArticleContent
+from app.models.llm_classification_cache import LLMClassificationCache
+from app.models.llm_token_usage import LLMTokenUsage
 from app.models.news_item import NewsItem
 from app.models.price_snapshot import PriceSnapshot
 from app.workers.base_worker import BaseWorker
@@ -49,6 +51,8 @@ class DataCleanupWorker(BaseWorker):
         news_item_retention_days: int = 180,
         article_content_retention_days: int = 90,
         price_snapshot_retention_days: int = 30,
+        llm_token_usage_retention_days: int = 90,
+        llm_classification_cache_retention_days: int = 30,
         archive_dir: Path | str | None = None,
         logger=None,
     ) -> None:
@@ -58,6 +62,8 @@ class DataCleanupWorker(BaseWorker):
         self.news_item_retention_days = news_item_retention_days
         self.article_content_retention_days = article_content_retention_days
         self.price_snapshot_retention_days = price_snapshot_retention_days
+        self.llm_token_usage_retention_days = llm_token_usage_retention_days
+        self.llm_classification_cache_retention_days = llm_classification_cache_retention_days
         self.archive_dir = Path(archive_dir) if archive_dir else _default_archive_dir()
         self._last_vacuum_at: datetime | None = None
 
@@ -69,6 +75,8 @@ class DataCleanupWorker(BaseWorker):
         deleted += self._delete_expired_news_items()
         deleted += self._delete_expired_article_content()
         deleted += self._delete_expired_price_snapshots()
+        deleted += self._delete_expired_llm_token_usage()
+        deleted += self._delete_expired_llm_classification_cache()
         if self._should_run_vacuum():
             self._run_incremental_vacuum()
         return deleted
@@ -147,6 +155,43 @@ class DataCleanupWorker(BaseWorker):
             session.commit()
             return len(ids)
 
+    def _delete_expired_llm_token_usage(self) -> int:
+        cutoff = _utc_now() - timedelta(days=self.llm_token_usage_retention_days)
+        with self.session_factory() as session:
+            rows = list(
+                session.scalars(
+                    select(LLMTokenUsage)
+                    .where(LLMTokenUsage.created_at < cutoff)
+                    .order_by(LLMTokenUsage.created_at.asc(), LLMTokenUsage.id.asc())
+                    .limit(BATCH_SIZE)
+                )
+            )
+            if not rows:
+                return 0
+            self._archive_rows("llm_token_usage", rows)
+            ids = [row.id for row in rows]
+            session.execute(delete(LLMTokenUsage).where(LLMTokenUsage.id.in_(ids)))
+            session.commit()
+            return len(ids)
+
+    def _delete_expired_llm_classification_cache(self) -> int:
+        # 分类缓存可按内容重新计算得到,不做删前归档,直接批量删除即可。
+        cutoff = _utc_now() - timedelta(days=self.llm_classification_cache_retention_days)
+        with self.session_factory() as session:
+            ids = list(
+                session.scalars(
+                    select(LLMClassificationCache.id)
+                    .where(LLMClassificationCache.created_at < cutoff)
+                    .order_by(LLMClassificationCache.created_at.asc(), LLMClassificationCache.id.asc())
+                    .limit(BATCH_SIZE)
+                )
+            )
+            if not ids:
+                return 0
+            session.execute(delete(LLMClassificationCache).where(LLMClassificationCache.id.in_(ids)))
+            session.commit()
+            return len(ids)
+
     def _should_run_vacuum(self) -> bool:
         now = _utc_now()
         if self._last_vacuum_at is None:
@@ -169,5 +214,7 @@ def build_data_cleanup_worker(session_factory) -> DataCleanupWorker:
         news_item_retention_days=settings.news_item_retention_days,
         article_content_retention_days=settings.article_content_retention_days,
         price_snapshot_retention_days=settings.price_snapshot_retention_days,
+        llm_token_usage_retention_days=settings.llm_token_usage_retention_days,
+        llm_classification_cache_retention_days=settings.llm_classification_cache_retention_days,
         archive_dir=Path(settings.data_archive_dir) if settings.data_archive_dir else None,
     )

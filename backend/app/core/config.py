@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     news_item_retention_days: int = 180
     article_content_retention_days: int = 90
     price_snapshot_retention_days: int = 30
+    # llm_token_usage 每次 LLM 调用一行、llm_classification_cache 无过期,两表无界
+    # 增长,是撑爆 SQLite 文件的主要来源,需纳入定期清理。
+    llm_token_usage_retention_days: int = 90
+    llm_classification_cache_retention_days: int = 30
     # 删除前归档：保留期清理执行 DELETE 之前，把待删行落一份 JSON Lines 归档文件，
     # 便于事后追溯/人工恢复。目录缺省为 backend/data/archive。
     data_archive_dir: str | None = None
