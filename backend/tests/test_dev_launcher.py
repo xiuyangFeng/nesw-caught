@@ -4,14 +4,14 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 DEV_SCRIPT = ROOT_DIR / "scripts/dev.sh"
 
 
-def test_dev_script_manages_market_worker_process() -> None:
+def test_dev_script_no_longer_manages_a_separate_market_worker_process() -> None:
+    # 自选股行情 producer 默认随后端进程的 lifespan 一起启停（见
+    # app/main.py），dev launcher 不应再单独拉起/探活/清理一个
+    # market_quote_producer 子进程。
     script = DEV_SCRIPT.read_text(encoding="utf-8")
 
-    assert 'MARKET_WORKER_PID=""' in script
-    assert 'terminate_process_tree "${MARKET_WORKER_PID}"' in script
-    assert 'if ! kill -0 "${MARKET_WORKER_PID}" 2>/dev/null; then' in script
-    assert 'wait "${MARKET_WORKER_PID}"' in script
-    assert "python -m app.workers.market_quote_producer" in script
+    assert "MARKET_WORKER_PID" not in script
+    assert "python -m app.workers.market_quote_producer" not in script
 
 
 def test_dev_script_cleans_conflicting_ports_and_waits_for_backend() -> None:

@@ -124,6 +124,7 @@ async def lifespan(_: FastAPI):
     backup_worker = None
     digest_worker = None
     redis_consumer = None
+    market_quote_producer: MarketQuoteProducer | None = None
     event_bus = get_event_bus()
     redis_publisher = getattr(event_bus, "redis_publisher", None)
     stream_map = getattr(event_bus, "stream_map", None) or {}
@@ -172,6 +173,13 @@ async def lifespan(_: FastAPI):
             max_backoff_multiplier=settings.news_backoff_max_multiplier,
         )
         news_scheduler.start()
+    if settings.market_quote_producer_enabled:
+        # 单机单进程默认形态:自选股行情 producer 与告警 handler 都随后端进程
+        # 一起起停。多进程部署把该开关关掉,改用独立入口
+        # `app.workers.market_quote_producer`（其 main() 会自行注册 handler）。
+        register_market_watchlist_handlers(event_bus)
+        market_quote_producer = build_market_quote_producer(event_bus)
+        market_quote_producer.start()
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
@@ -206,6 +214,8 @@ async def lifespan(_: FastAPI):
         backup_worker.stop()
     if news_scheduler is not None:
         news_scheduler.stop()
+    if market_quote_producer is not None:
+        market_quote_producer.stop()
     queue_worker.stop()
     takeaway_worker.stop()
     notification_service.stop()

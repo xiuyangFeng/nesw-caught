@@ -160,15 +160,19 @@ def test_market_quote_producer_background_loop_can_start_and_stop() -> None:
     assert not producer._thread.is_alive()
 
 
-def test_app_lifespan_does_not_start_market_quote_producer(monkeypatch) -> None:
+def test_app_lifespan_starts_market_quote_producer_and_registers_handlers_when_enabled(
+    monkeypatch,
+) -> None:
     lifecycle: list[str] = []
+    registered_bus: list[object] = []
+    built_with_bus: list[object] = []
 
     class FakeProducer:
         def start(self) -> None:
-            lifecycle.append("start")
+            lifecycle.append("producer-start")
 
         def stop(self, timeout: float | None = None) -> None:
-            lifecycle.append(f"stop:{timeout}")
+            lifecycle.append("producer-stop")
 
     class FakeNotificationService:
         def start(self) -> None:
@@ -177,17 +181,71 @@ def test_app_lifespan_does_not_start_market_quote_producer(monkeypatch) -> None:
         def stop(self) -> None:
             lifecycle.append("notify-stop")
 
+    def fake_register(event_bus: object) -> None:
+        lifecycle.append("register-handlers")
+        registered_bus.append(event_bus)
+
+    def fake_build(event_bus: object = None) -> FakeProducer:
+        lifecycle.append("build-producer")
+        built_with_bus.append(event_bus)
+        return FakeProducer()
+
     settings = Settings(market_quote_producer_enabled=True)
     monkeypatch.setattr("app.main.initialize_database", lambda: None)
     monkeypatch.setattr("app.main._register_event_handlers", lambda: None)
     monkeypatch.setattr("app.main.get_notification_service", lambda: FakeNotificationService())
     monkeypatch.setattr("app.main.get_settings", lambda: settings)
-    monkeypatch.setattr("app.main.build_market_quote_producer", lambda: FakeProducer())
+    monkeypatch.setattr("app.main.register_market_watchlist_handlers", fake_register)
+    monkeypatch.setattr("app.main.build_market_quote_producer", fake_build)
+
+    with TestClient(app):
+        assert lifecycle == ["notify-start", "register-handlers", "build-producer", "producer-start"]
+
+    assert lifecycle == [
+        "notify-start",
+        "register-handlers",
+        "build-producer",
+        "producer-start",
+        "producer-stop",
+        "notify-stop",
+    ]
+    # handlers 与 producer 必须共享同一个 event bus 实例，否则告警链路断开。
+    assert len(registered_bus) == 1
+    assert registered_bus == built_with_bus
+
+
+def test_app_lifespan_skips_market_quote_producer_when_disabled(monkeypatch) -> None:
+    lifecycle: list[str] = []
+    register_calls: list[object] = []
+    build_calls: list[object] = []
+
+    class FakeNotificationService:
+        def start(self) -> None:
+            lifecycle.append("notify-start")
+
+        def stop(self) -> None:
+            lifecycle.append("notify-stop")
+
+    settings = Settings(market_quote_producer_enabled=False)
+    monkeypatch.setattr("app.main.initialize_database", lambda: None)
+    monkeypatch.setattr("app.main._register_event_handlers", lambda: None)
+    monkeypatch.setattr("app.main.get_notification_service", lambda: FakeNotificationService())
+    monkeypatch.setattr("app.main.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "app.main.register_market_watchlist_handlers",
+        lambda event_bus: register_calls.append(event_bus),
+    )
+    monkeypatch.setattr(
+        "app.main.build_market_quote_producer",
+        lambda event_bus=None: build_calls.append(event_bus) or MagicMock(),
+    )
 
     with TestClient(app):
         assert lifecycle == ["notify-start"]
 
     assert lifecycle == ["notify-start", "notify-stop"]
+    assert register_calls == []
+    assert build_calls == []
 
 
 def test_market_quote_worker_main_initializes_runtime_and_starts_producer(monkeypatch) -> None:

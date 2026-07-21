@@ -38,11 +38,7 @@ npm --prefix frontend install
 conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
 ```
 
-启动自选股行情 worker：
-
-```bash
-PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer
-```
+自选股行情 producer 默认随后端进程一起启动（单进程模式，推荐，见下方“自选股真实行情”一节），无需单独拉起 worker。
 
 启动新闻抓取调度 worker（按源 cadence 调度 + 失败指数退避）：
 
@@ -80,13 +76,12 @@ make dev
 
 `make dev` 会同时启动：
 
-- 后端 `http://127.0.0.1:8000`
+- 后端 `http://127.0.0.1:8000`（自选股行情 producer 已内置于该进程的 lifespan，随其一起启停）
 - 前端 `http://127.0.0.1:5174`
-- 自选股行情 `market-worker`
 
 启动前，launcher 会主动终止本机 `8000` 和 `5174` 上现有的监听进程，然后在 backend 的 `GET /api/health` 真正可达后再继续启动其余进程。这样可以避免前端先起来、但后端端口仍不可用时出现整页 `ECONNREFUSED` 和 K 线加载失败。该 launcher 依赖本机提供 `lsof`、`pgrep` 和 `curl`。
 
-按 `Ctrl+C` 会一起停止三个进程。
+按 `Ctrl+C` 会一起停止两个进程。
 
 ## 验证
 
@@ -124,11 +119,19 @@ make ingest-news
 
 自选股页面已切换为真实行情接口，支持批量与容灾拉取。默认通过 `yfinance` 批量并发拉取港股、美股和A股报价。同时，为了提高可用性并抗限流，本模块实现了国内备用行情源：当港股/A股在 `yfinance` 批量拉取失败或超时被限流时，会自动透明地降级，无缝切换至国内腾讯财经的轻量行情接口。
 
-当前行情 producer 已从 Web 应用进程中拆出，需通过独立 worker 常驻轮询自选股、写入本地快照，并发布 `market.watchlist_refreshed`；前端接口只读取最近一次已生产的行情结果，不再在 HTTP 请求路径里同步触发刷新。首次更新环境时请确保已安装新增依赖：
+行情 producer 常驻轮询自选股、写入本地快照，并发布 `market.watchlist_refreshed`；前端接口只读取最近一次已生产的行情结果，不再在 HTTP 请求路径里同步触发刷新。首次更新环境时请确保已安装新增依赖：
 
 ```bash
 conda env update -f environment.yml --prune
 conda activate news-caught
+```
+
+**单进程模式（默认，推荐）**：`MARKET_QUOTE_PRODUCER_ENABLED=true`（默认值）时，producer 随后端 `uvicorn` 进程的 lifespan 一起启停，`make dev` / `scripts/dev.sh` 无需再单独拉起 worker 进程。
+
+**多进程模式**：如需把 producer 拆到独立进程跑（例如后端要频繁 `--reload` 而不想打断行情轮询），先把 `MARKET_QUOTE_PRODUCER_ENABLED=false` 关掉进程内 producer（避免双跑重复轮询/重复发布事件），再单独启动：
+
+```bash
+PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer
 ```
 
 可选环境变量：
@@ -146,7 +149,7 @@ MARKET_QUOTE_POLL_INTERVAL_SECONDS=15
 - `GET /api/market/symbols/{symbol}`：返回单只股票最近一次已生产的详情行情
 - `http://127.0.0.1:5174/watchlist/:symbol`：单股详情页
 
-港股符号目前兼容 `0700.HK` 和 `HK253` 这类输入。当前 producer 仍属于后端轮询型实时链路，后续如需补 A 股或切换真正流式/付费行情源，可继续在独立 worker 的 producer/provider 层扩展，而无需改动现有 watchlist API 或通知事件名。
+港股符号目前兼容 `0700.HK` 和 `HK253` 这类输入。当前 producer 仍属于后端轮询型实时链路，后续如需补 A 股或切换真正流式/付费行情源，可继续在 producer/provider 层扩展，而无需改动现有 watchlist API 或通知事件名。
 
 ## Redis 事件层
 
@@ -184,7 +187,7 @@ EVENT_BUS_PUBLISH_TIMEOUT_SECONDS=1.0
 curl http://127.0.0.1:8000/api/stream/status
 ```
 
-该接口现在除了事件层状态外，也会返回独立 `market-worker` 的运行状态，包括最近 heartbeat、最近成功/失败时间、最近错误和轮询计数，便于确认自选股行情 worker 是否仍在持续生产数据。
+该接口现在除了事件层状态外，也会返回自选股行情 `market-worker` 的运行状态（单进程模式下即后端进程内的 producer，多进程模式下为独立进程），包括最近 heartbeat、最近成功/失败时间、最近错误和轮询计数，便于确认自选股行情 producer 是否仍在持续生产数据。
 
 当前已经使用的事件名包括：
 

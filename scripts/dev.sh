@@ -5,7 +5,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_PID=""
 FRONTEND_PID=""
-MARKET_WORKER_PID=""
 
 require_command() {
   local command_name="$1"
@@ -96,7 +95,6 @@ cleanup() {
 
   terminate_process_tree "${BACKEND_PID}"
   terminate_process_tree "${FRONTEND_PID}"
-  terminate_process_tree "${MARKET_WORKER_PID}"
 
   wait 2>/dev/null || true
   exit "${exit_code}"
@@ -114,6 +112,8 @@ kill_listeners_for_port 8000
 kill_listeners_for_port 5174
 
 echo "[news-caught] starting backend on http://127.0.0.1:8000"
+# 自选股行情 producer 默认随后端 lifespan 一起启停（MARKET_QUOTE_PRODUCER_ENABLED=true），
+# 不再需要单独拉起 app.workers.market_quote_producer 进程。
 conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 wait_for_process_start "${BACKEND_PID}" "backend"
@@ -124,11 +124,6 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5174 &
 FRONTEND_PID=$!
 wait_for_process_start "${FRONTEND_PID}" "frontend"
 
-echo "[news-caught] starting market worker"
-PYTHONPATH=backend conda run -n news-caught python -m app.workers.market_quote_producer &
-MARKET_WORKER_PID=$!
-wait_for_process_start "${MARKET_WORKER_PID}" "market worker"
-
 while true; do
   if ! kill -0 "${BACKEND_PID}" 2>/dev/null; then
     wait "${BACKEND_PID}"
@@ -137,11 +132,6 @@ while true; do
 
   if ! kill -0 "${FRONTEND_PID}" 2>/dev/null; then
     wait "${FRONTEND_PID}"
-    exit $?
-  fi
-
-  if ! kill -0 "${MARKET_WORKER_PID}" 2>/dev/null; then
-    wait "${MARKET_WORKER_PID}"
     exit $?
   fi
 

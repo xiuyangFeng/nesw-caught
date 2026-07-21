@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     market_quote_cache_ttl_seconds: int = 180
     # 财报/事件日历缓存 TTL：yfinance 日历调用慢，默认 6 小时。
     calendar_cache_ttl_seconds: int = 21600
+    # 单机单进程默认形态:producer 随后端 lifespan 一起启停(见 app/main.py)。
+    # 需要独立进程跑 producer（多进程部署）时,把该开关关掉,避免进程内/进程外
+    # 双跑重复轮询;独立入口见 app.workers.market_quote_producer。
     market_quote_producer_enabled: bool = True
     market_quote_poll_interval_seconds: float = 15.0
     tavily_api_key: str | None = None
