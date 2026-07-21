@@ -227,7 +227,14 @@ async def lifespan(_: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(
+        settings.log_level,
+        file_enabled=settings.log_file_enabled,
+        file_path=settings.log_file_path,
+        file_max_bytes=settings.log_file_max_bytes,
+        file_backup_count=settings.log_file_backup_count,
+        log_format=settings.log_format,
+    )
 
     app = FastAPI(
         title=settings.app_name,

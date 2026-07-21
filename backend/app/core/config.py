@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_prefix: str = "/api"
     log_level: str = "INFO"
+    log_file_enabled: bool = True
+    # 缺省为 backend/data/logs/backend.log（见 core/logging.py 的
+    # _default_log_file_path）；data/ 已被 gitignore 覆盖。
+    log_file_path: str | None = None
+    log_file_max_bytes: int = 10 * 1024 * 1024
+    log_file_backup_count: int = 5
+    # plain：人类可读单行文本；json：单行 JSON（ts/level/logger/message）。
+    log_format: str = "plain"
     database_url: str = Field(
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )
