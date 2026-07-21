@@ -3,6 +3,7 @@ import json
 import time
 from datetime import UTC
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
@@ -192,12 +193,17 @@ def test_llm_connection(session: Session = Depends(get_db_session)) -> LLMConnec
     )
 
 
-@router.post("/chat")
-async def chat_with_llm(
+def _load_chat_context(
+    session: Session,
     payload: LLMChatRequest,
-    request: Request,
-    session: Session = Depends(get_db_session),
-):
+) -> tuple[object, list[dict[str, str]]]:
+    """同步读取聊天所需的 provider 配置与新闻上下文。
+
+    这里聚合了 chat_with_llm 进入流式/非流式分支前的全部同步 DB 读，
+    统一通过一次 anyio.to_thread.run_sync 线程跳转执行，避免直接在事件
+    循环线程里做同步 SQLite 读——一旦撞上写锁（busy_timeout 最长 30s），
+    会阻塞该线程上的所有 async 请求与 SSE。
+    """
     repository = LLMProviderConfigRepository(session)
     config = None
     if payload.config_id is not None:
@@ -241,6 +247,17 @@ async def chat_with_llm(
 
     # 当前用户提问
     messages.append({"role": "user", "content": payload.message})
+
+    return config, messages
+
+
+@router.post("/chat")
+async def chat_with_llm(
+    payload: LLMChatRequest,
+    request: Request,
+    session: Session = Depends(get_db_session),
+):
+    config, messages = await anyio.to_thread.run_sync(_load_chat_context, session, payload)
 
     provider = build_async_provider(config)
 

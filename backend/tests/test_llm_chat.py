@@ -1,5 +1,7 @@
+import asyncio
 import json
-from unittest.mock import patch
+import threading
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect, text
@@ -221,4 +223,101 @@ def test_llm_chat_stream_disconnect_generator() -> None:
         assert len(chunks) == 1
         assert "Chunk1" in chunks[0]
         assert "Chunk2" not in "".join(chunks)
+
+
+def test_llm_chat_resolves_context_off_event_loop_in_single_thread_hop() -> None:
+    """回归 llm.py:196 的事件循环阻塞问题。
+
+    chat_with_llm 进入流式/非流式分支前的同步 DB 读（config + news）必须
+    收拢到一次 anyio.to_thread.run_sync 线程跳转里完成：
+    1) 不能占用事件循环所在线程（否则撞上 SQLite 写锁会阻塞其它 async 请求/SSE）；
+    2) 所有 DB 读要落在同一个 worker 线程上，不能多次线程往返。
+    """
+    from app.api.routes.llm import chat_with_llm
+    from app.schemas.llm import LLMChatRequest
+
+    main_thread_id = threading.get_ident()
+    call_thread_ids: list[int] = []
+
+    mock_session = MagicMock()
+    payload = LLMChatRequest(message="Hi", history=[], stream=False, news_id=123)
+
+    mock_request = MagicMock()
+    mock_request.is_disconnected = AsyncMock(return_value=False)
+
+    with patch("app.api.routes.llm.LLMProviderConfigRepository") as MockConfigRepo, \
+         patch("app.api.routes.llm.NewsRepository") as MockNewsRepo, \
+         patch("app.api.routes.llm.build_async_provider") as MockBuildProvider:
+
+        mock_config_repo = MockConfigRepo.return_value
+
+        def _get_default(*args, **kwargs):
+            call_thread_ids.append(threading.get_ident())
+            return MagicMock()
+
+        mock_config_repo.get_default.side_effect = _get_default
+
+        mock_news_repo = MockNewsRepo.return_value
+
+        def _get_news_by_id(news_id):
+            call_thread_ids.append(threading.get_ident())
+            return None  # 模拟关联新闻不存在，不应导致报错
+
+        mock_news_repo.get_by_id.side_effect = _get_news_by_id
+
+        mock_provider = MockBuildProvider.return_value
+        mock_provider.complete = AsyncMock(side_effect=mock_complete)
+
+        result = asyncio.run(
+            chat_with_llm(payload=payload, request=mock_request, session=mock_session)
+        )
+
+    assert result["text"] == "This is a mock response from async generate text."
+    # config + news 两次 DB 读都发生过
+    assert len(call_thread_ids) == 2
+    # 都不在事件循环线程（asyncio.run 所在的当前线程）上执行
+    assert all(tid != main_thread_id for tid in call_thread_ids)
+    # 两次读落在同一个 worker 线程，说明是一次线程跳转而非多次往返
+    assert call_thread_ids[0] == call_thread_ids[1]
+
+
+def test_llm_chat_missing_provider_returns_400() -> None:
+    """provider 未配置时，错误分支仍走原错误码（400 + 原始文案）。"""
+    _cleanup_llm_config_table()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/llm/chat",
+        json={"message": "Hello", "stream": False},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "LLM provider is not configured"
+
+
+@patch("app.services.llm_providers.AsyncOpenAICompatibleProvider.complete", new=mock_complete)
+def test_llm_chat_with_missing_news_id_still_succeeds() -> None:
+    """news_id 指向不存在的新闻时不应报错，仍走原有正常响应路径。"""
+    _cleanup_llm_config_table()
+    client = TestClient(app)
+
+    client.post(
+        "/api/llm/config",
+        json={
+            "id": None,
+            "provider_name": "openai_compatible",
+            "display_name": "Default Model",
+            "base_url": "https://api.deepseek.com/v1",
+            "model_name": "deepseek-chat",
+            "api_key": "sk-test-active",
+            "is_active": True,
+            "is_default": True,
+        },
+    )
+
+    response = client.post(
+        "/api/llm/chat",
+        json={"message": "Hi", "news_id": 999999, "stream": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["text"] == "This is a mock response from async generate text."
 
