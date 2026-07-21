@@ -2,6 +2,19 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-21 架构加固 Wave 2：LLM 链路性能（批量 embedding/重试退避/并发化）+ HTTP 出口收敛
+
+- 修改人：Claude Fable（主控）+ Sonnet 实现/评审子代理（计划同 Wave 1 文档）
+- 修改范围：LLM provider 层、个股研判、takeaway、topic 统计、HTTP 连接池。3 个任务、3 个提交（9aa1376、22818a5、a521d4c），每任务独立评审；T7 经一轮修复后复审通过。
+- 变更内容：
+  1. **LLM 批量 embedding + 重试退避**（9aa1376）：`embed_texts` 单请求批量（按 index 对齐），`_rank_news` 由最多 N 次串行 60s embedding 调用改为 1 次批量——个股研判 P99 预期从数十秒降至 1~2 次 RTT。同 provider 重试（仅 429/超时/5xx，默认额外 2 次，指数退避+jitter，流式仅首字节前），重试耗尽才 failover 且 backup 只做单次尝试；AsyncProvider 的 failover 查库/token 落库改经 anyio.to_thread（修复 T2 评审发现的事件循环阻塞残留）。新配置 `llm_retry_max_attempts`/`llm_retry_backoff_seconds`。
+  2. **takeaway 并发化 + topic 统计批量化**（22818a5）：takeaway 逐条串行 LLM 改 4 线程并发（写回收敛主线程、顺序确定）；`refresh_topic_stats` 由 O(topics)×2 次查询改 2 次 IN 批量+Python 分组，计算公式原样复用并有新旧等价性测试。
+  3. **HTTP 出口收敛**（a521d4c）：google_news_search/feishu_client 改用 http_pool 共享连接池（超时语义无漂移、token 刷新逻辑不变），article_crawler 超时改模块常量，删除无调用方的遗留 `http_client.py`。
+- 影响文件：backend/app/services/{llm_providers,stock_research_synthesis,news_takeaway,http_pool,google_news_search,feishu_client,news_ingestion}.py、services/ingestion/article_crawler.py、repositories/news_signal_repository.py、core/config.py（http_client.py 删除）+ 对应测试（新增 test_http_pool.py、test_google_news_search.py 等）。
+- 接口/数据结构变化：无 API/DB 变化；provider 新增 `embed_texts` 方法与 `max_attempts` 构造参数（向后兼容）；config 新增 2 个重试字段。ConnectError 现属可重试错误——外部观察到的失败请求总时延会增加约(退避+重试)时长。
+- 验证情况：波次收尾全量 `NEWS_CAUGHT_TEST_DB=/tmp/nc_wave2_final.db conda run -n news-caught pytest backend/tests -q` → 617 passed（Wave 1 后 577，+40）。
+- 风险或后续事项：评审 Minor 留台账（close_llm_client 命名承载多类 client 建议改名、google_news 复用测试断言偏弱、topic 等价性测试用内联复刻旧算法）；流式生成器提前关闭时 anyio.to_thread 的取消传播为已知边界（与既有模式一致）。
+
 ## 2026-07-21 架构加固 Wave 1：并发修复 + 无界表清理 + 死代码/出包治理
 
 - 修改人：Claude Fable（主控）+ Sonnet 实现/评审子代理（subagent-driven，计划见 docs/superpowers/plans/2026-07-21-architecture-hardening-plan.md）
