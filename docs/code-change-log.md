@@ -2,6 +2,16 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-21 架构加固 Wave 3b：日志升级（文件轮转 + 可选 JSON 结构化）
+
+- 修改人：Claude Sonnet（主控+实现，Wave 3a 合入后单任务执行，计划见 docs/superpowers/plans/2026-07-21-architecture-hardening-plan.md）
+- 修改范围：`core/logging.py`、`core/config.py`、`main.py` 启动接线。1 个任务、1 个提交（34bd394）。
+- 变更内容：`configure_logging` 从 8 行 `basicConfig`（仅控制台）升级为控制台 + 可选 `RotatingFileHandler`（默认 `data/logs/backend.log`，10MB×5 份，父目录自动创建，`data/` 已 gitignore）；新增 5 个 config 字段：`log_file_enabled`（默认 True）、`log_file_path`、`log_file_max_bytes`、`log_file_backup_count`、`log_format`（`plain|json`，默认 plain，json 为单行 ts/level/logger/message）。幂等实现：每次调用先摘掉上一次由本函数添加的 handler（打标记属性识别）再重建，不随 uvicorn `--reload` 重复调用叠加。此前多后台线程共写 SQLite 出现 `database is locked` 类问题时，日志早已滚出终端缓冲区事后无法定位，是本任务动机。
+- 影响文件：backend/app/core/logging.py、backend/app/core/config.py、backend/app/main.py、backend/tests/test_logging_setup.py（新）。
+- 接口/数据结构变化：无 API/DB 变化；新增 5 个可选环境变量，默认值保持“控制台+文件双输出、plain 格式”，行为对现有部署无感升级。
+- 验证情况：TDD 先红后绿（7 个新测试覆盖文件生成建目录、file_enabled=false 跳过文件、轮转参数生效、json 字段完整、plain 非 json、重复调用不叠加 handler、重复调用不重复写日志行）；`NEWS_CAUGHT_TEST_DB=/tmp/nc_t12_full.db conda run -n news-caught pytest backend/tests -q` → 626 passed（Wave 3a 后 619，+7）；`ruff check` 涉及文件干净；手工 smoke 验证 json 格式单行输出、文件仅写入一次无重复。
+- 风险或后续事项：无。架构加固计划（plan.md Wave 1~3b）全部 12 个任务收尾，待整分支终审。
+
 ## 2026-07-21 架构加固 Wave 3a：market producer 单进程内置 + CI 强化
 
 - 修改人：Claude Fable（主控）+ Sonnet 实现/评审子代理（计划同 Wave 1/2 文档）
