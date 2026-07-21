@@ -293,6 +293,22 @@ def test_parse_embeddings_response_rejects_count_mismatch() -> None:
         parse_embeddings_response(payload, expected_count=2)
 
 
+def test_parse_embeddings_response_rejects_duplicate_indices() -> None:
+    """终审发现：只校验 count 相等，未校验 index 集合本身——provider 返回重复
+    index（如两条都标 index=0，缺 index=1）时，count 恰好还是对的，排序后会
+    把错误的向量悄悄放到某个位置，下游（如个股研判排序）拿到的是错位的
+    embedding，且不会抛异常。这里要求 index 集合必须恰好等于 0..N-1。"""
+    payload = {
+        "data": [
+            {"index": 0, "embedding": [1, 1]},
+            {"index": 0, "embedding": [9, 9]},
+            {"index": 2, "embedding": [3, 3]},
+        ],
+    }
+    with pytest.raises(LLMProviderError, match="unexpected indices"):
+        parse_embeddings_response(payload, expected_count=3)
+
+
 # ---------------------------------------------------------------------------
 # is_retryable_error / compute_backoff_delay
 # ---------------------------------------------------------------------------

@@ -266,6 +266,15 @@ def parse_embeddings_response(
         raise LLMProviderError(
             f"llm provider returned {len(vectors)} embeddings, expected {expected_count}"
         )
+    seen_indices = {index for index, _ in indexed}
+    if seen_indices != set(range(expected_count)):
+        # count 相等不代表 index 集合正确：重复 index（如两条都标 0，缺 1）会
+        # 让排序后的 vectors 悄悄错位，下游按 position 取值时对应到错误的
+        # 输入文本却不抛异常。显式校验 index 集合本身，而不是只信任 count。
+        raise LLMProviderError(
+            f"llm provider returned embeddings with unexpected indices {sorted(seen_indices)}, "
+            f"expected 0..{expected_count - 1}"
+        )
 
     usage = payload.get("usage") if isinstance(payload, dict) else None
     return vectors, usage if isinstance(usage, dict) else None

@@ -91,6 +91,37 @@ def test_enqueue_recovers_from_integrity_error_when_precheck_misses_concurrent_i
         assert again.dedupe_key == "race:concurrent-insert-followup"
 
 
+def test_enqueue_treats_whitespace_only_dedupe_key_as_no_dedupe_key() -> None:
+    """终审发现：``dedupe_key.strip() if dedupe_key else None`` 对未 strip 前的
+    原始值判真假——``"  "`` 本身非空是真值，strip 后变成 ``""``，但 ``""`` 又是
+    假值，会落到"无 dedupe key"的直插分支（无 SAVEPOINT/IntegrityError 处理）。
+    而唯一索引是 ``WHERE dedupe_key IS NOT NULL``，SQLite 里 ``'' IS NOT NULL``
+    为真，空字符串一样被索引覆盖——两次传入同样的空白 key 会在无保护的直插
+    分支上撞唯一索引崩溃。要求：空白 only 的 key 必须和空字符串/None 一样被
+    当作"没有 dedupe key"，落库为 NULL，不占用唯一索引。"""
+    _cleanup_notification_jobs()
+
+    with SessionLocal() as session:
+        repo = NotificationJobRepository(session)
+
+        first = repo.enqueue(
+            channel="feishu",
+            event_type="analysis_result",
+            payload={"news_id": 1},
+            dedupe_key="   ",
+        )
+        second = repo.enqueue(
+            channel="feishu",
+            event_type="analysis_result",
+            payload={"news_id": 2},
+            dedupe_key="   ",
+        )
+
+        assert first.dedupe_key is None
+        assert second.dedupe_key is None
+        assert first.id != second.id  # 不去重：没有 dedupe key 时每次都新建
+
+
 def test_migration_dedupes_historical_rows_and_enforces_unique_index(
     tmp_path, monkeypatch
 ) -> None:

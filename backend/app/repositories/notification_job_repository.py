@@ -61,7 +61,14 @@ class NotificationJobRepository:
         dedupe_key: str | None = None,
         next_retry_at: datetime | None = None,
     ) -> NotificationJob:
-        normalized_dedupe_key = dedupe_key.strip() if dedupe_key else None
+        # 先 strip 再判真假：只判 dedupe_key（strip 前）的真假会把纯空白输入
+        # （如 "  "）当成"有 key"，strip 后却变成 "" ——而 "" 不是 None，会被
+        # 唯一索引（WHERE dedupe_key IS NOT NULL，SQLite 里 '' IS NOT NULL 为
+        # 真）覆盖，但又走不到下面的 SAVEPOINT/IntegrityError 处理分支（该分支
+        # 判的是 strip 后的真假），两次传入同样的空白 key 会在无保护的直插
+        # 分支上撞唯一索引崩溃。统一在 strip 之后判真假，空白/空字符串都规整
+        # 为 None，语义上等价于"没有提供 dedupe key"。
+        normalized_dedupe_key = (dedupe_key or "").strip() or None
         if normalized_dedupe_key:
             existing = self.get_by_dedupe_key(normalized_dedupe_key)
             if existing is not None:
