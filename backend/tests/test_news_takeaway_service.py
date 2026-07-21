@@ -1,3 +1,5 @@
+import threading
+import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -5,7 +7,12 @@ from unittest.mock import patch
 from app.db.session import SessionLocal
 from app.models.news_item import NewsItem
 from app.services import news_takeaway as takeaway_module
-from app.services.news_takeaway import NewsTakeawayService, enqueue_takeaway_candidates, takeaway_queue
+from app.services.news_takeaway import (
+    MAX_TAKEAWAY_WORKERS,
+    NewsTakeawayService,
+    enqueue_takeaway_candidates,
+    takeaway_queue,
+)
 from app.workers import takeaway_worker as worker_module
 from app.workers.takeaway_worker import TakeawayWorker
 
@@ -149,21 +156,25 @@ def test_worker_drains_queue_when_ai_disabled() -> None:
 
 
 def test_generate_continues_batch_after_single_item_failure() -> None:
-    """batch_limit>=2 时,单条候选生成失败不应中断批次:
-    第 1 条 provider 调用抛异常后,第 2 条仍被尝试并成功写库。"""
+    """batch_limit>=2 时,单条候选生成失败不应中断批次:按 title 精确指定失败项
+    (并发下调用到达 provider 的先后顺序不确定,不能依赖"第几次调用"来判断失败对象),
+    验证批次不因单条异常而中断,且失败项与成功项各自结果正确落库。"""
 
-    class _FailFirstThenSucceedProvider:
-        def __init__(self, payload: object) -> None:
+    class _FailForTitleProvider:
+        def __init__(self, *, fail_title: str, payload: object) -> None:
+            self._fail_title = fail_title
             self._payload = payload
             self.calls = 0
+            self._lock = threading.Lock()
 
         def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
-            self.calls += 1
-            if self.calls == 1:
+            with self._lock:
+                self.calls += 1
+            if title == self._fail_title:
                 raise RuntimeError("llm down")
             return self._payload
 
-    provider = _FailFirstThenSucceedProvider({"takeaway": "第二条结论"})
+    provider = _FailForTitleProvider(fail_title="takeaway fail-first", payload={"takeaway": "第二条结论"})
     with SessionLocal() as session:
         a = _make_item(session, suffix="fail-first")
         b = _make_item(session, suffix="fail-second")
@@ -183,6 +194,99 @@ def test_generate_continues_batch_after_single_item_failure() -> None:
             session.refresh(b)
             assert a.ai_takeaway is None
             assert b.ai_takeaway == "第二条结论"
+        finally:
+            _cleanup(session, ids)
+
+
+def test_max_takeaway_workers_defaults_to_four() -> None:
+    assert MAX_TAKEAWAY_WORKERS == 4
+
+
+def test_generate_for_ids_calls_llm_concurrently_up_to_max_workers() -> None:
+    """并发段应真正并行发起 LLM 调用而非串行:用 Barrier 卡住每次调用,
+    要求同时有 MAX_TAKEAWAY_WORKERS 个请求同时在途才能一起放行,
+    若实现退化为串行则会等到 Barrier 超时而失败。"""
+    n = MAX_TAKEAWAY_WORKERS
+    barrier = threading.Barrier(n, timeout=5)
+
+    class _BarrierProvider:
+        def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
+            barrier.wait()
+            return {"takeaway": f"结论-{title}"}
+
+    provider = _BarrierProvider()
+    with SessionLocal() as session:
+        items = [_make_item(session, suffix=f"conc-{i}") for i in range(n)]
+        session.commit()
+        ids = [item.id for item in items]
+        try:
+            service = NewsTakeawayService(session)
+            with (
+                patch.object(service.config_repository, "get_active", return_value=object()),
+                patch.object(takeaway_module, "build_provider", return_value=provider),
+            ):
+                updated = service.generate_for_ids(ids, batch_limit=n)
+            session.commit()
+            assert len(updated) == n
+        finally:
+            _cleanup(session, ids)
+
+
+def test_generate_for_ids_results_match_serial_equivalent_for_deterministic_provider() -> None:
+    """确定性 mock provider 下,并发结果需与"逐条串行调用"等价:批量条数大于
+    MAX_TAKEAWAY_WORKERS,强制分多轮并发派发,验证不出现结果串位/丢失。"""
+    n = MAX_TAKEAWAY_WORKERS * 2 + 1
+
+    class _DeterministicProvider:
+        def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
+            return {"takeaway": f"结论:{title}"}
+
+    provider = _DeterministicProvider()
+    with SessionLocal() as session:
+        items = [_make_item(session, suffix=f"det-{i}") for i in range(n)]
+        session.commit()
+        ids = [item.id for item in items]
+        expected = {item.id: f"结论:{item.title}" for item in items}
+        try:
+            service = NewsTakeawayService(session)
+            with (
+                patch.object(service.config_repository, "get_active", return_value=object()),
+                patch.object(takeaway_module, "build_provider", return_value=provider),
+            ):
+                updated = service.generate_for_ids(ids, batch_limit=n)
+            session.commit()
+            assert {item.id: item.ai_takeaway for item in updated} == expected
+            for item in items:
+                session.refresh(item)
+                assert item.ai_takeaway == expected[item.id]
+        finally:
+            _cleanup(session, ids)
+
+
+def test_generate_for_ids_preserves_ascending_id_write_order_despite_uneven_completion() -> None:
+    """并发下各请求完成时序不确定,但结果写回顺序(updated 列表)必须仍按 id 升序,
+    与串行版本一致:让"更小 id"的条目故意更晚返回,验证完成顺序被打乱时依旧保序。"""
+
+    class _UnevenLatencyProvider:
+        def analyze_json(self, *, prompt: str, title=None, summary=None, market=None) -> object:
+            if title and title.endswith("-0"):
+                time.sleep(0.05)
+            return {"takeaway": f"结论:{title}"}
+
+    provider = _UnevenLatencyProvider()
+    with SessionLocal() as session:
+        items = [_make_item(session, suffix=f"ord-{i}") for i in range(MAX_TAKEAWAY_WORKERS)]
+        session.commit()
+        ids = [item.id for item in items]
+        try:
+            service = NewsTakeawayService(session)
+            with (
+                patch.object(service.config_repository, "get_active", return_value=object()),
+                patch.object(takeaway_module, "build_provider", return_value=provider),
+            ):
+                updated = service.generate_for_ids(ids, batch_limit=MAX_TAKEAWAY_WORKERS)
+            session.commit()
+            assert [item.id for item in updated] == sorted(ids)
         finally:
             _cleanup(session, ids)
 

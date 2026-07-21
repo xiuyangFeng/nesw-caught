@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from datetime import datetime
 from statistics import fmean
 
@@ -147,18 +148,33 @@ class NewsSignalRepository:
         item.payload_json = json.dumps(payload, ensure_ascii=False) if payload else None
 
     def refresh_topic_stats(self, topic_ids: set[int]) -> None:
-        for topic_id in topic_ids:
-            topic = self.session.scalar(select(TopicCluster).where(TopicCluster.id == topic_id))
-            if topic is None:
-                continue
+        """刷新 touched topics 的统计字段。
 
-            news_items = list(
-                self.session.scalars(
-                    select(NewsItem)
-                    .join(TopicNewsLink, TopicNewsLink.news_id == NewsItem.id)
-                    .where(TopicNewsLink.topic_cluster_id == topic_id)
-                )
-            )
+        原实现每个 topic 各发一次 topic 查询 + 一次 news join 查询,O(topics) 次
+        往返;这里改为两次批量 IN 查询,结果与逐 topic 版本逐字段等价(各 topic 的
+        统计只依赖自身关联新闻,互不影响,批量分组不改变每个 topic 的计算输入)。
+        """
+        if not topic_ids:
+            return
+
+        topics = {
+            topic.id: topic
+            for topic in self.session.scalars(select(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
+        }
+        if not topics:
+            return
+
+        news_by_topic: dict[int, list[NewsItem]] = defaultdict(list)
+        rows = self.session.execute(
+            select(TopicNewsLink.topic_cluster_id, NewsItem)
+            .join(NewsItem, TopicNewsLink.news_id == NewsItem.id)
+            .where(TopicNewsLink.topic_cluster_id.in_(topics.keys()))
+        )
+        for topic_id, news_item in rows:
+            news_by_topic[topic_id].append(news_item)
+
+        for topic_id, topic in topics.items():
+            news_items = news_by_topic.get(topic_id)
             if not news_items:
                 continue
 

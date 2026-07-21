@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import queue
+from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +24,13 @@ logger = logging.getLogger(__name__)
 takeaway_queue: queue.Queue[list[int]] = queue.Queue()
 
 TAKEAWAY_MAX_LEN = 120
+
+# LLM 网络调用的并发上限:取小值,避免打爆下游配额(同 news_signal_pipeline.MAX_CLASSIFY_WORKERS)。
+MAX_TAKEAWAY_WORKERS = 4
+
+# 哨兵:区分"LLM 调用异常"与"payload 合法但非 dict/None"——后者原语义是仍落库空结论,
+# 不能与前者的"跳过"混淆。
+_LLM_CALL_FAILED = object()
 
 
 def enqueue_takeaway_candidates(news_ids: list[int]) -> None:
@@ -57,9 +65,11 @@ class NewsTakeawayService:
                 updated.append(item)
             return updated
 
-        updated = []
-        for item in items:
-            prompt = "\n".join(
+        if not items:
+            return []
+
+        def _build_prompt(item: NewsItem) -> str:
+            return "\n".join(
                 [
                     f"Title: {item.title}",
                     f"Summary: {item.summary or ''}",
@@ -69,9 +79,13 @@ class NewsTakeawayService:
                     "takeaway: 一句中文结论(<=60字),说明谁受影响、偏利好还是利空、原因;无法判断时返回空字符串。",
                 ]
             )
+
+        def _call_llm(item: NewsItem) -> object:
+            # 并发段只做 LLM 网络调用(不碰 Session/DB 写);config 已在主线程一次性
+            # 取好,多线程只读其属性,不做任何 ORM 写操作,SQLite 单写者约束不受影响。
             try:
-                payload = build_provider(config).analyze_json(
-                    prompt=prompt,
+                return build_provider(config).analyze_json(
+                    prompt=_build_prompt(item),
                     title=item.title,
                     summary=item.summary,
                     market=item.market,
@@ -79,6 +93,18 @@ class NewsTakeawayService:
             except Exception as exc:
                 # 单条失败保留 NULL，便于后续重试；不中断批次
                 logger.warning("takeaway generation failed for news %s: %s", item.id, exc)
+                return _LLM_CALL_FAILED
+
+        max_workers = min(len(items), MAX_TAKEAWAY_WORKERS)
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="news-takeaway") as pool:
+            # pool.map 按提交顺序(= items 的 id 升序)返回结果,与完成时序无关,
+            # 因此下面串行写回时天然保持与原串行实现一致的写回顺序。
+            payloads = list(pool.map(_call_llm, items))
+
+        # —— 落库写回收敛到主线程串行(SQLite 单写者),语义与原串行实现逐条一致 ——
+        updated = []
+        for item, payload in zip(items, payloads):
+            if payload is _LLM_CALL_FAILED:
                 continue
             # 只要拿到 LLM 响应就落库并计数(含空字符串「无法判断」),避免 NULL 残留导致下次
             # feed layout 重建再次入队、反复调用且不受日配额约束;前端对空值自动回退原文摘要。
