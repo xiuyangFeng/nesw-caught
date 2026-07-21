@@ -2,6 +2,18 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-21 架构加固 Wave 3a：market producer 单进程内置 + CI 强化
+
+- 修改人：Claude Fable（主控）+ Sonnet 实现/评审子代理（计划同 Wave 1/2 文档）
+- 修改范围：后端 lifespan/dev 启动脚本/README，CI 迁移一致性测试与依赖安装。2 个任务、2 个提交（67856a0、ed79ec2），每任务独立评审通过。
+- 变更内容：
+  1. **market producer 纳入 lifespan**（67856a0）：`market_quote_producer_enabled` 此前是 dead config，producer 只能独立进程跑，自选股价格告警 handler 在 uvicorn 内从不注册。现随 lifespan 按开关启停（默认开启，同步注册 `register_market_watchlist_handlers`），`scripts/dev.sh` 不再单独拉起 market worker 进程；README 补充单进程（默认）/多进程（需显式 `MARKET_QUOTE_PRODUCER_ENABLED=false` 防双跑）两种模式说明。
+  2. **CI 强化**（ed79ec2）：新增 `test_migration_parity.py`——`alembic upgrade head`（从 legacy baseline stamp 起跑，真实执行 baseline 之后每条迁移 DDL）与 `Base.metadata.create_all` 的 schema（表/列/索引）逐项比对，堵住此前从未被自动化验证的迁移链漂移风险（测试与全新库此前都走 create_all 快路径，upgrade 路径长期零覆盖）；`ci.yml` backend job 改为 `pip install -r requirements.txt` 精确安装（保留 `-e ./backend` 可导入），消除 CI 用 pyproject floor 版本、本地用 requirements.txt 精确版本的两边不一致；接入 `scripts/check_secrets.py` 密钥扫描步骤（此前脚本已写好但未接入 CI）。
+- 影响文件：backend/app/main.py、backend/app/core/config.py、backend/app/workers/market_quote_producer.py、scripts/dev.sh、README.md、.github/workflows/ci.yml、backend/tests/{test_dev_launcher,test_market_quote_producer,test_migration_parity}.py。
+- 接口/数据结构变化：无 API/DB 变化；`/api/stream/status` 返回语义不变（单进程模式下 market-worker 状态即进程内 producer）。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/nc_t11_full.db conda run -n news-caught pytest backend/tests -q` → 619 passed；`python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` 语法校验通过；`python scripts/check_secrets.py` 当前树干净。
+- 风险或后续事项：`api-drift` CI job 仍走 `pip install -e ./backend[dev]`（floor 版本），未纳入本次精确安装范围（任务范围显式限定 backend job，非本任务顺手改）；Wave 3b（日志升级）待本条记录合入后执行。
+
 ## 2026-07-21 架构加固 Wave 2：LLM 链路性能（批量 embedding/重试退避/并发化）+ HTTP 出口收敛
 
 - 修改人：Claude Fable（主控）+ Sonnet 实现/评审子代理（计划同 Wave 1 文档）
