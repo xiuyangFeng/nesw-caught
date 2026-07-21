@@ -68,6 +68,7 @@ export type LLMTranslateResponse = Schemas['LLMTranslateView'];
 export type LLMConnectionTestResponse = Schemas['LLMConnectionTestView'];
 export type NewsAnalysisCandidate = Schemas['LLMAnalysisCandidate'];
 export type NewsAnalysis = Schemas['NewsAnalysisView'];
+export type LLMStats = Schemas['LLMStatsView'];
 
 // ---------------------------------------------------------------------------
 // 行情 / 自选股

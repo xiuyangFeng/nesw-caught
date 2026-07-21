@@ -10,6 +10,7 @@ import type {
   LLMConnectionTestResponse,
   LLMConfigSummary,
   LLMConfigUpdateRequest,
+  LLMStats,
   LLMTranslateRequest,
   LLMTranslateResponse,
   CalendarResponse,
@@ -88,11 +89,18 @@ async function withMockFallback<T>(
   } catch (error) {
     // Aborted requests must propagate so callers can drop stale results;
     // falling back to mock would resurrect a request the caller cancelled.
-    if (isAbortError(error) || !import.meta.env.DEV) {
+    if (isAbortError(error)) {
       throw error;
     }
-    const mock = await import('./mock');
-    return { data: fallback(mock), degraded: true };
+    // Mock module is only bundled in dev builds: this static `if` around the
+    // dynamic import (rather than an early-return guard clause) lets Rollup
+    // fold the branch away and tree-shake mock.ts out of production bundles
+    // entirely. See sse.ts's createMockConnection for the same pattern.
+    if (import.meta.env.DEV) {
+      const mock = await import('./mock');
+      return { data: fallback(mock), degraded: true };
+    }
+    throw error;
   }
 }
 
@@ -171,29 +179,9 @@ export const apiClient = {
     }));
   },
   getLlmStats() {
-    return withMockFallback<any>(
+    return withMockFallback<LLMStats>(
       () => getJson('/api/llm/stats'),
-      () => ({
-        overall: { prompt_tokens: 4200, completion_tokens: 6800, total_tokens: 11000, cost_usd: 0.0176, cost_available: true },
-        models: [
-          { model_name: 'deepseek-chat', prompt_tokens: 3000, completion_tokens: 5000, total_tokens: 8000, call_count: 12, cost_usd: 0.011, cost_available: true, input_price_per_1k: 0.0002, output_price_per_1k: 0.002 },
-          { model_name: 'gpt-4o', prompt_tokens: 1200, completion_tokens: 1800, total_tokens: 3000, call_count: 4, cost_usd: 0.0066, cost_available: true, input_price_per_1k: 0.0025, output_price_per_1k: 0.002 }
-        ],
-        operations: [
-          { operation_type: 'chat', total_tokens: 6500 },
-          { operation_type: 'analysis', total_tokens: 4500 }
-        ],
-        daily: [
-          { date: '2026-06-06', prompt_tokens: 500, completion_tokens: 800, total_tokens: 1300 },
-          { date: '2026-06-07', prompt_tokens: 600, completion_tokens: 900, total_tokens: 1500 },
-          { date: '2026-06-08', prompt_tokens: 800, completion_tokens: 1200, total_tokens: 2000 },
-          { date: '2026-06-09', prompt_tokens: 400, completion_tokens: 700, total_tokens: 1100 },
-          { date: '2026-06-10', prompt_tokens: 900, completion_tokens: 1400, total_tokens: 2300 },
-          { date: '2026-06-11', prompt_tokens: 300, completion_tokens: 600, total_tokens: 900 },
-          { date: '2026-06-12', prompt_tokens: 700, completion_tokens: 1200, total_tokens: 1900 }
-        ],
-        budget: { month: '2026-06', month_cost_usd: 0.0176, monthly_budget_usd: 5, budget_available: true, over_budget: false, usage_ratio: 0.0035 }
-      })
+      (mock) => mock.mockLlmStats,
     );
   },
   searchMarketSymbols(q: string) {
@@ -206,11 +194,17 @@ export const apiClient = {
     return postJson<LLMTranslateResponse>('/api/llm/translate', payload)
       .then((data) => ({ data, degraded: false }))
       .catch(async (error) => {
-        if (error instanceof HttpError || !import.meta.env.DEV) {
+        if (error instanceof HttpError) {
           throw error;
         }
-        const { buildMockTranslation } = await import('./mock');
-        return { data: buildMockTranslation(payload.text), degraded: true };
+        // See withMockFallback above: the static DEV guard (rather than an
+        // early-return guard clause) lets production builds tree-shake the
+        // mock module out entirely.
+        if (import.meta.env.DEV) {
+          const { buildMockTranslation } = await import('./mock');
+          return { data: buildMockTranslation(payload.text), degraded: true };
+        }
+        throw error;
       });
   },
   getNewsAnalysis(id: number) {
@@ -300,11 +294,7 @@ export const apiClient = {
   getWatchlistAiInsight(symbol: string) {
     return withMockFallback<WatchlistAiInsight>(
       () => postJson(`/api/watchlist/${encodeURIComponent(symbol)}/ai-insight`, {}),
-      (mock) => mock.mockWatchlistAiInsights[symbol] || {
-        symbol,
-        insight_text: `这是关于 ${symbol} 的模拟 AI 洞察报告。该个股近期展现了一定的增长潜力。`,
-        generated_at: new Date().toISOString(),
-      },
+      (mock) => mock.mockWatchlistAiInsights[symbol] ?? mock.buildMockWatchlistAiInsight(symbol),
     );
   },
   getPortfolio() {

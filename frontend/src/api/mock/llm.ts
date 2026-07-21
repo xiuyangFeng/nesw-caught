@@ -1,7 +1,7 @@
 // LLM 域 mock 数据：大模型接入配置、翻译、新闻个股映射分析(NewsAnalysis)，
-// 以及自选股 AI 投研简报文本(WatchlistAiInsight)。
+// 自选股 AI 投研简报文本(WatchlistAiInsight)，以及 Token 用量统计(LLMStats)。
 
-import type { LLMConfigSummary, LLMTranslateResponse, NewsAnalysis } from '../../types/api';
+import type { LLMConfigSummary, LLMStats, LLMTranslateResponse, NewsAnalysis, WatchlistAiInsight } from '../../types/api';
 import { isoMinutesAgo } from './shared';
 
 export const mockLlmConfig: LLMConfigSummary = {
@@ -65,6 +65,58 @@ export const mockNewsAnalyses: Record<number, NewsAnalysis> = {
   },
 };
 
+// Token 用量统计(LLMSettingsView 的用量看板)：整体汇总、按模型/按用途拆分、近 7 日
+// 趋势与月度预算进度，原内联在 client.ts 的 getLlmStats() 回退分支中，迁移到此处以便
+// 生产构建能把整个 mock 模块一起 tree-shake 掉。
+export const mockLlmStats: LLMStats = {
+  overall: { prompt_tokens: 4200, completion_tokens: 6800, total_tokens: 11000, cost_usd: 0.0176, cost_available: true },
+  models: [
+    {
+      model_name: 'deepseek-chat',
+      prompt_tokens: 3000,
+      completion_tokens: 5000,
+      total_tokens: 8000,
+      call_count: 12,
+      cost_usd: 0.011,
+      cost_available: true,
+      input_price_per_1k: 0.0002,
+      output_price_per_1k: 0.002,
+    },
+    {
+      model_name: 'gpt-4o',
+      prompt_tokens: 1200,
+      completion_tokens: 1800,
+      total_tokens: 3000,
+      call_count: 4,
+      cost_usd: 0.0066,
+      cost_available: true,
+      input_price_per_1k: 0.0025,
+      output_price_per_1k: 0.002,
+    },
+  ],
+  operations: [
+    { operation_type: 'chat', total_tokens: 6500 },
+    { operation_type: 'analysis', total_tokens: 4500 },
+  ],
+  daily: [
+    { date: '2026-06-06', prompt_tokens: 500, completion_tokens: 800, total_tokens: 1300 },
+    { date: '2026-06-07', prompt_tokens: 600, completion_tokens: 900, total_tokens: 1500 },
+    { date: '2026-06-08', prompt_tokens: 800, completion_tokens: 1200, total_tokens: 2000 },
+    { date: '2026-06-09', prompt_tokens: 400, completion_tokens: 700, total_tokens: 1100 },
+    { date: '2026-06-10', prompt_tokens: 900, completion_tokens: 1400, total_tokens: 2300 },
+    { date: '2026-06-11', prompt_tokens: 300, completion_tokens: 600, total_tokens: 900 },
+    { date: '2026-06-12', prompt_tokens: 700, completion_tokens: 1200, total_tokens: 1900 },
+  ],
+  budget: {
+    month: '2026-06',
+    month_cost_usd: 0.0176,
+    monthly_budget_usd: 5,
+    budget_available: true,
+    over_budget: false,
+    usage_ratio: 0.0035,
+  },
+};
+
 export const mockWatchlistAiInsights: Record<string, { symbol: string; insight_text: string; generated_at: string }> = {
   '0700.HK': {
     symbol: '0700.HK',
@@ -84,3 +136,11 @@ export const mockWatchlistAiInsights: Record<string, { symbol: string; insight_t
     generated_at: new Date().toISOString()
   }
 };
+
+// 自选股 AI 投研简报的兜底默认值：symbol 未命中 mockWatchlistAiInsights 精选样例时走这里，
+// 原内联在 client.ts 的 getWatchlistAiInsight() 回退分支中，迁移到此处保持行为不变。
+export const buildMockWatchlistAiInsight = (symbol: string): WatchlistAiInsight => ({
+  symbol,
+  insight_text: `这是关于 ${symbol} 的模拟 AI 洞察报告。该个股近期展现了一定的增长潜力。`,
+  generated_at: new Date().toISOString(),
+});

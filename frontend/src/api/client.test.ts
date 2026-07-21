@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from './client';
 import { HttpError } from './http';
-import { mockLlmConfig } from './mock';
+import { mockLlmConfig, mockLlmStats } from './mock';
 
 describe('apiClient write operations', () => {
   afterEach(() => {
@@ -541,5 +541,38 @@ describe('apiClient.getWatchlistAiInsight', () => {
     });
     expect(response.degraded).toBe(false);
     expect(response.data.insight_text).toBe('# AI Insight\nPositive outlook.');
+  });
+
+  it('falls back to a generated placeholder insight for symbols without curated mock data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    const response = await apiClient.getWatchlistAiInsight('ZZZZ.US');
+
+    expect(response.degraded).toBe(true);
+    expect(response.data.symbol).toBe('ZZZZ.US');
+    expect(response.data.insight_text).toContain('ZZZZ.US');
+  });
+});
+
+describe('apiClient.getLlmStats', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('falls back to the shared mock llm stats fixture when the backend is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    const response = await apiClient.getLlmStats();
+
+    expect(response.degraded).toBe(true);
+    expect(response.data).toEqual(mockLlmStats);
+  });
+
+  it('propagates read failures instead of serving mock stats when not in dev', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.getLlmStats()).rejects.toThrow('backend offline');
   });
 });
