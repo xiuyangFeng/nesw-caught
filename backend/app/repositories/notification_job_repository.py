@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.notification_job import NotificationJob
@@ -75,8 +76,27 @@ class NotificationJobRepository:
             next_retry_at=_ensure_utc(next_retry_at),
             dedupe_key=normalized_dedupe_key,
         )
-        self.session.add(job)
-        self.session.flush()
+
+        if normalized_dedupe_key:
+            # 上面的查重快路径和这里的插入之间存在并发窗口：另一个事务可能
+            # 在两者之间插入了相同 dedupe_key 并提交，导致本次插入撞上
+            # ux_notification_job_dedupe_key 唯一索引。用 SAVEPOINT
+            # （begin_nested）包住插入，冲突时只回滚到插入前状态（不影响
+            # 外层事务边界——事务提交权在调用方），再查询返回已存在的行，
+            # 对调用方等价于 upsert，无感知。
+            try:
+                with self.session.begin_nested():
+                    self.session.add(job)
+                    self.session.flush()
+            except IntegrityError:
+                existing = self.get_by_dedupe_key(normalized_dedupe_key)
+                if existing is not None:
+                    return existing
+                raise
+        else:
+            self.session.add(job)
+            self.session.flush()
+
         self.session.refresh(job)
         return _normalize_job(job)
 
