@@ -279,7 +279,7 @@ def test_synthesize_with_llm_returns_structured_report() -> None:
                 report = synthesize_stock_research(symbol, session, lookback_days=7)
 
             # 只有一条新闻（<= top_k），不应触发 embedding 网络调用
-            mock_provider.embed_text.assert_not_called()
+            mock_provider.embed_texts.assert_not_called()
             mock_provider.complete.assert_called_once()
 
         assert report.mode == "llm"
@@ -328,11 +328,12 @@ def test_synthesize_ranks_news_by_embedding_relevance() -> None:
         )
         session.commit()
 
-    def fake_embed(text: str):
+    def fake_embed_batch(texts: list[str]) -> list[list[float]]:
         # query 向量与 marker 新闻向量同向 -> 余弦相似度最高
-        if relevant_marker in text or "催化剂" in text:
-            return [1.0, 0.0]
-        return [0.2, 1.0]
+        return [
+            [1.0, 0.0] if (relevant_marker in text or "催化剂" in text) else [0.2, 1.0]
+            for text in texts
+        ]
 
     try:
         with patch(
@@ -342,14 +343,15 @@ def test_synthesize_ranks_news_by_embedding_relevance() -> None:
             "app.services.stock_research_synthesis.build_provider"
         ) as mock_build:
             mock_provider = MagicMock()
-            mock_provider.embed_text.side_effect = fake_embed
+            mock_provider.embed_texts.side_effect = fake_embed_batch
             mock_provider.complete.return_value = CompletionResult(content=json.dumps({"summary": "ok"}))
             mock_build.return_value = mock_provider
 
             with SessionLocal() as session:
                 report = synthesize_stock_research(symbol, session, lookback_days=30)
 
-            assert mock_provider.embed_text.called
+            # 批量排序应恰好一次请求（query + 全部候选文档合并成一次 embed_texts 调用）。
+            mock_provider.embed_texts.assert_called_once()
         # top-K 截断为 8 条，最相关的 marker 新闻排在首位
         assert len(report.references) == 8
         assert relevant_marker in report.references[0].title

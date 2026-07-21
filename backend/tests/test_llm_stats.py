@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.core.config import Settings
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.llm_provider_config import LLMProviderConfig
@@ -89,7 +90,13 @@ def test_llm_provider_failover() -> None:
 
         provider = OpenAICompatibleProvider(c1)
 
-        with patch("httpx.Client.post") as mock_post:
+        # 本测试验证的是"重试耗尽/不可重试后 failover 到 backup"这一步，与 Task 7
+        # 引入的"failover 之前先对同一 provider 做有限次重试"是两件事，因此把同
+        # provider 重试次数设为 0，保持这里对 mock_post.call_count 的断言精确。
+        with patch("httpx.Client.post") as mock_post, patch(
+            "app.services.llm_providers.get_settings",
+            return_value=Settings(llm_retry_max_attempts=0),
+        ):
             # First call (primary) raises bad status code
             mock_response_fail = MagicMock()
             mock_response_fail.status_code = 502

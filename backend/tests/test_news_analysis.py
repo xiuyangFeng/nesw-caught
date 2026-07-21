@@ -140,6 +140,12 @@ def test_post_llm_translate_rejects_empty_provider_translation(monkeypatch) -> N
 
 
 def test_post_llm_translate_surfaces_provider_connection_errors(monkeypatch) -> None:
+    # ConnectError 现在会被判定为可重试瞬态错误：不 stub 掉退避 sleep 的话，本测试会
+    # 真实 sleep 掉 llm_retry_max_attempts 次指数退避（默认约 1.8s）。这里只关心"最终
+    # 仍然把 502 + 原始错误文案透传给调用方"这一行为，与重试退避本身无关，因此把同
+    # provider 重试前的 sleep 打成空操作，消除这份无谓耗时。
+    monkeypatch.setattr("app.services.llm_providers._retry_sleep", lambda seconds: None)
+
     _cleanup_llm_tables()
     client = TestClient(app)
     client.post(

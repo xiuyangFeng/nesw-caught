@@ -3,12 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import random
 import threading
+import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NoReturn
 from urllib.parse import urlparse
 
+import anyio
 import httpx
 
 from app.core.config import get_settings
@@ -31,7 +34,18 @@ StreamEvent = tuple[str, "str | dict[str, str]"]
 
 
 class LLMProviderError(RuntimeError):
-    pass
+    """LLM provider 调用失败。
+
+    携带 ``status_code``（HTTP 响应状态码，非 HTTP 层错误时为 None）与
+    ``retryable``（是否允许对同一 provider 做有限次重试），供 `is_retryable_error`
+    判定重试策略：httpx 超时/网络错误、429、5xx 视为瞬态错误可重试；其余 4xx
+    （如 400/401/404）判定为不可重试，直接进入既有的单次 failover 判定。
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.retryable = retryable
 
 
 # —— 可观测性:计量/缓存这类"旁路"写入失败时历来只 log warning 就吞掉,不影响主
@@ -223,6 +237,40 @@ def parse_embedding_response(payload: object) -> tuple[list[float], dict[str, ob
     return [float(value) for value in embedding], usage if isinstance(usage, dict) else None
 
 
+def parse_embeddings_response(
+    payload: object, expected_count: int
+) -> tuple[list[list[float]], dict[str, object] | None]:
+    """Parse a batch OpenAI-compatible embeddings payload into (vectors, usage).
+
+    ``data`` items are not guaranteed to come back in request order, so each
+    vector is placed at its reported ``index`` (falling back to array position
+    when a provider omits it) before being returned in ``0..expected_count-1``
+    order.
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, list) or not data:
+        raise LLMProviderError("llm provider returned no embeddings")
+
+    indexed: list[tuple[int, list[float]]] = []
+    for position, item in enumerate(data):
+        embedding = item.get("embedding") if isinstance(item, dict) else None
+        if not isinstance(embedding, list) or not embedding:
+            raise LLMProviderError("llm provider returned empty embedding")
+        raw_index = item.get("index") if isinstance(item, dict) else None
+        index = raw_index if isinstance(raw_index, int) else position
+        indexed.append((index, [float(value) for value in embedding]))
+
+    indexed.sort(key=lambda pair: pair[0])
+    vectors = [vector for _, vector in indexed]
+    if len(vectors) != expected_count:
+        raise LLMProviderError(
+            f"llm provider returned {len(vectors)} embeddings, expected {expected_count}"
+        )
+
+    usage = payload.get("usage") if isinstance(payload, dict) else None
+    return vectors, usage if isinstance(usage, dict) else None
+
+
 def resolve_completion_usage(
     usage: dict[str, object] | None,
     messages: list[dict[str, str]],
@@ -271,15 +319,70 @@ def raise_provider_error(exc: Exception, prefix: str) -> NoReturn:
     raise LLMProviderError(f"{prefix}: {exc}") from exc
 
 
+def is_retryable_error(exc: Exception) -> bool:
+    """判断是否允许对同一 provider 做有限次重试（failover 之前）。
+
+    可重试：httpx 传输层错误（超时/连接失败等，此处捕获到的均未经过
+    ``raise_for_status``，因此只会是网络/超时类错误）、HTTP 429、HTTP 5xx。
+    不可重试：除 429 外的其余 4xx（如 400/401/404），以及非 HTTP 的解析/校验错误。
+    """
+    if isinstance(exc, LLMProviderError):
+        return exc.retryable
+    return isinstance(exc, httpx.HTTPError)
+
+
+def compute_backoff_delay(base_seconds: float, attempt: int) -> float:
+    """第 ``attempt``（从 0 开始）次重试前的退避时长：指数退避 + 抖动。
+
+    默认 base=0.5s 时对应 0.5s / 1s / 2s ... 的基础退避序列，另外叠加最多
+    25% 基础延迟的随机抖动，避免瞬态错误恢复瞬间多个请求同时重试造成的惊群。
+    """
+    base_seconds = max(0.0, base_seconds)
+    delay = base_seconds * (2**attempt)
+    jitter = random.uniform(0, delay * 0.25) if delay > 0 else 0.0
+    return delay + jitter
+
+
+def _retry_sleep(seconds: float) -> None:
+    """同 provider 重试前的同步退避 sleep；测试可 monkeypatch 此函数来加速/断言退避调用。"""
+    time.sleep(seconds)
+
+
+async def _retry_sleep_async(seconds: float) -> None:
+    """同 provider 重试前的异步退避 sleep；测试可 monkeypatch 此函数来加速/断言退避调用。"""
+    await anyio.sleep(seconds)
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    """HTTP 状态码是否属于可重试的瞬态错误：429 或 5xx。"""
+    return status_code == 429 or status_code >= 500
+
+
 class _BaseOpenAICompatibleProvider:
     """Shared config validation, request preparation and response handling.
 
     Subclasses only implement the transport layer (sync vs async httpx).
     """
 
-    def __init__(self, config: LLMProviderConfig) -> None:
+    def __init__(self, config: LLMProviderConfig, *, max_attempts: int | None = None) -> None:
         self.config = config
         self.failover_triggered: dict[str, str] | None = None
+        # None（默认，主 provider 走这条路）= 使用 settings 里配置的
+        # llm_retry_max_attempts；显式传入非 None 值（failover 构造 backup provider
+        # 时用）会覆盖 settings，用于收紧/放宽这一个 provider 实例的同 provider 重试预算。
+        # 具体见 `_resolve_max_attempts`。
+        self._max_attempts_override = max_attempts
+
+    def _resolve_max_attempts(self) -> int:
+        """本 provider 实例允许的"同 provider 重试"次数上限（不含首次尝试）。
+
+        failover 之后接手的 backup provider 会以 ``max_attempts=0`` 构造：backup
+        只做单次尝试、不再重复走一整套重试预算，避免 primary 重试耗尽 + backup 又
+        整套重试导致的双倍等待（最坏情况下退避总时长翻倍甚至更多）。
+        """
+        if self._max_attempts_override is not None:
+            return self._max_attempts_override
+        return get_settings().llm_retry_max_attempts
 
     def _validate_config(self) -> None:
         validate_provider_config(self.config)
@@ -311,21 +414,20 @@ class _BaseOpenAICompatibleProvider:
         self,
         response: httpx.Response,
         messages: list[dict[str, str]],
-        operation_type: str,
     ) -> CompletionResult:
+        """解析响应为 CompletionResult；不做 token 计量写入(由调用方在成功后处理，
+        sync/async 两种 provider 的落库路径不同，见各自 complete())。"""
         if response.status_code >= 400:
-            raise LLMProviderError(self._build_error_message(response))
+            raise LLMProviderError(
+                self._build_error_message(response),
+                status_code=response.status_code,
+                retryable=_is_retryable_status(response.status_code),
+            )
 
         payload = decode_json_response(response)
         content, usage = parse_chat_completion(payload)
         prompt_tokens, completion_tokens = resolve_completion_usage(usage, messages, content)
 
-        log_token_usage(
-            model_name=self.config.model_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            operation_type=operation_type,
-        )
         return CompletionResult(
             content=content,
             prompt_tokens=prompt_tokens,
@@ -357,6 +459,9 @@ class _BaseOpenAICompatibleProvider:
 
 
 class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
+    def _next_retry_delay(self, attempt: int) -> float:
+        return compute_backoff_delay(get_settings().llm_retry_backoff_seconds, attempt)
+
     def complete(
         self,
         *,
@@ -365,72 +470,162 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
         operation_type: str = "chat",
         _retry_count: int = 0,
     ) -> CompletionResult:
-        try:
-            base_url, headers = self._prepare_request()
-            client = get_llm_client()
+        max_attempts = self._resolve_max_attempts()
+        attempt = 0
+        while True:
             try:
-                response = client.post(
-                    f"{base_url}/chat/completions",
-                    headers=headers,
-                    json=self._chat_request_body(messages, response_format),
+                base_url, headers = self._prepare_request()
+                client = get_llm_client()
+                try:
+                    response = client.post(
+                        f"{base_url}/chat/completions",
+                        headers=headers,
+                        json=self._chat_request_body(messages, response_format),
+                    )
+                except httpx.HTTPError as exc:
+                    raise LLMProviderError(f"llm provider request failed: {exc}", retryable=True) from exc
+
+                result = self._handle_completion_response(response, messages)
+                log_token_usage(
+                    model_name=self.config.model_name,
+                    prompt_tokens=result.prompt_tokens,
+                    completion_tokens=result.completion_tokens,
+                    operation_type=operation_type,
                 )
-            except httpx.HTTPError as exc:
-                raise LLMProviderError(f"llm provider request failed: {exc}") from exc
+                return result
 
-            return self._handle_completion_response(response, messages, operation_type)
+            except (LLMProviderError, httpx.HTTPError) as exc:
+                if attempt < max_attempts and is_retryable_error(exc):
+                    _retry_sleep(self._next_retry_delay(attempt))
+                    attempt += 1
+                    continue
 
-        except (LLMProviderError, httpx.HTTPError) as exc:
-            backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Chat completion")
-            if backup_config is None:
-                raise_provider_error(exc, "llm provider request failed")
-            self.failover_triggered = failover_info
-            result = OpenAICompatibleProvider(backup_config).complete(
-                messages=messages,
-                response_format=response_format,
-                operation_type=operation_type,
-                _retry_count=_retry_count + 1,
-            )
-            result.failover = failover_info
-            return result
+                backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Chat completion")
+                if backup_config is None:
+                    raise_provider_error(exc, "llm provider request failed")
+                self.failover_triggered = failover_info
+                result = OpenAICompatibleProvider(backup_config, max_attempts=0).complete(
+                    messages=messages,
+                    response_format=response_format,
+                    operation_type=operation_type,
+                    _retry_count=_retry_count + 1,
+                )
+                result.failover = failover_info
+                return result
 
     def embed_text(self, text: str, _retry_count: int = 0) -> list[float]:
-        try:
-            base_url, headers = self._prepare_request()
-            client = get_llm_client()
+        max_attempts = self._resolve_max_attempts()
+        attempt = 0
+        while True:
             try:
-                response = client.post(
-                    f"{base_url}/embeddings",
-                    headers=headers,
-                    json={"model": self.config.model_name, "input": text},
+                base_url, headers = self._prepare_request()
+                client = get_llm_client()
+                try:
+                    response = client.post(
+                        f"{base_url}/embeddings",
+                        headers=headers,
+                        json={"model": self.config.model_name, "input": text},
+                    )
+                except httpx.HTTPError as exc:
+                    raise LLMProviderError(f"llm provider request failed: {exc}", retryable=True) from exc
+
+                if response.status_code >= 400:
+                    raise LLMProviderError(
+                        self._build_error_message(response),
+                        status_code=response.status_code,
+                        retryable=_is_retryable_status(response.status_code),
+                    )
+
+                payload = decode_json_response(response)
+                embedding, usage = parse_embedding_response(payload)
+
+                if isinstance(usage, dict):
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                else:
+                    prompt_tokens = estimate_tokens(text)
+
+                log_token_usage(
+                    model_name=self.config.model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=0,
+                    operation_type="embedding",
                 )
-            except httpx.HTTPError as exc:
-                raise LLMProviderError(f"llm provider request failed: {exc}") from exc
+                return embedding
 
-            if response.status_code >= 400:
-                raise LLMProviderError(self._build_error_message(response))
+            except (LLMProviderError, httpx.HTTPError) as exc:
+                if attempt < max_attempts and is_retryable_error(exc):
+                    _retry_sleep(self._next_retry_delay(attempt))
+                    attempt += 1
+                    continue
 
-            payload = decode_json_response(response)
-            embedding, usage = parse_embedding_response(payload)
+                backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Embedding")
+                if backup_config is None:
+                    raise_provider_error(exc, "llm provider request failed")
+                self.failover_triggered = failover_info
+                return OpenAICompatibleProvider(backup_config, max_attempts=0).embed_text(
+                    text, _retry_count=_retry_count + 1
+                )
 
-            if isinstance(usage, dict):
-                prompt_tokens = usage.get("prompt_tokens", 0)
-            else:
-                prompt_tokens = estimate_tokens(text)
+    def embed_texts(self, texts: list[str], _retry_count: int = 0) -> list[list[float]]:
+        """批量 embedding：一次 `/embeddings` 请求传入整批文本，按响应 index 对齐返回。
 
-            log_token_usage(
-                model_name=self.config.model_name,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=0,
-                operation_type="embedding",
-            )
-            return embedding
+        调用方（如 stock_research_synthesis._rank_news）借此把逐条串行 embedding
+        调用合并为单次批量请求，避免 N 次串行外部 IO。空列表直接返回空列表，不发请求。
+        """
+        if not texts:
+            return []
 
-        except (LLMProviderError, httpx.HTTPError) as exc:
-            backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Embedding")
-            if backup_config is None:
-                raise_provider_error(exc, "llm provider request failed")
-            self.failover_triggered = failover_info
-            return OpenAICompatibleProvider(backup_config).embed_text(text, _retry_count=_retry_count + 1)
+        max_attempts = self._resolve_max_attempts()
+        attempt = 0
+        while True:
+            try:
+                base_url, headers = self._prepare_request()
+                client = get_llm_client()
+                try:
+                    response = client.post(
+                        f"{base_url}/embeddings",
+                        headers=headers,
+                        json={"model": self.config.model_name, "input": texts},
+                    )
+                except httpx.HTTPError as exc:
+                    raise LLMProviderError(f"llm provider request failed: {exc}", retryable=True) from exc
+
+                if response.status_code >= 400:
+                    raise LLMProviderError(
+                        self._build_error_message(response),
+                        status_code=response.status_code,
+                        retryable=_is_retryable_status(response.status_code),
+                    )
+
+                payload = decode_json_response(response)
+                embeddings, usage = parse_embeddings_response(payload, expected_count=len(texts))
+
+                if isinstance(usage, dict):
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                else:
+                    prompt_tokens = sum(estimate_tokens(text) for text in texts)
+
+                log_token_usage(
+                    model_name=self.config.model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=0,
+                    operation_type="embedding",
+                )
+                return embeddings
+
+            except (LLMProviderError, httpx.HTTPError) as exc:
+                if attempt < max_attempts and is_retryable_error(exc):
+                    _retry_sleep(self._next_retry_delay(attempt))
+                    attempt += 1
+                    continue
+
+                backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Batch embedding")
+                if backup_config is None:
+                    raise_provider_error(exc, "llm provider request failed")
+                self.failover_triggered = failover_info
+                return OpenAICompatibleProvider(backup_config, max_attempts=0).embed_texts(
+                    texts, _retry_count=_retry_count + 1
+                )
 
     def analyze_json(
         self,
@@ -511,33 +706,57 @@ class AsyncOpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
         operation_type: str = "chat",
         _retry_count: int = 0,
     ) -> CompletionResult:
-        try:
-            base_url, headers = self._prepare_request()
-            client = get_async_llm_client()
+        settings = get_settings()
+        max_attempts = self._resolve_max_attempts()
+        backoff_base = settings.llm_retry_backoff_seconds
+        attempt = 0
+        while True:
             try:
-                response = await client.post(
-                    f"{base_url}/chat/completions",
-                    headers=headers,
-                    json=self._chat_request_body(messages, response_format),
+                base_url, headers = self._prepare_request()
+                client = get_async_llm_client()
+                try:
+                    response = await client.post(
+                        f"{base_url}/chat/completions",
+                        headers=headers,
+                        json=self._chat_request_body(messages, response_format),
+                    )
+                except httpx.HTTPError as exc:
+                    raise LLMProviderError(f"llm provider request failed: {exc}", retryable=True) from exc
+
+                result = self._handle_completion_response(response, messages)
+                # token 计量落库是同步 DB 写(TokenUsageBuffer 攒批触发 flush 时会开
+                # SessionLocal 提交)，丢到独立线程执行，避免占用事件循环线程。
+                await anyio.to_thread.run_sync(
+                    log_token_usage,
+                    self.config.model_name,
+                    result.prompt_tokens,
+                    result.completion_tokens,
+                    operation_type,
                 )
-            except httpx.HTTPError as exc:
-                raise LLMProviderError(f"llm provider request failed: {exc}") from exc
+                return result
 
-            return self._handle_completion_response(response, messages, operation_type)
+            except (LLMProviderError, httpx.HTTPError) as exc:
+                if attempt < max_attempts and is_retryable_error(exc):
+                    await _retry_sleep_async(compute_backoff_delay(backoff_base, attempt))
+                    attempt += 1
+                    continue
 
-        except (LLMProviderError, httpx.HTTPError) as exc:
-            backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Async chat completion")
-            if backup_config is None:
-                raise_provider_error(exc, "llm provider request failed")
-            self.failover_triggered = failover_info
-            result = await AsyncOpenAICompatibleProvider(backup_config).complete(
-                messages=messages,
-                response_format=response_format,
-                operation_type=operation_type,
-                _retry_count=_retry_count + 1,
-            )
-            result.failover = failover_info
-            return result
+                # plan_failover 内部同步读 DB(find_backup_config open 一个
+                # SessionLocal)，同样丢到独立线程执行，避免占用事件循环线程。
+                backup_config, failover_info = await anyio.to_thread.run_sync(
+                    plan_failover, self.config, exc, _retry_count, "Async chat completion"
+                )
+                if backup_config is None:
+                    raise_provider_error(exc, "llm provider request failed")
+                self.failover_triggered = failover_info
+                result = await AsyncOpenAICompatibleProvider(backup_config, max_attempts=0).complete(
+                    messages=messages,
+                    response_format=response_format,
+                    operation_type=operation_type,
+                    _retry_count=_retry_count + 1,
+                )
+                result.failover = failover_info
+                return result
 
     async def generate_text(self, *, system_prompt: str, user_prompt: str) -> str:
         result = await self.complete(
@@ -570,89 +789,114 @@ class AsyncOpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
         Yields ("token", text_chunk) for content deltas and, when the primary
         provider fails and a backup takes over, a single ("failover", info)
         event before the backup stream starts.
+
+        同 provider 重试仅允许发生在"首字节前"：一旦已经向调用方 yield 过至少一个
+        token（``first_byte_sent``），流中断就不再重试同一 provider（重新发起会
+        产生重复/错乱的内容），而是直接按既有语义判定是否 failover。
         """
-        try:
-            base_url, headers = self._prepare_request()
-
-            accumulated_tokens_text: list[str] = []
-            prompt_tokens_from_options = None
-            completion_tokens_from_options = None
-
-            client = get_async_llm_client()
+        settings = get_settings()
+        max_attempts = self._resolve_max_attempts()
+        backoff_base = settings.llm_retry_backoff_seconds
+        attempt = 0
+        first_byte_sent = False
+        while True:
             try:
-                async with client.stream(
-                    "POST",
-                    f"{base_url}/chat/completions",
-                    headers=headers,
-                    json={
-                        **self._chat_request_body(messages),
-                        "stream": True,
-                        "stream_options": {"include_usage": True},
-                    },
-                ) as response:
-                    if response.status_code >= 400:
-                        await response.aread()
-                        raise LLMProviderError(self._build_error_message(response))
+                base_url, headers = self._prepare_request()
 
-                    async for line in response.aiter_lines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        if line == "data: [DONE]":
-                            break
-                        if line.startswith("data: "):
-                            data_str = line[6:]
-                            try:
-                                payload = json.loads(data_str)
+                accumulated_tokens_text: list[str] = []
+                prompt_tokens_from_options = None
+                completion_tokens_from_options = None
 
-                                # Extract stream usage if available
-                                usage = payload.get("usage")
-                                if isinstance(usage, dict):
-                                    prompt_tokens_from_options = usage.get("prompt_tokens")
-                                    completion_tokens_from_options = usage.get("completion_tokens")
+                client = get_async_llm_client()
+                try:
+                    async with client.stream(
+                        "POST",
+                        f"{base_url}/chat/completions",
+                        headers=headers,
+                        json={
+                            **self._chat_request_body(messages),
+                            "stream": True,
+                            "stream_options": {"include_usage": True},
+                        },
+                    ) as response:
+                        if response.status_code >= 400:
+                            await response.aread()
+                            raise LLMProviderError(
+                                self._build_error_message(response),
+                                status_code=response.status_code,
+                                retryable=_is_retryable_status(response.status_code),
+                            )
 
-                                choices = payload.get("choices")
-                                if isinstance(choices, list) and choices:
-                                    delta = choices[0].get("delta")
-                                    if isinstance(delta, dict):
-                                        content = delta.get("content")
-                                        if content:
-                                            accumulated_tokens_text.append(content)
-                                            yield (STREAM_EVENT_TOKEN, content)
-                            except json.JSONDecodeError:
+                        async for line in response.aiter_lines():
+                            line = line.strip()
+                            if not line:
                                 continue
-            except httpx.HTTPError as exc:
-                raise LLMProviderError(f"llm provider stream request failed: {exc}") from exc
+                            if line == "data: [DONE]":
+                                break
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                try:
+                                    payload = json.loads(data_str)
 
-            # Log tokens
-            p_tokens = prompt_tokens_from_options
-            c_tokens = completion_tokens_from_options
+                                    # Extract stream usage if available
+                                    usage = payload.get("usage")
+                                    if isinstance(usage, dict):
+                                        prompt_tokens_from_options = usage.get("prompt_tokens")
+                                        completion_tokens_from_options = usage.get("completion_tokens")
 
-            if p_tokens is None or c_tokens is None:
-                p_text = "".join(m.get("content", "") for m in messages)
-                p_tokens = estimate_tokens(p_text)
-                c_tokens = estimate_tokens("".join(accumulated_tokens_text))
+                                    choices = payload.get("choices")
+                                    if isinstance(choices, list) and choices:
+                                        delta = choices[0].get("delta")
+                                        if isinstance(delta, dict):
+                                            content = delta.get("content")
+                                            if content:
+                                                accumulated_tokens_text.append(content)
+                                                first_byte_sent = True
+                                                yield (STREAM_EVENT_TOKEN, content)
+                                except json.JSONDecodeError:
+                                    continue
+                except httpx.HTTPError as exc:
+                    raise LLMProviderError(f"llm provider stream request failed: {exc}", retryable=True) from exc
 
-            log_token_usage(
-                model_name=self.config.model_name,
-                prompt_tokens=p_tokens,
-                completion_tokens=c_tokens,
-                operation_type=operation_type,
-            )
+                # Log tokens
+                p_tokens = prompt_tokens_from_options
+                c_tokens = completion_tokens_from_options
 
-        except (LLMProviderError, httpx.HTTPError) as exc:
-            backup_config, failover_info = plan_failover(self.config, exc, _retry_count, "Stream chat")
-            if backup_config is None:
-                raise_provider_error(exc, "llm provider stream request failed")
-            self.failover_triggered = failover_info
-            yield (STREAM_EVENT_FAILOVER, failover_info)
-            backup_provider = AsyncOpenAICompatibleProvider(backup_config)
-            async for event in backup_provider.chat_stream(
-                messages=messages,
-                operation_type=operation_type,
-                _retry_count=_retry_count + 1,
-            ):
-                yield event
+                if p_tokens is None or c_tokens is None:
+                    p_text = "".join(m.get("content", "") for m in messages)
+                    p_tokens = estimate_tokens(p_text)
+                    c_tokens = estimate_tokens("".join(accumulated_tokens_text))
+
+                await anyio.to_thread.run_sync(
+                    log_token_usage,
+                    self.config.model_name,
+                    p_tokens,
+                    c_tokens,
+                    operation_type,
+                )
+                return
+
+            except (LLMProviderError, httpx.HTTPError) as exc:
+                if not first_byte_sent and attempt < max_attempts and is_retryable_error(exc):
+                    await _retry_sleep_async(compute_backoff_delay(backoff_base, attempt))
+                    attempt += 1
+                    continue
+
+                backup_config, failover_info = await anyio.to_thread.run_sync(
+                    plan_failover, self.config, exc, _retry_count, "Stream chat"
+                )
+                if backup_config is None:
+                    raise_provider_error(exc, "llm provider stream request failed")
+                self.failover_triggered = failover_info
+                yield (STREAM_EVENT_FAILOVER, failover_info)
+                backup_provider = AsyncOpenAICompatibleProvider(backup_config, max_attempts=0)
+                async for event in backup_provider.chat_stream(
+                    messages=messages,
+                    operation_type=operation_type,
+                    _retry_count=_retry_count + 1,
+                ):
+                    yield event
+                return
 
 
 def build_provider(config: LLMProviderConfig) -> OpenAICompatibleProvider:

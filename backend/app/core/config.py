@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     ai_enabled: bool = False
     http_timeout_seconds: float = 10.0
     llm_timeout_seconds: float = 60.0
+    # LLM 请求遇到瞬态错误（httpx 超时/网络错误、429、5xx）时，在切换 backup provider
+    # 之前对同一 provider 做的有限次重试：指数退避 llm_retry_backoff_seconds * 2**attempt
+    # + 抖动。除 429 外的其余 4xx 判定为不可重试，直接进入既有的单次 failover 判定。
+    # 该值是“初始尝试之外”的额外重试次数：设为 N 时同一 provider 最多总共尝试 N+1
+    # 次（1 次初始 + N 次重试）；failover 后接手的 backup provider 不复用这个预算，
+    # 只做单次尝试。
+    llm_retry_max_attempts: int = 2
+    llm_retry_backoff_seconds: float = 0.5
     takeaway_batch_limit: int = 12
     takeaway_daily_limit: int = 300
     takeaway_poll_interval_seconds: float = 5.0

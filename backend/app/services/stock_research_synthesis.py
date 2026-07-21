@@ -259,16 +259,22 @@ def _rank_news(
 
     有可用 provider 且候选超过 top_k 时用 embedding 余弦相似度排序；否则（或
     embedding 失败）退回按新闻已有的发布时间倒序取前 top_k。embedding 失败绝不上抛。
+
+    query + 全部候选文档合并为一次 `embed_texts` 批量请求（而非每条新闻单独发
+    一次 embedding 调用），把这条链路上最重的串行外部 IO 压缩成 1 次请求。
     """
     if len(news_list) <= top_k or provider is None:
         return news_list[:top_k]
     try:
-        query_vec = provider.embed_text(query_text)
-        scored: list[tuple[float, NewsItem]] = []
-        for news in news_list:
-            text = f"{news.title} {news.summary or ''}".strip()
-            similarity = _cosine_similarity(query_vec, provider.embed_text(text))
-            scored.append((similarity, news))
+        texts = [query_text] + [
+            f"{news.title} {news.summary or ''}".strip() for news in news_list
+        ]
+        vectors = provider.embed_texts(texts)
+        query_vec, doc_vecs = vectors[0], vectors[1:]
+        scored: list[tuple[float, NewsItem]] = [
+            (_cosine_similarity(query_vec, doc_vec), news)
+            for doc_vec, news in zip(doc_vecs, news_list, strict=True)
+        ]
         # 稳定排序：相似度相同者保留原有的时间倒序。
         scored.sort(key=lambda item: item[0], reverse=True)
         return [news for _, news in scored[:top_k]]
