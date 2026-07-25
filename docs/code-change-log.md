@@ -4532,3 +4532,27 @@
 - 接口/数据结构变化：无
 - 验证情况：`make test-backend` 验证全部 321 项测试通过；`pytest backend/tests/test_llm_stats.py` 与 `pytest backend/tests/test_news_ingestion.py` 均已全部通过。
 - 风险/后续事项：无
+
+## 2026-07-25
+
+- 修改人：Claude
+- 修改范围：新闻抓取时效性修复、信息源扩容
+- 变更内容：
+  1. **常驻抓取开关**：确认 `NewsIngestScheduler` 此前默认不随后端进程启动（`news_scheduler_enabled` 默认 `False` 且本地 `.env` 未开启），是"抓取延迟明显"的根因——日常开发环境下新闻只在手动执行一次性脚本 `make ingest-news` 时才批量入库一次。在仓库根目录 `.env` 追加 `NEWS_SCHEDULER_ENABLED=true`，不改代码默认值（保持 CI/无 `.env` 环境下默认关闭）。
+  2. **快讯层 cadence 分层**：既有 `CLS Telegraph` 与新增的 `MarketWatch MarketPulse`、`Wallstreetcn Live` 三个源的 `cadence_seconds` 从默认 300s 收紧到 100s；其余源维持 300s 不变。
+  3. **新增 `wallstreetcn_live_json` 解析器**：新增 `_parse_wallstreetcn_live_json`（`backend/app/services/ingestion/parser.py`），解析华尔街见闻 7×24 快讯 JSON 直播接口；快讯类条目 `title` 常为空时按项目既有约定（财联社电报同款）回退为 `content_text` 前 60 字；`display_time`（Unix epoch 秒）直接转 UTC；对 `uri`/`title` 做 `isinstance(str)` 校验，非法类型的单条记录会被跳过而不是让整批抓取失败（对齐同文件内 `_parse_the_news_api_json` 的既有防御模式）。接入 `fetcher.py` 的 parser 分发链与 `news_ingestion.py` 的 re-export。
+  4. **新增 9 个信息源**：`_default_sources()` 从 7 个扩到 16 个——美股新闻通讯社/快讯 7 个（MarketWatch Top Stories、MarketWatch MarketPulse、CNBC Finance、Yahoo Finance News、PR Newswire Financial Services、GlobeNewswire Earnings、Nasdaq Press Releases），中文财经快讯 2 个（Investing.com CN、Wallstreetcn Live）。全部为实测可用的 RSS/JSON 端点，均走 `_default_sources()` 硬编码约定（不使用 `news_sources_file` 机制）。
+  5. **评估后放弃的候选**：东方财富快讯 JSON API 可用但混入地质灾害预警等与股票市场无关内容，与产品"低噪音"定位冲突，未接入；AAStocks、etnet.com.hk、格隆汇、同花顺（10jqka）的所谓 RSS 端点已下线（404/500）或需 JS 渲染，未接入；华尔街见闻自身 `rss.xml`/`feed.xml` 静态文件已下线，改用其站内真实使用的 JSON 直播接口；Benzinga RSS 被 Cloudflare 拦截（403），未接入。
+- 影响文件：
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/ingestion/parser.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/ingestion/fetcher.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/app/services/ingestion/sources.py`
+  - `/Users/xiuyang/Desktop/news-caught/backend/tests/test_news_ingestion.py`
+  - `/Users/xiuyang/Desktop/news-caught/.env`（本地环境，未提交版本库）
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/specs/2026-07-25-news-ingestion-timeliness-and-sources-design.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/superpowers/plans/2026-07-25-news-ingestion-timeliness-and-sources.md`
+  - `/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md`
+- 接口/数据结构变化：无（`SourceDefinition`/`SourceItem` 结构未变，只是新增数据和一个内部解析器）
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` 640 passed（另有 1 项与本次改动无关的既有失败——`test_news_relevance_experiment_runner.py::test_experiment_runner_allows_news_relevance_research_files`，该测试硬编码主仓库绝对路径，在 git worktree 路径下必然失配，与本次未触碰的文件无关）；`ruff check` 对本次改动涉及的文件全部通过；`make ingest-news` 在隔离 worktree 中实测跑通全部 16 个源，`fetched=227 inserted=98`，9 个新源全部 `status=ok`（Wallstreetcn Live 新解析器 `fetched=20 inserted=2`，验证端到端可用）。
+- 风险/后续事项：本次实测中既有的 `CLS Telegraph`（`status=empty`）与 `Zhipu AI News`（`status=parse_error`，`Expecting ',' delimiter`）两个源出现问题，均为本次改动之前就存在的源、非本次新增/修改的代码路径，怀疑是目标站点页面结构或返回内容发生变化；调度器的失败退避机制会自动降频，不影响新增的 9 个源。`.env` 的 `NEWS_SCHEDULER_ENABLED=true` 已写入主 checkout，但需要重启本地开发服务器（`./scripts/dev.sh`）才能生效——本次未强制重启，因为重启会终止用户当前正在运行的 dev 会话（backend pid 6421 / frontend pid 6643），已与用户确认后再操作。
