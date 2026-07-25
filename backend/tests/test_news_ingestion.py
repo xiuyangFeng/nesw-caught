@@ -1876,3 +1876,28 @@ def test_refresh_source_deduplicates_cross_source_similar_titles(monkeypatch) ->
             assert len(stored_items) == 1
     finally:
         _cleanup()
+
+
+def test_default_sources_are_all_valid_and_unique() -> None:
+    from app.services.ingestion.sources import _default_sources, _validate_source_definition
+
+    sources = _default_sources()
+
+    assert len(sources) == 16
+    names = [source.name for source in sources]
+    assert len(names) == len(set(names)), f"duplicate source names: {names}"
+    for source in sources:
+        _validate_source_definition(source)
+
+    by_name = {source.name: source for source in sources}
+    expected_flash_tier = {
+        "CLS Telegraph": 100,
+        "MarketWatch MarketPulse": 100,
+        "Wallstreetcn Live": 100,
+    }
+    for name, expected_cadence in expected_flash_tier.items():
+        assert by_name[name].cadence_seconds == expected_cadence, name
+
+    wallstreetcn = by_name["Wallstreetcn Live"]
+    assert wallstreetcn.parser == "wallstreetcn_live_json"
+    assert wallstreetcn.source_type == "html"
