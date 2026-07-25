@@ -9,6 +9,7 @@ from app.services.ingestion.parser import (
     _parse_rss_or_atom,
     _parse_selector_html,
     _parse_the_news_api_json,
+    _parse_wallstreetcn_live_json,
     _parse_zhipu_news_inline_json,
 )
 from app.services.ingestion.types import SourceDefinition, SourceFetchOutcome
@@ -93,6 +94,8 @@ def fetch_source_items(
                 items = _parse_anchor_list_html(response.text, source)
             elif source.parser == "zhipu_news_inline_json":
                 items = _parse_zhipu_news_inline_json(response.text, source)
+            elif source.parser == "wallstreetcn_live_json":
+                items = _parse_wallstreetcn_live_json(response.text, source)
             elif source.parser == "selector_html":
                 items = _parse_selector_html(response.text, source)
             else:

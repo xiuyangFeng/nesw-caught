@@ -27,6 +27,7 @@ from app.services.news_ingestion import (
     _parse_minimax_detail_html,
     _parse_rss_or_atom,
     _parse_selector_html,
+    _parse_wallstreetcn_live_json,
     _parse_zhipu_news_inline_json,
     load_sources,
 )
@@ -222,6 +223,102 @@ def test_parse_zhipu_inline_json_source_items() -> None:
     assert items[0].title == "智谱新闻标题"
     assert items[0].canonical_url == "https://www.zhipuai.cn/zh/news/97"
     assert items[0].summary == "智谱新闻摘要"
+
+
+def test_parse_wallstreetcn_live_json_uses_title_when_present() -> None:
+    payload = json.dumps(
+        {
+            "code": 20000,
+            "data": {
+                "items": [
+                    {
+                        "id": 3777927,
+                        "uri": "https://wallstreetcn.com/articles/3777927",
+                        "title": "特朗普宣布再次竞选总统",
+                        "content": "<p>正文 html</p>",
+                        "content_text": "正文纯文本",
+                        "display_time": 1700000000,
+                    }
+                ]
+            },
+        }
+    )
+    source = SourceDefinition(
+        name="Wallstreetcn Live",
+        source_type="html",
+        url="https://api-one-wscn.awtmt.com/apiv1/content/lives",
+        market="cn",
+        parser="wallstreetcn_live_json",
+    )
+
+    items = _parse_wallstreetcn_live_json(payload, source)
+
+    assert len(items) == 1
+    assert items[0].title == "特朗普宣布再次竞选总统"
+    assert items[0].canonical_url == "https://wallstreetcn.com/articles/3777927"
+    assert items[0].content_text == "正文纯文本"
+    assert items[0].content_html == "<p>正文 html</p>"
+    assert items[0].published_at == datetime(2023, 11, 14, 22, 13, 20, tzinfo=UTC)
+
+
+def test_parse_wallstreetcn_live_json_falls_back_to_content_text_when_title_missing() -> None:
+    payload = json.dumps(
+        {
+            "code": 20000,
+            "data": {
+                "items": [
+                    {
+                        "id": 3139744,
+                        "uri": "https://wallstreetcn.com/livenews/3139744",
+                        "title": "",
+                        "content": "<p>沙特主导的联盟继续实施军事行动。</p>",
+                        "content_text": "沙特主导的联盟继续实施军事行动，袭击也门胡塞武装的供应和军事场所，多国紧急谴责此次行动导致地区局势进一步升级紧张。（也门电视台快讯）",
+                        "display_time": 1721900000,
+                    }
+                ]
+            },
+        }
+    )
+    source = SourceDefinition(
+        name="Wallstreetcn Live",
+        source_type="html",
+        url="https://api-one-wscn.awtmt.com/apiv1/content/lives",
+        market="cn",
+        parser="wallstreetcn_live_json",
+    )
+
+    items = _parse_wallstreetcn_live_json(payload, source)
+
+    assert len(items) == 1
+    assert items[0].title == "沙特主导的联盟继续实施军事行动，袭击也门胡塞武装的供应和军事场所，多国紧急谴责此次行动导致地区局势进一步升级紧张。（也门"
+    assert len(items[0].title) == 60
+    assert items[0].published_at == datetime(2024, 7, 25, 9, 33, 20, tzinfo=UTC)
+
+
+def test_parse_wallstreetcn_live_json_skips_records_missing_id_or_uri() -> None:
+    payload = json.dumps(
+        {
+            "code": 20000,
+            "data": {
+                "items": [
+                    {"id": None, "uri": "https://wallstreetcn.com/livenews/1", "title": "缺 id", "content_text": "x"},
+                    {"id": 2, "uri": None, "title": "缺 uri", "content_text": "x"},
+                    {"id": 3, "uri": "https://wallstreetcn.com/livenews/3", "title": "", "content_text": ""},
+                ]
+            },
+        }
+    )
+    source = SourceDefinition(
+        name="Wallstreetcn Live",
+        source_type="html",
+        url="https://api-one-wscn.awtmt.com/apiv1/content/lives",
+        market="cn",
+        parser="wallstreetcn_live_json",
+    )
+
+    items = _parse_wallstreetcn_live_json(payload, source)
+
+    assert items == []
 
 
 def test_load_sources_caches_registry_until_mtime_changes(tmp_path, monkeypatch) -> None:

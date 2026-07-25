@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from datetime import UTC, datetime
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -302,6 +303,50 @@ def _parse_zhipu_news_inline_json(content: str, source: SourceDefinition) -> lis
                 summary=summary[:280] if summary else None,
                 content_text=summary,
                 content_html=None,
+                published_at=published_at,
+            )
+        )
+    return items
+
+
+def _parse_wallstreetcn_live_json(content: str, source: SourceDefinition) -> list[SourceItem]:
+    payload = json.loads(content)
+    records = payload.get("data", {}).get("items", [])
+    if not isinstance(records, list):
+        raise ValueError("wallstreetcn live payload is missing data.items array")
+
+    items: list[SourceItem] = []
+    for record in records[: source.item_limit]:
+        if not isinstance(record, dict):
+            continue
+        item_id = record.get("id")
+        uri = record.get("uri")
+        if not item_id or not uri:
+            continue
+
+        content_text = _clean_text(record.get("content_text"))
+        raw_title = (record.get("title") or "").strip()
+        if raw_title:
+            title = raw_title
+        elif content_text:
+            title = content_text[:60]
+        else:
+            continue
+
+        display_time = record.get("display_time")
+        published_at = (
+            datetime.fromtimestamp(display_time, tz=UTC)
+            if isinstance(display_time, (int, float)) and not isinstance(display_time, bool)
+            else None
+        )
+
+        items.append(
+            SourceItem(
+                title=title,
+                canonical_url=_canonicalize_url(uri, source.url),
+                summary=content_text[:280] if content_text else None,
+                content_text=content_text,
+                content_html=record.get("content"),
                 published_at=published_at,
             )
         )

@@ -20,6 +20,7 @@ from app.services.ingestion.parser import (
     _parse_rss_or_atom,
     _parse_selector_html,
     _parse_the_news_api_json,
+    _parse_wallstreetcn_live_json,
     _parse_zhipu_news_inline_json,
 )
 from app.services.ingestion.persister import ItemPersister
