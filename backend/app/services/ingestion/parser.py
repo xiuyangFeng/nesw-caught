@@ -335,11 +335,12 @@ def _parse_wallstreetcn_live_json(content: str, source: SourceDefinition) -> lis
             continue
 
         display_time = record.get("display_time")
-        published_at = (
-            datetime.fromtimestamp(display_time, tz=UTC)
-            if isinstance(display_time, (int, float)) and not isinstance(display_time, bool)
-            else None
-        )
+        published_at = None
+        if isinstance(display_time, (int, float)) and not isinstance(display_time, bool):
+            try:
+                published_at = datetime.fromtimestamp(display_time, tz=UTC)
+            except (ValueError, OverflowError, OSError):
+                published_at = None
 
         items.append(
             SourceItem(

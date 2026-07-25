@@ -353,6 +353,38 @@ def test_parse_wallstreetcn_live_json_handles_non_string_uri_and_title() -> None
     assert items[0].title == "正文兜底内容"
 
 
+def test_parse_wallstreetcn_live_json_out_of_range_display_time_keeps_record() -> None:
+    payload = json.dumps(
+        {
+            "code": 20000,
+            "data": {
+                "items": [
+                    {
+                        "id": 1,
+                        "uri": "https://wallstreetcn.com/livenews/1",
+                        "title": "时间戳超出范围",
+                        "content_text": "x",
+                        "display_time": 99999999999999999,
+                    }
+                ]
+            },
+        }
+    )
+    source = SourceDefinition(
+        name="Wallstreetcn Live",
+        source_type="html",
+        url="https://api-one-wscn.awtmt.com/apiv1/content/lives",
+        market="cn",
+        parser="wallstreetcn_live_json",
+    )
+
+    items = _parse_wallstreetcn_live_json(payload, source)
+
+    assert len(items) == 1
+    assert items[0].title == "时间戳超出范围"
+    assert items[0].published_at is None
+
+
 def test_load_sources_caches_registry_until_mtime_changes(tmp_path, monkeypatch) -> None:
     """news_sources_file 的 (mtime, size) 未变时命中进程内缓存,变化后重读。"""
     from app.services.ingestion.sources import clear_sources_cache
