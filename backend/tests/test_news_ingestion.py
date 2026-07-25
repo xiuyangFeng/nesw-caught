@@ -321,6 +321,38 @@ def test_parse_wallstreetcn_live_json_skips_records_missing_id_or_uri() -> None:
     assert items == []
 
 
+def test_parse_wallstreetcn_live_json_handles_non_string_uri_and_title() -> None:
+    payload = json.dumps(
+        {
+            "code": 20000,
+            "data": {
+                "items": [
+                    {"id": 1, "uri": 12345, "title": "非字符串 uri", "content_text": "x"},
+                    {
+                        "id": 2,
+                        "uri": "https://wallstreetcn.com/livenews/2",
+                        "title": ["非字符串标题"],
+                        "content_text": "正文兜底内容",
+                    },
+                ]
+            },
+        }
+    )
+    source = SourceDefinition(
+        name="Wallstreetcn Live",
+        source_type="html",
+        url="https://api-one-wscn.awtmt.com/apiv1/content/lives",
+        market="cn",
+        parser="wallstreetcn_live_json",
+    )
+
+    items = _parse_wallstreetcn_live_json(payload, source)
+
+    assert len(items) == 1
+    assert items[0].canonical_url == "https://wallstreetcn.com/livenews/2"
+    assert items[0].title == "正文兜底内容"
+
+
 def test_load_sources_caches_registry_until_mtime_changes(tmp_path, monkeypatch) -> None:
     """news_sources_file 的 (mtime, size) 未变时命中进程内缓存,变化后重读。"""
     from app.services.ingestion.sources import clear_sources_cache

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import html
-from datetime import UTC, datetime
 import json
 import re
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
 
 from bs4 import BeautifulSoup
 
@@ -321,11 +321,12 @@ def _parse_wallstreetcn_live_json(content: str, source: SourceDefinition) -> lis
             continue
         item_id = record.get("id")
         uri = record.get("uri")
-        if not item_id or not uri:
+        if not item_id or not isinstance(uri, str) or not uri.strip():
             continue
 
         content_text = _clean_text(record.get("content_text"))
-        raw_title = (record.get("title") or "").strip()
+        title_value = record.get("title")
+        raw_title = title_value.strip() if isinstance(title_value, str) else ""
         if raw_title:
             title = raw_title
         elif content_text:
