@@ -2,6 +2,16 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-25 安全修复：/docs /redoc /openapi.json 绕过 App Token 鉴权
+
+- 修改人：Claude Sonnet（全仓安全评审 + 实测验证 + 修复）
+- 修改范围：`backend/app/api/router.py`、`backend/app/core/auth.py`、`backend/app/main.py`，回归测试 `backend/tests/test_network_security.py`。
+- 变更内容：全局鉴权挂在 `api_router = APIRouter(dependencies=[Depends(verify_app_token)])` 上，但 `FastAPI(docs_url="/docs", redoc_url="/redoc", ...)` 生成的 `/docs`、`/redoc`、`/openapi.json` 是 app 根路径上的内置路由，不经过 `api_router`，完全绕过鉴权（实测确认：不带 token 访问三者均 200，同期 `/api/news` 正确 401）。修复：`create_app()` 关闭内置文档端点（`docs_url=None`/`redoc_url=None`/`openapi_url=None`），改为在 `api_router` 下手写等价路由（`get_swagger_ui_html`/`get_redoc_html`/`request.app.openapi()`），自动继承 `verify_app_token`；`verify_app_token` 的 SSE 专用 query 参数 token 放行逻辑扩展到这三个路径（浏览器直接导航打开文档页无法带自定义请求头，与 EventSource 同理）；Swagger/ReDoc 页面内嵌的 `openapi_url` 显式带上已校验通过的 token，避免"页面能打开、schema 因 401 加载失败"。
+- 影响文件：见上；旧的根路径 `/docs`/`/redoc`/`/openapi.json` 不再注册（404），新路径为 `/api/docs`/`/api/redoc`/`/api/openapi.json`。
+- 接口/数据结构变化：文档端点 URL 从根路径迁移到 `/api` 前缀下，且现在需要 `X-App-Token` 或 `?token=`；无其他 API/DB 变化。
+- 验证情况：新增 8 个测试覆盖"根路径 404 / 新路径需 token / 带 token 可访问 / query token 正确透传进内嵌 openapi_url"；`NEWS_CAUGHT_TEST_DB=/tmp/nc_secreview_pytest3.db conda run -n news-caught pytest backend/tests -q` → 636 passed（+8）；`ruff check` 涉及文件干净；本地起服务实测新旧路径行为符合预期。
+- 风险或后续事项：无。此前该缺口暴露的是 API schema（路由/参数/模型结构），不涉及实际数据或密钥，风险等级评为 Medium；生产环境如通过局域网/公网访问后端，本次修复前应视为该风险窗口期。
+
 ## 2026-07-21 架构加固计划整分支终审（Wave 1~3b，bfc3220..HEAD）
 
 - 修改人：Claude Sonnet（主控，8 路并行查找子代理 + 逐条 1-vote 验证子代理，`code-review` 技能 high 档）

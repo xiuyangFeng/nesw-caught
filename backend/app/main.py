@@ -239,8 +239,11 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        # /docs /redoc /openapi.json 挂在 api_router 下（见 app/api/router.py），
+        # 使其继承 verify_app_token 鉴权；这里关闭 FastAPI 内置的免鉴权版本。
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
         lifespan=lifespan,
     )
     app.include_router(api_router, prefix=settings.api_prefix)

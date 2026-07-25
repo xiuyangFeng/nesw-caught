@@ -71,8 +71,13 @@ def verify_app_token(
 
     provided_token = x_app_token
     # SSE 流路由特殊处理：浏览器原生 EventSource 无法携带自定义请求头，
-    # 允许通过 query 参数 token 传递 App Token（仅限 /api/stream/ 下的路由）
-    if not provided_token and request.url.path.startswith("/api/stream/"):
+    # 允许通过 query 参数 token 传递 App Token（仅限 /api/stream/ 下的路由）。
+    # /docs /redoc /openapi.json 同理：这几个页面靠浏览器直接导航打开，
+    # 无法附加自定义请求头，同样放行 query 参数 token。
+    if not provided_token and (
+        request.url.path.startswith("/api/stream/")
+        or request.url.path.endswith(("/docs", "/redoc", "/openapi.json"))
+    ):
         provided_token = request.query_params.get("token")
 
     if not provided_token:
