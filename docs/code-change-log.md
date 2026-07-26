@@ -2,6 +2,103 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-26 第一/二轮后续优化：worker 进程拆分 + 性能基准固化
+
+- 修改人：Claude（2 个并行子智能体 + 主控集成）
+- 背景：承接下方两条重构记录。经讨论确定优先级为「先固化基准，再做结构性拆分」——
+  因为拆进程是结构性改动，没有可复现基准就无法证明它真的有用。
+
+### 变更内容
+
+**第二轮：性能基准固化（`backend/scripts/bench_readpath.py` + `README-bench.md`）**
+1. 场景化基准：`idle` / `sse`（独立 curl 子进程持有 N 条 SSE 连接）/ `crawl`（需显式
+   `--crawl-command`，无法自动稳定触发时**报错退出而不是伪造数字**）。输出人类可读表格
+   + `--json` 机器可读快照，`--baseline` 做逐项 delta 与回归标记。
+2. **把上一轮踩过的两个坑固化成防线**（这是本项交付的主要价值）：
+   - **Python 压测客户端会被自身 GIL 卡住、掩盖服务端优化**：上一轮用线程池压测时
+     baseline 与优化版看起来完全一样（p50 都是 ~600ms/~2300ms），换成原生 `ab` 后差异
+     才显现。脚本按 `ab → hey → wrk` 探测原生客户端，回退 Python 时在终端与 JSON 中
+     都打出显著警告，跨客户端对比额外告警。
+   - **鉴权失败会把"零负载"误读成"性能很好"**：上一轮基线服务跑在独立 worktree 里、
+     有自己的 `data/.app_token`，用主仓库 token 打过去全部 401，于是"看起来很快"其实
+     压根没有负载，一度导出"SSE 优化无效"的错误结论。脚本在正式测量前做鉴权自检，
+     401/403 直接**退出码 2**；非 2xx 不计入分位数；SSE 场景还会读 `/health` 的
+     `active_stream_connections` 确认服务端真看到了这些连接。
+
+**第一轮：把重活 worker 移出 web 进程**
+3. 新增 `backend/app/workers/pipeline_worker_main.py` 独立进程入口，拆成可单测的零件
+   （`ensure_exclusive_ownership` / `register_pipeline_event_handlers` / `build_redis_consumer`
+   / `build_pipeline_workers` / `run`），处理 SIGTERM/SIGINT 优雅退场，关停用
+   `shutdown_http_pools()`（进程级终态，正是上一轮为独立入口保留的入口）。
+4. 新增 `pipeline_workers_enabled`（默认 `True`，单进程推荐形态行为零变化）控制 web 进程
+   是否启动 `BackgroundQueueWorker` / `TakeawayWorker` / X 健康探针。
+5. **互斥保护（三层）**：独立入口启动即自检并拒绝 `PIPELINE_WORKERS_ENABLED=true`
+   （`--force` 可越过但降级为 WARNING）；两侧打对照日志声明 IN-PROCESS / OUT-OF-PROCESS；
+   关掉开关时 web 进程根本不注册 `news.created_batch → analysis_queue` 的 handler。
+   必要性：in-flight 租约是**进程内内存、不跨进程**，两个进程各跑一套 worker 会让上一轮
+   刚修掉的"重复爬正文 + 双倍 LLM"复活。
+6. 新增 `OrphanQueueDrainWorker` 回收多进程下 web 进程里已无消费者的队列（scheduler 仍在
+   web 进程投递 `analysis_queue`、feed layout 在请求线程投递 `takeaway_queue`），
+   刻意**不**释放租约（释放会让 scheduler 每 5s 重新领取再入队，变成空转）。
+7. `TakeawayWorker` 新增 DB 兜底扫描（默认关闭，独立进程显式开启）：`takeaway_queue` 的
+   生产者留在 web 进程，worker 一搬走队列永远是空的，takeaway 会彻底停摆。
+8. `scripts/dev.sh` 增加 `NEWS_CAUGHT_SPLIT_PIPELINE=1` 多进程模式；`Makefile` 增加
+   `pipeline-worker` / `dev-split` / `bench` / `bench-save` 目标；README 增加多进程形态与
+   基准用法两节（含互斥警告）。
+
+**主控集成修复（两个由工单交回、我判定必须现在处理的问题）**
+9. **修复 `RedisStreamConsumer` 的空窗丢消息**（`redis_stream_bus.py`）：`_last_ids` 初值
+   为 `"$"`（语义是"只要本次 XREAD 之后新产生的消息"），而消费循环是
+   `xread(block=500ms)` + 无消息时 `sleep(500ms)`；只要一直没收到消息，`_last_ids` 就
+   停在 `"$"`，**落在 sleep 空窗里产生的消息永久丢失**。多进程模式下这正是主事件通路。
+   改为开跑前把 `"$"` 解析成各 stream 真实的 last-id（stream 不存在则 `0-0`），之后始终
+   按显式 id 续读；同时删掉原先 `if _last_ids[name] == "$": _last_ids[name] = "$"` 的
+   死代码。**对真实 Redis 实测：修复前连发 10 条丢 1 条，修复后 0 丢失。**
+   新增 `backend/tests/test_redis_stream_gap.py`（5 例，已验证对修复前行为 4 例失败，
+   非空断言）——注意仓库既有的 `FakeRedis` 对 `"$"` 直接 `continue`，反而掩盖了这个
+   形态，所以新测试自带一个按真实语义实现 `"$"` 的 fake。
+10. **修复 alembic 劫持日志导致 INFO 全被吞**（`alembic/env.py` + `db/initializer.py`）：
+    `alembic.ini` 的 `[logger_root] level=WARNING` + `handlers=console`，而 `fileConfig`
+    会压低 root logger 等级并换掉其 handler；migrations 在应用进程内跑
+    （`initialize_database()`），于是启动之后进程内**所有 INFO 日志被吞**——包括本次重构
+    补的全部链路耗时埋点，可观测性直接归零。改用 alembic 官方的 `configure_logger`
+    attribute 约定：CLI 方式照常配置日志，应用内调用时由 `app.core.logging` 接管。
+
+### A/B 实测（同一份代码，只切换 `PIPELINE_WORKERS_ENABLED`）
+
+后台爬取活跃期间对 `/api/news/runtime` 连续采样 60s（本地慢速大页面站点制造负载，
+采样窗口内分别处理了 300 / 250 条，确认爬取确实在跑）：
+
+| 形态 | p50 | p95 | max |
+|---|---|---|---|
+| worker 在 web 进程内 | 3.7ms | **528.6ms** | **735.2ms** |
+| worker 独立进程 | 1.4ms | **2.8ms** | **20.0ms** |
+
+p95 降 189x、max 降 37x。**收益几乎全在尾延迟**，即"大多数点击正常、偶尔卡一下"的体感。
+过程记录：最初两次 A/B 各只采样 8-12 次，两边都是 1-2ms、看不出差别，据此差点得出
+"拆分无收益"的错误结论——样本量根本打不中 p95 尾部；改为 60s 连续采样并同时校验
+pending 下降（证明爬取窗口与采样窗口重叠）后才拿到上表。
+
+### 验证情况
+- 全量：**981 passed in 13.20s**（上一轮 920 → 本轮新增 61）。
+- `ruff check backend` → All checks passed!；`export_openapi.py --check` → OK。
+- 双进程冒烟：独立进程处理全部 5 条 pending、web 进程零 queue worker 痕迹、
+  `worker_runtime_status` 显示只有独立进程在写、SIGTERM 优雅退场、互斥保护实测拦下误配置。
+
+### 风险或后续事项
+1. **多进程模式需要 Redis**；事件通路中断时靠 queue worker 每 30s 的 DB 兜底扫描兜住，
+   时效性下降但不丢数据。
+2. 基准脚本**单次运行抖动 10~20%**，与默认回归阈值同量级（实测同一后端连跑两次，
+   `topics` 的 p95 浮动 +51%）。判定真回归前应同一份改动跑 2~3 次；脚本尚未内置
+   `--repeat N` 取中位数。
+3. `takeaway` 兜底扫描的候选口径（按发布时间倒序）与 feed layout 的编辑分精选不同，
+   多进程下 takeaway 选题质量略降（用量仍受 batch/daily 双闸门封顶）。
+4. scheduler 仍在 web 进程，多进程下每 tick 仍会领租约 + 入队再被 `OrphanQueueDrainWorker`
+   丢弃，功能正确但有少量无效功。彻底干净需要按开关关掉 scheduler 的 backlog drain。
+5. `.env` 解析依赖当前工作目录，手工起 worker 时若 `cd backend` 会读不到配置。
+6. `conda run` 不转发信号，用 systemd/supervisor 托管时应直接指向 python 进程。
+7. 基准只在装了 `ab` 的机器上端到端验证过，`hey` / `wrk` 的 parser 仅有单测覆盖。
+
 ## 2026-07-26 重构收尾：遗留项清零（4 个并行工单 + 集成）
 
 - 修改人：Claude（4 个并行子智能体 + 主控集成）

@@ -54,6 +54,48 @@ PYTHONPATH=backend conda run -n news-caught python -m app.workers.news_scheduler
 
 也可以设置 `NEWS_SCHEDULER_ENABLED=true` 让调度器随后端进程一起启动（单进程部署推荐，SSE 事件无需 Redis 即可触达前端）。
 
+### 可选：把重活 worker 拆到独立进程（多进程形态）
+
+默认单进程形态下，爬正文 + LLM 评分（`BackgroundQueueWorker` / `TakeawayWorker`）
+和 web 请求跑在同一个 Python 进程里，抢同一个 GIL。实测在后台爬取活跃期间，对
+`/api/news/runtime` 连续采样 60 秒：
+
+| 形态 | p50 | p95 | max |
+|---|---|---|---|
+| 进程内（默认） | 3.7ms | **528.6ms** | **735.2ms** |
+| 独立进程 | 1.4ms | **2.8ms** | **20.0ms** |
+
+收益几乎全在**尾延迟**——也就是"大多数点击都正常、偶尔卡一下"的那种体感。
+对交互体验敏感时可以切到多进程：
+
+```bash
+# 一条命令拉起前后端 + 独立 pipeline worker
+make dev-split
+
+# 或者手动：web 进程关掉进程内 worker
+PIPELINE_WORKERS_ENABLED=false conda run -n news-caught uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+# 另开一个终端跑重活
+make pipeline-worker
+```
+
+> ⚠️ 两侧必须**互斥**：in-flight 租约是进程内内存、不跨进程。如果 web 进程没设
+> `PIPELINE_WORKERS_ENABLED=false`，两个进程会各跑一套 worker，导致同一批新闻被
+> **重复爬正文 + 双倍 LLM token**。独立入口启动时会自检并直接拒绝这种误配置
+> （确知 web 进程未运行时可用 `--force` 越过）。
+>
+> 多进程形态下跨进程事件走 Redis stream，**需要 Redis 可用**；即使事件通路中断，
+> queue worker 每 30 秒的 DB 兜底扫描仍会兜住，只是时效性下降。
+
+### 性能基准（防回归）
+
+```bash
+make bench          # 需要先有一个在跑的后端，详见 backend/scripts/README-bench.md
+make bench-save     # 存快照，之后用 --baseline 做回归对比
+```
+
+两个已知陷阱脚本里已内置防护，别绕过：**Python 压测客户端会被自身 GIL 卡住**、
+把服务端优化整个掩盖掉；**鉴权失败（401）会让"零负载"看起来像"性能很好"**。
+
 启动前端：
 
 ```bash

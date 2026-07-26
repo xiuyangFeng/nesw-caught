@@ -74,6 +74,12 @@ def _build_alembic_config() -> Config:
     if not script_location.exists():
         script_location = Path(__file__).resolve().parents[2] / "alembic"
     config.set_main_option("script_location", str(script_location))
+    # 应用进程内跑迁移时，不让 alembic 接管日志配置：alembic.ini 的
+    # [logger_root] level=WARNING 会把 root logger 压到 WARNING 并换掉 handler，
+    # 导致 initialize_database() 之后进程内所有 INFO 日志被吞（含本次重构补的
+    # 全部链路耗时埋点）。日志配置权归 app.core.logging.configure_logging。
+    # 该 attribute 由 backend/alembic/env.py 读取；alembic CLI 不受影响。
+    config.attributes["configure_logger"] = False
     return config
 
 

@@ -5,6 +5,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_PID=""
 FRONTEND_PID=""
+PIPELINE_PID=""
+
+# 后台重活 worker（BackgroundQueueWorker / TakeawayWorker / X 健康探针）的进程归属。
+#   NEWS_CAUGHT_SPLIT_PIPELINE=0（默认）：单机单进程，全部随 uvicorn lifespan 启停。
+#   NEWS_CAUGHT_SPLIT_PIPELINE=1        ：多进程，重活跑在独立的
+#                                         `python -m app.workers.pipeline_worker_main`。
+# 多进程模式下必须把 PIPELINE_WORKERS_ENABLED=false 同时传给两个进程：租约是进程内
+# 内存，两个进程同时跑 queue worker 会重复爬正文 + 重复调 LLM（独立入口会直接拒绝启动）。
+SPLIT_PIPELINE="${NEWS_CAUGHT_SPLIT_PIPELINE:-0}"
 
 require_command() {
   local command_name="$1"
@@ -94,6 +103,7 @@ cleanup() {
   local exit_code=$?
 
   terminate_process_tree "${BACKEND_PID}"
+  terminate_process_tree "${PIPELINE_PID}"
   terminate_process_tree "${FRONTEND_PID}"
 
   wait 2>/dev/null || true
@@ -114,10 +124,27 @@ kill_listeners_for_port 5174
 echo "[news-caught] starting backend on http://127.0.0.1:8000"
 # 自选股行情 producer 默认随后端 lifespan 一起启停（MARKET_QUOTE_PRODUCER_ENABLED=true），
 # 不再需要单独拉起 app.workers.market_quote_producer 进程。
+if [[ "${SPLIT_PIPELINE}" == "1" ]]; then
+  echo "[news-caught] pipeline workers mode: OUT-OF-PROCESS"
+  export PIPELINE_WORKERS_ENABLED=false
+else
+  echo "[news-caught] pipeline workers mode: IN-PROCESS (set NEWS_CAUGHT_SPLIT_PIPELINE=1 to split)"
+fi
 conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 wait_for_process_start "${BACKEND_PID}" "backend"
 wait_for_http "http://127.0.0.1:8000/api/health" 400 0.2
+
+if [[ "${SPLIT_PIPELINE}" == "1" ]]; then
+  echo "[news-caught] starting standalone pipeline worker process"
+  # 刻意在 ROOT_DIR 下运行并用 PYTHONPATH 指向 backend（而不是 cd backend）：
+  # Settings 的 env_file=".env" 是相对当前工作目录解析的，两个进程必须站在同一个
+  # 目录，否则 worker 进程会读不到 .env，出现「web 有配置、worker 没有」的诡异分裂。
+  # --reload 只对 web 进程有意义；worker 进程改代码后需要重启本脚本。
+  PYTHONPATH="${ROOT_DIR}/backend" conda run -n news-caught python -m app.workers.pipeline_worker_main &
+  PIPELINE_PID=$!
+  wait_for_process_start "${PIPELINE_PID}" "pipeline worker"
+fi
 
 echo "[news-caught] starting frontend on http://127.0.0.1:5174"
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5174 &
@@ -132,6 +159,11 @@ while true; do
 
   if ! kill -0 "${FRONTEND_PID}" 2>/dev/null; then
     wait "${FRONTEND_PID}"
+    exit $?
+  fi
+
+  if [[ -n "${PIPELINE_PID}" ]] && ! kill -0 "${PIPELINE_PID}" 2>/dev/null; then
+    wait "${PIPELINE_PID}"
     exit $?
   fi
 

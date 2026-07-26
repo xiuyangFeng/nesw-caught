@@ -23,7 +23,11 @@ from app.services.news_signal_pipeline import (  # noqa: F401 -- monkeypatched b
 )
 from app.services.notification_service import get_notification_service
 from app.services.quote_service import QuoteService
-from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
+from app.workers.queue_worker import (
+    BackgroundQueueWorker,
+    OrphanQueueDrainWorker,
+    analysis_queue,
+)
 from app.workers.takeaway_worker import TakeawayWorker
 
 logger = logging.getLogger(__name__)
@@ -48,7 +52,12 @@ def _register_event_handlers() -> None:
     def handle_news_analysis_completed(payload: dict[str, object]) -> None:
         get_notification_service().on_analysis_completed(payload)
 
-    event_bus.subscribe("news.created_batch", handle_news_created_batch)
+    if get_settings().pipeline_workers_enabled:
+        # 多进程形态（pipeline_workers_enabled=false）下本进程没有 analysis_queue
+        # 的消费者，注册这个 handler 只会往一个没人读的队列里堆数据。真正的消费
+        # 在独立 pipeline worker 进程里：那边有自己的 RedisStreamConsumer + 同名
+        # handler，加上 queue worker 每 30s 的 DB 兜底扫描双保险。
+        event_bus.subscribe("news.created_batch", handle_news_created_batch)
     event_bus.subscribe("news.analysis_completed", handle_news_analysis_completed)
     set_event_bus(event_bus)
 
@@ -118,20 +127,53 @@ async def lifespan(_: FastAPI):
 
     from app.core.auth import init_app_token
     init_app_token()
+
+    settings = get_settings()
+    # 进程归属声明刻意打在 initialize_database() **之前**：alembic 会在迁移时执行
+    # `fileConfig(alembic.ini)`，把 root logger 的 level 压到 WARNING 并换掉 handler，
+    # 之后本进程的所有 INFO 都会被吞掉（既有问题，见报告的遗留项）。这条日志是
+    # 「两个进程都开着 worker」这类误配置的主要可发现性手段，必须保证它一定能打出来。
+    if settings.pipeline_workers_enabled:
+        # 单机单进程默认形态（README 推荐）：重活 worker 随 web 进程一起启停。
+        logger.info(
+            "pipeline workers mode: IN-PROCESS (PIPELINE_WORKERS_ENABLED=true) — "
+            "BackgroundQueueWorker/TakeawayWorker/X 健康探针跑在 web 进程里；"
+            "如需把它们移出 GIL，请设 PIPELINE_WORKERS_ENABLED=false 并单独运行 "
+            "`python -m app.workers.pipeline_worker_main`"
+        )
+    else:
+        # 多进程形态：本进程只做 web + ingestion，重活交给独立进程。
+        # 这条 INFO 与独立入口的 ensure_exclusive_ownership() 互为对照：
+        # 独立进程侧同时打出「exclusive ownership OK」才说明两边配置一致。
+        logger.info(
+            "pipeline workers mode: OUT-OF-PROCESS (PIPELINE_WORKERS_ENABLED=false) — "
+            "本进程不启动 BackgroundQueueWorker/TakeawayWorker/X 健康探针；"
+            "请确保 `python -m app.workers.pipeline_worker_main` 正在运行，否则"
+            "新闻只会入库、不会被评分"
+        )
+
     initialize_database()
     configure_secondary_judge_from_settings()
     _register_event_handlers()
     notification_service = get_notification_service()
     notification_service.start()
 
-    # Start queue worker for async pipeline processing
-    queue_worker = BackgroundQueueWorker(session_factory=SessionLocal)
-    queue_worker.start()
+    queue_worker: BackgroundQueueWorker | None = None
+    takeaway_worker: TakeawayWorker | None = None
+    orphan_queue_drainer: OrphanQueueDrainWorker | None = None
+    if settings.pipeline_workers_enabled:
+        # Start queue worker for async pipeline processing
+        queue_worker = BackgroundQueueWorker(session_factory=SessionLocal)
+        queue_worker.start()
 
-    takeaway_worker = TakeawayWorker(session_factory=SessionLocal)
-    takeaway_worker.start()
+        takeaway_worker = TakeawayWorker(session_factory=SessionLocal)
+        takeaway_worker.start()
+    elif settings.orphan_queue_drain_interval_seconds > 0:
+        # 多进程形态：scheduler（仍在本进程）与 feed layout（请求线程）还会往
+        # analysis_queue / takeaway_queue 里塞数据，而本进程已经没有消费者了。
+        orphan_queue_drainer = OrphanQueueDrainWorker(session_factory=SessionLocal)
+        orphan_queue_drainer.start()
 
-    settings = get_settings()
     news_scheduler: NewsIngestScheduler | None = None
     cleanup_worker = None
     backup_worker = None
@@ -197,14 +239,16 @@ async def lifespan(_: FastAPI):
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
-    if settings.x_monitor_enabled and settings.twitterapi_io_api_key:
+    if settings.pipeline_workers_enabled:
         # /health 已改为只读 x_source_health 的上次探测结果（不再在请求线程里发起
         # 最长 60 秒的外网探针）。这个 worker 负责按固定间隔把该结果刷新，否则
         # /health 会长期把健康的 X 监控报成 unknown。
-        from app.workers.x_health_probe_worker import XHealthProbeWorker
+        # 纯外网探针没必要占 web 进程，因此与 pipeline worker 共用同一个进程归属开关。
+        from app.workers.x_health_probe_worker import build_x_health_probe_worker
 
-        x_health_probe_worker = XHealthProbeWorker(session_factory=SessionLocal)
-        x_health_probe_worker.start()
+        x_health_probe_worker = build_x_health_probe_worker(SessionLocal)
+        if x_health_probe_worker is not None:
+            x_health_probe_worker.start()
     if settings.backup_enabled:
         backup_worker = build_backup_worker(SessionLocal)
         if backup_worker is not None:
@@ -240,8 +284,12 @@ async def lifespan(_: FastAPI):
         news_scheduler.stop()
     if market_quote_producer is not None:
         market_quote_producer.stop()
-    queue_worker.stop()
-    takeaway_worker.stop()
+    if queue_worker is not None:
+        queue_worker.stop()
+    if takeaway_worker is not None:
+        takeaway_worker.stop()
+    if orphan_queue_drainer is not None:
+        orphan_queue_drainer.stop()
     notification_service.stop()
     # 这里刻意用 close_llm_client()（关闭 + 允许惰性重建）而不是 shutdown_http_pools()
     # 的终态语义。终态是进程级且不可逆的，而 lifespan 在同一进程里会跑多次：

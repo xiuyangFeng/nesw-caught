@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     takeaway_batch_limit: int = 12
     takeaway_daily_limit: int = 300
     takeaway_poll_interval_seconds: float = 5.0
+    # TakeawayWorker 的 DB 兜底扫描间隔（秒）；<= 0 表示关闭。
+    # `takeaway_queue` 由 feed layout 填充，而 feed layout 只在 **web 进程的请求
+    # 线程** 里执行。多进程形态下 TakeawayWorker 搬到独立进程后，那个队列在本进程
+    # 永远是空的，所以需要一条与 queue_worker 同形的 DB 兜底扫描来自愈。
+    # 默认 0 = 关闭：单进程形态保持既有语义（只补齐 feed layout 精选出的高分条目），
+    # 独立入口 `app.workers.pipeline_worker_main` 会显式打开它。
+    takeaway_fallback_scan_interval_seconds: float = 0.0
     news_sources_file: str | None = None
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
@@ -105,6 +112,27 @@ class Settings(BaseSettings):
     news_scheduler_startup_jitter_seconds: float = 8.0
     queue_worker_poll_interval_seconds: float = 1.0
     queue_worker_fallback_scan_interval_seconds: float = 30.0
+    # ---------------------------------------------------------------------
+    # 后台重活 worker 的「进程归属」开关（多进程拆分）
+    # ---------------------------------------------------------------------
+    # True（默认，README 推荐的单机单进程形态）：
+    #   BackgroundQueueWorker / TakeawayWorker / XHealthProbeWorker 随 uvicorn 的
+    #   lifespan 一起启停，行为与拆分前完全一致。
+    # False（多进程形态）：
+    #   web 进程不再启动这三个 worker，改由独立入口
+    #   `python -m app.workers.pipeline_worker_main` 承载。正文爬取 + BeautifulSoup
+    #   解析是纯 CPU 且全程持 GIL 的工作，搬走之后才真正不再和请求线程抢 GIL
+    #   （实测爬取活跃期 /api/news/runtime 的 p50 残余 265ms 即源于此）。
+    #
+    # 两种形态必须二选一：in-flight 租约（queue_worker.analysis_inflight）是
+    # **进程内内存**，两个进程各跑一个 BackgroundQueueWorker 时租约互不可见，
+    # 同一批 news_id 会被重复爬正文 + 重复调 LLM。因此独立入口默认会在检测到
+    # 本开关仍为 true 时直接拒绝启动（见 pipeline_worker_main.ensure_exclusive_ownership）。
+    pipeline_workers_enabled: bool = True
+    # 多进程形态下，web 进程里那两个「没有消费者的进程内队列」
+    # （analysis_queue / takeaway_queue）的回收间隔（秒）；<= 0 表示不回收。
+    # scheduler 与 feed layout 仍在 web 进程里往它们塞数据，不回收就是慢性内存泄漏。
+    orphan_queue_drain_interval_seconds: float = 60.0
     # 被 BackgroundQueueWorker 领取但尚未写回 signal_status 的新闻，在该租约时间内
     # 不再被 scheduler 重复投递（此前每 5s 重投一次，造成重复爬正文 + 双倍 LLM）。
     news_inflight_lease_seconds: float = 600.0

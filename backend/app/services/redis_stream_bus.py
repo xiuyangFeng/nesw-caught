@@ -110,10 +110,41 @@ class RedisStreamConsumer:
             self._last_error_log_at = now
             logger.exception(message)
 
+    def resolve_initial_ids(self) -> None:
+        """把初始的 "$" 解析成各 stream 当前的真实 last-id。
+
+        必须这么做的原因（多进程模式下这是主事件通路，丢消息不可接受）：
+        "$" 的语义是"只要本次 XREAD 调用之后新产生的消息"。而消费循环是
+        `xread(block=500ms)` + 无消息时 `sleep(500ms)`，只要一直没收到消息，
+        `_last_ids` 就一直停在 "$" —— 于是**落在 sleep 空窗里的消息永久丢失**
+        （"$" 不会推进，下一次 XREAD 只看它自己之后的新消息）。实测单发一条
+        news.created_batch 约 50% 概率丢。
+
+        解析成显式 id 之后，每轮都从"上次读到的位置"续读，空窗期间产生的消息
+        会在下一轮被补上，不再依赖 30s 的 DB 兜底扫描来兜底。
+        解析时取的是"当前最后一条"，因此仍然不会重放历史积压（保持只跟新的语义）。
+        """
+        for name in self.streams:
+            if self._last_ids.get(name) != "$":
+                continue
+            last_id = "0-0"
+            try:
+                info = self.client.xinfo_stream(name)
+                candidate = info.get("last-generated-id") if isinstance(info, dict) else None
+                if candidate:
+                    last_id = str(candidate)
+            except Exception:
+                # stream 尚不存在（还没有人 XADD 过）→ 从 0 开始读；该 stream 本来
+                # 也没有历史消息，不存在重放风险。客户端不支持 xinfo_stream（测试
+                # 里的 FakeRedis）→ 同样退回 "0-0"，行为退化为"从头读"，测试语义
+                # 不受影响（FakeRedis 里没有历史积压）。
+                last_id = "0-0"
+            self._last_ids[name] = last_id
+
     def poll_once(self, *, count: int = 50) -> int:
         if not self.streams:
             return 0
-        # First call with "$" only waits for new messages; subsequent reads use last ids.
+        self.resolve_initial_ids()
         streams = dict(self._last_ids)
         try:
             # FakeRedis in tests ignores block; real redis uses short block.
@@ -125,11 +156,6 @@ class RedisStreamConsumer:
             return 0
 
         if not rows:
-            # After the initial "$" subscription, switch to last seen ids so we
-            # never replay the backlog on first connect; only live tail.
-            for name in self.streams:
-                if self._last_ids[name] == "$":
-                    self._last_ids[name] = "$"
             return 0
 
         consumed = 0

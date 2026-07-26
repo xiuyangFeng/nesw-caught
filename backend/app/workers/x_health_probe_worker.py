@@ -87,3 +87,27 @@ class XHealthProbeWorker(BaseWorker):
             latency_ms,
         )
         return 1
+
+
+def should_run_x_health_probe(settings=None) -> bool:
+    """探针是否需要拉起（与 provider 配置绑定，与进程归属无关）。"""
+    settings = settings or get_settings()
+    return bool(settings.x_monitor_enabled and settings.twitterapi_io_api_key)
+
+
+def build_x_health_probe_worker(
+    session_factory: Callable[[], Session],
+    *,
+    logger: logging.Logger | None = None,
+) -> XHealthProbeWorker | None:
+    """按配置构造探针 worker；不需要时返回 None。
+
+    进程归属:本 worker 是纯外网探针（每 600s 一次 HTTP 往返 + 一条 UPDATE），
+    留在 web 进程里没有任何必要,因此它与 pipeline worker 一起受
+    `PIPELINE_WORKERS_ENABLED` 支配 —— 开关为 true 时随 web 进程（单进程默认
+    形态,行为不变）,为 false 时由独立 pipeline worker 进程承载。它只写
+    `x_source_health` 一张表且是幂等覆盖写,没有跨进程租约问题。
+    """
+    if not should_run_x_health_probe():
+        return None
+    return XHealthProbeWorker(session_factory=session_factory, logger=logger)

@@ -446,3 +446,82 @@ class BackgroundQueueWorker(BaseWorker):
             self.inflight.active_count(),
         )
         return summary.processed_count
+
+
+DEFAULT_ORPHAN_DRAIN_INTERVAL_SECONDS = 60.0
+
+
+class OrphanQueueDrainWorker(BaseWorker):
+    """多进程形态下，web 进程里「无消费者的进程内队列」回收器。
+
+    背景:`analysis_queue` 与 `takeaway_queue` 都是**进程内**的 `queue.Queue`,
+    而它们的生产者留在 web 进程里:
+
+    - `NewsIngestScheduler._drain_signal_backlog()` 每个 tick 把 pending id
+      塞进 `analysis_queue`（scheduler 仍随 web 进程运行）;
+    - `NewsFeedLayoutService` 在**请求线程**里把高分候选塞进 `takeaway_queue`。
+
+    `PIPELINE_WORKERS_ENABLED=false` 时这两个队列在 web 进程内再无消费者,不回收
+    就是慢性内存泄漏。真正的消费发生在独立 pipeline worker 进程里:analysis 侧走
+    「Redis 事件 + 每 30s 的 DB 兜底扫描」,takeaway 侧走
+    `takeaway_fallback_scan_interval_seconds` 的 DB 兜底扫描,所以在这里丢弃**不会**
+    丢工作量,只是丢掉一份本进程用不上的副本。
+
+    刻意**不**释放 `analysis_inflight` 里的租约:释放会让 scheduler 下一个 tick
+    立刻重新领取并重新入队,变成 5s 一次的空转;让它按 600s 自然过期即可,租约表
+    本身的规模由 pending 数量封顶。
+    """
+
+    worker_name = "orphan_queue_drainer"
+
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session],
+        interval_seconds: float | None = None,
+        logger: logging.Logger | None = None,
+    ) -> None:
+        super().__init__(session_factory=session_factory, logger=logger)
+        settings = _safe_settings()
+        self.interval_seconds = max(
+            float(
+                _resolve(
+                    interval_seconds,
+                    settings,
+                    "orphan_queue_drain_interval_seconds",
+                    DEFAULT_ORPHAN_DRAIN_INTERVAL_SECONDS,
+                )
+            ),
+            1.0,
+        )
+
+    def get_interval(self) -> float:
+        return self.interval_seconds
+
+    @staticmethod
+    def _drain(target: queue.Queue) -> int:
+        dropped = 0
+        while True:
+            try:
+                chunk = target.get_nowait()
+            except queue.Empty:
+                return dropped
+            target.task_done()
+            dropped += len(chunk) if isinstance(chunk, (list, set, tuple)) else 1
+
+    def do_cycle(self) -> int:
+        # 延迟导入:避免 queue_worker -> news_takeaway 的模块级依赖（news_takeaway
+        # 只被 feed layout 这条请求侧链路需要）。
+        from app.services.news_takeaway import takeaway_queue
+
+        dropped_analysis = self._drain(analysis_queue)
+        dropped_takeaway = self._drain(takeaway_queue)
+        total = dropped_analysis + dropped_takeaway
+        if total:
+            self.logger.info(
+                "orphan queue drained (pipeline workers run out-of-process): "
+                "analysis_ids=%s takeaway_ids=%s",
+                dropped_analysis,
+                dropped_takeaway,
+            )
+        return total

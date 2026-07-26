@@ -41,11 +41,21 @@ settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
+#
 # disable_existing_loggers must stay False: migrations also run inside the app
 # process (initialize_database() at startup / in tests) after app.* module
 # loggers already exist, and the fileConfig default (True) would permanently
 # silence all of them.
-if config.config_file_name is not None:
+#
+# 但只有 False 还不够：alembic.ini 的 [logger_root] level=WARNING 且
+# handlers=console，fileConfig 会把 **root logger 的等级压到 WARNING 并换掉它的
+# handler**。migrations 在应用进程内跑（initialize_database()），于是启动之后进程
+# 里所有 INFO 日志都被吞掉 —— 包括本次重构补的全部链路耗时埋点（pipeline
+# 各阶段 ms、queue 深度、source 抓取延迟），可观测性直接归零。
+#
+# 用 alembic 官方的 configure_logger attribute 约定：以 CLI 方式运行时照常配置
+# 日志；由应用内部调用时，调用方置 False，日志配置权归 app.core.logging。
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
