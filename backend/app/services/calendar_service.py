@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -38,6 +41,11 @@ _calendar_cache: SimpleTTLCache | None = None
 # JSON 快照落盘路径（backend/data/ 已被 .gitignore 忽略，不会污染版本库）。
 _SNAPSHOT_PATH = Path(__file__).resolve().parents[2] / "data" / "calendar_snapshot.json"
 
+# 冷启动（缓存全空）时整批拉取的墙钟上限。此前是逐 symbol 串行调用 yfinance，
+# N 只自选股 = N 次串行网络，请求线程会被挂住数十秒；现在并发 + 整批封顶，
+# 超时未返回的 symbol 计入 skipped，绝不拖住 /calendar 请求。
+_CALENDAR_BATCH_TIMEOUT_SECONDS = 20.0
+
 
 def _get_cache() -> SimpleTTLCache:
     global _calendar_cache
@@ -53,6 +61,18 @@ def clear_calendar_cache() -> None:
     """清空进程内日历缓存（供测试隔离使用）。"""
     if _calendar_cache is not None:
         _calendar_cache.clear()
+
+
+def _release_session(session: Session) -> None:
+    """联网之前结束只读事务，把 SQLite 连接尽早还给其它请求/worker。
+
+    调用方须先把需要的 ORM 字段取成普通值（rollback 会让本事务内加载的 ORM
+    对象过期）。传入 Mock session 时静默忽略。
+    """
+    try:
+        session.rollback()
+    except Exception:  # pragma: no cover - 测试里可能传入 Mock session
+        pass
 
 
 def _make_ticker(provider_symbol: str) -> Any:
@@ -127,22 +147,32 @@ class CalendarService:
         display_by_symbol: dict[str, str | None] = {}
         skipped_count = 0
 
+        # 阶段一：只读库，把归一化结果拍平成普通值。
+        targets: list[tuple[str, str, str | None]] = []  # (symbol, provider_symbol, display_name)
         for item in items:
             try:
                 normalized = normalize_symbol(item.symbol, item.market)
             except ValueError:
                 skipped_count += 1
                 continue
+            targets.append((normalized.symbol, normalized.provider_symbol, item.display_name))
 
-            raw_events = self._fetch_symbol_events(normalized.provider_symbol)
+        # 释放只读事务后再联网，避免抓取期间一直占着 SQLite 连接。
+        _release_session(session)
+
+        # 阶段二：并发抓取（缓存命中的不会真的走网络）。
+        events_by_provider = self._fetch_events_concurrently([provider for _, provider, _ in targets])
+
+        for symbol, provider_symbol, display_name in targets:
+            raw_events = events_by_provider.get(provider_symbol)
             if raw_events is None:
                 skipped_count += 1
                 continue
 
             # 用归一化后的 symbol 作为键，与 /market/watchlist 行情载荷的 symbol
             # 对齐，前端卡片角标才能按 row.symbol 命中。
-            raw_by_symbol[normalized.symbol] = raw_events
-            display_by_symbol[normalized.symbol] = item.display_name
+            raw_by_symbol[symbol] = raw_events
+            display_by_symbol[symbol] = display_name
 
         result = self._build_response(raw_by_symbol, display_by_symbol, days=days, skipped_count=skipped_count)
         self._maybe_write_snapshot(raw_by_symbol, display_by_symbol)
@@ -166,6 +196,8 @@ class CalendarService:
         except ValueError:
             return self._build_response({}, {}, days=days, skipped_count=1)
 
+        # 联网前先释放只读事务。
+        _release_session(session)
         raw_events = self._fetch_symbol_events(normalized.provider_symbol)
         if raw_events is None:
             return self._build_response({}, {}, days=days, skipped_count=1)
@@ -180,6 +212,45 @@ class CalendarService:
     # ------------------------------------------------------------------
     # 内部实现
     # ------------------------------------------------------------------
+    def _fetch_events_concurrently(self, provider_symbols: list[str]) -> dict[str, list[dict] | None]:
+        """并发抓取多只 symbol 的原始事件，返回 {provider_symbol: events | None}。
+
+        - 命中 TTL 缓存的 symbol 直接返回，不占用线程；
+        - 整批设墙钟上限，超时的 symbol 记为 None（调用方计入 skipped）。
+        """
+        results: dict[str, list[dict] | None] = {}
+        pending: list[str] = []
+        cache = _get_cache()
+        for provider_symbol in dict.fromkeys(provider_symbols):
+            cached = cache.get(provider_symbol)
+            if cached is not None:
+                results[provider_symbol] = cached
+            else:
+                pending.append(provider_symbol)
+
+        if not pending:
+            return results
+
+        max_workers = max(1, int(getattr(get_settings(), "market_chart_max_workers", 8)))
+        deadline = time.monotonic() + _CALENDAR_BATCH_TIMEOUT_SECONDS
+        pool = ThreadPoolExecutor(max_workers=min(len(pending), max_workers))
+        try:
+            futures = [(symbol, pool.submit(self._fetch_symbol_events, symbol)) for symbol in pending]
+            for provider_symbol, future in futures:
+                remaining = max(0.0, deadline - time.monotonic())
+                try:
+                    results[provider_symbol] = future.result(timeout=remaining)
+                except FutureTimeoutError:
+                    logger.warning("calendar fetch timed out for %s", provider_symbol)
+                    results[provider_symbol] = None
+                except Exception as exc:  # pragma: no cover - _fetch_symbol_events 已自行兜底
+                    logger.warning("calendar fetch failed for %s: %s", provider_symbol, exc)
+                    results[provider_symbol] = None
+        finally:
+            # 不能 wait=True，否则整批超时会被 shutdown 重新阻塞回去。
+            pool.shutdown(wait=False, cancel_futures=True)
+        return results
+
     def _fetch_symbol_events(self, provider_symbol: str) -> list[dict] | None:
         """取单只 symbol 的原始事件列表（命中缓存则不再调用 yfinance）。
 

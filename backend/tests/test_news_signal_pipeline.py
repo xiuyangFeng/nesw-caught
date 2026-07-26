@@ -431,6 +431,8 @@ def test_chinese_theme_words_contribute_to_topic_key() -> None:
 
 
 def test_apply_result_writes_takeaway_without_overwrite() -> None:
+    from datetime import datetime
+
     import sqlalchemy as sa
 
     from app.db.session import SessionLocal
@@ -440,7 +442,6 @@ def test_apply_result_writes_takeaway_without_overwrite() -> None:
     from app.models.topic_news_link import TopicNewsLink
     from app.services.news_signal_classifier import ClassificationResult
     from app.services.news_signal_pipeline import NewsSignalPipelineService
-    from datetime import datetime, timezone
 
     def _result(takeaway: str) -> ClassificationResult:
         return ClassificationResult(
@@ -462,7 +463,7 @@ def test_apply_result_writes_takeaway_without_overwrite() -> None:
             canonical_url="https://example.com/apply-tk",
             url_hash="hash-apply-tk",
             market="us",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
         session.add(item)
         session.flush()

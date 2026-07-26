@@ -15,6 +15,7 @@ import math
 import re
 from collections import OrderedDict
 from collections.abc import Callable
+from functools import lru_cache
 from hashlib import sha256
 from typing import Protocol
 
@@ -32,6 +33,12 @@ MIN_TOKENS_FOR_FUZZY = 4
 
 _LATIN_TOKEN_RE = re.compile(r"[a-z0-9]+")
 _CJK_RE = re.compile(r"[一-鿿]")
+# 数字指纹:整数/小数/百分数,含中文数量单位前的数字("50.68万"取 50.68 + 万)。
+_NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
+_CJK_MONTH_RE = re.compile(r"(\d{1,2})\s*月")
+# simhash 记忆化容量:一次 prime 生命周期内窗口候选通常几十~几百条,
+# 4096 足以让整批比较全部命中缓存(修复 P1-3 的 O(items×candidates×tokens))。
+_SIMHASH_CACHE_SIZE = 4096
 
 
 def tokenize_title(title: str) -> list[str]:
@@ -48,7 +55,15 @@ def tokenize_title(title: str) -> list[str]:
     return tokens
 
 
+@lru_cache(maxsize=_SIMHASH_CACHE_SIZE)
 def simhash64(title: str) -> int:
+    """标题 SimHash(64-bit),按标题字符串记忆化。
+
+    修复 P1-3：`titles_look_duplicate` 此前每次调用都重算两侧 simhash
+    (每 token 一次 sha256、无缓存),而它跑在【持有 SQLite 写连接的串行落库段】里,
+    复杂度是 O(items × candidates × tokens)。同一批候选标题会被反复比较,
+    记忆化后同一标题只算一次。测试可用 `simhash64.cache_clear()` 复位。
+    """
     tokens = tokenize_title(title)
     if not tokens:
         return 0
@@ -173,8 +188,29 @@ def set_secondary_judge(judge: SecondaryDuplicateJudge) -> None:
     _secondary_judge = judge
 
 
+def numeric_fingerprint(title: str) -> frozenset[str]:
+    """标题里的数字/月份指纹。
+
+    金融快讯恰恰靠数字区分:"CPI 同比上涨 0.2%" vs "0.6%"、
+    "初请失业金 21.9万" vs "23.9万"、"11月销量" vs "10月销量"。
+    千分位逗号统一去掉,避免 "1,250" 与 "1250" 被当成不同数字。
+    """
+    numbers = {value.replace(",", "") for value in _NUMBER_RE.findall(title)}
+    months = {f"m{value}" for value in _CJK_MONTH_RE.findall(title)}
+    return frozenset(numbers | months)
+
+
+def numbers_contradict(title_a: str, title_b: str) -> bool:
+    """两个标题的数字指纹是否互相矛盾(至少一侧有数字且两侧不相等)。"""
+    left = numeric_fingerprint(title_a)
+    right = numeric_fingerprint(title_b)
+    if not left and not right:
+        return False
+    return left != right
+
+
 def titles_look_duplicate(title_a: str, title_b: str) -> bool:
-    """两个标题是否近重复(SimHash + 可插拔二次判重)。"""
+    """两个标题是否近重复(SimHash + 数字否决 + 可插拔二次判重)。"""
     tokens_a = tokenize_title(title_a)
     tokens_b = tokenize_title(title_b)
     if len(tokens_a) < MIN_TOKENS_FOR_FUZZY or len(tokens_b) < MIN_TOKENS_FOR_FUZZY:
@@ -184,5 +220,10 @@ def titles_look_duplicate(title_a: str, title_b: str) -> bool:
     if distance <= SIMHASH_DUPLICATE_THRESHOLD:
         return True
     if distance <= GRAY_ZONE_THRESHOLD:
+        # 修复 P2-3:灰区里"只差一个数字/月份"的金融数据快讯(距离多在 4~6)
+        # 交给 embedding 判官几乎必然被判成重复。先做一道数字/日期差异否决,
+        # 数字集不同即判为【不重复】,不再询问二次判官。
+        if numbers_contradict(title_a, title_b):
+            return False
         return get_secondary_judge().is_duplicate(title_a, title_b) is True
     return False

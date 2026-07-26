@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
 from app.services import http_pool
+from app.services.ingestion.dedup_gate import normalize_url_for_hash
 from app.services.ingestion.parser import _parse_minimax_detail_html
 from app.services.ingestion.types import SourceDefinition, SourceItem
 
@@ -104,7 +105,12 @@ def hydrate_minimax_detail_items(
 
     cooldown = cooldown if cooldown is not None else minimax_detail_cooldown
 
-    url_hashes = [sha256(item.canonical_url.encode("utf-8")).hexdigest() for item in items]
+    # 必须与 persister.persist_item 用同一套归一化后再算 hash，否则带跟踪参数的
+    # URL 在这里算出的 hash 与库里实际存的对不上，既有行会查不到 → 详情水合白跑、
+    # 冷却表也失效。
+    url_hashes = [
+        sha256(normalize_url_for_hash(item.canonical_url).encode("utf-8")).hexdigest() for item in items
+    ]
     existing_rows = session.scalars(select(NewsItem).where(NewsItem.url_hash.in_(url_hashes))).all()
     existing_by_hash = {row.url_hash: row for row in existing_rows}
     article_by_news_id: dict[int, ArticleContent] = {}

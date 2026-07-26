@@ -214,3 +214,13 @@ def test_symbol_calendar_not_in_watchlist():
     summaries = {s["symbol"]: s for s in result["summaries"]}
     assert summaries[SYM_A]["next_earnings_days_until"] == 8
     assert summaries[SYM_A]["display_name"] is None
+
+
+def test_clear_calendar_cache_invalidates_cache():
+    clear_calendar_cache()
+    cache = calendar_module._get_cache()
+    cache.set("test_key", {"data": 123})
+    assert cache.get("test_key") == {"data": 123}
+
+    clear_calendar_cache()
+    assert cache.get("test_key") is None

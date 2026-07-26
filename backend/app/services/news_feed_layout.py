@@ -175,6 +175,18 @@ DEFAULT_SOURCE_WEIGHT = 1.0
 
 DECAY_LAMBDA = 0.03
 
+# feed-layout / 事件详情共用的 topic 候选池上限。
+#
+# 此前两条路径都无条件 `list_all()` 拉全部 topic(线上实测 334 条)再批量拉回它们
+# 的全部关联新闻(533 条),而对外只输出 6 个事件 / 6 个话题。这里按
+# (importance_score, last_seen_at) 降序取固定的前 N 条作为候选池。
+#
+# 之所以用**固定常量**而不是 `limit_topics * 3` 之类随请求参数变化的值:事件卡片的
+# event_key 来自融合结果(`fused-topic-1-topic-2`),候选池不同会融合出不同的 key,
+# /news/feed-layout 与 /news/events/{event_key} 就会对不上(点卡片 404)。固定常量
+# 保证两条路径看到完全相同的候选集合。60 对上限 limit_events/limit_topics=20 留了 3x 冗余。
+TOPIC_CANDIDATE_LIMIT = 60
+
 # editorial 评分权重(集中声明,便于调参与灰度)
 EDITORIAL_TOPIC_WEIGHT = 0.4
 EDITORIAL_SOURCE_WEIGHT = 0.25
@@ -234,9 +246,7 @@ def _title_tokens(title: str) -> set[str]:
     return set(tokens) - {"the", "and", "for", "with", "from", "after", "near", "over", "into"}
 
 
-def _title_overlap(title_a: str, title_b: str) -> float:
-    tokens_a = _title_tokens(title_a)
-    tokens_b = _title_tokens(title_b)
+def _token_overlap(tokens_a: set[str], tokens_b: set[str]) -> float:
     if not tokens_a or not tokens_b:
         return 0.0
     intersection = tokens_a & tokens_b
@@ -244,8 +254,8 @@ def _title_overlap(title_a: str, title_b: str) -> float:
     return len(intersection) / len(union)
 
 
-def _symbol_overlap(symbols_a: list[str], symbols_b: list[str]) -> int:
-    return len(set(symbols_a) & set(symbols_b))
+def _title_overlap(title_a: str, title_b: str) -> float:
+    return _token_overlap(_title_tokens(title_a), _title_tokens(title_b))
 
 
 def _watchlist_hits_for_symbols(
@@ -293,16 +303,49 @@ def _attach_watchlist_hits(
     ]
 
 
-def _should_fuse(card_a: NewsFeedEventCardView, card_b: NewsFeedEventCardView) -> bool:
+class _FuseFeatureCache:
+    """按 event_key 缓存融合判定要用的标题分词 / symbol 集合。
+
+    融合是 O(n²) 两两比较,旧实现每比较一次就对两张卡片的标题重新跑一遍 re.findall
+    分词、对 related_symbols 重新建 set,分词次数是 O(n²);缓存后降为 O(n)。
+    event_key 在一次融合过程中天然唯一(`topic-N` 或 `fused-a-b`),可安全作缓存键。
+    """
+
+    def __init__(self) -> None:
+        self._tokens: dict[str, set[str]] = {}
+        self._symbols: dict[str, set[str]] = {}
+
+    def tokens(self, card: NewsFeedEventCardView) -> set[str]:
+        cached = self._tokens.get(card.event_key)
+        if cached is None:
+            cached = _title_tokens(card.event_title)
+            self._tokens[card.event_key] = cached
+        return cached
+
+    def symbols(self, card: NewsFeedEventCardView) -> set[str]:
+        cached = self._symbols.get(card.event_key)
+        if cached is None:
+            cached = set(card.related_symbols)
+            self._symbols[card.event_key] = cached
+        return cached
+
+
+def _should_fuse(
+    card_a: NewsFeedEventCardView,
+    card_b: NewsFeedEventCardView,
+    *,
+    features: _FuseFeatureCache | None = None,
+) -> bool:
     if card_a.event_type == "general" or card_b.event_type == "general":
         return False
     if card_a.event_type != card_b.event_type:
         return False
     if card_a.primary_symbol and card_a.primary_symbol == card_b.primary_symbol:
         return True
-    if _symbol_overlap(card_a.related_symbols, card_b.related_symbols) >= 2:
+    features = features or _FuseFeatureCache()
+    if len(features.symbols(card_a) & features.symbols(card_b)) >= 2:
         return True
-    if _title_overlap(card_a.event_title, card_b.event_title) >= 0.5:
+    if _token_overlap(features.tokens(card_a), features.tokens(card_b)) >= 0.5:
         return True
     return False
 
@@ -355,16 +398,28 @@ def fuse_event_cards(
 ) -> list[NewsFeedEventCardView]:
     if len(cards) <= 1:
         return cards
+
+    # 候选剪枝:event_type 不同或为 general 的卡片一定不融合(见 _should_fuse 的前两个
+    # 分支),所以内层只需要遍历同类型的后继卡片。分桶保持原有下标顺序,融合结果与
+    # 全量两两比较完全一致,只是省掉了必然为 False 的比较。
+    indices_by_type: dict[str, list[int]] = {}
+    for index, card in enumerate(cards):
+        if card.event_type == "general":
+            continue
+        indices_by_type.setdefault(card.event_type, []).append(index)
+
+    features = _FuseFeatureCache()
     fused_indices: set[int] = set()
     result: list[NewsFeedEventCardView] = []
     for i, card in enumerate(cards):
         if i in fused_indices:
             continue
         current = card
-        for j in range(i + 1, len(cards)):
-            if j in fused_indices:
+        # 融合后 event_type 取 primary 的类型,不会变,所以候选桶在内层循环中保持不变。
+        for j in indices_by_type.get(card.event_type, ()):
+            if j <= i or j in fused_indices:
                 continue
-            if _should_fuse(current, cards[j]):
+            if _should_fuse(current, cards[j], features=features):
                 current = _merge_cards(current, cards[j], max_news_items=max_news_items)
                 fused_indices.add(j)
         result.append(current)
@@ -377,8 +432,10 @@ def build_event_cards(
     topic_news_map: dict[int, list[NewsItemSummary]],
     topic_mentions_map: dict[int, list[str]],
     max_news_items: int | None = 3,
+    source_weight_map: dict[str, float] | None = None,
 ) -> list[NewsFeedEventCardView]:
-    weight_map = _source_weight_map()
+    # source_weight_map 由调用方传入时复用,避免同一请求里重复 load_sources()(os.stat)。
+    weight_map = _source_weight_map() if source_weight_map is None else source_weight_map
     event_cards: list[NewsFeedEventCardView] = []
     for topic in topics:
         if not _qualifies_as_event(topic):
@@ -464,8 +521,9 @@ class NewsFeedLayoutService:
         topic_views: list[NewsFeedTopicView],
         topic_news_map: dict[int, list[NewsItemSummary]],
         topic_mentions_map: dict[int, list[str]],
+        source_weight_map: dict[str, float] | None = None,
     ) -> list[NewsItemSummary]:
-        weight_map = _source_weight_map()
+        weight_map = _source_weight_map() if source_weight_map is None else source_weight_map
         news_to_topic: dict[int, tuple[float, list[str]]] = {}
         for topic in topic_views:
             topic_importance = topic.importance_score
@@ -497,11 +555,15 @@ class NewsFeedLayoutService:
         self,
         *,
         market: str | None = None,
+        topic_limit: int | None = TOPIC_CANDIDATE_LIMIT,
     ) -> tuple[list[NewsFeedTopicView], dict[int, list[NewsItemSummary]], dict[int, list[str]]]:
-        topics = self.topic_repository.list_all()
+        # 只取候选池内的 topic:此前无条件全量(线上 334 条)。topic_limit 必须在
+        # feed-layout 与事件详情之间保持一致,否则融合出的 event_key 会对不上。
+        topics = self.topic_repository.list_all(limit=topic_limit)
         topic_ids = [t.id for t in topics]
 
-        batch_news = self.topic_repository.batch_news_for_topics(topic_ids)
+        # market 过滤下推到 SQL,不再“先全量 hydrate 再在 Python 里丢掉”。
+        batch_news = self.topic_repository.batch_news_for_topics(topic_ids, market=market)
         batch_symbols = self.topic_repository.batch_related_symbols(topic_ids, market=market)
 
         topic_views: list[NewsFeedTopicView] = []
@@ -510,8 +572,6 @@ class NewsFeedLayoutService:
 
         for topic in topics:
             news_items = batch_news.get(topic.id, [])
-            if market:
-                news_items = [item for item in news_items if item.market == market]
             if not news_items:
                 continue
 
@@ -558,28 +618,24 @@ class NewsFeedLayoutService:
         watchlist_items: list[WatchlistItem] | None = None,
     ) -> NewsEventDetailView | None:
         watchlist_items = watchlist_items or []
+        # 旧实现把 build_event_cards 跑了两遍(一遍 max_news_items=3 拿卡片头部字段,
+        # 一遍 max_news_items=None 拿完整新闻列表),等于让 O(n²) 融合算法跑两次。
+        # max_news_items 只影响 news_items 的截断,不参与融合判定(_should_fuse 只看
+        # event_type / primary_symbol / related_symbols / event_title),而详情最终
+        # 输出的 news_count / source_count / news_items 本来就全部取自“完整版”卡片,
+        # 其余字段两遍完全一致。因此只跑一遍 max_news_items=None 即可。
         cards = build_event_cards(
             topic_views,
             topic_news_map=topic_news_map,
             topic_mentions_map=topic_mentions_map,
+            max_news_items=None,
         )
         cards = _attach_watchlist_hits(cards, watchlist_items)
         event_card = next((card for card in cards if card.event_key == event_key), None)
         if event_card is None:
             return None
 
-        full_cards = build_event_cards(
-            topic_views,
-            topic_news_map=topic_news_map,
-            topic_mentions_map=topic_mentions_map,
-            max_news_items=None,
-        )
-        full_cards = _attach_watchlist_hits(full_cards, watchlist_items)
-        full_event_card = next((card for card in full_cards if card.event_key == event_key), None)
-        if full_event_card is None:
-            return None
-
-        full_news_items = sorted(full_event_card.news_items, key=_news_sort_key, reverse=True)
+        full_news_items = sorted(event_card.news_items, key=_news_sort_key, reverse=True)
         payload = event_card.model_dump()
         payload["news_count"] = len(full_news_items)
         payload["source_count"] = len({item.source_name for item in full_news_items})
@@ -589,6 +645,8 @@ class NewsFeedLayoutService:
         )
 
     def get_event_detail(self, event_key: str) -> NewsEventDetailView | None:
+        # 候选池与 build() 保持一致(同一个 TOPIC_CANDIDATE_LIMIT),否则融合出的
+        # event_key 与 feed-layout 返回的对不上。
         topic_views, topic_news_map, topic_mentions_map = self._collect_topic_context()
         watchlist_items = self.watchlist_repository.list_all()
         return self._build_event_detail(
@@ -614,13 +672,23 @@ class NewsFeedLayoutService:
 
         topic_views, topic_news_map, topic_mentions_map = self._collect_topic_context(market=market)
         watchlist_items = self.watchlist_repository.list_all()
+        # 每请求只解析一次源权重表(旧实现在 build_event_cards 与 _stream_editorial_scores
+        # 里各调一次 _source_weight_map() → 两次 load_sources() → 两次 os.stat)。
+        source_weight_map = _source_weight_map()
         event_cards = build_event_cards(
-            topic_views, topic_news_map=topic_news_map, topic_mentions_map=topic_mentions_map
+            topic_views,
+            topic_news_map=topic_news_map,
+            topic_mentions_map=topic_mentions_map,
+            source_weight_map=source_weight_map,
         )
         event_cards = _attach_watchlist_hits(event_cards, watchlist_items)
 
         scored_stream = self._stream_editorial_scores(
-            stream_items, topic_views, topic_news_map, topic_mentions_map
+            stream_items,
+            topic_views,
+            topic_news_map,
+            topic_mentions_map,
+            source_weight_map=source_weight_map,
         )
 
         self._enqueue_takeaway_candidates(event_cards[:limit_events], scored_stream)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
@@ -11,6 +12,10 @@ from app.repositories.source_health_repository import SourceHealthRepository
 from app.schemas.source_health import NewsRuntimeMarketView, NewsRuntimeSourceView, NewsRuntimeView
 from app.services.event_bus import get_event_bus
 from app.services.news_ingestion import load_sources
+
+# 每个 (源, 市场) 的最新新闻只需要这几列，不再 hydrate 整个 NewsItem ORM 对象；
+# 这里拿到的是 SQLAlchemy Row（id / source_name / market / published_at / fetched_at）。
+_LatestNewsFact = Any
 
 RECENT_INCREMENTAL_WINDOW = timedelta(minutes=5)
 RECENT_MARKET_NEWS_WINDOW = timedelta(minutes=30)
@@ -80,20 +85,40 @@ class NewsRuntimeService:
         )
         source_keys = {(row.source_name, row.market) for row in source_health_rows}
 
-        latest_news_by_source: dict[tuple[str, str], NewsItem] = {}
+        latest_news_by_source: dict[tuple[str, str], _LatestNewsFact] = {}
         if source_keys:
             # SQL 聚合替代全表物化：先按 (source_name, market) GROUP BY 取 MAX(fetched_at)，
             # 再回表取该行字段；物化行数从 N 降到“表内 (源, 市场) 组合数 + 并列行”。
+            #
+            # 两点让它能吃到 (source_name, market, fetched_at) 复合索引：
+            # 1) 分组键与 MAX() 的列都是裸列，没有函数包裹（lower()/date() 之类会直接
+            #    让 SQLite 放弃索引，退化成全表扫 + 临时 B 树）；
+            # 2) 先按在册的源名 / 市场把行数收窄，再做 GROUP BY——此前对整张 news_item
+            #    分组，连早已下线的历史源都要参与聚合。
+            known_source_names = sorted({name for name, _ in source_keys})
+            known_markets = sorted({market for _, market in source_keys})
             latest_per_source = (
                 select(
                     NewsItem.source_name.label("source_name"),
                     NewsItem.market.label("market"),
                     func.max(NewsItem.fetched_at).label("max_fetched_at"),
                 )
+                .where(
+                    NewsItem.source_name.in_(known_source_names),
+                    NewsItem.market.in_(known_markets),
+                )
                 .group_by(NewsItem.source_name, NewsItem.market)
                 .subquery()
             )
-            stmt = select(NewsItem).join(
+            # 只取需要的列，避免为每个 (源, 市场) 组合 hydrate 一整个 ORM 对象
+            # （含 summary / ai_takeaway / signal_error 三个 Text 列）。
+            stmt = select(
+                NewsItem.id,
+                NewsItem.source_name,
+                NewsItem.market,
+                NewsItem.published_at,
+                NewsItem.fetched_at,
+            ).join(
                 latest_per_source,
                 and_(
                     NewsItem.source_name == latest_per_source.c.source_name,
@@ -101,7 +126,7 @@ class NewsRuntimeService:
                     NewsItem.fetched_at == latest_per_source.c.max_fetched_at,
                 ),
             )
-            for row in self.session.scalars(stmt):
+            for row in self.session.execute(stmt):
                 source_key = (row.source_name, row.market)
                 if source_key not in source_keys:
                     continue
@@ -111,7 +136,7 @@ class NewsRuntimeService:
                     latest_news_by_source[source_key] = row
 
         # 市场最新 = 各在册源最新行中 (fetched_at, id) 最大者，与旧全表折叠算法等价
-        latest_news_by_market: dict[str, NewsItem] = {}
+        latest_news_by_market: dict[str, _LatestNewsFact] = {}
         for row in latest_news_by_source.values():
             existing = latest_news_by_market.get(row.market)
             if existing is None or (row.fetched_at, row.id) > (existing.fetched_at, existing.id):

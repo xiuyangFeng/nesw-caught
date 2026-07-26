@@ -17,6 +17,14 @@ class NewsItem(TimestampMixin, Base):
         # 信号流水线 pending 队列（signal_status IS NULL）的局部索引：只覆盖待处理行，
         # 避免 list_pending_news_ids 全表扫描，同时不为已处理行付写入代价。
         Index("ix_news_pending", "id", sqlite_where=text("signal_status IS NULL")),
+        # ↓ 2026-07-25 重构新增。此前这三类查询都要全表扫 + 临时 b-tree 排序：
+        # 1) 按情绪筛选：sentiment_label 此前完全没有索引；
+        # 2) 按来源筛选 + 按 effective_at 排序：source_name 只有单列索引，
+        #    无法同时服务排序，必然产生 temp sort；
+        # 3) /news/runtime 的 GROUP BY (source_name, market) + MAX(fetched_at)。
+        Index("ix_news_sentiment_effective_id", "sentiment_label", "effective_at", "id"),
+        Index("ix_news_source_effective_id", "source_name", "effective_at", "id"),
+        Index("ix_news_source_market_fetched", "source_name", "market", "fetched_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

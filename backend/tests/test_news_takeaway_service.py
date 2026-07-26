@@ -1,6 +1,6 @@
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -35,7 +35,7 @@ def _make_item(session, *, suffix: str, takeaway: str | None = None) -> NewsItem
         canonical_url=f"https://example.com/tk-{suffix}",
         url_hash=f"hash-tk-{suffix}",
         market="us",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
         ai_takeaway=takeaway,
     )
     session.add(item)

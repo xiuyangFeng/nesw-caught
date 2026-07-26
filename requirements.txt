@@ -8,6 +8,12 @@ sqlalchemy==2.0.48
 alembic==1.18.4
 httpx==0.28.1
 beautifulsoup4==4.14.3
+# lxml 此前是「装了就用、没装就退回 html.parser」的隐式可选依赖（见
+# article_crawler/parser 里的 _BS4_PARSER 探测）。两种解析器对畸形 HTML 的
+# 恢复行为不同，等于让抓取结果依赖机器环境、测试不可复现——因此改为显式固定
+# 依赖。同时它也是正文抽取的主要提速来源：html.parser 是纯 Python 且解析全程
+# 持有 GIL，实测单页 540KB 建树 87ms，会直接拖慢同进程的接口响应。
+lxml==6.0.2
 cryptography==48.0.1
 pydantic==2.12.5
 pydantic-settings==2.13.1

@@ -1,0 +1,51 @@
+{
+  "errno": 0,
+  "msg": "",
+  "data": {
+    "roll_data": [
+      {
+        "id": 2437126,
+        "title": "我国蜂群无人机首次实现台风过境全程立体观测",
+        "brief": "【我国蜂群无人机首次实现台风过境全程立体观测】财联社7月26日电，记者从中国气象局获悉，台风“红霞”影响我国期间，气象科研人员首次采用蜂群无人机观测方式，针对台风登陆全过程开展高频率、多维度观测试验。",
+        "content": "【我国蜂群无人机首次实现台风过境全程立体观测】财联社7月26日电，记者从中国气象局获悉。",
+        "ctime": 1785039855,
+        "modified_time": 1785039855,
+        "shareurl": "https://api3.cls.cn/share/article/2437126?os=web&sv=8.4.6&app=CailianpressWeb",
+        "level": "C",
+        "stock_list": [],
+        "subjects": []
+      },
+      {
+        "id": 2437127,
+        "title": "",
+        "brief": "【A股三大指数集体高开】财联社7月26日电，沪指开盘涨0.31%，深成指涨0.42%，创业板指涨0.55%。",
+        "content": "【A股三大指数集体高开】财联社7月26日电，沪指开盘涨0.31%。",
+        "ctime": 1785040000,
+        "modified_time": 1785040000,
+        "shareurl": "https://api3.cls.cn/share/article/2437127?os=web&sv=8.4.6&app=CailianpressWeb",
+        "level": "B",
+        "stock_list": [],
+        "subjects": []
+      },
+      {
+        "id": null,
+        "title": "缺少 id 的畸形条目",
+        "brief": "这条记录没有 id，应当被单条跳过而不是让整批失败。",
+        "ctime": 1785040100
+      },
+      "这不是一个对象",
+      {
+        "id": 2437129,
+        "title": "ctime 类型畸形但标题可用",
+        "brief": "ctime 是字符串，published_at 应降级为 None，条目本身仍要保留。",
+        "ctime": "not-a-timestamp",
+        "modified_time": null,
+        "level": "C"
+      }
+    ],
+    "is_vip": 0,
+    "update_num": 0,
+    "banners": [],
+    "dynamic_tag": []
+  }
+}

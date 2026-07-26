@@ -21,7 +21,30 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )
+    # ---------------------------------------------------------------------
+    # 连接池与并发（2026-07-25 重构新增）
+    # 此前 create_engine 未显式配置池，SQLAlchemy 对文件型 SQLite 默认
+    # QueuePool(pool_size=5, max_overflow=10) —— 只有 15 条连接，却要同时服务
+    # anyio 线程池里的全部同步路由 + 6 个后台 worker，池耗尽时请求会静默阻塞到
+    # pool_timeout(默认 30s) 才报错，表现为“点一下几秒没反应”。
+    # ---------------------------------------------------------------------
+    db_pool_size: int = 20
+    db_max_overflow: int = 30
+    # 池满时的等待上限：宁可快速失败并让上层重试，也不要静默卡 30 秒。
+    db_pool_timeout: float = 10.0
+    db_pool_recycle: int = 1800
+    # WAL 自动 checkpoint 页数（页大小 4KB → 2000 页 ≈ 8MB）。此前未设置，
+    # 持续读连接会饿死 checkpoint，实测 app.db-wal 长到 6.3MB 与主库同量级，
+    # 每次读都要先扫 WAL index，形成全局读放大。
+    sqlite_wal_autocheckpoint_pages: int = 2000
+    # FastAPI 同步(def)路由与 anyio.to_thread 共享的线程池上限，默认 40。
+    # 本项目几乎所有路由都是 def，SSE 连接此前还会常驻占用线程，40 很容易被吃满。
+    server_threadpool_size: int = 128
+
     stream_mode: str = "sse"
+    # SSE 单连接事件队列上限：此前无界，慢客户端会无限堆积。
+    stream_queue_maxsize: int = 500
+    stream_keepalive_seconds: float = 15.0
     event_bus_backend: str = "hybrid"
     redis_url: str = "redis://127.0.0.1:6379/0"
     redis_stream_news_ingested: str = "stream:news:ingested"
@@ -47,6 +70,44 @@ class Settings(BaseSettings):
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
     news_backoff_max_multiplier: int = 8
+    # ---------------------------------------------------------------------
+    # 抓取并发与超时（2026-07-25 重构：此前全部是散落在各模块的硬编码常量）
+    # ---------------------------------------------------------------------
+    news_fetch_max_workers: int = 16
+    news_crawl_max_workers: int = 8
+    # 正文「解析」并发上限，刻意远小于上面的「抓取」并发（news_crawl_max_workers）。
+    # 两者度量的是完全不同的资源：
+    #   * 抓取阶段是网络等待，httpx 在 socket 上阻塞时会释放 GIL，8 并发有真实收益；
+    #   * 解析阶段（BeautifulSoup + decompose + select_one/find_all + get_text）
+    #     是纯 CPU 且全程持有 GIL —— 本环境未装 lxml，BeautifulSoup 退回纯 Python
+    #     的 html.parser，实测 cpu/wall ≈ 1.00，即解析期间 GIL 一刻也不释放。
+    # 8 个线程同时解析几百 KB 的 HTML 会把 uvicorn 事件循环和 anyio 请求线程一起
+    # 饿死。端到端实测（120 条 540KB 页面，探测 /api/news/runtime）：
+    #   改造前(8 并发解析 + 逐个 select_one)  爬完 72.4s  p50 588ms  p95 1197ms
+    #   本值=2                                爬完 23.6s  p50 265ms  p95  425ms
+    #   本值=1                                爬完 25.7s  p50 156ms  p95  300ms
+    # 默认取 2 而不是 1：单槽位没有任何冗余，一个慢页面会把整批解析堵在队头；
+    # 2 既保住了头阻塞的缓冲，又把点击延迟压下来一个量级。对点击延迟特别敏感的
+    # 部署可以把它设成 1，代价是批次耗时约 +9%。
+    news_crawl_parse_concurrency: int = 2
+    # 单个页面进入解析前的最大字符数（按解码后的字符计，解析开销与文档规模近似线性）。
+    # 个别超大页面（日志页 / 聚合页 / 无限滚动快照）会长时间独占解析槽位拖垮整批，
+    # 超出即截断后再解析，而不是整条失败。<= 0 表示不限制。
+    news_crawl_max_html_chars: int = 1_000_000
+    news_classify_max_workers: int = 4
+    news_signal_backlog_batch_size: int = 50
+    # 正文抓取超时（此前 article_crawler 内硬编码 15.0）。
+    crawl_timeout_seconds: float = 15.0
+    # 单独收紧建连超时：httpx 的标量 timeout 会同时用于 connect/read/write/pool，
+    # 导致慢连接叠加慢读取时单请求实际耗时可达 timeout 的数倍。
+    http_connect_timeout_seconds: float = 5.0
+    # 进程重启后所有源的 next_due 同时为 0 会形成惊群，用抖动打散首轮。
+    news_scheduler_startup_jitter_seconds: float = 8.0
+    queue_worker_poll_interval_seconds: float = 1.0
+    queue_worker_fallback_scan_interval_seconds: float = 30.0
+    # 被 BackgroundQueueWorker 领取但尚未写回 signal_status 的新闻，在该租约时间内
+    # 不再被 scheduler 重复投递（此前每 5s 重投一次，造成重复爬正文 + 双倍 LLM）。
+    news_inflight_lease_seconds: float = 600.0
     # 手动 POST /news/refresh 的服务端冷却（秒）；0 = 关闭。默认 60 对齐前端节流。
     news_refresh_cooldown_seconds: float = 60.0
     x_monitor_enabled: bool = False
@@ -103,6 +164,14 @@ class Settings(BaseSettings):
     # Enable the in-process TTL caches on read-heavy news routes. Disabled by
     # the test suite (ROUTE_CACHE_ENABLED=false) except in dedicated cache tests.
     route_cache_enabled: bool = True
+    # SimpleTTLCache 容量上限（此前是裸 dict，无锁、无上限、无淘汰，feed-layout
+    # 的 key 含 4 个查询参数，可被任意 URL 撑爆内存）。
+    route_cache_max_entries: int = 512
+    # 事件详情路由此前完全无缓存，而它正是“点事件卡片”的路径。
+    event_detail_cache_ttl_seconds: float = 15.0
+    # 行情图表/日历等外部数据抓取的并发度（此前 sparklines 在请求线程里串行
+    # 逐个 yf.download，30 个标的最坏 300s）。
+    market_chart_max_workers: int = 8
     # Token usage buffer batching: flush to DB every N rows or after this many
     # seconds. Tests set TOKEN_USAGE_FLUSH_N=1 for synchronous persistence.
     token_usage_flush_n: int = 50

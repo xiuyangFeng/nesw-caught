@@ -6,8 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from hashlib import sha256
 
-import httpx
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -17,6 +16,7 @@ from app.models.news_item import NewsItem
 from app.models.news_stock_mention import NewsStockMention
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.services.google_news_search import GoogleNewsSearchClient, GoogleNewsSearchError
+from app.services.ingestion.dedup_gate import normalize_url_for_hash
 from app.services.news_ingestion import SourceItem
 from app.services.tavily_client import TavilyClient, TavilyClientError
 
@@ -63,9 +63,9 @@ class StockNewsSearchService:
 
         conditions = []
         for kw in keywords:
-            pattern = f"%{kw.lower()}%"
-            conditions.append(func.lower(NewsItem.title).like(pattern))
-            conditions.append(func.lower(func.coalesce(NewsItem.summary, "")).like(pattern))
+            pattern = f"%{kw}%"
+            conditions.append(NewsItem.title.like(pattern))
+            conditions.append(NewsItem.summary.like(pattern))
 
         stmt = (
             select(NewsItem)
@@ -146,16 +146,27 @@ class _ExternalSearchWorker:
         queries = self._build_queries(symbol, display_name, market)
         all_items: list[SourceItem] = []
 
-        for query in queries:
+        def _fetch_query(query: str) -> list[SourceItem]:
             items = self._search_tavily(query)
             if not items:
                 items = self._search_google_news(query, market)
-            all_items.extend(items)
+            return items
+
+        # 并发多 Query 检索加速
+        if len(queries) > 1:
+            with ThreadPoolExecutor(max_workers=min(len(queries), 4)) as pool:
+                for items in pool.map(_fetch_query, queries):
+                    all_items.extend(items)
+        else:
+            for query in queries:
+                all_items.extend(_fetch_query(query))
 
         persisted_count = 0
         seen_hashes: set[str] = set()
         for item in all_items:
-            url_hash = sha256(item.canonical_url.encode("utf-8")).hexdigest()
+            # 与 persister.persist_item 保持同一套 URL 归一化：否则同一篇文章经
+            # 搜索路径落库时算出的 hash 与抓取路径不同，唯一闸失效 → 重复插入。
+            url_hash = sha256(normalize_url_for_hash(item.canonical_url).encode("utf-8")).hexdigest()
             if url_hash in seen_hashes:
                 continue
             seen_hashes.add(url_hash)
@@ -198,9 +209,6 @@ class _ExternalSearchWorker:
             if config is None:
                 return None
 
-            from app.services.llm_providers import build_provider
-
-            build_provider(config)
             prompt = (
                 f"Given stock symbol '{symbol}' (market: {market}, display name: '{display_name}'), "
                 f"generate a JSON array of 3-5 search keywords or aliases for finding recent news about this company. "
@@ -212,24 +220,25 @@ class _ExternalSearchWorker:
             if not base_url or not config.decrypted_api_key:
                 return None
 
-            with httpx.Client(
-                timeout=15.0,
+            from app.services import http_pool
+
+            client = http_pool.get_feed_client()
+            response = client.post(
+                f"{base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {config.decrypted_api_key}",
                     "Content-Type": "application/json",
                 },
-            ) as client:
-                response = client.post(
-                    f"{base_url}/chat/completions",
-                    json={
-                        "model": config.model_name,
-                        "messages": [
-                            {"role": "system", "content": "You are a helpful assistant that returns only JSON."},
-                            {"role": "user", "content": prompt},
-                        ],
-                        "response_format": {"type": "json_object"},
-                    },
-                )
+                json={
+                    "model": config.model_name,
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant that returns only JSON."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=15.0,
+            )
             if response.status_code >= 400:
                 return None
 

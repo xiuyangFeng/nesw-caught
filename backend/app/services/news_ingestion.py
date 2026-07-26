@@ -16,6 +16,7 @@ from app.services.ingestion.dedup_gate import (
 from app.services.ingestion.fetcher import fetch_source_items
 from app.services.ingestion.parser import (
     _parse_anchor_list_html,
+    _parse_cls_telegraph_json,
     _parse_minimax_detail_html,
     _parse_rss_or_atom,
     _parse_selector_html,

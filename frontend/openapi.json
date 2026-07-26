@@ -8916,6 +8916,7 @@
     },
     "/api/stream/events": {
       "get": {
+        "description": "SSE 事件流：持续推送 news.created / news.updated 等事件，空闲时发送 keepalive 心跳。",
         "operationId": "stream_events_api_stream_events_get",
         "parameters": [
           {
@@ -9028,8 +9029,38 @@
     },
     "/api/topics": {
       "get": {
+        "description": "话题列表。\n\nlimit/offset 为可选分页参数:不传时保持原有的“全量返回”语义(前端契约不变)。",
         "operationId": "list_topics_api_topics_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 500,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
           {
             "in": "header",
             "name": "X-App-Token",

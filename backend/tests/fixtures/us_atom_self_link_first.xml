@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  回归样本（手工构造，脱敏）：Atom feed 把 rel="self" / rel="edit" 排在 rel="alternate" 之前。
+  用于 tests/test_parser_accuracy.py 的 Atom link 选择回归测试。
+
+  为什么需要这个样本：
+    parser 早先写成 `entry.find("{*}link[@rel='alternate']") or entry.find("{*}link")`，
+    而 xml.etree 的 Element.__bool__ 判的是"有没有子元素"，自闭合的 <link/> 恒为 False，
+    于是 alternate 分支永远被 `or` 吞掉，退化成"文档里第一个 link"。
+    既有的 us_atom_sample.xml 里 alternate 恰好排第一，测不出这个 bug。
+-->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>US Wire Atom with self link first (Sample)</title>
+  <link rel="self" href="https://example-us-wire.test/feed.atom"/>
+  <entry>
+    <title>Fed holds rates steady (sample)</title>
+    <link rel="self" href="https://example-us-wire.test/feed/entry/1.atom"/>
+    <link rel="edit" href="https://example-us-wire.test/edit/entry/1"/>
+    <link rel="alternate" href="https://example-us-wire.test/story/fed-holds-rates-steady"/>
+    <summary>Sample summary for the Fed rate decision entry.</summary>
+    <updated>2026-07-25T14:00:00+00:00</updated>
+  </entry>
+  <entry>
+    <title>Chip maker raises guidance (sample)</title>
+    <link rel="self" href="https://example-us-wire.test/feed/entry/2.atom"/>
+    <link rel="alternate" type="text/html" href="https://example-us-wire.test/story/chip-maker-raises-guidance"/>
+    <summary>Sample summary for the chip maker guidance entry.</summary>
+    <updated>2026-07-25T15:30:00+00:00</updated>
+  </entry>
+</feed>

@@ -593,19 +593,32 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
     monkeypatch.setattr(main_module, "WatchlistRepository", FakeWatchlistRepository)
     monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
     monkeypatch.setattr(main_module, "get_quote_service", lambda: fake_service)
-    main_module._register_event_handlers()
-    main_module.register_market_watchlist_handlers(fake_bus)
+    # _register_event_handlers() 会调 set_event_bus() 改写**全局单例**，而 monkeypatch
+    # 只还原 main_module.build_event_bus 这个模块属性，还不回单例本身。不显式恢复的话，
+    # 本用例结束后全局 bus 会一直是 FakeBus，导致后续任何走 /news/runtime 的用例
+    # 报 AttributeError: 'FakeBus' object has no attribute 'get_status'（跨文件污染，
+    # 按字母序排在 test_market 之后的用例才会中招，很难定位）。
+    from app.services.event_bus import get_event_bus, set_event_bus
 
-    with patch.object(notification_service, "_load_config", return_value=config):
-        producer = main_module.build_market_quote_producer()
-        producer.run_cycle()
-        producer.run_cycle()
-        producer.run_cycle()
-        producer.run_cycle()
+    original_event_bus = get_event_bus()
+    try:
+        main_module._register_event_handlers()
+        main_module.register_market_watchlist_handlers(fake_bus)
 
-    with SessionLocal() as session:
-        jobs = session.query(NotificationJob).filter(NotificationJob.event_type == "watchlist_alert").all()
-        assert len(jobs) == 2
+        with patch.object(notification_service, "_load_config", return_value=config):
+            producer = main_module.build_market_quote_producer()
+            producer.run_cycle()
+            producer.run_cycle()
+            producer.run_cycle()
+            producer.run_cycle()
+
+        with SessionLocal() as session:
+            jobs = session.query(NotificationJob).filter(
+                NotificationJob.event_type == "watchlist_alert"
+            ).all()
+            assert len(jobs) == 2
+    finally:
+        set_event_bus(original_event_bus)
 
 
 def test_market_watchlist_quotes_read_cached_payload_without_publishing_refresh_event(monkeypatch) -> None:
@@ -1341,6 +1354,9 @@ def test_quote_service_has_hot_alert() -> None:
         # 插入关联
         session.add(NewsStockMention(news_id=news.id, symbol="BABA", market="us"))
         session.commit()
+
+        from app.services.quote_service import clear_hot_symbols_cache
+        clear_hot_symbols_cache()
 
         # 执行查询
         quotes = service.get_cached_watchlist_quotes(session)

@@ -36,7 +36,16 @@ class RedisStreamPublisher:
         client: Redis | None = None,
         publisher_id: str | None = None,
     ) -> None:
-        self.client = client or Redis.from_url(redis_url, socket_timeout=timeout_seconds, decode_responses=True)
+        # socket_connect_timeout 必须显式给：只设 socket_timeout 时，redis-py 的建连
+        # 阶段（DNS + TCP handshake）不受它约束，Redis 主机不可达时 publish 可能远超
+        # 预期的 timeout_seconds 预算 —— 而 publish 是在 ingestion 串行落库线程里
+        # 同步调用的，超时预算失效会直接把落库线程拖住。
+        self.client = client or Redis.from_url(
+            redis_url,
+            socket_timeout=timeout_seconds,
+            socket_connect_timeout=timeout_seconds,
+            decode_responses=True,
+        )
         self.maxlen = maxlen
         self.publisher_id = publisher_id or new_publisher_id()
 
@@ -72,7 +81,16 @@ class RedisStreamConsumer:
         initial_id: str = "$",
         error_log_interval_seconds: float = 60.0,
     ) -> None:
-        self.client = client or Redis.from_url(redis_url, socket_timeout=timeout_seconds, decode_responses=True)
+        # socket_connect_timeout 必须显式给：只设 socket_timeout 时，redis-py 的建连
+        # 阶段（DNS + TCP handshake）不受它约束，Redis 主机不可达时 publish 可能远超
+        # 预期的 timeout_seconds 预算 —— 而 publish 是在 ingestion 串行落库线程里
+        # 同步调用的，超时预算失效会直接把落库线程拖住。
+        self.client = client or Redis.from_url(
+            redis_url,
+            socket_timeout=timeout_seconds,
+            socket_connect_timeout=timeout_seconds,
+            decode_responses=True,
+        )
         self.streams = list(dict.fromkeys(streams))
         self.inject = inject
         self.publisher_id = publisher_id or new_publisher_id()

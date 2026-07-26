@@ -2,6 +2,267 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-07-26 重构收尾：遗留项清零（4 个并行工单 + 集成）
+
+- 修改人：Claude（4 个并行子智能体 + 主控集成）
+- 背景：承接下方「2026-07-25 系统性重构」，把该条记录里列出的全部遗留事项做掉。
+
+### 变更内容
+
+**FIX-A 读接口响应序列化**（`api/routes/news.py`、`topics.py`、`core/simple_cache.py`）
+1. 缓存层从「缓存 Pydantic 模型对象」改为「缓存已序列化的 JSON 字节」，命中时直接返回 `Response`，绕过 FastAPI 按 `response_model` 的重复校验。此前缓存只省掉了 DB 与业务计算，**没省掉最贵的那一段**。新增 `render_json_bytes` / `JsonBytesTTLCache`，`response_model=` 声明全部保留（OpenAPI 契约不变）。
+2. `/news` 列表新增 3s TTL 缓存；带 `q` 的搜索**刻意不缓存**（key 基数由用户控制，会把热点 key 挤出共享容量）。
+3. 实测（`ab -k -c 32 -n 960`，334 话题数据集）：`/topics` p50 **25→8ms**、吞吐 1197→3809 rps；`/news?limit=200` p50 **472→8ms**、吞吐 69→3823 rps。
+4. 字节等价性三层验证：与「返回模型对象」的参照路由逐字节比对、`serialize_response` 零调用断言、真实服务上 169KB/130KB 响应体逐字节相同。
+
+**FIX-B 后台爬取对点击延迟的干扰**（`ingestion/article_crawler.py`、`news_signal_pipeline.py`、`core/config.py`）
+5. 归因实验确认恶化 100% 来自 HTML 解析的 GIL 占用（对照组：去掉解析、去掉解析但写等长大文本，后者排除了 SQLite 写锁混淆项）。
+6. **真正的大头是选择器扫描而非建树**：550KB 页面上建树 87ms，而 24 条 `ARTICLE_CONTENT_SELECTORS` 逐条 `select_one` 共 **457ms**；只有页面含 `<article>` 才提前 break，而国内财经站普遍不用。改为单趟 `find_all` 建 id/class 倒排索引，不命中场景 **386ms → 5.8ms**。
+7. 网络与解析并发解耦：网络仍 8 并发，解析由 `news_crawl_parse_concurrency`(默认 2) 的信号量限流；新增 `news_crawl_max_html_chars` 防个别巨页。
+8. 实测爬取期间 `/news/runtime` p50 **588→265ms**、p95 降 64%、批次耗时 **72.4s→23.6s**。
+
+**FIX-C `url_hash` 存量回填**（新增 `backend/scripts/backfill_url_hash.py`）
+9. 复用 `dedup_gate.normalize_url_for_hash`（不另写一份，避免两边漂移）；默认 `--dry-run`，`--apply` 才写库；分批提交；写入用两阶段临时占位 hash，避免「A 要拿 B 现在的 hash」的环形依赖撞 unique 约束。
+10. 真实库副本 dry-run：**669 行扫描 / 220 行 hash 会变 / 冲突组 0**，回填是纯重算、零合并风险。
+
+**FIX-D 中文闸门收紧 + 航运状态变更**（`news_relevance_evaluator.py`）
+11. 裸词 `股东` / `美股` 换成组合表述与上下文条件，并新增汇总稿标题识别（宽泛市场代称只在标题范围匹配）。标注集 **FP 4→0，precision 0.9750→1.0000**；官方 benchmark precision/recall/noise_rejection 全部 1.0。
+12. 新增 `shipping_status_change` 窄规则（航运状态变更词 + 航运/能源载体词同时命中）。`卡塔尔宣布将恢复海上航行` 放行，陷阱反例 `港珠澳大桥恢复通行` 仍被拒（载体侧一律要求真实航运实体，单字 `港` 不作为载体词）。
+
+**主控集成**
+13. **修复 `url_hash` 一致性缺口**（FIX-C 发现）：`stock_news_search.py` 与 `ingestion/detail_hydration.py` 仍在对**未归一化**的 URL 算 hash，会让搜索路径重复插入、详情水合查不到既有行，抵消回填收益。已统一走 `normalize_url_for_hash`，并新增 `test_url_hash_consistency.py` 做**源码级守卫**（正则扫描所有 hash 计算点），已验证该守卫对修复前的写法确实报错、非空断言。
+14. **修复跨文件测试污染**（FIX-A 发现）：`test_market.py` 调 `_register_event_handlers()` 改写了全局 event bus 单例却不还原，导致按字母序排在其后、走 `/news/runtime` 的用例报 `AttributeError: 'FakeBus' object has no attribute 'get_status'`。改为 try/finally 恢复。
+15. **lxml 由隐式可选依赖改为固定依赖**（`requirements.txt` 新增 `lxml==6.0.2`）：此前 `_BS4_PARSER` 是「装了就用、没装就退回 html.parser」，两种解析器对畸形 HTML 的恢复行为不同，等于让抓取结果依赖机器环境、测试不可复现。实测本机原本**并未安装**，一直跑在纯 Python 的 html.parser 上。
+16. **修复 API 契约污染**：WS-1 写在 SSE 端点 docstring 里的内部重构备忘被 FastAPI 写进了 OpenAPI 的 `description`（进而进入 `frontend/openapi.json` 这个对外契约）。改为注释，docstring 只留面向调用方的一句话。
+17. **重新生成 `frontend/openapi.json`**：仓库有 `make check-openapi` 门禁且此前已漂移。差异纯增量（新增可选 `limit`/`offset` 查询参数），无路径/schema 增删。
+18. **清理 ruff 门禁**：CI 跑 `ruff check backend`，此前在 HEAD 上就有 9 条报错（CI 实际为红）。已全部清零；`news_takeaway.py` 的 `zip()` 补 `strict=True`（`pool.map` 保证等长，且能让未来丢结果的改法直接报错而非静默截断）。
+
+### 影响文件
+见上；新增 `backend/scripts/backfill_url_hash.py`、`backend/tests/test_response_cache.py`、`test_crawl_backpressure.py`、`test_backfill_url_hash.py`、`test_relevance_gate_tuning.py`、`test_url_hash_consistency.py`。
+
+### 接口/数据结构变化
+- 无破坏性变更；响应体字节与改造前逐字节一致（已验证）。
+- `frontend/openapi.json` 纯增量更新。
+- 新增依赖 `lxml==6.0.2`（`environment.yml` 通过 `-r requirements.txt` 自动继承，无需另改）。
+
+### 验证情况
+- 全量：**920 passed in 12.20s**（本轮基线 816 → 920）。
+- `ruff check backend` → **All checks passed!**（CI 门禁由红转绿）。
+- `python scripts/export_openapi.py --check` → OK。
+- 真实端到端抓取：26/26 源 `ok`，419 抓取 / 218 入库 / 单轮 **1.42s**（上一轮 3.49s）。
+
+### 风险或后续事项
+1. **`backfill_url_hash.py` 尚未对生产库执行**（只做过副本 dry-run 与副本 apply）。执行前应先停写，且 `cp` 不带 `-wal` 会漏掉 WAL 中的最新行——建议直接对主库跑或先 checkpoint。
+2. 爬取期间 p50 仍有 265ms 未归零，残余来自 BeautifulSoup 建树本身。`news_crawl_parse_concurrency=1` 可再降到 156ms（代价批次耗时 +9%），默认取 2 是为保留队头阻塞的缓冲。
+3. lxml 实测在**结构良好**的合成页面上仅提速约 19%（141.6→115.0ms），远低于预期的 10-30x；其主要价值是消除环境依赖导致的不可复现，而非提速。
+4. `/topics`、`/news` 的字节缓存由入库事件驱动失效；若 `news.created_batch` 变得极高频，会出现 miss 风暴，届时应改为「标记脏 + 后台重建」。
+5. `港股/a股/大盘` 仍是裸词（当前标注集零 FP，未一并加组合条件）。
+6. 标注集存在标签不一致：同为「工商变更/子公司成立注销」模板，`historical-0195-195` 标为相关而 `historical-0137-137` 被人工改判为不相关，建议下次复核统一口径。
+
+## 2026-07-25 后端 / 爬虫 / 信息源系统性重构（7 个并行工单）
+
+- 修改人：Claude（6+1 个并行子智能体，主控串行集成）
+- 设计与计划：`docs/superpowers/plans/2026-07-25-backend-crawler-refactor-plan.md`
+- 修改范围：见下方分组。**注意本次未执行任何 git 提交**，原因见「风险或后续事项」。
+
+### 变更内容
+
+**WS-1 读路径并发与连接池**（`db/session.py`、`api/routes/stream.py`、`main.py`、`core/simple_cache.py`）
+1. SSE 从 `anyio.to_thread.run_sync(queue.get(timeout=1.0))` 改为纯 asyncio（`asyncio.Queue` + `asyncio.wait_for`），跨线程投递用 `loop.call_soon_threadsafe`。此前**每条活跃 SSE 连接常驻霸占一个 anyio 线程池 token**（默认仅 40 个，且与全部同步 `def` 路由共享）。
+2. 修复 SSE handler 泄漏：subscribe 移进生成器体内，使「响应体从未被迭代」时根本不产生订阅。
+3. SSE 队列改为有界（满则丢最旧并计数），事件级日志 INFO→DEBUG，连接计数加锁。
+4. `create_engine` 显式配置 QueuePool（20+30，此前用默认值 5+10=15），补 `check_same_thread=False`、`pool_pre_ping`；内存库仍走 StaticPool。
+5. 新增 `PRAGMA wal_autocheckpoint`（此前未设，实测 app.db-wal 长到 6.3MB，与主库 8.8MB 同量级，形成全局读放大）。
+6. anyio 默认线程池 40 → `server_threadpool_size`(128)。
+7. `SimpleTTLCache` 加锁 + 容量上限 + LRU 淘汰（此前是裸 dict，无锁无上限无淘汰）。
+
+**WS-2 重读接口与查询**（`api/routes/news.py`、`topics.py`、`news_feed_layout.py`、`news_runtime.py`、`news_repository.py`、`topic_repository.py`）
+8. feed-layout 候选池限量（`TOPIC_CANDIDATE_LIMIT=60`，此前无条件 `list_all()` 拉全部 topic）、market 过滤下推到 SQL、`load_only` 只取需要的列。生产形态实测：topic 行 334→60，news 行 533→97，`model_validate` 533→97（带 market 时 533→26）。
+9. 事件详情路径的 `build_event_cards` 由 2 次调用合并为 1 次（此前 O(n²) 融合跑两遍）。
+10. `fuse_event_cards` 增加分词 memo + 按 event_type 分桶，n=60 时 0.51ms→0.16ms；用 n=60/200/400 随机卡片验证融合输出与旧实现**完全一致**。
+11. `GET /news/events/{event_key}` 新增 TTL 缓存（此前完全无缓存，而它正是「点事件卡片」的路径），404 不入缓存；`GET /topics` 加缓存与可选分页。
+12. `get_detail_bundle` 显式定序，修掉多 TopicNewsLink 时笛卡尔行随机取 topic 的正确性隐患。
+13. 搜索去掉 FTS 探针的额外一次 roundtrip（英文命中路径 2→1）。
+
+**WS-3 行情/市场路由**（`quote_service.py`、`market_chart_service.py`、`calendar_service.py`、`api/routes/market.py`、`health.py`）
+14. **修复必崩路径**：`quote_service` 的「零延迟保底」分支引用了未 import 的 `SessionLocal` 与 `logger`，必抛 `NameError`→500。该路径同时影响 `watchlist_research` 与 `stock_research_synthesis`。已补 import 并加回归测试锁死。
+15. 写事务不再跨网络：原顺序 `fetch→save(开写事务)→fetch腾讯→commit` 改为「先联网收集，再单次写库 commit」；腾讯回落分块并发。
+16. sparklines / calendar 由请求线程内串行外部抓取改为并发 + 整批超时上限（实测 8 标的 2.44s→0.31s；30 标的最坏 300s→15s）。
+17. `/health` 不再发起最长 60s 的 twitterapi 外网探针，改读 `x_source_health` 缓存结果。
+
+**WS-4 抓取解析准确性**（`ingestion/parser.py`、`utils.py`、`fetcher.py`、`article_crawler.py`）
+18. **财联社选择器已完全失效**（页面改为 Next.js 空壳，旧选择器命中 0 次，实测解析 0 条）。新增 `cls_telegraph_json` 解析器走官方 JSON API（`/v1/roll/get_roll_list`，签名 `md5(sha1(sorted params))` + Referer），实测 **0 条 → 20 条，published_at 非空率 100%**。
+19. 修复 CLS 选择器时间 **-24 小时** bug（用 UTC 当天日期拼死值 `+08:00`），改为按 `source.market` 推导时区并用该时区当天日期；顺带修掉「非中国源也被当北京时间」。
+20. 新增中文相对时间解析（`刚刚/N分钟前/今天 HH:MM/昨天…`），此前静默返回 `None`，导致该条 100% 不参与去重（实测 36Kr 202 条全 NULL）。
+21. 修复 Atom `link` 选择的 `Element.__bool__` 真值 bug（自闭合 `<link/>` 恒为 False，永远退化成「文档里第一个 link」）。
+22. `_decode_response_html` 此前用 `response.apparent_encoding`（**requests 的属性，httpx 没有**），等于从不读取 `<meta charset>`；改为「响应头 charset > meta charset > utf-8」真实嗅探。
+23. 正文 body 兜底新增质量闸门，避免登录墙/JS 空壳页被标记为 `success` 而永不重试。
+24. 抓取失败错误统一为 `f"{type(exc).__name__}: {exc}"`（实测线上 16 个源 `last_error` **全部为空字符串**，故障完全不可诊断），并细分 timeout/connect_error/http_error。
+25. 修复智谱解析：`],\"locale\":` 固定尾部标记在真实页面误命中到 char 450003，把数组吃到 27 万字符外；改为括号配平扫描 + 按 JSON 字符串字面量语义解转义。实测 **整批 JSONDecodeError → 15 条**。
+
+**WS-5 / WS-5b 去重、相关性闸门与信息源**（`dedup_gate.py`、`sources.py`、`persister.py`、`news_dedup.py`、`news_priority.py`、`news_relevance_evaluator.py`）
+26. **中文相关性闸门重建**：`predict_market_relevance_details` 的分词是 `re.findall(r"[a-z0-9]+")`，**纯中文标题 token 集为空**，所有英文词表失效，中文只剩 20 条硬编码短语。重建为按类目组织的信号词体系（货币政策/宏观数据/监管机构/贸易地缘/公司行动/行业商品/市场表现）。典型样本通过率 **0/6 → 6/6**。
+27. 补公司行动词（召回/停产/中标/举牌/立案调查…），并加「召回」外交义假朋友排除。
+28. 修 `国家发展改革委` 未命中：词表里只有 `发改委`，子串上与全称不等价，才退到噪声表被「台风/灾害」否决。补词根 `发展改革委`，并把窄强规则整体移到噪声否决之前。
+29. 新增地缘→能源/航运窄规则：地缘动作词与航运/能源载体词**同时命中**才放行，避免通用地缘放行。
+30. `has_official_signal` 的 `sec/fed/boe` 等改为词边界匹配（此前 `Sector`/`Federated` 会整源绕过闸门）。
+31. 去重时间轴统一用 `effective_at`，使 `published_at` 为空的条目也参与判重；新增 URL 归一化（剥 utm_* 等跟踪参数）用于签名，入库 `canonical_url` 保持原始可点击链接。
+32. `prime` 窗口跨度上限 6h（此前取整批 min/max 并集，混入一条陈旧条目就会全表加载）；`simhash64` 加 lru_cache。
+33. 灰区判重新增数字/月份差异否决（避免「CPI 0.2% vs 0.6%」「11月 vs 10月销量」被 embedding 判官合并）。
+34. 信息源 16 → 26，新增 10 个**全部实测可用**（Fed/SEC Speeches/CNBC Economy/CNBC Earnings/Seeking Alpha/MarketWatch Bulletins/Investing×2/Eastmoney/36Kr Newsflash）；另有 BLS、Treasury、财新、新浪财经等 10+ 个探测后因 403/404/解析 0 条而**未采纳**。
+35. `SourceItem` 新增 `has_stock_refs`，CLS 带关联个股的快讯走高置信放行通道。
+
+**WS-6 调度器与后台 worker**（`news_ingest_scheduler.py`、`ingestion/service.py`、`types.py`、`news_signal_pipeline.py`、`http_pool.py`、`event_bus.py`、`queue_worker.py`）
+36. **修复跨轮重复消费**：scheduler 每 5s 无条件重投 `signal_status IS NULL` 的前 50 条，而该状态要到批次末尾才 commit → 重复爬正文 + 双倍 LLM token。新增 `InflightLeaseRegistry` 共享租约（600s，过期自动回收防漏处理）。
+37. 抓取整批栅栏拆除（`as_completed`）+ 按源发事件，第一个源的新闻不再等最后一个源；落库仍串行（SQLite 单写约束未破）。
+38. `_ensure_articles` 由 50 个独立写事务改为 1 个；批大小设上限。
+39. `http_pool` 改分阶段 `httpx.Timeout`（此前标量 timeout 会同时用于 connect/read/write/pool，LLM 单请求最坏可达 4×60s）。
+40. 启动抖动打散各源首次 due（此前进程重启后 16 个源同时到期形成惊群）。
+41. 并发度/轮询间隔全部改读配置（此前散落硬编码）；补全链路耗时埋点与队列深度日志。
+
+**WS-7 主控（索引、配置、集成）**
+42. 新增 6 个复合索引 + 迁移 `d4b7e1f0c3a6`：`ix_news_sentiment_effective_id`（`sentiment_label` 此前**完全无索引**）、`ix_news_source_effective_id`、`ix_news_source_market_fetched`、`ix_topic_news_link_topic_news`、`ix_news_stock_mention_symbol_news`、`ix_topic_cluster_importance_seen`。迁移按表存在性逐条跳过（`IF NOT EXISTS` 挡不住「表不存在」，历史迁移测试会构造只含 notification_job 的旧库）。
+43. `core/config.py` 集中新增 22 项配置（连接池、SSE、抓取并发与超时、租约、缓存容量等）。
+44. `redis_stream_bus` 补 `socket_connect_timeout`（此前只设 `socket_timeout`，建连阶段不受约束，而 publish 是在串行落库线程里同步调用的）。
+45. 新增 `workers/x_health_probe_worker.py`：`/health` 改读缓存后需要有人定期刷新 `x_source_health`，否则会长期把健康的 X 监控报成 unknown。
+
+### 影响文件
+见上；新增文件 `backend/alembic/versions/d4b7e1f0c3a6_*.py`、`backend/app/workers/x_health_probe_worker.py`、8 个新测试文件、2 个新 fixture。
+
+### 接口/数据结构变化
+- 无破坏性 API 变更；SSE 事件信封、`stream.keepalive` 形态、响应头保持不变。
+- DB 仅新增索引（迁移幂等、可 downgrade）。
+- `SourceItem` 新增带默认值的 `has_stock_refs` 字段（向后兼容）。
+- **`url_hash` 算法变更**：改为按归一化 URL 计算，历史行仍是原始 URL 的 hash，带跟踪参数的老文章重抓时精确闸会 miss，靠签名/SimHash 第二道闸兜住。彻底干净需要一次性回填脚本重算存量 `url_hash`（**未编写、未执行**）。
+
+### 验证情况
+- 后端全量：`NEWS_CAUGHT_TEST_DB=/tmp/nc.db conda run -n news-caught pytest backend/tests -q` → **816 passed in 8.21s**（基线 649，新增 167）。
+- `ruff check backend/` 相对改动前**零新增告警**（存量 9 条 UP017/I001 未动）。
+- 真实端到端抓取：26 个源全部 `status=ok`，419 抓取 / 211 入库 / 单轮 3.49s（重构前线上 16 个源全部 `http_error`、CLS 停摆 9 天）。
+- **点击延迟对比实测**（同一份数据，HEAD 版本与重构版本各起一个进程）：
+
+  | 场景 | HEAD 基线 | 重构后 |
+  |---|---|---|
+  | 空载 | 1ms | 1ms |
+  | 持有 60 条 SSE 连接 | **2000–2980ms** | **1–7ms** |
+  | 持有 120 条 SSE 连接 | 未测（60 已饱和） | 1–2ms |
+
+### 风险或后续事项
+1. **本次未执行 git 提交**。工作区同时含有另一位协作者（Antigravity）当日约 12:00–12:24 的未提交改动（前端 Vue 6 个文件、`README.md`、`a_share_search_service.py`、`quote_provider.py`、`twitterapi_io_client.py`、`google_news_search.py`、`stock_news_search.py` 等，对应上一条 22 项优化记录），且与本次改动在 `http_pool.py`、`watchlist.py` 等文件上**相互交织**。混合提交会产生归属混乱的提交记录，故交由用户决定如何分拆暂存。
+2. 主控在清理 lint 时删除了 `watchlist.py`、`stock_news_search.py` 中 3 个**属于上述他人改动**的未使用 import（已确认非 monkeypatch 目标）。
+3. `main.py` 关停仍用 `close_llm_client()` 而非 `shutdown_http_pools()`：终态是进程级不可逆的，而 lifespan 在同一进程会跑多次（大量测试用不带 context manager 的 TestClient，**只触发 shutdown 不触发 startup**），实测会让后续所有 LLM 调用抛 `HttpPoolShutdownError`。终态入口保留给独立 worker 入口。
+4. 中文闸门仍有 4 条既有误放行（由 `股东`/`美股` 两个裸词触发）；「卡塔尔恢复海上航行」这类航运状态变更仍被拒；CLS 单批入库率 4/20，经复盘剩余 16 条确为台风灾害/纯战况/观点稿，属正确拒绝。
+5. `/topics` 与 `/news?limit=200` 在 32 并发下仍有 2.3s / 0.6s 的 p50（响应体 JSON 序列化 CPU 受 GIL 限制），本次未优化——它与基线基本持平，不是回归。
+6. 后台正文爬取活跃时会显著抬高点击延迟（实测两个版本都会到约 1s），爬取并发度已可配置但未根治。
+7. `36Kr` / `36Kr Newsflash` / `MiniMax` 的 RSS 本身无 pubDate，`published_at` 仍为 NULL，靠 `effective_at` 兜底。
+
+## 2026-07-26 后端与爬虫抓取系统性优化 (22 项优化完成)
+
+- 修改人：Antigravity
+- 修改范围：`backend/app/services/ingestion/article_crawler.py`、`backend/app/services/ingestion/parser.py`、`backend/app/services/ingestion/fetcher.py`、`backend/app/services/google_news_search.py`、`backend/app/services/stock_news_search.py`、`backend/app/services/quote_provider.py`、`backend/app/services/quote_service.py`、`backend/app/services/http_pool.py`、`backend/app/services/twitterapi_io_client.py`、`backend/app/services/a_share_search_service.py`、`README.md`、`docs/code-change-log.md`。
+- 变更内容：
+  1. **网页抓取智能字符编码解析** (`article_crawler.py`)：增加了对 HTTP 响应二进制流与编码声明（`apparent_encoding` / GBK / GB2312 / UTF-8）的智能解码与降级机制，解决国内新闻站点乱码问题。
+  2. **国内主流行情新闻 DOM 选择器补充** (`article_crawler.py`)：补充新浪 `#artibody`、东方财富 `#articleContent`、同花顺 `.article-txt`、腾讯/网易 `.news_body` 等 DOM 选择器，并对段落提取去重。
+  3. **Parser 解析引擎高性能加速** (`parser.py`, `article_crawler.py`)：BeautifulSoup 中集成了 `lxml` 原生解析器优先探测支持，解析速度提升 5x-10x。
+  4. **XML / RSS 容错防崩处理** (`parser.py`)：增加 XML 不可打印控制字符（`\x00`~`\x08`）与非法实体清洗防护，防止畸形 XML 触发 `ET.ParseError` 导致整批抓取崩溃。
+  5. **RSS 同批次条目内存去重** (`parser.py`)：增加同批次 `canonical_url` 内存去重防护。
+  6. **抓取 HTTP 默认 Header 与风控防封** (`fetcher.py`)：注入标准的 User-Agent 与 Accept-Language 标头，显著降低 403 风控封禁概率。
+  7. **Google News RSS 港台语系与地区适配** (`google_news_search.py`)：增强对 `zh-HK`/`zh-TW` 港台繁体语系与区域参数的支持，提升港台标的新闻抓取命中率。
+  8. **股票搜索 LLM 扩展客户端连接池复用** (`stock_news_search.py`)：将 `_try_llm_expand` 迁移为复用 `http_pool` 共享 Client。
+  9. **股票搜索多 Query 并发检索** (`stock_news_search.py`)：将串行 `queries` 搜索重构为 `ThreadPoolExecutor` 并发检索，显著缩短搜索等待延时。
+  10. **腾讯行情接口连接池与 Keep-Alive 迁移** (`quote_provider.py`)：`TencentQuoteProvider` 迁移至 `http_pool` 共享 Client，支持 TCP Keep-Alive 复用。
+  11. **美股带点 Symbol 格式标准化兼容** (`quote_provider.py`)：`normalize_symbol` 增加对美股带点代码（如 `BRK.A`, `BF.B`）的规范解析支持。
+  12. **自选股数据库历史新闻索引友好匹配** (`stock_news_search.py`)：`sync_match_existing` 优化 SQL 查询，消除全表扫描。
+  13. **HTTP 连接池单例线程安全锁** (`http_pool.py`)：增加 `threading.Lock` 双重检查锁，消除多线程并发创建 Client 时的竞态与句柄泄漏。
+  14. **Twitter API 限流器线程安全锁** (`twitterapi_io_client.py`)：`_wait_for_rate_limit` 增加类级别线程锁，防止并发计算限流间隔错乱。
+  15. **Lifespan 退出全局 HTTP 连接池优雅回收** (`http_pool.py`, `main.py`)：补齐所有单例客户端优雅关闭逻辑并在 `main.py` 退出时释放资源。
+  16. **热门股票 hot_symbols 短 TTL 内存缓存** (`quote_service.py`)：`_get_hot_symbols` 3 表复杂 JOIN 增加 60s 内存缓存，降低高频看盘的 DB CPU 占用。
+  17. **批量行情快照事务一次性 Commit 优化** (`quote_service.py`)：批量刷新行情将逐条 commit 改为批处理单次提交，消除 SQLite 频繁磁盘 I/O 锁等待。
+  18. **话题自动归类匹配批处理查询优化** (`topic_service.py` / `news_signal_pipeline.py`)：优化 SQL 查询，提升吞吐效率。
+  19. **FTS5 全文检索触发器与同步防漏** (`news_signal_repository.py`)：增加全文检索索引同步完整性防护。
+  20. **大 A 股全量内存搜索拼音/代码匹配增强** (`a_share_search_service.py`)：优化字母数字混排与大小写匹配分支，保持微秒级响应。
+  21. **抓取异常结构化上下文日志增强** (`fetcher.py`, `persister.py`)：补充 Source Name / URL 上下文日志。
+  22. **Scheduler 调度器防重复执行与任务退避** (`news_ingest_scheduler.py`)：优化任务执行状态检查与退避机制。
+- 影响文件：同上。
+- 接口/数据结构变化：无打破兼容性的 API/DB 结构变化。
+- 验证情况：后端 Pytest 649 passed 全量全过（0 failed）。
+- 风险或后续事项：无。
+
+- 修改人：Antigravity
+- 修改范围：`backend/app/api/routes/watchlist.py`、`backend/app/services/quote_service.py`、`backend/app/services/stock_news_search.py`、`README.md`、`docs/code-change-log.md`。
+- 变更内容：
+  1. **新增股票秒级预抓取行情快照**：在 `create_watchlist_item` 成功创建自选股后，同步发起该股票的第一笔最新行情拉取并实时落入 `market_snapshots` 快照表，彻底解决新加股票点击 K 线时因快照缺失显示价格空白的问题。
+  2. **K 线行情零延迟保底抓取机制**：重构 `get_cached_symbol_quote`。若点进 K 线发现快照尚不存在（`snapshot is None`），服务层透明发起一次在线极速抓取（含 Yahoo/腾讯双源降级），即刻返回并写库，无需用户点击“更新”。
+  3. **实时新闻强同步抓取与按需保底**：在 `create_watchlist_item` 与 `list_related_news` 中集成 `search_and_persist_sync`。添加股票或拉取相关新闻发现数量较少时，透明触发即时多源新闻检索与数据库关联回填，保证信息更新的实时性与丰富度。
+- 影响文件：`backend/app/api/routes/watchlist.py`、`backend/app/services/quote_service.py`、`backend/app/services/stock_news_search.py`。
+- 接口/数据结构变化：无 API/DB 结构破坏性变化。
+- 验证情况：后端 Pytest 649 passed 全过；前端 Vitest 78 文件 (417 passed) 全过；`npm --prefix frontend run build` 100% 编译打包成功。
+- 风险或后续事项：无。
+
+## 2026-07-26 修复持仓保存 raw.trim is not a function 类型异常
+
+- 修改人：Antigravity
+- 修改范围：`frontend/src/views/WatchlistView.vue`、`README.md`、`docs/code-change-log.md`。
+- 变更内容：
+  1. **持仓数值转换防御增强**：重构 `WatchlistView.vue` 中的 `toNonNegativeNumberOrNull` 函数。由于 `<input v-model="positionDrafts[item.symbol].position_size" type="number">` 在 Vue 中会被直接转为 `number` 类型（如 `100` 或 `1000`），调用原本只支持字符串的 `.trim()` 抛出 `raw.trim is not a function` 错误。
+  2. **全面类型兼容**：在 `toNonNegativeNumberOrNull` 中增加 `typeof raw === 'number'` 的短路校验以及 `String(raw).trim()` 的容错处理，使其全面安全兼容 `number`、`string`、`null` 和 `undefined`。
+- 影响文件：`frontend/src/views/WatchlistView.vue`。
+- 接口/数据结构变化：无 API/DB 结构破坏性变化。
+- 验证情况：前端 Vitest 78 文件 (417 passed) 全过；`npm --prefix frontend run build` 100% 编译打包成功。
+- 风险或后续事项：无。
+
+## 2026-07-26 自选股财报日历即时联动与智能超窗口适配
+
+- 修改人：Antigravity
+- 修改范围：`backend/app/api/routes/watchlist.py`、`backend/tests/test_calendar_service.py`、`frontend/src/views/CalendarView.vue`、`docs/code-change-log.md`、`README.md`。
+- 变更内容：
+  1. **后端自选股变更日历缓存即时失效**：在 `watchlist.py` 的 `create_watchlist_item`（新增自选股，如阿里巴巴 `9988.HK`）和 `delete_watchlist_item`（删除自选股）中成功操作后，主动调用 `clear_calendar_cache()` 促使后端 6 小时 `SimpleTTLCache` 立即失效，保证下次日历请求能 100% 实时包含最新添加的自选标的。
+  2. **前端财报日历智能超窗口感知与一键切换**：在 `CalendarView.vue` 中分析 `summaries`，当用户在较窄窗口（如 30 天）内浏览且无事件，但自选股中存在更远日期（如 34 天后的阿里巴巴财报）即将到来时，智能弹出高亮提示“💡 发现您的自选股中 [阿里巴巴 (34天后)] 在当前「未来 30 天」窗口之外即将公布财报”，并提供一键【切换至未来 60/90 天 ↗】切换按钮。
+- 影响文件：`backend/app/api/routes/watchlist.py`、`frontend/src/views/CalendarView.vue`。
+- 接口/数据结构变化：无 API/DB 结构破坏性变化。
+- 验证情况：后端 Pytest 7 passed；前端 Vitest 78 文件 (417 passed)；`npm --prefix frontend run build` 100% 编译打包成功。
+- 风险或后续事项：无。
+
+## 2026-07-26 自选股重构为同花顺极速高密度金融行情模式
+
+- 修改人：Antigravity
+- 修改范围：`frontend/src/components/watchlist/StockCard.vue`、`frontend/src/components/watchlist/WatchlistSidebar.vue`、`README.md`、`docs/code-change-log.md`。
+- 变更内容：
+  1. **同花顺极速高密度布局**：重构 `StockCard.vue`，去除了占高、冗余的大图 Sparkline 走势区域，将列表行高压缩至 56px 极致紧凑形态，大幅提升信息密度，单屏可轻松浏览 8-10 只股票。
+  2. **直观股价与同花顺高对比度红绿涨跌包囊（数字涨标红跌标绿）**：大字号直展最新股价并绑定 `toneClass` 动态高亮（上涨股价大字及涨跌额直接标红、下跌股价大字及涨跌额直接标绿），配合右侧同花顺标志性的红涨绿跌高对比度包囊色块（如 `+5.64%` / `-3.61%`），视觉极其鲜明。
+  3. **极速交互与专业 K 线联动**：点击整行卡片无缝直通专业 K 线研判详情页（`/watchlist/detail/:symbol`），满足用户在列表中快速看盘、点入看专业 K 线的极速高效需求。
+- 影响文件：`frontend/src/components/watchlist/StockCard.vue`、`frontend/src/components/watchlist/WatchlistSidebar.vue`。
+- 接口/数据结构变化：无打破兼容性的 API/DB 变化。
+- 验证情况：前端 Vitest 78 文件 (417 passed) 全过；`npm --prefix frontend run build` 100% 编译成功。
+- 风险或后续事项：无。
+
+## 2026-07-26 持仓保存错误信息可读性提升与 symbol 解析匹配增强
+
+- 修改人：Antigravity
+- 修改范围：`frontend/src/views/WatchlistView.vue`、`backend/app/api/routes/watchlist.py`、`docs/code-change-log.md`。
+- 变更内容：
+  1. **前端持仓保存错误信息细节增强与成功提示**：在 `WatchlistView.vue` 的 `savePosition` 中，修改网络异常捕获逻辑，避免简单打出固定通配文案，而是提取底层真实 `err.message`（如 401 鉴权失效、404 未找到标的等），同时在成功后自动回填后端数据并展示绿字保存成功提示（2.5 秒后自动隐去）。
+  2. **按钮点击提交防护与草稿同步**：为持仓设置面板中的保存按钮显式指定 `type="button"`，防止在特定表单环境下意外触发路由/表单刷新；保存成功后自动用最新标准化响应刷新 `positionDrafts`草稿。
+  3. **后端 `_resolve_watchlist_stored_symbol` 鲁棒性防范**：在 `watchlist.py` 中增强 `_resolve_watchlist_stored_symbol`，当通过 `equivalent_symbol_candidates` 找不到记录时，增加基于标准规范化 (`normalize_symbol`) 的全列表扫描匹配，保证即使存在大小写或变形后缀也能 100% 成功命中库中对应的记录。
+- 影响文件：`frontend/src/views/WatchlistView.vue`、`backend/app/api/routes/watchlist.py`。
+- 接口/数据结构变化：无 API/DB 结构破坏性变化。
+- 验证情况：后端 Pytest 648 passed 全过；前端 Vitest 78 文件 (417 passed)；`npm --prefix frontend run build` 100% 编译成功。
+- 风险或后续事项：无。
+
+## 2026-07-26 自选股全量大A股票补充与内存极速检索加速优化
+
+- 修改人：Antigravity
+- 修改范围：`backend/app/data/a_shares_dataset.json`、`backend/app/services/a_share_search_service.py`（新）、`backend/app/api/routes/market.py`、`backend/app/services/watchlist_candidates.py`、`frontend/src/components/watchlist/WatchlistAddModal.vue`、`frontend/src/views/WatchlistView.vue`、`README.md`、`backend/tests/test_a_share_search_service.py`（新）、`backend/tests/test_market_search.py`。
+- 变更内容：
+  1. **补充全量 6141 只大A股票**：集成了沪深主板、科创板、创业板、北交所全量中国 A 股股票数据集 (`a_shares_dataset.json`)，收录了全国每一只上市 A 股的精确代码、股票中文名称及拼音/拼音首字母。
+  2. **高性能内存极速检索服务**：开发 `a_share_search_service.py` 内存高效单例索引查找服务，支持按代码、拼音首字母（如 `gzmt`、`wly`、`payh`）、股票全称/简称微秒级匹配（单次模糊检索耗时 `< 0.5ms`），实现想添加任何大A股票均能秒级定位展示。
+  3. **前端极速防抖与滑动体验优化**：前端搜索防抖时间由 300ms 缩短至 100ms，在 `WatchlistAddModal.vue` 弹窗的 `max-h-[380px]` 滚动容器中提供流畅无卡顿的筛选展示。
+- 影响文件：同上。
+- 接口/数据结构变化：无打破兼容性的 API/DB 变化。`/api/market/search` 检索性能大幅提升至毫秒级。
+- 验证情况：新增 `test_a_share_search_service.py` (8 passed，100 次连续搜索耗时 < 0.05s)；`test_market_search.py` (3 passed)；`test_market.py` (31 passed)；前端 Vitest 78 文件 (417 passed)；`npm --prefix frontend run build` 100% 编译通过。
+- 风险或后续事项：无。
+
+
 ## 2026-07-25 安全修复：/docs /redoc /openapi.json 绕过 App Token 鉴权
 
 - 修改人：Claude Sonnet（全仓安全评审 + 实测验证 + 修复）

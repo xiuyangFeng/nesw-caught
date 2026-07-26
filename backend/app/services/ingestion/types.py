@@ -11,7 +11,9 @@ VALID_SOURCE_TIERS = {"primary", "secondary", "fallback"}
 VALID_SOURCE_TYPES = {"rss", "html", "api"}
 SOURCE_TIER_RANKS = {"primary": 3, "secondary": 2, "fallback": 1}
 
-# 抓取并发上限:网络 IO 并发执行,但数据库写入始终在调用方线程串行完成(SQLite 单写约束)。
+# 抓取并发上限的兜底默认值:网络 IO 并发执行,但数据库写入始终在调用方线程串行完成
+# (SQLite 单写约束)。运行时实际取值来自 settings.news_fetch_max_workers(默认 16),
+# 见 ingestion/service.py:_fetch_max_workers();这里保留常量名供既有导入方使用。
 MAX_FETCH_WORKERS = 8
 # 去重滑动窗口:同主机+同规范化标题,发布时间相差 ±60 分钟以内视为同一条新闻。
 DUPLICATE_WINDOW = timedelta(minutes=60)
@@ -51,6 +53,10 @@ class SourceItem:
     content_html: str | None = None
     extract_status: str | None = None
     extract_error: str | None = None
+    # 源侧结构化的"关联个股"信号（目前由财联社 JSON 的 stock_list 填充）。
+    # 带非空关联个股的快讯 definitionally 与市场相关，比任何关键词表都可靠，
+    # 入库闸门据此高置信放行。默认 False：既有构造点无需改动，行为完全不变。
+    has_stock_refs: bool = False
 
 
 @dataclass(frozen=True)

@@ -103,7 +103,10 @@ class NewsTakeawayService:
 
         # —— 落库写回收敛到主线程串行(SQLite 单写者),语义与原串行实现逐条一致 ——
         updated = []
-        for item, payload in zip(items, payloads):
+        # strict=True 安全且有意义：pool.map 保证每个 item 恰好一个结果，
+        # 两者长度必然相等；一旦将来有人改成会丢结果的写法，这里会直接报错
+        # 而不是静默丢弃尾部条目。
+        for item, payload in zip(items, payloads, strict=True):
             if payload is _LLM_CALL_FAILED:
                 continue
             # 只要拿到 LLM 响应就落库并计数(含空字符串「无法判断」),避免 NULL 残留导致下次

@@ -55,19 +55,18 @@ def _default_sources() -> list[SourceDefinition]:
             market="us",
             language="en",
         ),
+        # 财联社 7x24 快讯：官方 JSON API。
+        # 原先抓 https://www.cls.cn/telegraph 的 selector_html 解析器所依赖的 CSS
+        # 选择器早已失效(线上入库 0 条)，改走官方接口，返回准确的 epoch 时间戳。
+        # 请求签名与 Referer 由 fetcher 处理，这里不带任何 selector 字段。
         SourceDefinition(
             name="CLS Telegraph",
             source_type="html",
-            url="https://www.cls.cn/telegraph",
+            url="https://www.cls.cn/v1/roll/get_roll_list",
             market="cn",
             language="zh",
-            parser="selector_html",
+            parser="cls_telegraph_json",
             cadence_seconds=100,
-            entry_selector="div.p-t-20.p-b-20.b-b-w-1",
-            title_selector=".telegraph-content-box .c-34304b",
-            link_selector="a[href^='/detail/']",
-            time_selector=".telegraph-time-box",
-            content_selector=".telegraph-content-box .c-34304b",
         ),
         SourceDefinition(
             name="MiniMax News",
@@ -153,6 +152,82 @@ def _default_sources() -> list[SourceDefinition]:
             language="zh",
             parser="wallstreetcn_live_json",
             cadence_seconds=100,
+        ),
+        # —— 以下为 WS-5 扩容源。全部实测过：HTTP 200 且能解析出条目，
+        # 且 published_at 非空（除 36Kr 快讯外，见下方注释）。RSS 优先，
+        # 因为支持 ETag / Last-Modified 条件请求，抓取成本低且稳定。 ——
+        SourceDefinition(
+            name="Federal Reserve Press Releases",
+            source_type="rss",
+            url="https://www.federalreserve.gov/feeds/press_all.xml",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="SEC Speeches and Statements",
+            source_type="rss",
+            url="https://www.sec.gov/news/speeches-statements.rss",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="CNBC Economy",
+            source_type="rss",
+            url="https://www.cnbc.com/id/20910258/device/rss/rss.html",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="CNBC Earnings",
+            source_type="rss",
+            url="https://www.cnbc.com/id/15839135/device/rss/rss.html",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="Seeking Alpha Market Currents",
+            source_type="rss",
+            url="https://seekingalpha.com/market_currents.xml",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="MarketWatch Bulletins",
+            source_type="rss",
+            url="http://feeds.marketwatch.com/marketwatch/bulletins/",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="Investing.com Economy",
+            source_type="rss",
+            url="https://www.investing.com/rss/news_14.rss",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="Investing.com Stock Market",
+            source_type="rss",
+            url="https://www.investing.com/rss/news_25.rss",
+            market="us",
+            language="en",
+        ),
+        SourceDefinition(
+            name="Eastmoney Finance",
+            source_type="rss",
+            url="http://rss.eastmoney.com/rss_partener.xml",
+            market="cn",
+            language="zh",
+        ),
+        # 36Kr 快讯：RSS 条目不带 pubDate，published_at 会是 NULL。
+        # 依赖 dedup_gate 的 effective_at(fetched_at 兜底)判重路径，
+        # 时效性排序走 NewsItem.effective_at。
+        SourceDefinition(
+            name="36Kr Newsflash",
+            source_type="rss",
+            url="https://36kr.com/feed-newsflash",
+            market="cn",
+            language="zh",
         ),
     ]
 

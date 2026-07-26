@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 
@@ -23,7 +23,7 @@ def test_news_item_summary_carries_ai_takeaway() -> None:
             canonical_url="https://example.com/takeaway-contract",
             url_hash="hash-takeaway-contract",
             market="us",
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
             ai_takeaway="测试结论:偏利好",
         )
         session.add(item)

@@ -18,6 +18,7 @@ from app.schemas.watchlist import (
     WatchlistItemView,
     WatchlistResearchBriefView,
 )
+from app.services.calendar_service import clear_calendar_cache
 from app.services.llm_providers import build_provider
 from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
 from app.services.stock_news_search import StockNewsSearchService
@@ -39,9 +40,18 @@ def _normalize_watchlist_lookup_symbol(symbol: str) -> str:
 
 def _resolve_watchlist_stored_symbol(symbol: str, repository: WatchlistRepository) -> str:
     for candidate in equivalent_symbol_candidates(symbol):
-        if repository.get_by_symbol(candidate):
-            return candidate
-    return _normalize_watchlist_lookup_symbol(symbol)
+        item = repository.get_by_symbol(candidate)
+        if item:
+            return item.symbol
+
+    # 全量比对防兜底：如果直接查找未命中，查找列表中标准规范化相符的条目
+    norm_symbol = _normalize_watchlist_lookup_symbol(symbol)
+    all_items = repository.list_all()
+    for item in all_items:
+        if _normalize_watchlist_lookup_symbol(item.symbol) == norm_symbol:
+            return item.symbol
+
+    return norm_symbol
 
 
 def _candidate_symbols_for_conflict_check(symbol: str, market: str) -> list[str]:
@@ -103,6 +113,7 @@ def create_watchlist_item(
         search_service.trigger_async_external_search(symbol, payload.display_name.strip(), market)
         logger.info("watchlist %s: triggered async external news search (matched %d < threshold %d)", symbol, matched, settings.stock_news_min_count)
 
+    clear_calendar_cache()
     return WatchlistItemView.model_validate(item, from_attributes=True)
 
 
@@ -134,6 +145,7 @@ def delete_watchlist_item(
     deleted = repository.delete_by_symbol(_resolve_watchlist_stored_symbol(symbol, repository))
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="watchlist symbol not found")
+    clear_calendar_cache()
 
 
 @router.get("/{symbol}/related-news", response_model=list[NewsItemSummary])
@@ -142,8 +154,15 @@ def list_related_news(
     session: Session = Depends(get_db_session),
 ) -> list[NewsItemSummary]:
     watchlist_repository = WatchlistRepository(session)
+    resolved_symbol = _resolve_watchlist_stored_symbol(symbol, watchlist_repository)
     repository = NewsMentionsRepository(session)
-    items = repository.list_related_news(_resolve_watchlist_stored_symbol(symbol, watchlist_repository))
+    items = repository.list_related_news(resolved_symbol)
+    if not items:
+        # 🌟 零延迟保底抓取：如果该标的新闻为空，后台触发异步抓取
+        w_item = watchlist_repository.get_by_symbol(resolved_symbol)
+        if w_item:
+            search_service = StockNewsSearchService(session)
+            search_service.trigger_async_external_search(w_item.symbol, w_item.display_name, w_item.market)
     return [NewsItemSummary.model_validate(item, from_attributes=True) for item in items]
 
 

@@ -103,6 +103,19 @@ def build_market_quote_producer(event_bus: Any | None = None) -> MarketQuoteProd
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # anyio 默认线程池只有 40 个 token，而本项目几乎所有路由都是同步 def
+    # （FastAPI 会把它们丢进这个线程池），再叠加后台 worker 里的 to_thread 调用，
+    # 40 很容易被吃满，表现为请求排队、"点一下几秒没反应"。这里按配置抬高上限。
+    # 必须放在 lifespan 内：current_default_thread_limiter() 需要一个运行中的循环。
+    import anyio.to_thread
+
+    try:
+        anyio.to_thread.current_default_thread_limiter().total_tokens = (
+            get_settings().server_threadpool_size
+        )
+    except Exception:  # pragma: no cover - 不让线程池调优失败阻断启动
+        logger.warning("failed to raise anyio default thread limiter", exc_info=True)
+
     from app.core.auth import init_app_token
     init_app_token()
     initialize_database()
@@ -125,6 +138,7 @@ async def lifespan(_: FastAPI):
     digest_worker = None
     redis_consumer = None
     market_quote_producer: MarketQuoteProducer | None = None
+    x_health_probe_worker = None
     event_bus = get_event_bus()
     redis_publisher = getattr(event_bus, "redis_publisher", None)
     stream_map = getattr(event_bus, "stream_map", None) or {}
@@ -183,6 +197,14 @@ async def lifespan(_: FastAPI):
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
+    if settings.x_monitor_enabled and settings.twitterapi_io_api_key:
+        # /health 已改为只读 x_source_health 的上次探测结果（不再在请求线程里发起
+        # 最长 60 秒的外网探针）。这个 worker 负责按固定间隔把该结果刷新，否则
+        # /health 会长期把健康的 X 监控报成 unknown。
+        from app.workers.x_health_probe_worker import XHealthProbeWorker
+
+        x_health_probe_worker = XHealthProbeWorker(session_factory=SessionLocal)
+        x_health_probe_worker.start()
     if settings.backup_enabled:
         backup_worker = build_backup_worker(SessionLocal)
         if backup_worker is not None:
@@ -208,6 +230,8 @@ async def lifespan(_: FastAPI):
         redis_consumer.stop()
     if digest_worker is not None:
         digest_worker.stop()
+    if x_health_probe_worker is not None:
+        x_health_probe_worker.stop()
     if cleanup_worker is not None:
         cleanup_worker.stop()
     if backup_worker is not None:
@@ -219,9 +243,15 @@ async def lifespan(_: FastAPI):
     queue_worker.stop()
     takeaway_worker.stop()
     notification_service.stop()
+    # 这里刻意用 close_llm_client()（关闭 + 允许惰性重建）而不是 shutdown_http_pools()
+    # 的终态语义。终态是进程级且不可逆的，而 lifespan 在同一进程里会跑多次：
+    # 测试用 `with TestClient(app)` 反复起停，且大量测试用不带 context manager 的
+    # TestClient（**只触发 shutdown、不触发 startup**），所以"启动时解除终态"补不回来
+    # —— 实测会让后续所有 LLM 调用抛 HttpPoolShutdownError 而非真实的下游错误。
+    # 终态入口保留给确定不再复用进程的独立 worker 入口（app.workers.* 的 main）。
     from app.services.http_pool import aclose_async_llm_client, close_llm_client
-    close_llm_client()
     await aclose_async_llm_client()
+    close_llm_client()
     token_usage_buffer.flush()
 
 

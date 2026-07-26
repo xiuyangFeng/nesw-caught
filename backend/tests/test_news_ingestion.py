@@ -1915,7 +1915,7 @@ def test_default_sources_are_all_valid_and_unique() -> None:
 
     sources = _default_sources()
 
-    assert len(sources) == 16
+    assert len(sources) == 26
     names = [source.name for source in sources]
     assert len(names) == len(set(names)), f"duplicate source names: {names}"
     for source in sources:

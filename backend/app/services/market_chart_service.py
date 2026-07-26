@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +17,12 @@ from app.core.config import get_settings
 from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
+
+logger = logging.getLogger(__name__)
+
+# sparklines 整批的墙钟上限。单个 yf.download 自身 timeout=10s，30 个标的串行
+# 最坏 300s；改并发后再压一个整批上限，保证请求线程绝不会被外部数据源拖死。
+_SPARKLINE_BATCH_TIMEOUT_SECONDS = 15.0
 
 
 @dataclass(slots=True)
@@ -30,6 +40,7 @@ class MarketChartService:
         self._redis_url = settings.redis_url
         self._redis_timeout_seconds = settings.event_bus_publish_timeout_seconds
         self._cache_prefix = "market:kline:"
+        self._max_workers = max(1, int(getattr(settings, "market_chart_max_workers", 8)))
 
     def get_kline(self, symbol: str, interval: str, range_name: str, session: Session) -> dict:
         watchlist_item = self._require_watchlist_symbol(symbol, session)
@@ -55,20 +66,67 @@ class MarketChartService:
         if len(symbols) > 30:
             raise HTTPException(status_code=400, detail="too many symbols")
 
-        result: dict[str, dict[str, list[float]]] = {}
+        # 阶段一：先把需要的 DB 数据一次性读完，再释放只读事务，避免在后面
+        # 长达数秒的外部抓取期间一直占着 SQLite 连接。
+        resolved: list[tuple[str, str]] = []  # (watchlist_symbol, provider_symbol)
         for symbol in symbols:
             try:
                 watchlist_item = self._require_watchlist_symbol(symbol, session)
                 normalized = normalize_symbol(watchlist_item.symbol, watchlist_item.market)
-                history = self._download_history(normalized.provider_symbol, period="3mo", interval="1d")
+                resolved.append((watchlist_item.symbol, normalized.provider_symbol))
             except Exception:
                 continue
-            closes = [float(value) for value in history["Close"].tail(30).dropna().tolist()]
-            result[watchlist_item.symbol] = {"prices": closes}
+        self._release_session(session)
+
+        if not resolved:
+            return {}
+
+        # 阶段二：并发抓取 + 整批墙钟上限。超时的标的返回空序列（前端显示"暂无数据"），
+        # 抓取失败的标的沿用旧行为直接省略。
+        result: dict[str, dict[str, list[float]]] = {}
+        deadline = time.monotonic() + _SPARKLINE_BATCH_TIMEOUT_SECONDS
+        pool = ThreadPoolExecutor(max_workers=min(len(resolved), self._max_workers))
+        try:
+            futures = [
+                (watchlist_symbol, pool.submit(self._load_sparkline_prices, provider_symbol))
+                for watchlist_symbol, provider_symbol in resolved
+            ]
+            for watchlist_symbol, future in futures:
+                remaining = max(0.0, deadline - time.monotonic())
+                try:
+                    result[watchlist_symbol] = {"prices": future.result(timeout=remaining)}
+                except FutureTimeoutError:
+                    logger.warning("sparkline fetch timed out for %s", watchlist_symbol)
+                    result[watchlist_symbol] = {"prices": []}
+                except Exception:
+                    continue
+        finally:
+            # 绝不 wait=True：否则整批超时会被 shutdown 重新阻塞回去。
+            pool.shutdown(wait=False, cancel_futures=True)
         return result
+
+    def _load_sparkline_prices(self, provider_symbol: str) -> list[float]:
+        history = self._download_history(provider_symbol, period="3mo", interval="1d")
+        return [float(value) for value in history["Close"].tail(30).dropna().tolist()]
+
+    @staticmethod
+    def _release_session(session: Session) -> None:
+        """在发起外部网络请求前结束只读事务，把 SQLite 连接尽早还给其它请求/worker。
+
+        调用方必须在此之前把需要的 ORM 字段取成普通 Python 值（rollback 会让
+        本事务内加载的 ORM 对象过期）。
+        """
+        try:
+            session.rollback()
+        except Exception:  # pragma: no cover - 测试里可能传入 Mock session
+            pass
 
     def _build_kline_payload(self, symbol: str, market: str, interval: str, range_name: str, session: Session) -> dict:
         normalized = normalize_symbol(symbol.upper(), market)
+        # 先读库（并把 ORM 行拍平成 dict），再释放事务，最后才走网络。
+        news_items = self._load_related_news(symbol, session)
+        self._release_session(session)
+
         history = self._download_history(normalized.provider_symbol, period=range_name, interval=interval)
         candles = self._serialize_candles(history)
         indicator_frame = history.copy()
@@ -87,7 +145,6 @@ class MarketChartService:
             "bollinger": self._serialize_bollinger(close),
         }
 
-        news_items = NewsMentionsRepository(session).list_related_news(symbol)
         news_events = self._align_news_events(candles, news_items)
         return {
             "symbol": symbol.upper(),
@@ -98,6 +155,28 @@ class MarketChartService:
             "indicators": indicators,
             "news_events": news_events,
         }
+
+    def _load_related_news(self, symbol: str, session: Session) -> list[dict]:
+        """把相关新闻提前拍平成普通 dict，这样释放事务后仍可安全使用。
+
+        _align_news_events 本身就同时支持 ORM 对象与 dict，这里只做形态归一。
+        """
+        rows = NewsMentionsRepository(session).list_related_news(symbol)
+        items: list[dict] = []
+        for row in rows:
+            if isinstance(row, dict):
+                items.append(row)
+                continue
+            items.append(
+                {
+                    "id": getattr(row, "id", None),
+                    "title": getattr(row, "title", ""),
+                    "sentiment_label": getattr(row, "sentiment_label", "unknown"),
+                    "summary": getattr(row, "summary", None),
+                    "published_at": getattr(row, "published_at", None),
+                }
+            )
+        return items
 
     def _require_watchlist_symbol(self, symbol: str, session: Session):
         repository = WatchlistRepository(session)

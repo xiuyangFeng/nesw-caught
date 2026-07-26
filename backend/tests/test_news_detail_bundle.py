@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -21,7 +21,7 @@ def _make_item(session, *, suffix: str) -> NewsItem:
         canonical_url=f"https://example.com/bundle-{suffix}",
         url_hash=f"hash-bundle-{suffix}",
         market="us",
-        fetched_at=datetime.now(timezone.utc),
+        fetched_at=datetime.now(UTC),
     )
     session.add(item)
     session.flush()
@@ -36,7 +36,7 @@ def test_get_detail_bundle_returns_all_parts() -> None:
             NewsStockMention(news_id=item.id, symbol="NVDA", market="us", mention_type="explicit", confidence=0.9)
         )
         topic = TopicCluster(
-            topic_key="bundle-topic", topic_title="Bundle Topic", last_seen_at=datetime.now(timezone.utc)
+            topic_key="bundle-topic", topic_title="Bundle Topic", last_seen_at=datetime.now(UTC)
         )
         session.add(topic)
         session.flush()

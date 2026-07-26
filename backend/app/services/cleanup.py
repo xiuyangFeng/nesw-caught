@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, inspect as sa_inspect, select, text
+from sqlalchemy import delete, select, text
+from sqlalchemy import inspect as sa_inspect
 
 from app.core.config import get_settings
 from app.models.article_content import ArticleContent
