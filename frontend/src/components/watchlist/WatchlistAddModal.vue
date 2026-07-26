@@ -10,6 +10,7 @@ defineProps<{
   alertThreshold: string;
   createLoading: boolean;
   createError: string | null;
+  isSearching?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,7 +33,7 @@ const emit = defineEmits<{
     role="dialog"
     @click.self="emit('close')"
   >
-    <div class="w-full max-w-4xl rounded-lg border border-border bg-panel p-4 shadow-shell">
+    <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-panel p-4 shadow-shell">
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-[10px] uppercase tracking-[0.2em] text-accent">Add</p>
@@ -50,10 +51,15 @@ const emit = defineEmits<{
       </div>
 
       <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <section class="rounded-[20px] border border-border/80 bg-black/10 p-4">
-          <label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search">
-            搜索候选
-          </label>
+        <section class="flex flex-col rounded-[20px] border border-border/80 bg-black/10 p-4">
+          <div class="flex items-center justify-between">
+            <label class="block text-[10px] uppercase tracking-[0.16em] text-text-faint" for="watchlist-add-search">
+              搜索候选
+            </label>
+            <span v-if="isSearching" class="text-[10px] uppercase tracking-[0.14em] text-accent animate-pulse">
+              搜索中...
+            </span>
+          </div>
           <input
             id="watchlist-add-search"
             :value="query"
@@ -62,7 +68,7 @@ const emit = defineEmits<{
             placeholder="输入股票代码、名称或别名"
             @input="emit('updateQuery', ($event.target as HTMLInputElement).value)"
           />
-          <div class="mt-3 grid gap-2">
+          <div class="mt-3 grid gap-2 max-h-[380px] overflow-y-auto pr-1">
             <button
               v-for="candidate in matches"
               :key="candidate.symbol"

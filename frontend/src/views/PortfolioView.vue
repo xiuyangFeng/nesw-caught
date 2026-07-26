@@ -66,18 +66,31 @@ onMounted(() => {
   <div class="grid gap-4" data-role="portfolio-view">
     <header class="flex flex-col gap-3 rounded-[24px] border border-border bg-panel p-5 xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.24em] text-accent">Portfolio</p>
-        <h1 class="page-title mb-2">持仓 · 组合</h1>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] uppercase tracking-[0.24em] text-accent">Portfolio</span>
+          <RouterLink to="/watchlist?tab=portfolio" class="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] text-accent border border-accent/30 hover:bg-accent/20">
+            一体化工作台 ↗
+          </RouterLink>
+        </div>
+        <h1 class="page-title mb-1.5 mt-1">持仓 · 组合</h1>
         <p class="page-subtitle">按持仓量与成本核算实时盈亏，并把影响你最多钱的新闻排到最前。</p>
       </div>
-      <button
-        class="w-fit rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/20 disabled:cursor-progress disabled:opacity-60"
-        :disabled="loading"
-        data-role="portfolio-refresh"
-        @click="loadPortfolio"
-      >
-        {{ loading ? '刷新中...' : '刷新组合' }}
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <RouterLink
+          to="/watchlist"
+          class="rounded-full border border-border px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-text hover:border-accent/40"
+        >
+          📈 前往自选行情
+        </RouterLink>
+        <button
+          class="w-fit rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-accent transition hover:bg-accent/20 disabled:cursor-progress disabled:opacity-60"
+          :disabled="loading"
+          data-role="portfolio-refresh"
+          @click="loadPortfolio"
+        >
+          {{ loading ? '刷新中...' : '刷新组合' }}
+        </button>
+      </div>
     </header>
 
     <p v-if="error" class="rounded-[16px] border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">

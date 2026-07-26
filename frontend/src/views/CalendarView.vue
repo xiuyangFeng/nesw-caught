@@ -12,7 +12,7 @@ const loading = ref(true);
 const errorMessage = ref<string | null>(null);
 const response = ref<CalendarResponse | null>(null);
 
-// 前视窗口天数（含快捷切换）。
+// 前视窗口天数（含快捷切换，默认 30 天）。
 const windowDays = ref(30);
 const windowOptions = [
   { label: '未来 14 天', value: 14 },
@@ -50,6 +50,19 @@ function selectWindow(value: number) {
 
 const events = computed<CalendarEvent[]>(() => response.value?.events ?? []);
 const skippedCount = computed(() => response.value?.skipped_count ?? 0);
+
+// 超出当前选定 windowDays 窗口但在 90 天内有即将到来财报的自选股
+const outerUpcomingEarnings = computed(() => {
+  if (!response.value?.summaries) {
+    return [];
+  }
+  return response.value.summaries.filter(
+    (s) =>
+      typeof s.next_earnings_days_until === 'number' &&
+      s.next_earnings_days_until > windowDays.value &&
+      s.next_earnings_days_until <= 90
+  );
+});
 
 // 按日期分组，后端已按 days_until 升序返回，分组保持自然顺序。
 interface CalendarGroup {
@@ -163,6 +176,30 @@ onMounted(() => {
     <p v-if="errorMessage" class="rounded-[14px] border border-danger/40 bg-danger/[0.06] px-4 py-3 text-sm text-danger">
       {{ errorMessage }}
     </p>
+
+    <!-- 超出当前窗口但有财报的智能提示 -->
+    <div
+      v-if="!loading && outerUpcomingEarnings.length > 0"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-text"
+    >
+      <div class="flex items-center gap-2">
+        <span class="text-base">💡</span>
+        <span>
+          发现您的自选股中
+          <strong v-for="(item, idx) in outerUpcomingEarnings" :key="item.symbol" class="text-accent">
+            {{ item.display_name ?? item.symbol }} ({{ item.next_earnings_days_until }}天后){{ idx < outerUpcomingEarnings.length - 1 ? '、' : '' }}
+          </strong>
+          在当前「未来 {{ windowDays }} 天」窗口之外即将公布财报。
+        </span>
+      </div>
+      <button
+        type="button"
+        class="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-[var(--bg)] transition hover:brightness-110"
+        @click="selectWindow(windowDays <= 30 ? 60 : 90)"
+      >
+        切换至未来 {{ windowDays <= 30 ? 60 : 90 }} 天 ↗
+      </button>
+    </div>
 
     <section>
       <LoadingBlock

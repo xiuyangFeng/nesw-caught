@@ -38,8 +38,14 @@ const filteredRows = computed(() => {
     <div class="rounded-lg border border-border bg-panel p-4" data-role="watchlist-toolbar">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-[10px] uppercase tracking-[0.22em] text-accent">Watchlist</p>
-          <h2 class="mt-1 text-base text-text">列表</h2>
+          <div class="flex items-center gap-2">
+            <p class="text-[10px] uppercase tracking-[0.22em] text-accent">Watchlist</p>
+            <span class="rounded-full bg-positive/10 border border-positive/30 px-2 py-0.5 text-[9px] font-semibold text-positive">
+              同花顺极速行情
+            </span>
+          </div>
+          <h2 class="mt-1 text-base text-text">自选股列表</h2>
+          <p class="text-[11px] text-text-faint mt-0.5">高密度直展股价与涨跌额包囊 · 点击标的看专业 K 线</p>
         </div>
         <button
           type="button"
@@ -54,7 +60,7 @@ const filteredRows = computed(() => {
         <input
           v-model.trim="query"
           class="min-w-0 flex-1 rounded-xl border border-border bg-field px-3 py-2 text-sm text-text"
-          placeholder="搜索已添加股票"
+          placeholder="搜索已添加股票代码/名称"
         />
         <button
           type="button"

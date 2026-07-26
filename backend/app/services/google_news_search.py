@@ -18,7 +18,12 @@ def _build_google_news_url(query: str, *, language: str = "en") -> str:
     from urllib.parse import quote_plus
 
     encoded = quote_plus(query)
-    if language.startswith("zh"):
+    lang_lower = language.lower()
+    if lang_lower in ("zh-hk", "hk"):
+        return f"{GOOGLE_NEWS_RSS_BASE}?q={encoded}&hl=zh-HK&gl=HK&ceid=HK:zh-Hant"
+    if lang_lower in ("zh-tw", "tw"):
+        return f"{GOOGLE_NEWS_RSS_BASE}?q={encoded}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+    if lang_lower.startswith("zh"):
         return f"{GOOGLE_NEWS_RSS_BASE}?q={encoded}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
     return f"{GOOGLE_NEWS_RSS_BASE}?q={encoded}&hl=en&gl=US&ceid=US:en"
 

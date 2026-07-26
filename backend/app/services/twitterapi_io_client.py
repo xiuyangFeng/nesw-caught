@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 
 import httpx
 
 from app.core.config import get_settings
+
+_rate_limit_lock = threading.Lock()
 
 
 class TwitterApiIoError(RuntimeError):
@@ -50,16 +53,17 @@ class TwitterApiIoClient:
         if min_interval_seconds <= 0:
             return
 
-        last_request_started_at = self.__class__._last_request_started_at
-        if last_request_started_at is None:
-            self.__class__._last_request_started_at = time.monotonic()
-            return
+        with _rate_limit_lock:
+            last_request_started_at = self.__class__._last_request_started_at
+            if last_request_started_at is None:
+                self.__class__._last_request_started_at = time.monotonic()
+                return
 
-        elapsed = time.monotonic() - last_request_started_at
-        remaining = min_interval_seconds - elapsed
-        if remaining > 0:
-            time.sleep(remaining)
-        self.__class__._last_request_started_at = time.monotonic()
+            elapsed = time.monotonic() - last_request_started_at
+            remaining = min_interval_seconds - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
+            self.__class__._last_request_started_at = time.monotonic()
 
     def _probe_cache_ttl_seconds(self) -> float:
         min_interval_seconds = max(0.0, float(getattr(self.settings, "twitterapi_io_min_interval_seconds", 0.0)))

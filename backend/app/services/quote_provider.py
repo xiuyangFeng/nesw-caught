@@ -127,7 +127,8 @@ def normalize_symbol(symbol: str, market: str | None = None) -> NormalizedSymbol
     if inferred_market == "hk" and raw.isdigit():
         return NormalizedSymbol(symbol=raw, market="hk", provider_symbol=f"{raw.zfill(4)}.HK")
 
-    if "." not in raw and raw.replace("-", "").isalnum():
+    clean_raw = raw.replace(".", "").replace("-", "")
+    if clean_raw.isalnum():
         return NormalizedSymbol(symbol=raw, market="us", provider_symbol=raw)
 
     raise ValueError(f"unsupported symbol: {symbol}")
@@ -312,6 +313,28 @@ class YahooFinanceQuoteProvider:
         )
 
 
+def _fetch_tencent_content(url: str, timeout: float = 5.0) -> str:
+    """获取腾讯行情接口响应文本，兼容 urllib mock 单元测试钩子与 http_pool 连接池。"""
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            read_fn = getattr(response, "read", None)
+            if callable(read_fn):
+                raw = read_fn()
+                if isinstance(raw, bytes):
+                    return raw.decode("gbk", errors="replace")
+    except Exception:
+        pass
+
+    from app.services import http_pool
+
+    client = http_pool.get_feed_client()
+    response = client.get(url, timeout=timeout)
+    response.raise_for_status()
+    return response.content.decode("gbk", errors="replace")
+
+
 class TencentQuoteProvider:
     source_name = "tencent_finance"
 
@@ -329,10 +352,7 @@ class TencentQuoteProvider:
         url = f"http://qt.gtimg.cn/q={code}"
 
         try:
-            import urllib.request
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=5) as response:
-                content = response.read().decode("gbk")
+            content = _fetch_tencent_content(url, timeout=5.0)
         except Exception as exc:
             raise RuntimeError(f"failed to fetch data from tencent: {exc}") from exc
 
@@ -426,10 +446,7 @@ class TencentQuoteProvider:
         url = f"http://qt.gtimg.cn/q={','.join(codes)}"
 
         try:
-            import urllib.request
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=5) as response:
-                content = response.read().decode("gbk")
+            content = _fetch_tencent_content(url, timeout=5.0)
         except Exception as exc:
             for code in codes:
                 ns = ns_map[code]
