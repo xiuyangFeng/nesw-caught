@@ -2,6 +2,31 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-03 仪表盘分支合并审查与生命周期加固
+
+- 修改人：Codex
+- 修改范围：动态行情条卸载生命周期、仪表盘市场情绪设计/计划文档和测试。
+- 变更内容：代码审查发现 `MarketTickerStrip` 为涨跌闪烁创建的 600ms 定时器仅在下一次同标的变化时替换，路由切换卸载组件时不会清理，仍可能回调并修改已卸载组件状态。现于 `onBeforeUnmount` 清理并清空全部闪烁计时器；新增失败测试固定该生命周期契约；补充仪表盘市场情绪与动态行情的设计及实现计划文档。
+- 影响文件：`frontend/src/components/dashboard/MarketTickerStrip.vue`、`frontend/src/components/dashboard/MarketTickerStrip.test.ts`、`docs/superpowers/specs/2026-08-03-dashboard-market-sentiment-design.md`、`docs/superpowers/plans/2026-08-03-dashboard-market-sentiment-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：卸载清理测试在旧实现下失败；修复后仪表盘三个专项测试文件共 15 passed。分支全量测试和构建将在提交前继续执行。
+- 风险或后续事项：行情条的动画与闪烁均为前端展示增强，不影响行情数据刷新和缓存语义。
+
+## 2026-08-02 仪表盘优化：市场情绪/恐慌可视化 + 动态行情条，移除来源健康区块
+
+- 修改人：Kimi
+- 修改范围：Dashboard 页面（前端），删除底部来源健康区块，接入既有 `GET /api/market/overview` 数据做市场情绪与恐慌可视化。
+- 变更内容：
+  1. 删除仪表盘底部"来源健康"区块：`DashboardView.vue` 移除对应 `SectionCard`、`SourceHealthGrid` import 与 `sourceHealthItems` computed（来源健康明细仍可在 `/ops` 运维页查看；`newsStore.loadNewsRuntime` 轮询有其他用途，未动）。删除 `SourceHealthGrid.vue` 及其测试（grep 确认仅 DashboardView 引用）。
+  2. 新增 `components/dashboard/FearGreedPanel.vue` + `FearGreedGauge.vue`（替代原来源健康位置）：五市场恐慌贪婪仪表（quant_sentiment score [-1,1] 映射 0-100，五段色带 SVG 半圆仪表，指针 CSS transition 平滑摆动；label 中文化 极度恐慌/恐慌/中性/贪婪/极度贪婪，配色与 MarketOverviewCard 五色体系一致）；输入因子 chips（VIX / 涨跌比 / 指数均涨跌）；涨跌家数堆叠宽度条（汇总 boards.items 的 advance/decline/flat，红涨绿跌，宽度 transition）；新闻情绪分行。quant_sentiment 为 null 或板块非 ok 时优雅降级为 `--` / "数据不足"。
+  3. 新增 `components/dashboard/MarketTickerStrip.vue`（位于突发新闻横幅之下）：全市场指数横向无缝滚动条（CSS marquee，列表双份渲染，悬停暂停；时长随条目数伸缩），^VIX 按既有约定不展示；watch 各指数 change_percent，数值变动时该项闪烁 600ms（上跳 --positive-soft / 下跳 --negative-soft）；不可用指数显示 `--`。
+  4. `DashboardView.vue` 接线 `marketOverviewStore`：`onMounted` 首载 + `startAutoRefresh()`（60s 轮询），`onUnmounted` 停止，与 WatchlistView 同一模式；`SectionCard` import 随来源健康删除一并移除。
+  5. 测试：新增 `FearGreedPanel.test.ts`（卡片渲染/label 映射/降级/涨跌条比例/空态 4 例）、`MarketTickerStrip.test.ts`（空态/双份渲染与 ^VIX 过滤/不可用占位/涨跌闪烁 4 例）；`DashboardView.test.ts` 补充 `marketOverviewStore` mock。
+- 影响文件：`frontend/src/views/DashboardView.vue`、`frontend/src/views/DashboardView.test.ts`、`frontend/src/components/dashboard/FearGreedPanel.vue`（新增）、`frontend/src/components/dashboard/FearGreedGauge.vue`（新增）、`frontend/src/components/dashboard/MarketTickerStrip.vue`（新增）、`frontend/src/components/dashboard/FearGreedPanel.test.ts`（新增）、`frontend/src/components/dashboard/MarketTickerStrip.test.ts`（新增）、删除 `frontend/src/components/dashboard/SourceHealthGrid.vue` 与 `SourceHealthGrid.test.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。纯前端改动，消费既有 `GET /api/market/overview`（此前仅 WatchlistView 使用），无新增依赖。
+- 验证情况：`npx vitest run` 全量 83 文件 489 测试全绿；`npm --prefix frontend run build`（含 vue-tsc）通过。未做浏览器手动实测。
+- 风险或后续事项：kr/jp/eu 市场常态缺 VIX/涨跌家数输入，对应卡片会显示"数据不足"占位，属后端数据现状而非缺陷；行情条闪烁依赖 60s 轮询的数据变化，闭市期间数值不变则不闪烁。
+
 ## 2026-08-02 本地功能分支终审、集成修复与合并 main
 
 - 修改人：Codex

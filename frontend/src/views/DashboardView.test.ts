@@ -103,6 +103,19 @@ vi.mock('../stores/marketStore', () => ({
   useMarketStore: () => marketStore,
 }));
 
+const marketOverviewStore = reactive({
+  overview: null,
+  loading: false,
+  error: null,
+  loadOverview: vi.fn(),
+  startAutoRefresh: vi.fn(),
+  stopAutoRefresh: vi.fn(),
+});
+
+vi.mock('../stores/marketOverviewStore', () => ({
+  useMarketOverviewStore: () => marketOverviewStore,
+}));
+
 vi.mock('vue-router', () => ({
   RouterLink: {
     name: 'RouterLink',

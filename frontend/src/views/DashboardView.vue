@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
-import SectionCard from '../components/common/SectionCard.vue';
 import BreakingNewsSpotlight from '../components/dashboard/BreakingNewsSpotlight.vue';
 import { computeHourlyTrend } from '../components/dashboard/dashboardTrend';
 import DashboardFilterBar from '../components/dashboard/DashboardFilterBar.vue';
@@ -10,12 +9,14 @@ import DashboardHeader from '../components/dashboard/DashboardHeader.vue';
 import DashboardMoversColumn from '../components/dashboard/DashboardMoversColumn.vue';
 import DashboardNewsFeedColumn from '../components/dashboard/DashboardNewsFeedColumn.vue';
 import DashboardTopicColumn from '../components/dashboard/DashboardTopicColumn.vue';
+import FearGreedPanel from '../components/dashboard/FearGreedPanel.vue';
 import HeroMetrics from '../components/dashboard/HeroMetrics.vue';
+import MarketTickerStrip from '../components/dashboard/MarketTickerStrip.vue';
 import SentimentGauge from '../components/dashboard/SentimentGauge.vue';
 import SentimentTrendChart from '../components/dashboard/SentimentTrendChart.vue';
-import SourceHealthGrid from '../components/dashboard/SourceHealthGrid.vue';
 import NewsDetailDrawer from '../components/news/NewsDetailDrawer.vue';
 import { useConnectionStore } from '../stores/connectionStore';
+import { useMarketOverviewStore } from '../stores/marketOverviewStore';
 import { useMarketStore } from '../stores/marketStore';
 import { useNewsStore } from '../stores/newsStore';
 import { useTopicStore } from '../stores/topicStore';
@@ -24,8 +25,19 @@ import type { Market } from '../types/api';
 const connectionStore = useConnectionStore();
 const newsStore = useNewsStore();
 const marketStore = useMarketStore();
+const marketOverviewStore = useMarketOverviewStore();
 const topicStore = useTopicStore();
 const router = useRouter();
+
+// 市场总览(恐慌贪婪指数 + 指数行情条):首载 + 60s 定时刷新,与 WatchlistView 同一模式。
+onMounted(() => {
+  void marketOverviewStore.loadOverview();
+  marketOverviewStore.startAutoRefresh();
+});
+
+onUnmounted(() => {
+  marketOverviewStore.stopAutoRefresh();
+});
 
 // 交互式过滤器状态
 const selectedMarket = ref<Market | null>(null);
@@ -134,8 +146,6 @@ const dashboardStatus = computed(() => {
   } as const;
 });
 
-const sourceHealthItems = computed(() => newsStore.newsRuntimeStatus?.sources ?? []);
-
 const positiveCount = computed(() => {
   return filteredDashboardItems.value.filter((item) => item.sentiment_label === 'positive').length;
 });
@@ -194,6 +204,9 @@ const metrics = computed(() => {
     <!-- 顶部突发利好/利空警报横幅 -->
     <BreakingNewsSpotlight :newsItems="filteredDashboardItems" @selectNews="openNewsDrawer" />
 
+    <!-- 全球指数动态行情条(无缝滚动 + 涨跌闪烁) -->
+    <MarketTickerStrip />
+
     <!-- 舆情偏好罗盘与指标网格 -->
     <div data-role="dashboard-hero" class="grid gap-3.5 xl:grid-cols-[1.1fr_1.8fr_2.1fr]">
       <SentimentGauge :positiveCount="positiveCount" :negativeCount="negativeCount" />
@@ -224,14 +237,8 @@ const metrics = computed(() => {
       <DashboardMoversColumn :movers="filteredMovers" :loading="marketStore.loading" />
     </section>
 
-    <SectionCard
-      eyebrow="Source Health"
-      title="来源健康"
-      subtitle="按状态排序:故障源置顶,EMA 时延与连续失败可见"
-      data-role="dashboard-source-health"
-    >
-      <SourceHealthGrid :sources="sourceHealthItems" :loading="newsStore.runtimeStatusLoading" />
-    </SectionCard>
+    <!-- 市场情绪与恐慌指数(替代原来源健康区块) -->
+    <FearGreedPanel />
 
     <!-- 极速右侧滑出预览抽屉 -->
     <NewsDetailDrawer
