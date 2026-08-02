@@ -153,11 +153,13 @@ const newsStore = reactive({
   feedNextCursor: null,
   feedHasMore: false,
   feedLoadingMore: false,
+  isRefreshing: false,
   loadFeedNews: vi.fn(async () => undefined),
   loadFeedLayout: vi.fn(async () => undefined),
   loadMoreFeedNews: vi.fn(async () => false),
   loadDetail: vi.fn(async (_id: number): Promise<void> => undefined),
   loadAnalysis: vi.fn(async (_id: number): Promise<void> => undefined),
+  refreshNews: vi.fn(async () => true),
 });
 
 vi.mock('vue-router', () => ({
@@ -203,6 +205,9 @@ describe('NewsFeedView', () => {
     newsStore.loadFeedLayout.mockClear();
     newsStore.loadDetail.mockClear();
     newsStore.loadAnalysis.mockClear();
+    newsStore.refreshNews.mockReset();
+    newsStore.refreshNews.mockResolvedValue(true);
+    newsStore.isRefreshing = false;
     newsStore.feedLayoutDegraded = false;
     newsStore.feedItems = items;
     newsStore.feedLayout = feedLayout;
@@ -219,7 +224,9 @@ describe('NewsFeedView', () => {
     expect(wrapper.text()).not.toContain('Signal Desk');
     expect(wrapper.text()).not.toContain('News Feed');
     expect(wrapper.findAll('h2').map((node) => node.text())).not.toContain('Latest Events');
-    expect(wrapper.text()).toContain('Raw Stream');
+    expect(wrapper.text()).not.toContain('Raw Stream');
+    expect(wrapper.text()).not.toContain('Live Flow');
+    expect(wrapper.find('[data-role="feed-runtime-alert"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('先扫最新事件，再看主题簇和原始新闻流作为证据层。');
     expect(wrapper.find('[data-role="filter-bar"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="news-feed-toolbar"]').exists()).toBe(true);
@@ -239,6 +246,39 @@ describe('NewsFeedView', () => {
       'NVIDIA rallies as AI capex estimates move higher',
       'TSMC supply chain remains in focus',
     ]);
+  });
+
+  it('starts a manual news crawl from the page header and reports acceptance', async () => {
+    const wrapper = mount(NewsFeedView);
+
+    const refreshButton = wrapper.get('[data-role="manual-news-refresh"]');
+    expect(refreshButton.text()).toContain('抓取最新新闻');
+
+    await refreshButton.trigger('click');
+    await flushPromises();
+
+    expect(newsStore.refreshNews).toHaveBeenCalledTimes(1);
+    expect(wrapper.get('[data-role="manual-news-refresh-feedback"]').text()).toContain('已开始抓取');
+  });
+
+  it('disables the manual crawl button while a refresh is in progress', () => {
+    newsStore.isRefreshing = true;
+
+    const wrapper = mount(NewsFeedView);
+    const refreshButton = wrapper.get('[data-role="manual-news-refresh"]');
+
+    expect(refreshButton.attributes('disabled')).toBeDefined();
+    expect(refreshButton.text()).toContain('抓取中');
+  });
+
+  it('reports when a manual crawl was not started', async () => {
+    newsStore.refreshNews.mockResolvedValueOnce(false);
+    const wrapper = mount(NewsFeedView);
+
+    await wrapper.get('[data-role="manual-news-refresh"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('[data-role="manual-news-refresh-feedback"]').text()).toContain('暂未启动');
   });
 
   it('loads the event layout and the raw stream in parallel', () => {
@@ -320,20 +360,13 @@ describe('NewsFeedView', () => {
     expect(wrapper.get('[data-role="news-card-shell"]').classes()).toContain('news-card--read');
   });
 
-  it('renders delayed/degraded/live status copy in the feed header', () => {
+  it('does not render runtime warning copy in the feed header', () => {
     const wrapper = mount(NewsFeedView);
 
-    expect(wrapper.text()).toContain('新闻更新延迟');
-    expect(wrapper.text()).toContain('最近入流');
-    expect(wrapper.text()).toContain('异常来源');
-  });
-
-  it('overrides runtime status copy when the sse connection is degraded', () => {
-    connectionStore.state = 'offline';
-
-    const wrapper = mount(NewsFeedView);
-
-    expect(wrapper.text()).toContain('实时连接异常');
+    expect(wrapper.text()).not.toContain('新闻更新延迟');
+    expect(wrapper.text()).not.toContain('最近入流');
+    expect(wrapper.text()).not.toContain('异常来源');
+    expect(wrapper.text()).not.toContain('实时连接异常');
   });
 
   it('keeps rendering the raw stream when there are no derived events', () => {

@@ -155,9 +155,7 @@ describe('AppShell', () => {
     expect(wrapper.text()).not.toContain('跟踪新闻、主题热度、自选股异动与流式连接状态。');
     expect(wrapper.find('[data-role="primary-nav"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="system-status"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="shell-status-rail"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('SSE LIVE');
-    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('Workspace latest-event discovery');
+    expect(wrapper.find('[data-role="shell-status-rail"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('Last event');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('market_quote_producer');
     expect(wrapper.find('[data-role="system-status"]').text()).toContain('provider timeout');
@@ -187,7 +185,7 @@ describe('AppShell', () => {
       'content-start',
       'shell:h-[calc(100dvh-36px)]',
       'shell:min-h-0',
-      'shell:grid-rows-[auto_minmax(0,1fr)]',
+      'shell:grid-rows-[minmax(0,1fr)]',
       'shell:overflow-hidden',
     ]));
   });
@@ -218,13 +216,13 @@ describe('AppShell', () => {
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
 
-  it('updates the shell rail signal tone when connection state is degraded', () => {
+  it('keeps connection diagnostics in the sidebar when connection state is degraded', () => {
     connectionStore.state = 'degraded';
 
     const wrapper = mount(AppShell);
 
-    expect(wrapper.find('[data-role="shell-status-rail"]').text()).toContain('SSE DEGRADED');
-    expect(wrapper.find('[data-role="shell-status-rail-signal"]').classes()).toContain('bg-warning');
+    expect(wrapper.find('[data-role="shell-status-rail"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="system-status"]').text()).toContain('降级为 mock');
   });
 
   it('refreshes runtime status after watchlist movement and keepalive events', async () => {
@@ -529,20 +527,12 @@ describe('AppShell', () => {
     vi.useRealTimers();
   });
 
-  it('shows the syncing indicator while newsStore.isRefreshing is true', () => {
+  it('does not restore the removed shell rail while newsStore is refreshing', () => {
     newsStore.isRefreshing = true;
 
     const wrapper = mount(AppShell);
 
-    expect(wrapper.find('[data-role="news-refresh-indicator"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="news-refresh-indicator"]').text()).toContain('同步中');
-  });
-
-  it('hides the syncing indicator when newsStore.isRefreshing is false', () => {
-    newsStore.isRefreshing = false;
-
-    const wrapper = mount(AppShell);
-
+    expect(wrapper.find('[data-role="shell-status-rail"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="news-refresh-indicator"]').exists()).toBe(false);
   });
 
