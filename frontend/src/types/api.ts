@@ -425,7 +425,17 @@ export type XPostQuery = {
 // ---------------------------------------------------------------------------
 // 信号有效性回测（Signal Backtest）
 // ---------------------------------------------------------------------------
-export type BacktestSummary = Schemas['BacktestSummaryView'];
+// Pydantic 为带默认值的字段生成了 required OpenAPI 属性，但前端仍需兼容部署升级前
+// 的旧响应，因此只把这 3 个 additive 字段放宽为可选；其余结构直接跟随生成契约。
+type GeneratedBacktestSummary = Schemas['BacktestSummaryView'];
+export type BacktestSummary = Omit<
+  GeneratedBacktestSummary,
+  'benchmark_note' | 'distinct_news_count' | 'skipped_stale_count'
+> & {
+  benchmark_note?: GeneratedBacktestSummary['benchmark_note'];
+  distinct_news_count?: GeneratedBacktestSummary['distinct_news_count'];
+  skipped_stale_count?: GeneratedBacktestSummary['skipped_stale_count'];
+};
 export type SignalDirectionStats = Schemas['SignalDirectionStatsView'];
 export type ImportanceBucketStats = Schemas['ImportanceBucketStatsView'];
 
@@ -465,18 +475,38 @@ export type FeishuTestResult = Schemas['FeishuTestResult'];
 export type DigestSection = Schemas['DigestSectionView'];
 export type Digest = Schemas['DigestView'];
 export type DigestLatest = Schemas['DigestLatestView'];
-// 情绪/利好利空评测 (Sentiment Eval Harness)
+// 情绪/利好利空评测与 Phase 2/3 类型已在本次集成后进入 OpenAPI，统一回归生成类型。
 // ---------------------------------------------------------------------------
 export type SentimentEvalLabel = 'positive' | 'negative' | 'neutral';
-
 export type SentimentLabelMetrics = Schemas['SentimentLabelMetrics'];
-
 export type SentimentEvaluationMetrics = Schemas['SentimentEvaluationMetrics'];
-
 export type SentimentModelRun = Schemas['SentimentModelRun'];
-
 export type SentimentLabelDelta = Schemas['SentimentLabelDelta'];
-
 export type SentimentABComparison = Schemas['SentimentABComparison'];
-
+export type SentimentEvalHistoryPoint = Schemas['SentimentEvalHistoryPoint'];
+export type SentimentEvalRegression = Schemas['SentimentEvalRegression'];
 export type SentimentEvalResponse = Schemas['SentimentEvalResponse'];
+
+// 后端 sentiment_label 是普通可空 string；前端只在已知三种标签上着色，因此窄化。
+export type SentimentTimelineNewsRef = Omit<
+  Schemas['SentimentTimelineNewsItemView'],
+  'sentiment_label'
+> & {
+  sentiment_label?: SentimentEvalLabel | null;
+};
+export type SentimentTimelinePoint = Omit<Schemas['SentimentTimelinePointView'], 'top_news'> & {
+  top_news: SentimentTimelineNewsRef[];
+};
+export type DivergenceStatus = Schemas['SentimentDivergenceView'];
+export type DivergenceStatusValue = DivergenceStatus['status'];
+export type SentimentTimelineResponse = Omit<
+  Schemas['SentimentTimelineView'],
+  'points' | 'divergence'
+> & {
+  points: SentimentTimelinePoint[];
+  divergence: DivergenceStatus | null;
+};
+
+export type ScoreBucketStats = Schemas['ScoreBucketStatsView'];
+export type CalibrationMappingEntry = Schemas['CalibrationMappingEntryView'];
+export type SentimentCalibration = Schemas['SentimentCalibrationView'];

@@ -14,11 +14,15 @@ from app.schemas.sentiment_eval import (
 from app.services.news_sentiment_evaluator import (
     SentimentEvaluationError,
     SentimentEvaluationResult,
+    compute_importance_weighted_accuracy,
     evaluate_sentiment,
 )
 
-# text -> sentiment_label（可注入 mock，实现离线可测）
-ClassifyFn = Callable[[str], str]
+# sample -> sentiment_label（可注入 mock，实现离线可测）。
+# 接收完整 SentimentGoldSample 而非纯文本，是为了让注入的分类函数能拿到
+# title/summary/body/market 等与线上分类输入对齐的字段（情绪评测重构 Phase 1
+# 工作块 B：评测输入对齐）。
+ClassifyFn = Callable[[SentimentGoldSample], str]
 
 
 def run_sentiment_evaluation(
@@ -32,9 +36,10 @@ def run_sentiment_evaluation(
         raise SentimentEvaluationError("cannot evaluate an empty dataset")
 
     gold = [sample.sentiment_label for sample in samples]
-    predicted = [classify_fn(sample.text) for sample in samples]
+    predicted = [classify_fn(sample) for sample in samples]
     result = evaluate_sentiment(gold, predicted)
-    return SentimentModelRun(model_name=model_name, metrics=_to_metrics(result))
+    weighted_accuracy = compute_importance_weighted_accuracy(samples, predicted)
+    return SentimentModelRun(model_name=model_name, metrics=_to_metrics(result, weighted_accuracy))
 
 
 def compare_sentiment_runs(
@@ -102,7 +107,10 @@ def run_sentiment_ab(
     return compare_sentiment_runs(run_a, run_b)
 
 
-def _to_metrics(result: SentimentEvaluationResult) -> SentimentEvaluationMetrics:
+def _to_metrics(
+    result: SentimentEvaluationResult,
+    importance_weighted_accuracy: float | None = None,
+) -> SentimentEvaluationMetrics:
     return SentimentEvaluationMetrics(
         accuracy=result.accuracy,
         macro_f1=result.macro_f1,
@@ -118,4 +126,5 @@ def _to_metrics(result: SentimentEvaluationResult) -> SentimentEvaluationMetrics
             for score in result.per_label.values()
         ],
         confusion_matrix=result.confusion_matrix,
+        importance_weighted_accuracy=importance_weighted_accuracy,
     )

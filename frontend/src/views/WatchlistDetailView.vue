@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import StockDetailPanel from '../components/watchlist/StockDetailPanel.vue';
+import SentimentTimelinePanel from '../components/watchlist/SentimentTimelinePanel.vue';
 import { HttpError } from '../api/http';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import { useWatchlistStore } from '../stores/watchlistStore';
@@ -173,6 +174,11 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
         @switch-period="watchlistStore.switchPeriod"
       />
     </LoadingBlock>
+
+    <!-- 个股情绪时间线 + 情绪-价格背离提醒 -->
+    <section v-if="symbol" class="grid gap-2" data-role="watchlist-detail-sentiment-timeline">
+      <SentimentTimelinePanel :symbol="symbol" />
+    </section>
 
     <!-- 个股 AI 综合研判（结构化研报） -->
     <section v-if="symbol" class="grid gap-2" data-role="stock-ai-research">

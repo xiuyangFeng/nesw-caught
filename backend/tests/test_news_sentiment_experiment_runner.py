@@ -22,8 +22,10 @@ def _samples() -> list[SentimentGoldSample]:
 
 
 def _classify_from(mapping: dict[str, str]):
-    def classify(text: str) -> str:
-        return mapping[text]
+    """text -> label 映射包成 sample -> label 的 ClassifyFn（用 sample.text 查表）。"""
+
+    def classify(sample: SentimentGoldSample) -> str:
+        return mapping[sample.text]
 
     return classify
 
@@ -39,6 +41,23 @@ def test_run_sentiment_evaluation_uses_injected_classifier() -> None:
     labels = {row.label: row for row in run.metrics.per_label}
     assert labels["positive"].recall == 0.5
     assert labels["negative"].precision == 0.5
+    # 内置四条演示样本都没有 importance 标注 => None。
+    assert run.metrics.importance_weighted_accuracy is None
+
+
+def test_run_sentiment_evaluation_computes_importance_weighted_accuracy() -> None:
+    samples = [
+        SentimentGoldSample(
+            sample_id="a", text="a", sentiment_label="positive", importance=1.0
+        ),
+        SentimentGoldSample(sample_id="b", text="b", sentiment_label="negative"),
+    ]
+    classify = _classify_from({"a": "positive", "b": "positive"})
+
+    run = run_sentiment_evaluation(samples, model_name="mock", classify_fn=classify)
+
+    # a 命中(权重1)，b 未命中(权重按1.0缺省计) => 1/2
+    assert run.metrics.importance_weighted_accuracy == 0.5
 
 
 def test_run_sentiment_ab_picks_better_model() -> None:

@@ -100,13 +100,35 @@ export interface paths {
         };
         /**
          * Get Sentiment Eval
-         * @description 对内置金标集即时评一遍，返回单模型指标 + 两套阈值配置的 A/B 对比。
+         * @description 只读回放最近一个 batch 的持久化评测结果 + 历史 + 回归对比，不再触发计算。
          *
-         *     金标缺失/为空/损坏时降级为 available=False，避免 500。
+         *     金标缺失/非法时降级为 available=False；金标存在但库里还没有任何评测记录时
+         *     available=True 且 primary=None，note 提示去点"重新评测"。
          */
         get: operations["get_sentiment_eval_api_eval_sentiment_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/eval/sentiment/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Sentiment Eval
+         * @description 执行一次真实评测（rule-baseline 永远评；有激活 LLM 配置时追加 llm/hybrid，否则
+         *     降级为规则阈值 legacy A/B），落库为一个 batch，返回完整 SentimentEvalResponse。
+         */
+        post: operations["run_sentiment_eval_api_eval_sentiment_run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -929,6 +951,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/watchlist/{symbol}/sentiment-timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Watchlist Sentiment Timeline
+         * @description 个股逐日情绪时间线，内嵌最新情绪-价格背离判定（无背离则为 null）。
+         *
+         *     `days`：聚合窗口天数（默认 30，上限 90）。
+         *     `window`：背离检测独立窗口（默认取 `settings.sentiment_divergence_window_days`，
+         *     可传 1~14 覆盖），与 `days` 语义无关——时间线看的是"这段时间的情绪走势"，
+         *     背离判定看的是"最近这几天情绪和价格是否对不上"。
+         */
+        get: operations["get_watchlist_sentiment_timeline_api_watchlist__symbol__sentiment_timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/x/accounts": {
         parameters: {
             query?: never;
@@ -1144,6 +1191,21 @@ export interface components {
          * @description 回测汇总响应。
          */
         BacktestSummaryView: {
+            /** Avg Excess Return */
+            avg_excess_return?: number | null;
+            /**
+             * Benchmark Note
+             * @default
+             */
+            benchmark_note: string;
+            /** Benchmark Return */
+            benchmark_return?: number | null;
+            calibration?: components["schemas"]["SentimentCalibrationView"] | null;
+            /**
+             * Distinct News Count
+             * @default 0
+             */
+            distinct_news_count: number;
             /** Evaluable Count */
             evaluable_count: number;
             /** Evaluable Rate */
@@ -1157,9 +1219,18 @@ export interface components {
             /** Market */
             market?: string | null;
             negative: components["schemas"]["SignalDirectionStatsView"];
+            /** Per News Hit Rate */
+            per_news_hit_rate?: number | null;
             positive: components["schemas"]["SignalDirectionStatsView"];
+            /** Score Buckets */
+            score_buckets?: components["schemas"]["ScoreBucketStatsView"][];
             /** Skipped Count */
             skipped_count: number;
+            /**
+             * Skipped Stale Count
+             * @default 0
+             */
+            skipped_stale_count: number;
             /** Total Signals */
             total_signals: number;
             /** Window Days */
@@ -1264,6 +1335,24 @@ export interface components {
             next_earnings_days_until?: number | null;
             /** Symbol */
             symbol: string;
+        };
+        /**
+         * CalibrationMappingEntryView
+         * @description 单个 score 桶的经验命中率 -> 校准置信度映射。
+         */
+        CalibrationMappingEntryView: {
+            /** Calibrated Confidence */
+            calibrated_confidence: number;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Low Sample */
+            low_sample: boolean;
+            /** Sample Count */
+            sample_count: number;
+            /** Score Max */
+            score_max: number;
+            /** Score Min */
+            score_min: number;
         };
         /** CandlePointView */
         CandlePointView: {
@@ -1463,8 +1552,13 @@ export interface components {
         /**
          * ImportanceBucketStatsView
          * @description 按信号置信度分桶（high / medium / low / unknown）的平均前视收益。
+         *
+         *     局限：signal_confidence 当前多为 |sentiment_score| 的线性变换，信息量有限；
+         *     建议优先参考 score_buckets，该桶字段仅为兼容前端现状保留。
          */
         ImportanceBucketStatsView: {
+            /** Avg Excess Return */
+            avg_excess_return?: number | null;
             /** Avg Forward Return */
             avg_forward_return?: number | null;
             /** Bucket */
@@ -2710,6 +2804,22 @@ export interface components {
             /** Volume */
             volume?: number | null;
         };
+        /**
+         * ScoreBucketStatsView
+         * @description 按 |sentiment_score| 分桶（边界 0.2/0.4/0.6/0.8）的命中率与收益。
+         */
+        ScoreBucketStatsView: {
+            /** Avg Excess Return */
+            avg_excess_return?: number | null;
+            /** Avg Forward Return */
+            avg_forward_return?: number | null;
+            /** Hit Rate */
+            hit_rate?: number | null;
+            /** Range Label */
+            range_label: string;
+            /** Sample Count */
+            sample_count: number;
+        };
         /** SentimentABComparison */
         SentimentABComparison: {
             /** Accuracy Delta */
@@ -2729,6 +2839,97 @@ export interface components {
             winner: "model_a" | "model_b" | "tie";
         };
         /**
+         * SentimentCalibrationView
+         * @description 回测顺带重算的置信度校准结果（同步落盘 backend/data/research/sentiment_calibration.json）。
+         */
+        SentimentCalibrationView: {
+            /** Generated At */
+            generated_at: string;
+            /** Horizon */
+            horizon: string;
+            /** Mapping */
+            mapping?: components["schemas"]["CalibrationMappingEntryView"][];
+            /** Market */
+            market?: string | null;
+            /** Suggested Negative Threshold */
+            suggested_negative_threshold?: number | null;
+            /** Suggested Positive Threshold */
+            suggested_positive_threshold?: number | null;
+            /** Window Days */
+            window_days: number;
+        };
+        /**
+         * SentimentDivergenceView
+         * @description 情绪-价格背离判定结果（见 `app/services/sentiment_divergence.py`）。
+         *
+         *     仅在真正检出背离时非 null——`status` 恒非空；"没有背离"体现为该字段整体为
+         *     `None`（时间线响应里对应 JSON `null`），而不是内部再套一层可空 status。
+         */
+        SentimentDivergenceView: {
+            /** Detected At */
+            detected_at: string;
+            /** News Count */
+            news_count: number;
+            /** Price Change Percent */
+            price_change_percent: number;
+            /** Sentiment Avg */
+            sentiment_avg: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "bearish_divergence" | "bullish_divergence";
+            /** Window Days */
+            window_days: number;
+        };
+        /**
+         * SentimentEvalHistoryEntry
+         * @description history[].entries[] 的单个模型摘要点位。
+         */
+        SentimentEvalHistoryEntry: {
+            /** Accuracy */
+            accuracy: number;
+            /** Macro F1 */
+            macro_f1: number;
+            /** Model Name */
+            model_name: string;
+        };
+        /**
+         * SentimentEvalHistoryPoint
+         * @description 一次 POST /sentiment/run 触发的 batch 摘要（GET 返回最近 20 个）。
+         */
+        SentimentEvalHistoryPoint: {
+            /** Batch Id */
+            batch_id: string;
+            /** Dataset Hash */
+            dataset_hash: string;
+            /** Entries */
+            entries: components["schemas"]["SentimentEvalHistoryEntry"][];
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            /** Sample Count */
+            sample_count: number;
+        };
+        /**
+         * SentimentEvalRegression
+         * @description 最新 batch 与上一个同 dataset_hash batch 的同名模型对比（跌幅最大者）。
+         */
+        SentimentEvalRegression: {
+            /** Current Macro F1 */
+            current_macro_f1: number;
+            /** Delta */
+            delta: number;
+            /** Model Name */
+            model_name: string;
+            /** Previous Macro F1 */
+            previous_macro_f1: number;
+            /** Regressed */
+            regressed: boolean;
+        };
+        /**
          * SentimentEvalResponse
          * @description GET /eval/sentiment 的返回体。available=False 表示金标缺失时的降级。
          */
@@ -2738,9 +2939,21 @@ export interface components {
             comparison?: components["schemas"]["SentimentABComparison"] | null;
             /** Dataset Path */
             dataset_path: string;
+            /** Evaluated At */
+            evaluated_at?: string | null;
+            /** History */
+            history?: components["schemas"]["SentimentEvalHistoryPoint"][];
+            /**
+             * Llm Available
+             * @default false
+             */
+            llm_available: boolean;
             /** Note */
             note?: string | null;
             primary?: components["schemas"]["SentimentModelRun"] | null;
+            regression?: components["schemas"]["SentimentEvalRegression"] | null;
+            /** Runs */
+            runs?: components["schemas"]["SentimentModelRun"][];
             /** Sample Count */
             sample_count: number;
         };
@@ -2754,6 +2967,8 @@ export interface components {
                     [key: string]: number;
                 };
             };
+            /** Importance Weighted Accuracy */
+            importance_weighted_accuracy?: number | null;
             /** Macro F1 */
             macro_f1: number;
             /** Per Label */
@@ -2797,11 +3012,51 @@ export interface components {
             /** Model Name */
             model_name: string;
         };
+        /** SentimentTimelineNewsItemView */
+        SentimentTimelineNewsItemView: {
+            /** Id */
+            id: number;
+            /** Sentiment Label */
+            sentiment_label?: string | null;
+            /** Sentiment Score */
+            sentiment_score: number;
+            /** Title */
+            title: string;
+        };
+        /** SentimentTimelinePointView */
+        SentimentTimelinePointView: {
+            /** Avg Score */
+            avg_score: number;
+            /** Date */
+            date: string;
+            /** Negative Count */
+            negative_count: number;
+            /** Neutral Count */
+            neutral_count: number;
+            /** News Count */
+            news_count: number;
+            /** Positive Count */
+            positive_count: number;
+            /** Top News */
+            top_news?: components["schemas"]["SentimentTimelineNewsItemView"][];
+        };
+        /** SentimentTimelineView */
+        SentimentTimelineView: {
+            /** Days */
+            days: number;
+            divergence?: components["schemas"]["SentimentDivergenceView"] | null;
+            /** Points */
+            points?: components["schemas"]["SentimentTimelinePointView"][];
+            /** Symbol */
+            symbol: string;
+        };
         /**
          * SignalDirectionStatsView
          * @description 单个方向（利好 / 利空）的命中统计。
          */
         SignalDirectionStatsView: {
+            /** Avg Excess Return */
+            avg_excess_return?: number | null;
             /** Avg Forward Return */
             avg_forward_return?: number | null;
             /** Hit Count */
@@ -3622,6 +3877,37 @@ export interface operations {
         };
     };
     get_sentiment_eval_api_eval_sentiment_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentimentEvalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_sentiment_eval_api_eval_sentiment_run_post: {
         parameters: {
             query?: never;
             header?: {
@@ -5351,6 +5637,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WatchlistResearchBriefView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_watchlist_sentiment_timeline_api_watchlist__symbol__sentiment_timeline_get: {
+        parameters: {
+            query?: {
+                days?: number;
+                window?: number | null;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentimentTimelineView"];
                 };
             };
             /** @description Validation Error */

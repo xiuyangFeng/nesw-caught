@@ -35,6 +35,7 @@ import type {
   PortfolioSummary,
   WatchlistPositionUpdate,
   SentimentEvalResponse,
+  SentimentTimelineResponse,
   WatchlistSparklineMap,
   StockQuoteDetail,
   StockResearchReport,
@@ -305,6 +306,12 @@ export const apiClient = {
       (mock) => mock.mockRelatedNews[symbol] ?? [],
     );
   },
+  getSentimentTimeline(symbol: string, days = 30) {
+    return withMockFallback<SentimentTimelineResponse>(
+      () => getJson(withQuery(`/api/watchlist/${encodeURIComponent(symbol)}/sentiment-timeline`, { days })),
+      (mock) => mock.mockSentimentTimelines[symbol] ?? mock.buildMockSentimentTimeline(symbol, days),
+    );
+  },
   getWatchlistResearchBrief(symbol: string) {
     return getJson<WatchlistResearchBrief>(`/api/watchlist/${encodeURIComponent(symbol)}/research-brief`).then((data) => ({
       data,
@@ -347,7 +354,16 @@ export const apiClient = {
     return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
   },
   getSentimentEval() {
-    return getJson<SentimentEvalResponse>('/api/eval/sentiment').then((data) => ({ data, degraded: false }));
+    return withMockFallback<SentimentEvalResponse>(
+      () => getJson('/api/eval/sentiment'),
+      (mock) => mock.mockSentimentEval,
+    );
+  },
+  runSentimentEval() {
+    return withMockFallback<SentimentEvalResponse>(
+      () => postJson('/api/eval/sentiment/run', {}),
+      (mock) => mock.mockSentimentEval,
+    );
   },
   getXHealth() {
     return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);

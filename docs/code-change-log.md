@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-02 本地功能分支终审、集成修复与合并 main
+
+- 修改人：Codex
+- 修改范围：本地分支拓扑审计、`feature/market-overview` 与 `feat/sentiment-revamp` 合并、跨分支冲突和契约/迁移集成修复、合并后全量验证。
+- 变更内容：
+  1. 审计全部本地/远端引用与 worktree：确认 `redesign/smart-quant-desk` 已是 `main` 祖先、无需重复合并；将市场总览分支以独立 merge commit 合入 `main`，随后合入情绪评测/时间线分支。合并过程中保留双方 `docs/code-change-log.md` 内容，并让 `frontend/src/api/mock.ts` 同时导出 marketOverview、sentimentEval、sentimentTimeline 三个 mock 域。
+  2. 修复合并后 Alembic 双 head：两条分支原本都从 `d4b7e1f0c3a6` 分叉，现将情绪迁移 `e6c2a9f4d1b7` 的父版本改为市场总览迁移 `e5f9a2c4b7d1`，形成 `d4b7e1f0c3a6 → e5f9a2c4b7d1 → e6c2a9f4d1b7` 单线迁移链。
+  3. 按合并后的后端重新导出 `frontend/openapi.json` 并生成 `frontend/src/types/generated/api.d.ts`；情绪评测、回测 Phase 2、情绪时间线类型从临时手写结构收敛回 generated schema。对 `BacktestSummaryView` 中 Pydantic 默认字段仅在适配层放宽为可选，以兼容升级前旧响应；测试夹具补齐校准结果的 generated 必填元数据。
+  4. 修复终审暴露的静态检查问题：整理情绪路由/脚本/测试 import，移除多余 UTF-8 encode 参数，并把“非法 LLM 预标注响应”测试从宽泛 `Exception` 收紧为带消息断言的 `ValueError`。
+- 影响文件：合入两个功能分支的全部文件；集成修复重点涉及 `backend/alembic/versions/e6c2a9f4d1b7_add_sentiment_eval_run.py`、`backend/app/api/routes/eval.py`、`backend/scripts/annotate_sentiment_dataset.py`、`backend/scripts/run_sentiment_experiment.py`、`backend/tests/test_llm_classification_cache.py`、`backend/tests/test_sentiment_dataset_tools.py`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`frontend/src/types/api.ts`、`frontend/src/api/mock.ts`、`frontend/src/views/SignalBacktestView.test.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：合入分支带来的新增接口与表结构见其各自记录；本集成额外将 Alembic 迁移从双 head 调整为线性单 head，并把前端 OpenAPI/生成类型更新为同时包含市场总览与情绪模块的最终契约。无删除接口或破坏性数据库变更。
+- 验证情况：分支差异 `git diff --check` 通过；跨分支专项后端测试 220 passed；修复后受影响后端测试 42 passed；后端全量 `pytest backend/tests -q` 为 1216 passed / 7 failed，7 个失败均为仓库已有的 `test_news.py` / `test_news_analysis.py` 测试顺序污染（固定种子新闻被前序用例清空），用全新测试库单独复跑两文件 28 passed；前端全量 `npm --prefix frontend test -- --run` 为 82 files / 484 tests 全绿；`npm --prefix frontend run build` 通过；`conda run -n news-caught ruff check backend/app backend/tests backend/scripts` 通过；OpenAPI export check 与 `check:api-drift` 通过；`alembic heads` 为单一 head `e6c2a9f4d1b7`。
+- 风险或后续事项：后端全量测试仍存在已确认的新闻测试顺序污染，建议后续专项修复测试隔离；根目录未跟踪 `node_modules/` 与情绪 worktree 内未跟踪 `frontend/node_modules` 均未纳入提交。合并前已创建本地保护分支 `backup/main-before-integration-20260802` 指向原 `main`。
+
 ## 2026-08-02 C1 市场总览前后端联调：openapi 导出 + 类型生成对齐 + 全量验证与冒烟
 
 - 修改人：Kimi
@@ -387,7 +401,76 @@ Yahoo 对 A 股**当日**日线的 `Close` 是 NaN（Open/High/Low/Volume 都有
 - 无。
 
 ## 2026-07-26 第一/二轮后续优化：worker 进程拆分 + 性能基准固化
+## 2026-08-02 情绪分支自审修复（合并前 code review 收口）
 
+- 修改人：Claude Fable（主控，审查由 Sonnet 子智能体执行）
+- 修改范围：对 feat/sentiment-revamp 两个提交（b145f84 + 262a242）做合并前代码审查，修复审查发现的 1 个中危设计缺陷 + 2 处前端类型契约漂移 + 2 个低危加固点。
+- 变更内容：
+  1. **【中】校准落盘污染防护**：`routes/backtest.py` 原先每次 GET 回测都无条件把本次请求过滤条件（market/horizon）下算出的校准映射覆盖写入全局 `sentiment_calibration.json`，而生产端 `get_calibrated_confidence` 不区分市场——开启校准开关后，任何人查看一次「仅港股」回测就会让港股命中率静默套用到全市场线上置信度。现只有「全市场 + 默认 1d 前视」的回测才允许落盘；带过滤请求仍在响应里返回内存计算结果。
+  2. **【低】背离巡检逐条隔离**：`SentimentDivergenceAlertWorker.do_cycle` 的自选股循环加逐条 try/except——原先单个 symbol 异常会终止本轮循环，使排序在其后的自选股失去巡检（持久性数据问题下等价于长期失效）；现单条失败仅记 warning 日志。
+  3. **【低】加权准确率边界**：`compute_importance_weighted_accuracy` 在全部样本显式标注 importance=0（权重和为 0）时返回 None 而非误呈现为 0。
+  4. **前端类型对齐后端可空性**：`types/api.ts` 的 `CalibrationMappingEntry.hit_rate`（空桶时后端产出 null）与 `SentimentTimelineNewsRef.sentiment_label`（后端列可空）改为可空类型。
+- 影响文件：`backend/app/api/routes/backtest.py`、`backend/app/workers/queue_worker.py`、`backend/app/services/news_sentiment_evaluator.py`、`frontend/src/types/api.ts`、本记录
+- 接口/数据结构变化：无（行为收紧仅影响校准文件落盘时机；类型改动为对齐既有后端契约）。
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` → 1107 passed（5 个预存在失败不变）；`npm --prefix frontend run test -- --run` → 430 passed；`npm --prefix frontend run build` 通过。
+- 风险/后续事项：审查确认无崩溃级问题；遗留低优先项——校准映射未按 market 分维（当前以「只落盘全市场结果」规避，若未来需要分市场校准需扩展文件结构与 `get_calibrated_confidence` 签名）。
+
+## 2026-08-02 情绪模块 Phase 2/3：回测方法学修复 + 置信度校准 + 个股情绪时间线 + 情绪-价格背离提醒
+
+- 修改人：Claude Fable（主控）+ 3 个并行 Sonnet 子智能体（worktree feat/sentiment-revamp，承接同日 Phase 1）
+- 修改范围：把情绪信号从「打分展示」推进到「被验证、可校准、可感知」。设计文档：`docs/superpowers/specs/2026-08-02-sentiment-phase2-3-design.md`。
+- 变更内容：
+  1. **回测方法学修复（工作块 E）**：
+     - 超额收益：样本级 `excess_return = forward_return - 代理基准`（库内无指数快照，用同窗口全部可评样本平均 forward_return 作代理基准，`benchmark_note` 如实说明）；overall/方向/各桶均加 `avg_excess_return`。
+     - 陈旧过滤：baseline 快照距发布超 `signal_backtest_max_snapshot_age_hours`（新配置，默认 24h）跳过并计 `skipped_stale_count`。
+     - 样本相关性：新增 `distinct_news_count` 与 `per_news_hit_rate`（每条新闻先对其 N 只股票取均值再等权平均，修正一条新闻多标的被当独立样本的统计偏差）。
+     - 新增 `score_buckets`（按 |sentiment_score| 0.2/0.4/0.6/0.8 分桶），替代无信息量的 importance 桶（旧桶保留兼容）。
+  2. **置信度校准（工作块 E）**：新 `sentiment_calibration.py`——按分数桶经验命中率生成校准映射（样本 <30 标 low_sample 回退线性公式）+ 建议阈值（命中率 ≥0.55 的最小桶下界）；回测 API 顺带重算并原子写 `backend/data/research/sentiment_calibration.json`；生产 hook：`sentiment_confidence_calibration_enabled=True`（默认 False，零行为变化）时 `signal_confidence` 改查校准映射（懒缓存 + mtime 失效，缺失回退旧公式）。
+  3. **个股情绪时间线（工作块 G+H）**：新端点 `GET /api/watchlist/{symbol}/sentiment-timeline?days=30&window=`——NewsStockMention×NewsItem 按 Asia/Shanghai 自然日聚合（avg_score/正负中计数/每日 |score| top3 要闻），内嵌最新背离判定；前端新组件 `SentimentTimelinePanel.vue`（手写 SVG 正负双色柱 + hover 当日要闻 + 背离徽章 + 空/错态）接入 `WatchlistDetailView`。
+  4. **情绪-价格背离提醒（工作块 G）**：新 `sentiment_divergence.py`——窗口内新闻 ≥3 的情绪均值 vs price_snapshot 首尾价变动，`情绪强正+价格显著跌 → bearish_divergence`（反向 bullish）；`sentiment_divergence_alert_enabled=True`（默认 False）时 `NotificationService.start()` 懒创建 30 分钟周期 `SentimentDivergenceAlertWorker` 巡检自选股，命中入队 `event_type="sentiment_divergence"`（severity=normal，遵守既有免打扰/去重治理，dedupe 键 symbol+方向+沪时区当日），飞书新增 `build_sentiment_divergence_card`。**未改 main.py**（worker 挂在 NotificationService 生命周期内）。
+  5. **回测视图增强（工作块 H）**：`SignalBacktestView.vue` additive 展示超额收益（含基准说明）、按新闻加权命中率/去重新闻数/陈旧跳过数、分数桶表格、校准区块（low_sample 灰显 + 建议阈值）；旧数据形状（无新字段）下全部优雅不渲染。
+- 影响文件：
+  - 后端修改：`app/api/routes/{backtest,watchlist}.py`、`app/core/config.py`（新增 7 个默认保守的配置项）、`app/schemas/{backtest,watchlist}.py`、`app/services/{feishu_client,news_signal_classifier,notification_service,signal_backtest}.py`、`app/workers/queue_worker.py`
+  - 后端新增：`app/services/{sentiment_calibration,sentiment_divergence,sentiment_timeline}.py`
+  - 后端测试：修改 `test_signal_backtest.py`，新增 `test_{sentiment_calibration,sentiment_divergence,sentiment_divergence_alert,sentiment_timeline}.py`
+  - 前端：`api/client.ts`、`api/mock.ts`、`api/mock/sentimentTimeline.ts`（新）、`types/api.ts`、`views/{SignalBacktestView,WatchlistDetailView}.vue(+test)`、`components/watchlist/SentimentTimelinePanel.vue(+test)`（新）
+  - 文档：`docs/superpowers/specs/2026-08-02-sentiment-phase2-3-design.md`（新）、本记录
+- 接口/数据结构变化：`BacktestSummaryView` additive 扩展（超额收益/分数桶/校准等 8 个字段）；新增只读端点 `GET /api/watchlist/{symbol}/sentiment-timeline`；config 新增 `signal_backtest_max_snapshot_age_hours`、`sentiment_confidence_calibration_enabled`、`sentiment_divergence_*`（默认全保守，行为不变）。无数据库迁移。`sentiment_calibration.json` 为 gitignored 运行时产物。
+- 验证情况：worktree 内 `conda run -n news-caught pytest backend/tests -q` → 1107 passed, 5 failed（同 Phase 1 记录的预存在硬编码路径失败，与本次无关）；前端 `npm --prefix frontend run test -- --run` → 430 passed，`npm --prefix frontend run build` 通过。
+- 风险/后续事项：
+  - 校准与背离提醒默认关闭；开启背离提醒需 `SENTIMENT_DIVERGENCE_ALERT_ENABLED=true` 且已配置飞书。校准建议阈值当前对正负方向对称（分桶按 |score|），方向不对称需另行分桶。
+  - 代理基准是市场均值近似，非真实指数；接入指数快照后可无缝换真实基准。
+  - 本分支与主工作区协作者未提交改动在 `config.py`/`types/api.ts` 等文件存在合并冲突面，合并 main 时需人工处理（已尽量避开 KlineChart/watchlistStore 等文件）。
+
+## 2026-08-02 情绪评测模块重构 Phase 1：真 A/B + 金标工具链 + 落库闭环 + 两个 LLM bug 修复
+
+- 修改人：Claude Fable（主控）+ 4 个并行 Sonnet 子智能体（worktree feat/sentiment-revamp）
+- 修改范围：情绪评测从「20 条手写金标 + 同一规则分类器两套阈值的演示页」重构为可信的质量闭环。设计文档：`docs/superpowers/specs/2026-08-02-sentiment-eval-revamp-design.md`。
+- 变更内容：
+  1. **修复两个 LLM bug（工作块 A）**：
+     - `llm_providers.analyze_json` 的硬编码 system prompt（选股 schema：`top_pick/candidates/...`）与情绪分类器 user prompt（`sentiment_label/sentiment_score/...`）schema 冲突，导致 LLM 情绪精修大概率静默失效回退规则。现 `analyze_json` 新增 `system_prompt` / `cache_scope` 可选参数（缺省行为与旧版逐字节一致），`news_signal_classifier._llm_refine` 传入匹配的专用情绪 system prompt。
+     - LLM 分类缓存 key 只含 (title, summary, market)，情绪分类与选股分析对同一新闻互相命中对方缓存。`compute_classification_fields_hash` 新增 `scope` 参数（None 时哈希与旧版一致，不作废存量选股缓存），情绪路径 `cache_scope="sentiment"` 隔离。
+     - LLM 返回缺 key/类型错误时保留回退行为但不再静默：`llm_refine_failure_count` 计数 + logger warning。
+  2. **金标数据集工具链（工作块 C，镜像 market_relevance 链路）**：`backend/scripts/` 新增 `sentiment_dataset_lib.py`（共享模型/JSONL 助手）、`sample_sentiment_dataset.py`（从 DB 按市场×标签分层采样，默认 300 条）、`annotate_sentiment_dataset.py`（激活 LLM 预标注，无 LLM 回退规则分类并标记 annotator="rule"）、`review_sentiment_annotations.py`（终端逐条复核 y/p/n/u/s/q，经既有 `save_gold_samples()` 合并金标，按 sample_id/news_id 去重）。内置 20 条演示金标保留不动。
+  3. **评测核心重构（工作块 B）**：
+     - `SentimentGoldSample` 新增 title/summary/body/market/news_id 可选字段（向后兼容旧金标），评测输入对齐线上路径（title+summary+body；market 因 `classify()` 无该参数未透传）。
+     - 新增 `news_sentiment_llm_classifier.py`：纯 LLM 情绪分类器（专用 prompt + `cache_scope="sentiment-eval"`，单样本失败回退规则并计数）；`news_sentiment_evaluator.py` 新增 `build_hybrid_sentiment_classifier`（生产路径 `classify(allow_llm=True)`）与 importance 加权准确率；`ClassifyFn` 从 `Callable[[str], str]` 改为接收完整金标样本。
+     - **落库**：新表 `sentiment_eval_run`（model `sentiment_eval_run.py` + repository + 迁移 `e6c2a9f4d1b7`，接在 `d4b7e1f0c3a6` 后单 head）+ `sentiment_eval_persistence.py`（dataset_hash / 序列化 / 历史 / 回归纯函数）。
+     - **路由**：`POST /api/eval/sentiment/run` 执行评测并落库（rule-baseline 必评；有激活 LLM 配置时追加 `llm:<provider>/<model>` 与 `hybrid:<provider>/<model>`，无则降级两套阈值 legacy A/B）；`GET /api/eval/sentiment` 改为只读回放最近 batch + 最近 20 batch 历史 + 回归检测（同 dataset_hash 同名模型 macro_f1 降幅 >0.02 → regressed）。
+     - 盘活死代码 `news_sentiment_report.py`：新脚本 `run_sentiment_experiment.py`（--dataset/--with-llm）输出 Markdown 报告到 `backend/data/research/experiments/sentiment/<date>/`。
+  4. **前端评测页改版（工作块 D）**：`SentimentEvalView.vue` 加载只 GET、「重新评测」改 POST 后刷新；新增评测时间卡、回归红色徽章、1~3 个模型 run 卡片区（RULE/LLM/HYBRID）、历史 batch 表格、未配置 LLM 提示（链接 /settings/llm）、「尚无评测记录」引导空态。`api/client.ts` 新增 `runSentimentEval()`，`getSentimentEval` 补 mock 回落；新增 `api/mock/sentimentEval.ts` 夹具。
+- 影响文件：
+  - 后端修改：`app/api/routes/eval.py`、`app/db/initializer.py`、`app/models/__init__.py`、`app/schemas/sentiment_eval.py`、`app/services/{llm_providers,news_sentiment_evaluator,news_sentiment_experiment_runner,news_sentiment_report,news_signal_classifier}.py`
+  - 后端新增：`app/models/sentiment_eval_run.py`、`app/repositories/sentiment_eval_run_repository.py`、`app/services/{news_sentiment_llm_classifier,sentiment_eval_persistence}.py`、`alembic/versions/e6c2a9f4d1b7_add_sentiment_eval_run.py`、`scripts/{sentiment_dataset_lib,sample_sentiment_dataset,annotate_sentiment_dataset,review_sentiment_annotations,run_sentiment_experiment}.py`
+  - 后端测试：修改 `test_{llm_classification_cache,news_sentiment_evaluator,news_sentiment_experiment_runner,news_signal_pipeline,takeaway_classifier}.py`，新增 `test_{eval_sentiment_route,news_sentiment_llm_classifier,news_signal_classifier_llm_refine,sentiment_dataset_tools,sentiment_eval_persistence,sentiment_eval_run_repository}.py`
+  - 前端：`api/client.ts`、`api/mock.ts`、`api/mock/sentimentEval.ts`（新）、`types/api.ts`、`views/SentimentEvalView.vue`、`views/SentimentEvalView.test.ts`
+  - 文档：`docs/superpowers/specs/2026-08-02-sentiment-eval-revamp-design.md`（新）、本记录
+- 接口/数据结构变化：`SentimentEvalResponse` additive 扩展（`evaluated_at/runs/llm_available/history/regression`，metrics 加 `importance_weighted_accuracy`）；新增 `POST /api/eval/sentiment/run`；`GET /api/eval/sentiment` 语义变化：**不再触发计算，只读回放**（旧前端行为由新前端 POST 补齐）。新表 `sentiment_eval_run`（迁移 `e6c2a9f4d1b7`）。`analyze_json`/`compute_classification_fields_hash` 新增可选参数，缺省行为与旧版一致。`frontend/src/types/api.ts` 情绪评测类型暂为手写覆盖（`types/generated/api.d.ts` 未再生成），后续 OpenAPI 再生成后应换回 `Schemas[...]` 别名。
+- 验证情况：worktree 内 `conda run -n news-caught pytest backend/tests -q` → 1062 passed, 5 failed（全部为预存在的硬编码主仓路径问题：`test_a_share_search_service.py` 4 个 + `test_news_relevance_experiment_runner.py` 1 个，已用 stash 对照确认与本次无关）；`alembic heads` 单 head `e6c2a9f4d1b7`；前端 `npm --prefix frontend run test -- --run` → 420 passed，`npm --prefix frontend run build`（vue-tsc）通过。
+- 风险/后续事项：
+  - LLM/hybrid 评测在未配置 LLM 时自动降级为两套阈值 legacy A/B，行为向后兼容；配置 LLM 后 POST /run 会产生真实 token 消耗（逐样本调用）。
+  - `types/generated/api.d.ts` 待 OpenAPI 再生成后收敛手写类型。
+  - Phase 2/3 待做：回测方法学修复（超额收益/样本相关性）、置信度校准、个股情绪时间线、情绪-价格背离提醒。
 - 修改人：Claude（2 个并行子智能体 + 主控集成）
 - 背景：承接下方两条重构记录。经讨论确定优先级为「先固化基准，再做结构性拆分」——
   因为拆进程是结构性改动，没有可复现基准就无法证明它真的有用。

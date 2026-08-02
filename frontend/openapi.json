@@ -165,6 +165,48 @@
       "BacktestSummaryView": {
         "description": "回测汇总响应。",
         "properties": {
+          "avg_excess_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Excess Return"
+          },
+          "benchmark_note": {
+            "default": "",
+            "title": "Benchmark Note",
+            "type": "string"
+          },
+          "benchmark_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Benchmark Return"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentCalibrationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distinct_news_count": {
+            "default": 0,
+            "title": "Distinct News Count",
+            "type": "integer"
+          },
           "evaluable_count": {
             "title": "Evaluable Count",
             "type": "integer"
@@ -209,11 +251,34 @@
           "negative": {
             "$ref": "#/components/schemas/SignalDirectionStatsView"
           },
+          "per_news_hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per News Hit Rate"
+          },
           "positive": {
             "$ref": "#/components/schemas/SignalDirectionStatsView"
           },
+          "score_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreBucketStatsView"
+            },
+            "title": "Score Buckets",
+            "type": "array"
+          },
           "skipped_count": {
             "title": "Skipped Count",
+            "type": "integer"
+          },
+          "skipped_stale_count": {
+            "default": 0,
+            "title": "Skipped Stale Count",
             "type": "integer"
           },
           "total_signals": {
@@ -535,6 +600,51 @@
           "symbol"
         ],
         "title": "CalendarSymbolSummaryView",
+        "type": "object"
+      },
+      "CalibrationMappingEntryView": {
+        "description": "单个 score 桶的经验命中率 -> 校准置信度映射。",
+        "properties": {
+          "calibrated_confidence": {
+            "title": "Calibrated Confidence",
+            "type": "number"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hit Rate"
+          },
+          "low_sample": {
+            "title": "Low Sample",
+            "type": "boolean"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "score_max": {
+            "title": "Score Max",
+            "type": "number"
+          },
+          "score_min": {
+            "title": "Score Min",
+            "type": "number"
+          }
+        },
+        "required": [
+          "score_min",
+          "score_max",
+          "sample_count",
+          "calibrated_confidence",
+          "low_sample"
+        ],
+        "title": "CalibrationMappingEntryView",
         "type": "object"
       },
       "CandlePointView": {
@@ -985,8 +1095,19 @@
         "type": "object"
       },
       "ImportanceBucketStatsView": {
-        "description": "按信号置信度分桶（high / medium / low / unknown）的平均前视收益。",
+        "description": "按信号置信度分桶（high / medium / low / unknown）的平均前视收益。\n\n局限：signal_confidence 当前多为 |sentiment_score| 的线性变换，信息量有限；\n建议优先参考 score_buckets，该桶字段仅为兼容前端现状保留。",
         "properties": {
+          "avg_excess_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Excess Return"
+          },
           "avg_forward_return": {
             "anyOf": [
               {
@@ -4933,6 +5054,58 @@
         "title": "QuoteSummaryView",
         "type": "object"
       },
+      "ScoreBucketStatsView": {
+        "description": "按 |sentiment_score| 分桶（边界 0.2/0.4/0.6/0.8）的命中率与收益。",
+        "properties": {
+          "avg_excess_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Excess Return"
+          },
+          "avg_forward_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Forward Return"
+          },
+          "hit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hit Rate"
+          },
+          "range_label": {
+            "title": "Range Label",
+            "type": "string"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "range_label",
+          "sample_count"
+        ],
+        "title": "ScoreBucketStatsView",
+        "type": "object"
+      },
       "SentimentABComparison": {
         "properties": {
           "accuracy_delta": {
@@ -4982,6 +5155,217 @@
         "title": "SentimentABComparison",
         "type": "object"
       },
+      "SentimentCalibrationView": {
+        "description": "回测顺带重算的置信度校准结果（同步落盘 backend/data/research/sentiment_calibration.json）。",
+        "properties": {
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "horizon": {
+            "title": "Horizon",
+            "type": "string"
+          },
+          "mapping": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationMappingEntryView"
+            },
+            "title": "Mapping",
+            "type": "array"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market"
+          },
+          "suggested_negative_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Negative Threshold"
+          },
+          "suggested_positive_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Positive Threshold"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generated_at",
+          "window_days",
+          "horizon"
+        ],
+        "title": "SentimentCalibrationView",
+        "type": "object"
+      },
+      "SentimentDivergenceView": {
+        "description": "情绪-价格背离判定结果（见 `app/services/sentiment_divergence.py`）。\n\n仅在真正检出背离时非 null——`status` 恒非空；\"没有背离\"体现为该字段整体为\n`None`（时间线响应里对应 JSON `null`），而不是内部再套一层可空 status。",
+        "properties": {
+          "detected_at": {
+            "title": "Detected At",
+            "type": "string"
+          },
+          "news_count": {
+            "title": "News Count",
+            "type": "integer"
+          },
+          "price_change_percent": {
+            "title": "Price Change Percent",
+            "type": "number"
+          },
+          "sentiment_avg": {
+            "title": "Sentiment Avg",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "bearish_divergence",
+              "bullish_divergence"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "window_days",
+          "sentiment_avg",
+          "news_count",
+          "price_change_percent",
+          "detected_at"
+        ],
+        "title": "SentimentDivergenceView",
+        "type": "object"
+      },
+      "SentimentEvalHistoryEntry": {
+        "description": "history[].entries[] 的单个模型摘要点位。",
+        "properties": {
+          "accuracy": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "macro_f1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Macro F1",
+            "type": "number"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_name",
+          "accuracy",
+          "macro_f1"
+        ],
+        "title": "SentimentEvalHistoryEntry",
+        "type": "object"
+      },
+      "SentimentEvalHistoryPoint": {
+        "description": "一次 POST /sentiment/run 触发的 batch 摘要（GET 返回最近 20 个）。",
+        "properties": {
+          "batch_id": {
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "dataset_hash": {
+            "title": "Dataset Hash",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentEvalHistoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_id",
+          "evaluated_at",
+          "dataset_hash",
+          "sample_count",
+          "entries"
+        ],
+        "title": "SentimentEvalHistoryPoint",
+        "type": "object"
+      },
+      "SentimentEvalRegression": {
+        "description": "最新 batch 与上一个同 dataset_hash batch 的同名模型对比（跌幅最大者）。",
+        "properties": {
+          "current_macro_f1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Current Macro F1",
+            "type": "number"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "number"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "previous_macro_f1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Previous Macro F1",
+            "type": "number"
+          },
+          "regressed": {
+            "title": "Regressed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model_name",
+          "previous_macro_f1",
+          "current_macro_f1",
+          "delta",
+          "regressed"
+        ],
+        "title": "SentimentEvalRegression",
+        "type": "object"
+      },
       "SentimentEvalResponse": {
         "description": "GET /eval/sentiment 的返回体。available=False 表示金标缺失时的降级。",
         "properties": {
@@ -5003,6 +5387,30 @@
             "title": "Dataset Path",
             "type": "string"
           },
+          "evaluated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluated At"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentEvalHistoryPoint"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "llm_available": {
+            "default": false,
+            "title": "Llm Available",
+            "type": "boolean"
+          },
           "note": {
             "anyOf": [
               {
@@ -5023,6 +5431,23 @@
                 "type": "null"
               }
             ]
+          },
+          "regression": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentEvalRegression"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentModelRun"
+            },
+            "title": "Runs",
+            "type": "array"
           },
           "sample_count": {
             "title": "Sample Count",
@@ -5054,6 +5479,17 @@
             },
             "title": "Confusion Matrix",
             "type": "object"
+          },
+          "importance_weighted_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance Weighted Accuracy"
           },
           "macro_f1": {
             "maximum": 1.0,
@@ -5183,9 +5619,134 @@
         "title": "SentimentModelRun",
         "type": "object"
       },
+      "SentimentTimelineNewsItemView": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "sentiment_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentiment Label"
+          },
+          "sentiment_score": {
+            "title": "Sentiment Score",
+            "type": "number"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "sentiment_score"
+        ],
+        "title": "SentimentTimelineNewsItemView",
+        "type": "object"
+      },
+      "SentimentTimelinePointView": {
+        "properties": {
+          "avg_score": {
+            "title": "Avg Score",
+            "type": "number"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "negative_count": {
+            "title": "Negative Count",
+            "type": "integer"
+          },
+          "neutral_count": {
+            "title": "Neutral Count",
+            "type": "integer"
+          },
+          "news_count": {
+            "title": "News Count",
+            "type": "integer"
+          },
+          "positive_count": {
+            "title": "Positive Count",
+            "type": "integer"
+          },
+          "top_news": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentTimelineNewsItemView"
+            },
+            "title": "Top News",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "avg_score",
+          "news_count",
+          "positive_count",
+          "negative_count",
+          "neutral_count"
+        ],
+        "title": "SentimentTimelinePointView",
+        "type": "object"
+      },
+      "SentimentTimelineView": {
+        "properties": {
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "divergence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentDivergenceView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/SentimentTimelinePointView"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "days"
+        ],
+        "title": "SentimentTimelineView",
+        "type": "object"
+      },
       "SignalDirectionStatsView": {
         "description": "单个方向（利好 / 利空）的命中统计。",
         "properties": {
+          "avg_excess_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Excess Return"
+          },
           "avg_forward_return": {
             "anyOf": [
               {
@@ -7381,7 +7942,7 @@
     },
     "/api/eval/sentiment": {
       "get": {
-        "description": "对内置金标集即时评一遍，返回单模型指标 + 两套阈值配置的 A/B 对比。\n\n金标缺失/为空/损坏时降级为 available=False，避免 500。",
+        "description": "只读回放最近一个 batch 的持久化评测结果 + 历史 + 回归对比，不再触发计算。\n\n金标缺失/非法时降级为 available=False；金标存在但库里还没有任何评测记录时\navailable=True 且 primary=None，note 提示去点\"重新评测\"。",
         "operationId": "get_sentiment_eval_api_eval_sentiment_get",
         "parameters": [
           {
@@ -7424,6 +7985,56 @@
           }
         },
         "summary": "Get Sentiment Eval",
+        "tags": [
+          "eval"
+        ]
+      }
+    },
+    "/api/eval/sentiment/run": {
+      "post": {
+        "description": "执行一次真实评测（rule-baseline 永远评；有激活 LLM 配置时追加 llm/hybrid，否则\n降级为规则阈值 legacy A/B），落库为一个 batch，返回完整 SentimentEvalResponse。",
+        "operationId": "run_sentiment_eval_api_eval_sentiment_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentimentEvalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Sentiment Eval",
         "tags": [
           "eval"
         ]
@@ -10508,6 +11119,95 @@
           }
         },
         "summary": "Get Watchlist Research Brief",
+        "tags": [
+          "watchlist"
+        ]
+      }
+    },
+    "/api/watchlist/{symbol}/sentiment-timeline": {
+      "get": {
+        "description": "个股逐日情绪时间线，内嵌最新情绪-价格背离判定（无背离则为 null）。\n\n`days`：聚合窗口天数（默认 30，上限 90）。\n`window`：背离检测独立窗口（默认取 `settings.sentiment_divergence_window_days`，\n可传 1~14 覆盖），与 `days` 语义无关——时间线看的是\"这段时间的情绪走势\"，\n背离判定看的是\"最近这几天情绪和价格是否对不上\"。",
+        "operationId": "get_watchlist_sentiment_timeline_api_watchlist__symbol__sentiment_timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 14,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Window"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentimentTimelineView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Watchlist Sentiment Timeline",
         "tags": [
           "watchlist"
         ]

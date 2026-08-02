@@ -26,6 +26,8 @@ class SentimentReport:
     top_confusions: list[SentimentConfusionHighlight]
     ab_winner: str | None
     ab_reason: str | None
+    # 有 importance 标注样本时的加权准确率；数据集完全没有标注时为 None（不展示）。
+    importance_weighted_accuracy: float | None = None
 
 
 def build_sentiment_report(
@@ -54,6 +56,7 @@ def build_sentiment_report(
         top_confusions=_top_confusions(metrics.confusion_matrix),
         ab_winner=comparison.winner if comparison else None,
         ab_reason=comparison.reason if comparison else None,
+        importance_weighted_accuracy=metrics.importance_weighted_accuracy,
     )
 
 
@@ -67,6 +70,10 @@ def render_sentiment_report_markdown(report: SentimentReport) -> str:
         f"- accuracy: `{report.accuracy:.4f}`",
         f"- macro_f1: `{report.macro_f1:.4f}`",
         f"- evaluated samples: `{report.sample_count}`",
+    ]
+    if report.importance_weighted_accuracy is not None:
+        lines.append(f"- importance-weighted accuracy: `{report.importance_weighted_accuracy:.4f}`")
+    lines += [
         "",
         "## Per-label P/R/F1",
         "",

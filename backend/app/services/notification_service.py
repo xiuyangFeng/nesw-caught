@@ -21,6 +21,7 @@ from app.services.feishu_client import (
     build_analysis_card,
     build_digest_card,
     build_news_batch_card,
+    build_sentiment_divergence_card,
     get_shared_feishu_sender,
 )
 
@@ -33,6 +34,10 @@ RETRY_DELAYS_SECONDS = (30, 120, 300, 900, 1800)
 SEVERITY_CRITICAL = "critical"
 SEVERITY_NORMAL = "normal"
 SEVERITY_LOW = "low"
+
+# 情绪-价格背离提醒去重锚定的时区：与 sentiment_timeline.py 的自然日聚合口径
+# 保持一致（面向中文用户的"今天"），避免同一天内被反复入队刷屏。
+_SENTIMENT_DIVERGENCE_DEDUPE_TZ = ZoneInfo("Asia/Shanghai")
 
 
 def _utc_now() -> datetime:
@@ -76,6 +81,9 @@ class NotificationService:
         self._poll_interval_seconds = poll_interval_seconds
         self._lease_seconds = lease_seconds
         self._worker: Any = None
+        # 情绪-价格背离周期检查 worker：仅在 settings.sentiment_divergence_alert_enabled
+        # 时由 start() 惰性创建/启动；默认 None，零行为变化。
+        self._divergence_worker: Any = None
         # 告警治理：内存态运行期覆盖（不落库），叠加在 settings 默认之上。
         self._governance_override: dict[str, Any] = {}
         # 去重窗口用的"同 symbol 最近一次入队时间"，仅内存保存。
@@ -147,26 +155,41 @@ class NotificationService:
             if change is not None and abs(change) >= gov.critical_change_percent:
                 return SEVERITY_CRITICAL
             return SEVERITY_NORMAL
-        if event_type in ("analysis_result", "alert_digest"):
+        if event_type in ("analysis_result", "alert_digest", "sentiment_divergence"):
             return SEVERITY_NORMAL
         return SEVERITY_LOW
 
     def start(self) -> None:
-        if self._worker is not None:
-            return
-        from app.workers.notification_delivery_worker import NotificationDeliveryWorker
-        self._worker = NotificationDeliveryWorker(
-            session_factory=SessionLocal,
-            notification_service=self,
-            poll_interval_seconds=self._poll_interval_seconds,
-        )
-        self._worker.start()
-        logger.info("notification delivery scheduler started")
+        if self._worker is None:
+            from app.workers.notification_delivery_worker import NotificationDeliveryWorker
+            self._worker = NotificationDeliveryWorker(
+                session_factory=SessionLocal,
+                notification_service=self,
+                poll_interval_seconds=self._poll_interval_seconds,
+            )
+            self._worker.start()
+            logger.info("notification delivery scheduler started")
+
+        # 情绪-价格背离周期检查：main.py 的 lifespan 无条件调用 start()/stop()，
+        # 这里按 settings 开关惰性决定要不要再起一个 worker——既复用了既有的
+        # "web 进程随 lifespan 启停后台 worker" 注册点，又不需要改 main.py，
+        # 关闭时（默认）完全不创建、零行为变化。
+        if self._divergence_worker is None and get_settings().sentiment_divergence_alert_enabled:
+            from app.workers.queue_worker import SentimentDivergenceAlertWorker
+            self._divergence_worker = SentimentDivergenceAlertWorker(
+                session_factory=SessionLocal,
+                notification_service=self,
+            )
+            self._divergence_worker.start()
+            logger.info("sentiment divergence alert worker started")
 
     def stop(self) -> None:
         if self._worker is not None:
             self._worker.stop()
             self._worker = None
+        if self._divergence_worker is not None:
+            self._divergence_worker.stop()
+            self._divergence_worker = None
 
     def on_news_created(self, payload: dict[str, Any]) -> None:
         config = self._load_config()
@@ -276,6 +299,33 @@ class NotificationService:
                 channel="feishu",
                 event_type="analysis_result",
                 payload=payload,
+            )
+            session.commit()
+
+    def on_sentiment_divergence_detected(self, payload: dict[str, Any]) -> None:
+        """情绪-价格背离命中入队：与 `on_digest_ready` 同构——功能自身的启用开关
+
+        （`settings.sentiment_divergence_alert_enabled`）由调用方（周期 worker 是否
+        存在）把关，这里只再确认"有没有活跃飞书目的地"，不额外叠加 `alert_enabled`
+        （那是自选股涨跌幅告警自己的开关，与背离提醒是两个功能）。
+        """
+        symbol = payload.get("symbol")
+        status_value = payload.get("status")
+        if not symbol or not status_value:
+            return
+
+        config = self._load_config()
+        if not config:
+            return
+
+        dedupe_key = self._build_sentiment_divergence_dedupe_key(payload)
+        with SessionLocal() as session:
+            repo = NotificationJobRepository(session)
+            repo.enqueue(
+                channel="feishu",
+                event_type="sentiment_divergence",
+                payload=payload,
+                dedupe_key=dedupe_key,
             )
             session.commit()
 
@@ -548,6 +598,15 @@ class NotificationService:
             )
         if job.event_type == "digest":
             return build_digest_card(payload)
+        if job.event_type == "sentiment_divergence":
+            return build_sentiment_divergence_card(
+                symbol=payload.get("symbol", ""),
+                display_name=payload.get("display_name") or payload.get("symbol", ""),
+                status=payload.get("status", ""),
+                window_days=payload.get("window_days"),
+                sentiment_avg=payload.get("sentiment_avg"),
+                price_change_percent=payload.get("price_change_percent"),
+            )
         return None
 
     def _retry_delay_seconds(self, attempt_count: int) -> int:
@@ -566,6 +625,33 @@ class NotificationService:
 
     def _build_news_batch_dedupe_key(self, jobs: list[Any]) -> str:
         return "news-batch:" + ",".join(str(job.id) for job in jobs)
+
+    @staticmethod
+    def _build_sentiment_divergence_dedupe_key(payload: dict[str, Any]) -> str:
+        """symbol + 方向 + 当日（Asia/Shanghai）：同一天同方向重复命中不重复入队。
+
+        `enqueue()` 对相同 dedupe_key 是幂等 upsert（见
+        `NotificationJobRepository.enqueue`），所以 30 分钟一次的周期检查在同一天
+        内反复命中同一 symbol/方向时，只有第一次真正建行，后续调用直接返回既有行，
+        不会往外重复发送。
+        """
+        symbol = str(payload.get("symbol") or "").strip().upper()
+        status_value = str(payload.get("status") or "").strip()
+        detected_at_raw = payload.get("detected_at")
+        detected_at: datetime | None = None
+        if isinstance(detected_at_raw, datetime):
+            detected_at = detected_at_raw
+        elif isinstance(detected_at_raw, str) and detected_at_raw:
+            try:
+                detected_at = datetime.fromisoformat(detected_at_raw.replace("Z", "+00:00"))
+            except ValueError:
+                detected_at = None
+        if detected_at is None:
+            detected_at = _utc_now()
+        if detected_at.tzinfo is None:
+            detected_at = detected_at.replace(tzinfo=UTC)
+        local_date = detected_at.astimezone(_SENTIMENT_DIVERGENCE_DEDUPE_TZ).date().isoformat()
+        return f"sentiment-divergence:{symbol}:{status_value}:{local_date}"
 
     def _release_watchlist_state(self, job: Any) -> None:
         payload = json.loads(job.payload_json)

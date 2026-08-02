@@ -92,13 +92,47 @@ function formatSignedPercent(value: number | null | undefined, digits = 2): stri
 
 const overviewMetrics = computed(() => {
   const s = summary.value;
-  return [
+  const base = [
     { label: '候选样本', value: s ? String(s.total_signals) : '—', note: '窗口内含方向情绪并可映射股票' },
     { label: '可评估', value: s ? String(s.evaluable_count) : '—', note: '成功取到基准价与前视价' },
     { label: '已跳过', value: s ? String(s.skipped_count) : '—', note: '快照稀疏无法评估' },
     { label: '可评估率', value: s ? formatPercent(s.evaluable_rate) : '—', note: '可评估 / 候选样本' },
   ];
+  // 以下为工作块 E（回测方法学修复）additive 新字段，后端未跑新版回测时为
+  // null/undefined，此处优雅降级为不渲染对应卡片，不改变旧字段的展示。
+  if (s?.distinct_news_count !== null && s?.distinct_news_count !== undefined) {
+    base.push({ label: '去重新闻数', value: String(s.distinct_news_count), note: '按新闻去重后的样本来源条数，避免一条新闻多只股票被当独立样本' });
+  }
+  if (s?.per_news_hit_rate !== null && s?.per_news_hit_rate !== undefined) {
+    base.push({ label: '按新闻加权命中率', value: formatPercent(s.per_news_hit_rate), note: '每条新闻先取其提及股票的方向命中均值，再对新闻求均值' });
+  }
+  if (s?.skipped_stale_count !== null && s?.skipped_stale_count !== undefined) {
+    base.push({ label: '陈旧快照跳过', value: String(s.skipped_stale_count), note: 'baseline 快照距新闻发布超过阈值而跳过（计入「已跳过」）' });
+  }
+  return base;
 });
+
+// 工作块 E1：超额收益（相对基准），benchmark_note 说明基准来源（真实指数 / 代理基准）。
+const excessReturnDisplay = computed(() => {
+  const value = summary.value?.avg_excess_return;
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return { value, note: summary.value?.benchmark_note ?? null };
+});
+
+// 工作块 E4：按 |sentiment_score| 分桶的回测统计，替代 importance 桶的信息量局限。
+const scoreBuckets = computed(() => summary.value?.score_buckets ?? []);
+
+// 工作块 E5：置信度校准（映射表 + 建议阈值），null 表示尚未生成或落盘缺失。
+const calibration = computed(() => summary.value?.calibration ?? null);
+
+function formatScoreValue(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  return value.toFixed(2);
+}
 
 const directionCards = computed(() => {
   const s = summary.value;
@@ -266,6 +300,22 @@ const generatedAtLabel = computed(() => {
       </article>
     </section>
 
+    <!-- 平均超额收益（工作块 E1，additive，无数据时不渲染） -->
+    <section
+      v-if="excessReturnDisplay"
+      class="surface rounded-[14px] border border-border/80 bg-panel-soft/60 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5"
+      data-role="backtest-excess-return"
+    >
+      <div>
+        <span class="text-[11px] text-muted uppercase tracking-wider font-semibold mr-1.5">平均超额收益</span>
+        <strong class="num text-[16px]" :class="excessReturnDisplay.value >= 0 ? 'text-positive' : 'text-negative'">
+          {{ formatSignedPercent(excessReturnDisplay.value) }}
+        </strong>
+        <span class="ml-1 text-[10px] text-muted">= 前视收益 − 基准收益</span>
+      </div>
+      <span v-if="excessReturnDisplay.note" class="text-[11px] text-muted">{{ excessReturnDisplay.note }}</span>
+    </section>
+
     <!-- 方向命中率 -->
     <section class="grid gap-3 xl:grid-cols-2" data-role="backtest-directions">
       <article
@@ -374,6 +424,96 @@ const generatedAtLabel = computed(() => {
             >
               {{ formatSignedPercent(bar.value) }}
             </strong>
+          </div>
+        </div>
+      </div>
+    </SectionCard>
+
+    <!-- 按情绪分数分桶（工作块 E4，additive，替代性地放在 importance 桶旁边） -->
+    <SectionCard
+      v-if="scoreBuckets.length > 0"
+      eyebrow="Score Buckets"
+      title="按情绪分数分桶的回测统计"
+      subtitle="按 |sentiment_score| 分桶，而非 importance 桶：分数分桶信息量更高，importance 桶见上方"
+      data-role="backtest-score-buckets"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-[12px]" data-role="backtest-score-buckets-table">
+          <thead>
+            <tr class="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted">
+              <th class="py-1.5 pr-3 font-semibold">分数区间</th>
+              <th class="py-1.5 pr-3 font-semibold">样本数</th>
+              <th class="py-1.5 pr-3 font-semibold">命中率</th>
+              <th class="py-1.5 pr-3 font-semibold">平均前视收益</th>
+              <th class="py-1.5 pr-3 font-semibold">平均超额收益</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="bucket in scoreBuckets" :key="bucket.range_label" class="border-b border-border/30 last:border-0">
+              <td class="py-1.5 pr-3 text-text">{{ bucket.range_label }}</td>
+              <td class="num py-1.5 pr-3 text-muted">{{ bucket.sample_count }}</td>
+              <td class="num py-1.5 pr-3" :class="(bucket.hit_rate ?? 0) >= 0.5 ? 'text-positive' : 'text-negative'">
+                {{ formatPercent(bucket.hit_rate) }}
+              </td>
+              <td class="num py-1.5 pr-3" :class="(bucket.avg_forward_return ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+                {{ formatSignedPercent(bucket.avg_forward_return) }}
+              </td>
+              <td class="num py-1.5 pr-3" :class="(bucket.avg_excess_return ?? 0) >= 0 ? 'text-positive' : 'text-negative'">
+                {{ formatSignedPercent(bucket.avg_excess_return) }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+
+    <!-- 置信度校准（工作块 E5，additive，后端未生成校准文件时不渲染） -->
+    <SectionCard
+      v-if="calibration"
+      eyebrow="Confidence Calibration"
+      title="置信度校准"
+      subtitle="按分数桶的经验方向命中率校准 signal_confidence；样本数 < 30 的桶灰显（回退线性公式值）"
+      data-role="backtest-calibration"
+    >
+      <div class="grid gap-4">
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-[12px]" data-role="backtest-calibration-table">
+            <thead>
+              <tr class="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted">
+                <th class="py-1.5 pr-3 font-semibold">分数区间</th>
+                <th class="py-1.5 pr-3 font-semibold">样本数</th>
+                <th class="py-1.5 pr-3 font-semibold">经验命中率</th>
+                <th class="py-1.5 pr-3 font-semibold">校准置信度</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(entry, index) in calibration.mapping"
+                :key="`${entry.score_min}-${entry.score_max}-${index}`"
+                class="border-b border-border/30 last:border-0"
+                :class="{ 'opacity-40': entry.low_sample }"
+                :data-low-sample="entry.low_sample ? 'true' : 'false'"
+              >
+                <td class="py-1.5 pr-3 text-text">{{ formatScoreValue(entry.score_min) }} ~ {{ formatScoreValue(entry.score_max) }}</td>
+                <td class="num py-1.5 pr-3 text-muted">
+                  {{ entry.sample_count }}
+                  <span v-if="entry.low_sample" class="ml-1 text-[10px] text-warning">样本不足</span>
+                </td>
+                <td class="num py-1.5 pr-3 text-text">{{ formatPercent(entry.hit_rate) }}</td>
+                <td class="num py-1.5 pr-3 text-text">{{ formatPercent(entry.calibrated_confidence) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap gap-4" data-role="backtest-calibration-thresholds">
+          <div class="rounded-[12px] border border-border/70 bg-white/[0.02] px-3 py-2">
+            <span class="block text-[10px] uppercase tracking-wider text-muted">建议看多阈值</span>
+            <strong class="num text-[15px] text-positive">{{ formatScoreValue(calibration.suggested_positive_threshold) }}</strong>
+          </div>
+          <div class="rounded-[12px] border border-border/70 bg-white/[0.02] px-3 py-2">
+            <span class="block text-[10px] uppercase tracking-wider text-muted">建议看空阈值</span>
+            <strong class="num text-[15px] text-negative">{{ formatScoreValue(calibration.suggested_negative_threshold) }}</strong>
           </div>
         </div>
       </div>

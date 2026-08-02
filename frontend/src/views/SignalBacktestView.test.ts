@@ -108,4 +108,66 @@ describe('SignalBacktestView', () => {
 
     expect(getBacktestSummary).toHaveBeenCalledWith({ market: undefined, window_days: 7, horizon: '1d' });
   });
+
+  it('does not render phase 2 sections (excess return, score buckets, calibration) when the backend has not run the new backtest yet', async () => {
+    const wrapper = mount(SignalBacktestView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-role="backtest-excess-return"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="backtest-score-buckets"]').exists()).toBe(false);
+    expect(wrapper.find('[data-role="backtest-calibration"]').exists()).toBe(false);
+  });
+
+  it('renders the phase 2 additive fields (excess return, per-news hit rate, score buckets, calibration) when present', async () => {
+    const phase2Summary: BacktestSummary = {
+      ...summary,
+      avg_excess_return: 0.012,
+      benchmark_note: '未找到市场基准指数快照，已使用同窗口内全部可评样本的平均前视收益作为代理基准。',
+      distinct_news_count: 64,
+      per_news_hit_rate: 0.66,
+      skipped_stale_count: 5,
+      score_buckets: [
+        { range_label: '0.0-0.2', sample_count: 40, hit_rate: 0.5, avg_forward_return: 0.001, avg_excess_return: -0.002 },
+        { range_label: '0.6-0.8', sample_count: 15, hit_rate: 0.73, avg_forward_return: 0.03, avg_excess_return: 0.018 },
+      ],
+      calibration: {
+        generated_at: '2026-08-02T00:00:00Z',
+        horizon: '1d',
+        mapping: [
+          { score_min: 0, score_max: 0.2, sample_count: 40, hit_rate: 0.5, calibrated_confidence: 0.5, low_sample: false },
+          { score_min: 0.8, score_max: 1, sample_count: 8, hit_rate: 0.75, calibrated_confidence: 0.75, low_sample: true },
+        ],
+        suggested_positive_threshold: 0.6,
+        suggested_negative_threshold: -0.6,
+        window_days: 30,
+      },
+    };
+    getBacktestSummary.mockResolvedValue({ data: phase2Summary, degraded: false });
+
+    const wrapper = mount(SignalBacktestView);
+    await flushPromises();
+
+    expect(wrapper.find('[data-role="backtest-excess-return"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('+1.20%');
+    expect(wrapper.text()).toContain('未找到市场基准指数快照');
+    expect(wrapper.text()).toContain('去重新闻数');
+    expect(wrapper.text()).toContain('64');
+    expect(wrapper.text()).toContain('按新闻加权命中率');
+    expect(wrapper.text()).toContain('陈旧快照跳过');
+
+    const bucketsTable = wrapper.find('[data-role="backtest-score-buckets-table"]');
+    expect(bucketsTable.exists()).toBe(true);
+    expect(bucketsTable.text()).toContain('0.0-0.2');
+    expect(bucketsTable.text()).toContain('0.6-0.8');
+
+    const calibrationTable = wrapper.find('[data-role="backtest-calibration-table"]');
+    expect(calibrationTable.exists()).toBe(true);
+    const rows = calibrationTable.findAll('tbody tr');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].attributes('data-low-sample')).toBe('true');
+    expect(rows[1].classes()).toContain('opacity-40');
+    expect(rows[0].attributes('data-low-sample')).toBe('false');
+
+    expect(wrapper.find('[data-role="backtest-calibration-thresholds"]').text()).toContain('0.60');
+  });
 });
