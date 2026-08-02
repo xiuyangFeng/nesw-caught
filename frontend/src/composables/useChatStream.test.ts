@@ -67,7 +67,12 @@ describe('useChatStream', () => {
     const session = buildSession();
     const persist = vi.fn();
     fetchMock.mockResolvedValue(
-      sseResponse(['data: {"text":"你好，"}\n', 'data: {"text":"世界"}\n\n']),
+      sseResponse([
+        'data: {"reasoning":"先识别问题，"}\n',
+        'data: {"reasoning":"再组织答案"}\n',
+        'data: {"text":"你好，"}\n',
+        'data: {"text":"世界"}\n\n',
+      ]),
     );
 
     const stream = useChatStream({
@@ -97,6 +102,7 @@ describe('useChatStream', () => {
     drainTypewriter(assistant);
 
     expect(assistant.content).toBe('你好，世界');
+    expect(assistant.reasoning).toBe('先识别问题，再组织答案');
     expect(assistant.isStreaming).toBe(false);
     expect(stream.isSending.value).toBe(false);
     expect(persist).toHaveBeenCalled();

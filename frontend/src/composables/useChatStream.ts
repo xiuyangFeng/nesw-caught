@@ -54,21 +54,38 @@ export function useChatStream(options: UseChatStreamOptions) {
 
     currentAbortController.value = new AbortController();
 
+    let rawReasoningBuffer = '';
+    let displayedReasoning = '';
     let rawTextBuffer = '';
     let displayedText = '';
-    let typewriterTimer: any = null;
+    let networkComplete = false;
+    let typewriterTimer: ReturnType<typeof setInterval> | null = null;
+
+    const advanceBuffer = (raw: string, displayed: string) => {
+      const pendingLength = raw.length - displayed.length;
+      if (pendingLength <= 0) return displayed;
+      const step = Math.ceil(pendingLength / 6);
+      return displayed + raw.slice(displayed.length, displayed.length + step);
+    };
 
     const startTypewriter = () => {
       typewriterTimer = setInterval(() => {
-        const pendingLength = rawTextBuffer.length - displayedText.length;
-        if (pendingLength > 0) {
-          // 动态调整速度，如果积压较多则吐字较快
-          const step = Math.ceil(pendingLength / 6);
-          displayedText += rawTextBuffer.slice(displayedText.length, displayedText.length + step);
+        displayedReasoning = advanceBuffer(rawReasoningBuffer, displayedReasoning);
+        displayedText = advanceBuffer(rawTextBuffer, displayedText);
+
+        if (displayedReasoning) {
+          assistantMsg.value.reasoning = displayedReasoning;
+        }
+        if (displayedText) {
           assistantMsg.value.content = displayedText;
-        } else if (!isSending.value && pendingLength === 0) {
-          // 已经停止发送且内容已经消化完
-          clearInterval(typewriterTimer);
+        }
+
+        const reasoningDrained = displayedReasoning.length === rawReasoningBuffer.length;
+        const textDrained = displayedText.length === rawTextBuffer.length;
+        if (networkComplete && reasoningDrained && textDrained) {
+          if (typewriterTimer !== null) {
+            clearInterval(typewriterTimer);
+          }
           typewriterTimer = null;
           assistantMsg.value.isStreaming = false;
           options.persist();
@@ -122,7 +139,9 @@ export function useChatStream(options: UseChatStreamOptions) {
             const jsonStr = trimmed.slice(6);
             try {
               const parsed = JSON.parse(jsonStr);
-              if (parsed.text) {
+              if (parsed.reasoning) {
+                rawReasoningBuffer += parsed.reasoning;
+              } else if (parsed.text) {
                 rawTextBuffer += parsed.text;
               } else if (parsed.failover) {
                 assistantMsg.value.failover = parsed.failover;
@@ -150,6 +169,7 @@ export function useChatStream(options: UseChatStreamOptions) {
         toastStore.showError(err.message || '发送失败，请重试');
       }
     } finally {
+      networkComplete = true;
       isSending.value = false;
       currentAbortController.value = null;
       if (!typewriterTimer) {

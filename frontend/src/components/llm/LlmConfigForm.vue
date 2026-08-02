@@ -5,6 +5,7 @@ import SectionCard from '../common/SectionCard.vue';
 import { useLlmStore } from '../../stores/llmStore';
 import { useToastStore } from '../../stores/toastStore';
 import type { LLMConfigSummary } from '../../types/api';
+import { LLM_PROVIDER_PRESETS } from './providerPresets';
 
 const llmStore = useLlmStore();
 const toastStore = useToastStore();
@@ -41,6 +42,25 @@ const formState = reactive<LlmConfigFormState>({
 });
 
 const originalBaseUrl = ref('');
+const selectedPresetId = ref<string | null>(null);
+const activePreset = computed(() => (
+  LLM_PROVIDER_PRESETS.find((preset) => preset.id === selectedPresetId.value) ?? null
+));
+
+function applyPreset(presetId: string) {
+  const preset = LLM_PROVIDER_PRESETS.find((item) => item.id === presetId);
+  if (!preset) return;
+
+  selectedPresetId.value = preset.id;
+  formState.provider_name = 'openai_compatible';
+  formState.display_name = preset.name;
+  formState.base_url = preset.baseUrl;
+  formState.model_name = preset.defaultModel;
+}
+
+function useCustomConfig() {
+  selectedPresetId.value = null;
+}
 
 function trimText(raw: string | null | undefined): string {
   return typeof raw === 'string' ? raw.trim() : '';
@@ -119,6 +139,7 @@ function startEdit(cfg: LLMConfigSummary) {
   formState.output_price_per_1k = cfg.output_price_per_1k != null ? String(cfg.output_price_per_1k) : '';
   formState.monthly_budget_usd = cfg.monthly_budget_usd != null ? String(cfg.monthly_budget_usd) : '';
   originalBaseUrl.value = trimText(cfg.base_url);
+  selectedPresetId.value = LLM_PROVIDER_PRESETS.find((preset) => preset.baseUrl === originalBaseUrl.value)?.id ?? null;
 }
 
 function cancelEdit() {
@@ -138,6 +159,7 @@ function resetForm() {
   formState.output_price_per_1k = '';
   formState.monthly_budget_usd = '';
   originalBaseUrl.value = '';
+  selectedPresetId.value = null;
 }
 
 async function submitConfig() {
@@ -178,6 +200,50 @@ defineExpose({ startEdit });
     :subtitle="formState.id ? `正在修改 ${formState.display_name || '配置'}` : '接入更多模型并启用'"
   >
     <form class="grid gap-[14px] mt-2" @submit.prevent="submitConfig">
+      <section class="grid gap-3 rounded-xl border border-border bg-panel/50 p-3" aria-label="模型服务快捷预设">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-bold text-text">快捷接入</p>
+            <p class="mt-1 text-[11px] leading-5 text-text-faint">选择服务后自动填写公开地址和推荐模型，API Key 不会被改动。</p>
+          </div>
+          <button
+            class="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] text-text-faint transition hover:border-accent hover:text-text"
+            type="button"
+            :class="selectedPresetId === null ? 'border-accent bg-[var(--accent-soft)] text-accent' : ''"
+            @click="useCustomConfig"
+          >
+            自定义
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <button
+            v-for="preset in LLM_PROVIDER_PRESETS"
+            :key="preset.id"
+            class="group rounded-lg border border-border bg-field px-3 py-2 text-left transition hover:-translate-y-0.5 hover:border-accent hover:bg-panel-strong"
+            :class="selectedPresetId === preset.id ? 'border-accent bg-[var(--accent-soft)]' : ''"
+            type="button"
+            :data-testid="`provider-preset-${preset.id}`"
+            :aria-pressed="selectedPresetId === preset.id"
+            @click="applyPreset(preset.id)"
+          >
+            <span class="block text-xs font-bold text-text">{{ preset.shortName }}</span>
+            <span class="mt-0.5 block truncate text-[10px] text-text-faint">{{ preset.defaultModel }}</span>
+          </button>
+        </div>
+        <div v-if="activePreset" class="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-bg/40 px-3 py-2">
+          <p class="min-w-0 text-[11px] leading-5 text-text-faint">{{ activePreset.description }}</p>
+          <a
+            class="shrink-0 text-[11px] font-semibold text-accent hover:underline"
+            :href="activePreset.docsUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="provider-docs-link"
+          >
+            官方文档 ↗
+          </a>
+        </div>
+      </section>
+
       <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
         <span>Provider 名称 *</span>
         <input
@@ -231,6 +297,18 @@ defineExpose({ startEdit });
           :aria-invalid="Boolean(validationErrors.model_name)"
           required
         />
+        <div v-if="activePreset" class="flex flex-wrap gap-1.5 pt-1">
+          <button
+            v-for="model in activePreset.models"
+            :key="model"
+            class="rounded-full border border-border px-2 py-1 font-mono text-[10px] font-normal text-text-faint transition hover:border-accent hover:text-text"
+            :class="formState.model_name === model ? 'border-accent bg-[var(--accent-soft)] text-accent' : ''"
+            type="button"
+            @click="formState.model_name = model"
+          >
+            {{ model }}
+          </button>
+        </div>
       </label>
       <div class="grid gap-[14px] sm:grid-cols-2">
         <label class="grid gap-1.5 font-semibold text-text-faint text-xs">

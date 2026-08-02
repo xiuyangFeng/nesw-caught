@@ -67,10 +67,11 @@ watch(() => props.messages, scrollToBottom, { deep: true });
 </script>
 
 <template>
-  <div class="relative flex-1 min-h-0 flex flex-col">
+  <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
     <div
       ref="chatContainer"
-      class="surface flex flex-col gap-4 rounded-lg p-5 overflow-y-auto min-h-0 flex-grow"
+      class="chat-scroll-viewport surface flex min-h-0 flex-grow flex-col gap-4 overflow-y-auto overscroll-contain rounded-lg p-5"
+      data-role="chat-message-viewport"
       @scroll="handleScroll"
     >
       <!-- Linked news contextual banner -->
@@ -122,6 +123,27 @@ watch(() => props.messages, scrollToBottom, { deep: true });
               <strong>故障接管</strong>：由于默认模型 <code>{{ msg.failover.from_model }}</code> 访问异常，已无缝切换至备选模型 <code>{{ msg.failover.to_model }}</code>。
             </span>
           </div>
+          <!-- Provider-returned reasoning stays visually secondary to the final answer. -->
+          <details
+            v-if="msg.role === 'assistant' && msg.reasoning"
+            class="reasoning-panel mb-2 w-full max-w-3xl overflow-hidden rounded-md border border-border bg-panel/70"
+            :open="msg.isStreaming"
+            data-testid="reasoning-panel"
+          >
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs text-text-faint">
+              <span class="flex items-center gap-2 font-semibold">
+                <span
+                  class="h-1.5 w-1.5 rounded-full"
+                  :class="msg.isStreaming ? 'animate-pulse bg-accent' : 'bg-success'"
+                />
+                {{ msg.isStreaming ? '推理中' : '模型推理过程' }}
+              </span>
+              <span class="label-mono">REASONING TRACE</span>
+            </summary>
+            <div class="reasoning-content border-t border-border px-3 py-3 text-xs leading-6 text-text-faint whitespace-pre-wrap">
+              {{ msg.reasoning }}
+            </div>
+          </details>
           <!-- Bubble -->
           <div
             class="relative rounded-md px-4 py-3 text-sm leading-relaxed select-text"
@@ -134,7 +156,8 @@ watch(() => props.messages, scrollToBottom, { deep: true });
             <!-- Standard plain text for user messages -->
             <span v-if="msg.role === 'user'">{{ msg.content }}</span>
             <!-- Markdown parsing for LLM responses -->
-            <div v-else v-html="parseMarkdown(msg.content)"></div>
+            <div v-else-if="msg.content" v-html="parseMarkdown(msg.content)"></div>
+            <span v-else class="text-text-faint">正在组织最终回答…</span>
 
             <span v-if="msg.isStreaming" class="inline-block w-1.5 h-4 ml-0.5 bg-accent animate-pulse align-middle" />
           </div>
@@ -167,6 +190,23 @@ watch(() => props.messages, scrollToBottom, { deep: true });
   width: 2px;
   border-radius: 2px;
   background: var(--grad-ai);
+}
+
+.reasoning-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.reasoning-panel[open] summary {
+  background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
+}
+
+.reasoning-content {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 1px, transparent 1px);
+  background-size: 24px 100%;
+}
+
+.chat-scroll-viewport {
+  scrollbar-gutter: stable;
 }
 
 .markdown-body :deep(p) {

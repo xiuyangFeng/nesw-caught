@@ -255,6 +255,99 @@ def test_chat_stream_yields_typed_failover_and_token_events() -> None:
     assert events[1] == ("token", "Hi")
 
 
+def test_chat_stream_yields_reasoning_before_answer_tokens() -> None:
+    class FakeStreamResponse:
+        status_code = 200
+
+        async def aread(self) -> bytes:
+            return b""
+
+        async def aiter_lines(self):
+            yield 'data: {"choices": [{"delta": {"reasoning_content": "先核对事实"}}]}'
+            yield 'data: {"choices": [{"delta": {"reasoning": "，再比较影响"}}]}'
+            yield 'data: {"choices": [{"delta": {"content": "最终结论"}}]}'
+            yield 'data: {"usage": {"prompt_tokens": 2, "completion_tokens": 5}, "choices": []}'
+            yield "data: [DONE]"
+
+    class FakeAsyncClient:
+        @asynccontextmanager
+        async def stream(self, method, url, **kwargs):
+            yield FakeStreamResponse()
+
+    provider = AsyncOpenAICompatibleProvider(_config())
+
+    async def _collect() -> list:
+        events = []
+        async for event in provider.chat_stream(messages=[{"role": "user", "content": "分析"}]):
+            events.append(event)
+        return events
+
+    with patch("app.services.llm_providers.get_async_llm_client", return_value=FakeAsyncClient()):
+        events = asyncio.run(_collect())
+
+    assert events == [
+        ("reasoning", "先核对事实"),
+        ("reasoning", "，再比较影响"),
+        ("token", "最终结论"),
+    ]
+
+
+def test_chat_stream_reasoning_counts_as_first_byte_before_failover() -> None:
+    backup = _config(
+        id=2,
+        model_name="backup-model",
+        base_url="https://api.backup.com/v1",
+        decrypted_api_key="sk-backup",
+    )
+
+    class InterruptedReasoningResponse:
+        status_code = 200
+
+        async def aiter_lines(self):
+            yield 'data: {"choices": [{"delta": {"reasoning_content": "已开始推理"}}]}'
+            raise httpx.ReadError(
+                "connection reset",
+                request=httpx.Request("POST", "https://api.primary.com/v1/chat/completions"),
+            )
+
+    class BackupStreamResponse:
+        status_code = 200
+
+        async def aiter_lines(self):
+            yield 'data: {"choices": [{"delta": {"content": "备用回答"}}]}'
+            yield "data: [DONE]"
+
+    class FakeAsyncClient:
+        def __init__(self) -> None:
+            self.primary_calls = 0
+
+        @asynccontextmanager
+        async def stream(self, method, url, **kwargs):
+            if "primary" in url:
+                self.primary_calls += 1
+                yield InterruptedReasoningResponse()
+            else:
+                yield BackupStreamResponse()
+
+    fake_client = FakeAsyncClient()
+    provider = AsyncOpenAICompatibleProvider(_config())
+
+    async def _collect() -> list:
+        events = []
+        async for event in provider.chat_stream(messages=[{"role": "user", "content": "分析"}]):
+            events.append(event)
+        return events
+
+    with patch("app.services.llm_providers.get_async_llm_client", return_value=fake_client), \
+         patch("app.services.llm_providers.find_backup_config", return_value=backup):
+        events = asyncio.run(_collect())
+
+    assert events[0] == ("reasoning", "已开始推理")
+    assert events[1][0] == "failover"
+    assert events[2] == ("token", "备用回答")
+    assert fake_client.primary_calls == 1
+
+
 # ---------------------------------------------------------------------------
 # parse_embeddings_response (Task 7: batch embed_texts)
 # ---------------------------------------------------------------------------
