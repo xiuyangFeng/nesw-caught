@@ -2,6 +2,16 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-03 五工作树终审与主分支集成
+
+- 修改人：Codex
+- 修改范围：前端、LLM、日志、Dashboard 四个非空优化分支的代码评审、缺陷修复、独立提交、冲突合并和集成验证；自选股空分支审计。
+- 变更内容：审计确认五个工作树均从 `0ca4827` 创建，其中自选股分支无提交且工作区干净，按无变更处理；对其余四个分支补充 TDD 审查，修复访问日志上下文/敏感查询、前端卸载上报鉴权、聊天窄屏不可访问、行情闪烁计时器泄漏和 `.env.example` 未跟踪问题；分别提交后按日志 → LLM → Latest Events → Dashboard 顺序以独立 merge commit 合入 `main`；冲突中保留所有变更记录，并让 `llm_providers.py` 同时包含日志增强与 reasoning 流、`useChatSessions.ts` 同时包含前端 logger 与 reasoning 消息字段；AppShell 同时保留顶部状态条移除和桌面聊天视口锁定，因状态条已删除将聊天主区改为单一 `minmax(0,1fr)` 行，避免空 auto 行压缩内容。
+- 影响文件：四个功能分支的全部文件；集成冲突与补充文档重点涉及 `frontend/src/components/layout/AppShell.vue`、`frontend/src/components/layout/AppShell.test.ts`、`backend/app/services/llm_providers.py`、`frontend/src/composables/useChatSessions.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/superpowers/specs/2026-08-03-worktree-integration-design.md`、`docs/superpowers/plans/2026-08-03-worktree-integration-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 `POST /api/logs/frontend`；所有 HTTP 响应新增 `X-Request-ID`；`POST /api/llm/chat` SSE 新增可选 `reasoning` 帧。无数据库结构变化；其余均为前端展示或日志行为增强。
+- 验证情况：各分支专项测试和构建通过；主分支后端全量 `NEWS_CAUGHT_TEST_DB=/tmp/news_caught_main_integration.db conda run -n news-caught pytest backend/tests -q` 为 1237 passed / 8 failed，其中 7 个为既有 `test_news.py` / `test_news_analysis.py` 顺序污染，用独立全新测试库复跑两文件 28 passed，另 1 个 `test_search_a_shares_performance` 在单独复跑时仍为 0.486s > 0.3s，属既有机器相关性能阈值问题；前端全量 `npm --prefix frontend test -- --run --maxWorkers=1` 为 86 files / 508 tests 全绿；`npm --prefix frontend run build` 通过；`conda run -n news-caught ruff check backend/app backend/tests backend/scripts` 通过；OpenAPI export check 与 `check:api-drift` 通过；重新生成并提交 `frontend/openapi.json` 与 `frontend/src/types/generated/api.d.ts`；`alembic heads` 为单一 `e6c2a9f4d1b7`；`git diff --check` 通过。
+- 风险或后续事项：后端仍有已记录的新闻测试顺序污染和 A 股搜索性能阈值抖动；LLM 预设模型名可能随供应商更新；多进程写同一轮转日志文件仍需未来专项治理。合并前保护分支为 `backup/main-before-worktree-integration-20260803`。
+
 ## 2026-08-03 日志分支合并审查与安全加固
 
 - 修改人：Codex

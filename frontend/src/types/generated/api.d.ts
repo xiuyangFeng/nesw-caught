@@ -357,6 +357,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/logs/frontend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ingest Frontend Logs */
+        post: operations["ingest_frontend_logs_api_logs_frontend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/market/index-config": {
         parameters: {
             query?: never;
@@ -1500,6 +1517,39 @@ export interface components {
             message: string;
             /** Success */
             success: boolean;
+        };
+        /** FrontendLogBatch */
+        FrontendLogBatch: {
+            /** Entries */
+            entries?: components["schemas"]["FrontendLogEntry"][];
+        };
+        /** FrontendLogEntry */
+        FrontendLogEntry: {
+            /** Context */
+            context?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Level
+             * @default error
+             * @enum {string}
+             */
+            level: "warn" | "error";
+            /** Message */
+            message: string;
+            /** Stack */
+            stack?: string | null;
+            /** Ts */
+            ts?: string | null;
+            /** Url */
+            url?: string | null;
+        };
+        /** FrontendLogIngestResult */
+        FrontendLogIngestResult: {
+            /** Accepted */
+            accepted: number;
+            /** Dropped */
+            dropped: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4379,6 +4429,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LLMTranslateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_frontend_logs_api_logs_frontend_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FrontendLogBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrontendLogIngestResult"];
                 };
             };
             /** @description Validation Error */

@@ -988,6 +988,104 @@
         "title": "FeishuTestResult",
         "type": "object"
       },
+      "FrontendLogBatch": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/FrontendLogEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "title": "FrontendLogBatch",
+        "type": "object"
+      },
+      "FrontendLogEntry": {
+        "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "level": {
+            "default": "error",
+            "enum": [
+              "warn",
+              "error"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "stack": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "FrontendLogEntry",
+        "type": "object"
+      },
+      "FrontendLogIngestResult": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "dropped": {
+            "title": "Dropped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted",
+          "dropped"
+        ],
+        "title": "FrontendLogIngestResult",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -8795,6 +8893,65 @@
         "summary": "Translate Text",
         "tags": [
           "llm"
+        ]
+      }
+    },
+    "/api/logs/frontend": {
+      "post": {
+        "operationId": "ingest_frontend_logs_api_logs_frontend_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrontendLogBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrontendLogIngestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest Frontend Logs",
+        "tags": [
+          "logs"
         ]
       }
     },
