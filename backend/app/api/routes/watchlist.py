@@ -1,7 +1,7 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -11,6 +11,9 @@ from app.repositories.news_mentions_repository import NewsMentionsRepository
 from app.repositories.watchlist_repository import WatchlistRepository
 from app.schemas.news import NewsItemSummary
 from app.schemas.watchlist import (
+    SentimentDivergenceView,
+    SentimentTimelinePointView,
+    SentimentTimelineView,
     WatchlistAiInsightView,
     WatchlistCandidateView,
     WatchlistItemCreate,
@@ -21,6 +24,8 @@ from app.schemas.watchlist import (
 from app.services.calendar_service import clear_calendar_cache
 from app.services.llm_providers import build_provider
 from app.services.quote_provider import equivalent_symbol_candidates, normalize_symbol
+from app.services.sentiment_divergence import detect_divergence
+from app.services.sentiment_timeline import build_sentiment_timeline
 from app.services.stock_news_search import StockNewsSearchService
 from app.services.watchlist_candidates import list_watchlist_candidates
 from app.services.watchlist_research_service import WatchlistResearchService
@@ -164,6 +169,41 @@ def list_related_news(
             search_service = StockNewsSearchService(session)
             search_service.trigger_async_external_search(w_item.symbol, w_item.display_name, w_item.market)
     return [NewsItemSummary.model_validate(item, from_attributes=True) for item in items]
+
+
+@router.get("/{symbol}/sentiment-timeline", response_model=SentimentTimelineView)
+def get_watchlist_sentiment_timeline(
+    symbol: str,
+    days: int = Query(default=30, ge=1, le=90),
+    window: int | None = Query(default=None, ge=1, le=14),
+    session: Session = Depends(get_db_session),
+) -> SentimentTimelineView:
+    """个股逐日情绪时间线，内嵌最新情绪-价格背离判定（无背离则为 null）。
+
+    `days`：聚合窗口天数（默认 30，上限 90）。
+    `window`：背离检测独立窗口（默认取 `settings.sentiment_divergence_window_days`，
+    可传 1~14 覆盖），与 `days` 语义无关——时间线看的是"这段时间的情绪走势"，
+    背离判定看的是"最近这几天情绪和价格是否对不上"。
+    """
+    watchlist_repository = WatchlistRepository(session)
+    resolved_symbol = _resolve_watchlist_stored_symbol(symbol, watchlist_repository)
+    item = watchlist_repository.get_by_symbol(resolved_symbol)
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="watchlist symbol not found")
+
+    points = build_sentiment_timeline(resolved_symbol, days, session)
+    divergence = detect_divergence(resolved_symbol, window, session)
+
+    return SentimentTimelineView(
+        symbol=resolved_symbol,
+        days=days,
+        points=[SentimentTimelinePointView.model_validate(point, from_attributes=True) for point in points],
+        divergence=(
+            SentimentDivergenceView.model_validate(divergence, from_attributes=True)
+            if divergence is not None
+            else None
+        ),
+    )
 
 
 @router.get("/{symbol}/research-brief", response_model=WatchlistResearchBriefView)

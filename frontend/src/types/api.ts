@@ -374,7 +374,11 @@ export type XPostQuery = {
 // ---------------------------------------------------------------------------
 // 信号有效性回测（Signal Backtest）
 // ---------------------------------------------------------------------------
-export type BacktestSummary = Schemas['BacktestSummaryView'];
+// 说明：BacktestSummary 与 BacktestSummaryPhase2Fields（工作块 E 新增字段：
+// avg_excess_return / benchmark_note / distinct_news_count / per_news_hit_rate /
+// skipped_stale_count / score_buckets / calibration）交叉，定义见文件末尾
+// “情绪模块 Phase 2/3”一节；generated/api.d.ts 尚未回填，先用交叉类型补齐。
+export type BacktestSummary = Schemas['BacktestSummaryView'] & BacktestSummaryPhase2Fields;
 export type SignalDirectionStats = Schemas['SignalDirectionStatsView'];
 export type ImportanceBucketStats = Schemas['ImportanceBucketStatsView'];
 
@@ -504,3 +508,97 @@ export interface SentimentEvalResponse {
   /** 与上一同 dataset_hash batch 的回归对比；无可比较历史或未回归可为 null。 */
   regression?: SentimentEvalRegression | null;
 }
+
+// ---------------------------------------------------------------------------
+// 情绪模块 Phase 2/3（docs/superpowers/specs/2026-08-02-sentiment-phase2-3-design.md）
+// ---------------------------------------------------------------------------
+// 注：工作块 E（回测方法学 + 校准，后端）与工作块 G（情绪时间线 + 背离提醒，后端）
+// 正与本工作块（H，前端）并行开发，`types/generated/api.d.ts` 尚未回填这些新字段。
+// 按设计文档「E API 变化汇总」「G1/G2 响应 JSON」严格对齐手写；待后端落地并重新
+// 生成 generated/api.d.ts 后，可将下列手写类型改回 `Schemas['...']` 别名。
+
+// --- 工作块 G：情绪时间线 + 背离提醒 -----------------------------------------
+
+/** 情绪时间线单日聚合内当日 |score| 最高的前 3 条新闻引用（GET .../sentiment-timeline 的 points[].top_news）。 */
+export interface SentimentTimelineNewsRef {
+  id: number;
+  title: string;
+  sentiment_label: SentimentLabel;
+  sentiment_score: number;
+}
+
+/** 情绪时间线单日聚合点位。 */
+export interface SentimentTimelinePoint {
+  date: string;
+  avg_score: number;
+  news_count: number;
+  positive_count: number;
+  negative_count: number;
+  neutral_count: number;
+  top_news: SentimentTimelineNewsRef[];
+}
+
+export type DivergenceStatusValue = 'bearish_divergence' | 'bullish_divergence';
+
+/**
+ * 情绪-价格背离判定结果。后端 `detect_divergence` 刻意设计为「要么给出完整背离
+ * 结果，要么整体为 None」——不存在 status 为 null 但对象本身存在的中间态，因此
+ * 顶层 `SentimentTimelineResponse.divergence` 才是可空的，本对象内 `status` 恒为
+ * 两个背离枚举值之一。
+ */
+export interface DivergenceStatus {
+  status: DivergenceStatusValue;
+  window_days: number;
+  sentiment_avg: number | null;
+  news_count: number;
+  price_change_percent: number | null;
+  detected_at: string;
+}
+
+/** GET /api/watchlist/{symbol}/sentiment-timeline?days= 的响应。 */
+export interface SentimentTimelineResponse {
+  symbol: string;
+  days: number;
+  points: SentimentTimelinePoint[];
+  divergence: DivergenceStatus | null;
+}
+
+// --- 工作块 E：回测方法学 + 校准 ---------------------------------------------
+
+/** 按 |sentiment_score| 分桶的回测统计（替代 importance 分桶的信息量局限）。 */
+export interface ScoreBucketStats {
+  range_label: string;
+  sample_count: number;
+  hit_rate: number | null;
+  avg_forward_return: number | null;
+  avg_excess_return: number | null;
+}
+
+/** 校准映射表中的一个 score 区间（sample_count < 30 时 low_sample=true，calibrated_confidence 回退线性公式值）。 */
+export interface CalibrationMappingEntry {
+  score_min: number;
+  score_max: number;
+  sample_count: number;
+  hit_rate: number;
+  calibrated_confidence: number;
+  low_sample: boolean;
+}
+
+/** POST 回测顺带重算并落盘的置信度校准结果（backend/data/research/sentiment_calibration.json）。 */
+export interface SentimentCalibration {
+  mapping: CalibrationMappingEntry[];
+  suggested_positive_threshold: number | null;
+  suggested_negative_threshold: number | null;
+}
+
+// BacktestSummary（Schemas['BacktestSummaryView']）additive 扩展：工作块 E 新增字段，
+// 后端未跑新版回测（或 calibration 落盘缺失）时可能为 null/undefined，前端必须优雅降级。
+export type BacktestSummaryPhase2Fields = {
+  avg_excess_return?: number | null;
+  benchmark_note?: string | null;
+  distinct_news_count?: number | null;
+  per_news_hit_rate?: number | null;
+  skipped_stale_count?: number | null;
+  score_buckets?: ScoreBucketStats[] | null;
+  calibration?: SentimentCalibration | null;
+};

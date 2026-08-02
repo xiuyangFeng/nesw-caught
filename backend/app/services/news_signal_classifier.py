@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.services.llm_providers import build_provider
 from app.services.news_structured_summary import build_structured_takeaway
+from app.services.sentiment_calibration import get_calibrated_confidence
 from app.services.topic_naming import resolve_topic_display_name
 
 logger = logging.getLogger(__name__)
@@ -218,6 +219,14 @@ class NewsSignalClassifier:
             label = "neutral"
 
         confidence = min(0.95, 0.35 + min(abs(score), 1.0) * 0.5)
+        # getattr 防御：部分既有测试用只含 ai_enabled 的极简 stub 替换 get_settings()，
+        # 缺该属性时按未开启处理，与改造前代码路径完全一致。
+        if getattr(get_settings(), "sentiment_confidence_calibration_enabled", False):
+            # 校准映射按经验命中率给出置信度；文件/桶缺失时 get_calibrated_confidence
+            # 返回 None，回退到上面的旧线性公式，默认关闭时代码路径与现状完全一致。
+            calibrated = get_calibrated_confidence(score)
+            if calibrated is not None:
+                confidence = calibrated
         keywords = self._keywords(tokens)
         topic_key = self._topic_key(tokens, keywords)
 

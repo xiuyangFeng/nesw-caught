@@ -339,6 +339,53 @@ def build_alert_digest_card(alerts: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def build_sentiment_divergence_card(
+    symbol: str,
+    display_name: str,
+    status: str,
+    window_days: int | None,
+    sentiment_avg: float | None,
+    price_change_percent: float | None,
+) -> dict[str, Any]:
+    """情绪-价格背离提醒卡片。风格对齐 `build_alert_card`：同样是「标题态色 + 字段网格」。
+
+    `bearish_divergence`：情绪偏多但价格走弱（红，风险提示）；
+    `bullish_divergence`：情绪偏空但价格走强（绿，机会提示）。
+    """
+    is_bearish = status == "bearish_divergence"
+    label = "情绪偏多、价格走弱" if is_bearish else "情绪偏空、价格走强"
+    direction = "⚠️📉" if is_bearish else "⚠️📈"
+    color = "red" if is_bearish else "green"
+    sentiment_str = f"{sentiment_avg:+.2f}" if sentiment_avg is not None else "N/A"
+    price_str = f"{price_change_percent:+.2f}%" if price_change_percent is not None else "N/A"
+    window_str = f"近 {window_days} 天" if window_days is not None else "N/A"
+
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {
+            "title": {"tag": "plain_text", "content": f"{direction} 情绪-价格背离 — {display_name}"},
+            "template": color,
+        },
+        "elements": [
+            {
+                "tag": "div",
+                "fields": [
+                    {"is_short": True, "text": {"tag": "lark_md", "content": f"**代码**\n{symbol}"}},
+                    {"is_short": True, "text": {"tag": "lark_md", "content": f"**观察窗口**\n{window_str}"}},
+                    {"is_short": True, "text": {"tag": "lark_md", "content": f"**情绪均值**\n{sentiment_str}"}},
+                    {"is_short": True, "text": {"tag": "lark_md", "content": f"**价格变动**\n{price_str}"}},
+                ],
+            },
+            {
+                "tag": "note",
+                "elements": [
+                    {"tag": "plain_text", "content": f"背离类型：{label}，建议结合基本面复核，非自动交易信号。"},
+                ],
+            },
+        ],
+    }
+
+
 def build_analysis_card(
     news_title: str,
     top_pick: dict[str, Any] | None,

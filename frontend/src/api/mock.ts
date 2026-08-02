@@ -8,6 +8,7 @@
 //   - mock/xMonitor.ts    X（Twitter）监控：账号、帖子、情报雷达
 //   - mock/ops.ts         系统健康检查、SSE 流、飞书通知、新闻链路运行时状态
 //   - mock/sentimentEval.ts 情绪/利好利空评测闭环（GET/POST /api/eval/sentiment[/run]）
+//   - mock/sentimentTimeline.ts 个股情绪时间线 + 背离提醒（GET /api/watchlist/{symbol}/sentiment-timeline）
 //
 // 本文件只做 re-export，不新增/修改任何数据，保证所有既有 `from './mock'` /
 // `from '../api/mock'` 的导入路径与签名保持 100% 不变。
@@ -17,3 +18,4 @@ export * from './mock/llm';
 export * from './mock/xMonitor';
 export * from './mock/ops';
 export * from './mock/sentimentEval';
+export * from './mock/sentimentTimeline';

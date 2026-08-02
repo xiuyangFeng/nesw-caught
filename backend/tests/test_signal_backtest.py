@@ -36,7 +36,9 @@ def _add_news(
     sentiment: str,
     published_at: datetime,
     market: str = "us",
+    score: float | None = None,
 ) -> NewsItem:
+    default_score = 0.5 if sentiment == "positive" else -0.5
     news = NewsItem(
         source_name="unit-src",
         source_url="https://example.test/source",
@@ -46,7 +48,7 @@ def _add_news(
         url_hash=f"hash-{key}",
         market=market,
         sentiment_label=sentiment,
-        sentiment_score=0.5 if sentiment == "positive" else -0.5,
+        sentiment_score=default_score if score is None else score,
         published_at=published_at,
         fetched_at=published_at,
     )
@@ -261,3 +263,170 @@ def test_backtest_route_rejects_invalid_horizon() -> None:
     client = TestClient(app)
     response = client.get("/api/backtest", params={"horizon": "abc"})
     assert response.status_code == 400
+
+
+# —— Phase 2 / 工作块 E：超额收益、陈旧过滤、样本相关性、score 分桶 ——
+
+
+def test_backtest_excess_return_uses_proxy_benchmark() -> None:
+    """无真实指数基准时，excess_return 用同窗口全部可评样本的平均前视收益做代理基准。"""
+    _clean()
+    now = datetime.now(UTC)
+    t0 = now - timedelta(days=1)
+    hour = timedelta(hours=1)
+
+    with SessionLocal() as session:
+        # G: +10%
+        g = _add_news(session, key="G", sentiment="positive", published_at=t0)
+        _add_signal(session, news_id=g.id, confidence=0.8)
+        _add_mention(session, news_id=g.id, symbol="GGG")
+        _add_snapshot(session, symbol="GGG", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="GGG", price=110.0, fetched_at=t0 + hour)
+
+        # H: -10%
+        h = _add_news(session, key="H", sentiment="negative", published_at=t0)
+        _add_signal(session, news_id=h.id, confidence=0.8)
+        _add_mention(session, news_id=h.id, symbol="HHH")
+        _add_snapshot(session, symbol="HHH", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="HHH", price=90.0, fetched_at=t0 + hour)
+
+        session.commit()
+        result = SignalBacktestService(session).run(window_days=30, horizon="1h", now=now)
+
+    # 代理基准 = 平均前视收益 = (0.10 + (-0.10)) / 2 = 0.0
+    assert result["benchmark_return"] == pytest.approx(0.0)
+    assert "代理" in result["benchmark_note"] or "proxy" in result["benchmark_note"].lower()
+    assert result["avg_excess_return"] == pytest.approx(0.0)
+    # positive 样本超额收益 = 0.10 - 0.0 = 0.10；negative 样本超额收益 = -0.10 - 0.0 = -0.10
+    assert result["positive"]["avg_excess_return"] == pytest.approx(0.10)
+    assert result["negative"]["avg_excess_return"] == pytest.approx(-0.10)
+
+
+def test_backtest_skips_stale_baseline_snapshot() -> None:
+    """baseline 快照距发布时间超过 signal_backtest_max_snapshot_age_hours（默认 24h）时跳过并计数。"""
+    _clean()
+    now = datetime.now(UTC)
+    t0 = now - timedelta(days=1)
+    hour = timedelta(hours=1)
+
+    with SessionLocal() as session:
+        i = _add_news(session, key="I", sentiment="positive", published_at=t0)
+        _add_signal(session, news_id=i.id, confidence=0.8)
+        _add_mention(session, news_id=i.id, symbol="III")
+        # 唯一的 baseline 候选快照是发布前 30 小时的，超过默认 24h 陈旧门槛
+        _add_snapshot(session, symbol="III", price=100.0, fetched_at=t0 - 30 * hour)
+        _add_snapshot(session, symbol="III", price=110.0, fetched_at=t0 + hour)
+        session.commit()
+
+        result = SignalBacktestService(session).run(window_days=30, horizon="1h", now=now)
+
+    assert result["total_signals"] == 1
+    assert result["evaluable_count"] == 0
+    assert result["skipped_count"] == 1
+    assert result["skipped_stale_count"] == 1
+
+
+def test_backtest_per_news_hit_rate_differs_from_sample_hit_rate() -> None:
+    """一条新闻多只股票产生多个样本，per_news_hit_rate 与逐样本 hit_rate 应有区别。"""
+    _clean()
+    now = datetime.now(UTC)
+    t0 = now - timedelta(days=1)
+    hour = timedelta(hours=1)
+
+    with SessionLocal() as session:
+        # 新闻 J：利好，提及 1 只股票，命中（上涨）
+        j = _add_news(session, key="J", sentiment="positive", published_at=t0)
+        _add_signal(session, news_id=j.id, confidence=0.8)
+        _add_mention(session, news_id=j.id, symbol="JJJ")
+        _add_snapshot(session, symbol="JJJ", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="JJJ", price=110.0, fetched_at=t0 + hour)
+
+        # 新闻 K：利好，提及 2 只股票，1 命中（上涨）+ 1 未命中（下跌）
+        k = _add_news(session, key="K", sentiment="positive", published_at=t0)
+        _add_signal(session, news_id=k.id, confidence=0.8)
+        _add_mention(session, news_id=k.id, symbol="KKK1")
+        _add_mention(session, news_id=k.id, symbol="KKK2")
+        _add_snapshot(session, symbol="KKK1", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="KKK1", price=110.0, fetched_at=t0 + hour)
+        _add_snapshot(session, symbol="KKK2", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="KKK2", price=90.0, fetched_at=t0 + hour)
+
+        session.commit()
+        result = SignalBacktestService(session).run(window_days=30, horizon="1h", now=now)
+
+    # 逐样本命中率（news x symbol 展开）：3 个样本，2 命中 -> 0.6667
+    assert result["positive"]["sample_count"] == 3
+    assert result["positive"]["hit_rate"] == pytest.approx(2 / 3, abs=1e-4)
+    # per-news：新闻 J 内部命中均值 1.0；新闻 K 内部命中均值 0.5 -> 两条新闻等权均值 0.75
+    assert result["distinct_news_count"] == 2
+    assert result["per_news_hit_rate"] == pytest.approx(0.75)
+
+
+def test_backtest_score_buckets_group_by_abs_sentiment_score() -> None:
+    """score_buckets 按 |sentiment_score| 落桶，命中率/收益按桶聚合。"""
+    _clean()
+    now = datetime.now(UTC)
+    t0 = now - timedelta(days=1)
+    hour = timedelta(hours=1)
+
+    with SessionLocal() as session:
+        # 低分（0.1，命中）落在 0.0-0.2 桶
+        low = _add_news(session, key="LOW", sentiment="positive", published_at=t0, score=0.1)
+        _add_signal(session, news_id=low.id, confidence=0.4)
+        _add_mention(session, news_id=low.id, symbol="LOWS")
+        _add_snapshot(session, symbol="LOWS", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="LOWS", price=105.0, fetched_at=t0 + hour)
+
+        # 高分（0.9，命中）落在 0.8-1.0 桶
+        high = _add_news(session, key="HIGH", sentiment="positive", published_at=t0, score=0.9)
+        _add_signal(session, news_id=high.id, confidence=0.9)
+        _add_mention(session, news_id=high.id, symbol="HIGHS")
+        _add_snapshot(session, symbol="HIGHS", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="HIGHS", price=120.0, fetched_at=t0 + hour)
+
+        session.commit()
+        result = SignalBacktestService(session).run(window_days=30, horizon="1h", now=now)
+
+    buckets = {item["range_label"]: item for item in result["score_buckets"]}
+    assert set(buckets) == {"0.0-0.2", "0.2-0.4", "0.4-0.6", "0.6-0.8", "0.8-1.0"}
+    assert buckets["0.0-0.2"]["sample_count"] == 1
+    assert buckets["0.0-0.2"]["hit_rate"] == pytest.approx(1.0)
+    assert buckets["0.8-1.0"]["sample_count"] == 1
+    assert buckets["0.8-1.0"]["hit_rate"] == pytest.approx(1.0)
+    assert buckets["0.2-0.4"]["sample_count"] == 0
+    assert buckets["0.2-0.4"]["hit_rate"] is None
+
+
+def test_backtest_route_response_includes_phase2_fields() -> None:
+    """路由响应带上 Phase 2 新字段（含顺带落盘的 calibration）。"""
+    _clean()
+    now = datetime.now(UTC)
+    t0 = now - timedelta(days=1)
+    hour = timedelta(hours=1)
+
+    with SessionLocal() as session:
+        news = _add_news(session, key="RT2", sentiment="positive", published_at=t0)
+        _add_signal(session, news_id=news.id, confidence=0.8)
+        _add_mention(session, news_id=news.id, symbol="RTX2")
+        _add_snapshot(session, symbol="RTX2", price=100.0, fetched_at=t0 - hour)
+        _add_snapshot(session, symbol="RTX2", price=110.0, fetched_at=t0 + hour)
+        session.commit()
+
+    client = TestClient(app)
+    response = client.get("/api/backtest", params={"window_days": 30, "horizon": "1h"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    for field in (
+        "avg_excess_return",
+        "benchmark_note",
+        "benchmark_return",
+        "distinct_news_count",
+        "per_news_hit_rate",
+        "skipped_stale_count",
+        "score_buckets",
+        "calibration",
+    ):
+        assert field in payload
+    assert payload["calibration"] is not None
+    assert "mapping" in payload["calibration"]

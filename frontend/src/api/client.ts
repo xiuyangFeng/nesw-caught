@@ -31,6 +31,7 @@ import type {
   PortfolioSummary,
   WatchlistPositionUpdate,
   SentimentEvalResponse,
+  SentimentTimelineResponse,
   WatchlistSparklineMap,
   StockQuoteDetail,
   StockResearchReport,
@@ -278,6 +279,12 @@ export const apiClient = {
     return withMockFallback<NewsItem[]>(
       () => getJson(`/api/watchlist/${encodeURIComponent(symbol)}/related-news`),
       (mock) => mock.mockRelatedNews[symbol] ?? [],
+    );
+  },
+  getSentimentTimeline(symbol: string, days = 30) {
+    return withMockFallback<SentimentTimelineResponse>(
+      () => getJson(withQuery(`/api/watchlist/${encodeURIComponent(symbol)}/sentiment-timeline`, { days })),
+      (mock) => mock.mockSentimentTimelines[symbol] ?? mock.buildMockSentimentTimeline(symbol, days),
     );
   },
   getWatchlistResearchBrief(symbol: string) {

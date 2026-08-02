@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,9 @@ DEFAULT_INFLIGHT_LEASE_SECONDS = 600.0
 DEFAULT_BACKLOG_BATCH_SIZE = 50
 DEFAULT_POLL_INTERVAL_SECONDS = 1.0
 DEFAULT_FALLBACK_SCAN_INTERVAL_SECONDS = 30.0
+# 情绪-价格背离周期检查间隔：design 明确"间隔可硬编码 30min"，不额外加 settings 项
+# （config.py 由主协调者独占，本工作块不改）。
+SENTIMENT_DIVERGENCE_CHECK_INTERVAL_SECONDS = 1800.0
 # 持续故障时 _record_failure 的写库节流(避免 1s 一次写 worker_runtime_status)。
 FAILURE_RECORD_MIN_INTERVAL_SECONDS = 30.0
 
@@ -525,3 +529,64 @@ class OrphanQueueDrainWorker(BaseWorker):
                 dropped_takeaway,
             )
         return total
+
+
+class SentimentDivergenceAlertWorker(BaseWorker):
+    """情绪-价格背离周期检查（情绪模块 Phase 3 · 工作块 G3）。
+
+    只在 `settings.sentiment_divergence_alert_enabled=True` 时由
+    `NotificationService.start()` 惰性创建并启动（该方法已被 `app/main.py` 的
+    lifespan 无条件调用，不需要再改 main.py 新增注册点）；默认关闭时这个类根本
+    不会被实例化，零行为变化。
+
+    每个周期对全部自选股逐个跑一次纯读的 `detect_divergence`；命中则把结果转成
+    payload 交给 `notification_service.on_sentiment_divergence_detected()`——真正
+    的入队 / 去重 / 免打扰 / 合并治理都在 NotificationService 里统一处理，本
+    worker 只负责"发现"，不直接发飞书、不直接操作队列表。
+    """
+
+    worker_name = "sentiment_divergence_alert_worker"
+
+    def __init__(
+        self,
+        *,
+        session_factory: Callable[[], Session],
+        notification_service: Any,
+        interval_seconds: float = SENTIMENT_DIVERGENCE_CHECK_INTERVAL_SECONDS,
+        logger: logging.Logger | None = None,
+    ) -> None:
+        super().__init__(session_factory=session_factory, logger=logger)
+        self.notification_service = notification_service
+        self.interval_seconds = max(interval_seconds, 1.0)
+
+    def get_interval(self) -> float:
+        return self.interval_seconds
+
+    def do_cycle(self) -> int:
+        # 延迟导入：避免给 queue_worker 模块级新增对 watchlist repository /
+        # sentiment_divergence 的强依赖（两者都只被本 worker 用到）。
+        from app.repositories.watchlist_repository import WatchlistRepository
+        from app.services.sentiment_divergence import detect_divergence
+
+        hits = 0
+        with self.session_factory() as session:
+            watchlist_items = WatchlistRepository(session).list_all()
+            for item in watchlist_items:
+                result = detect_divergence(item.symbol, None, session)
+                if result is None:
+                    continue
+                self.notification_service.on_sentiment_divergence_detected(
+                    {
+                        "symbol": item.symbol,
+                        "display_name": item.display_name,
+                        "market": item.market,
+                        "status": result.status,
+                        "window_days": result.window_days,
+                        "sentiment_avg": result.sentiment_avg,
+                        "news_count": result.news_count,
+                        "price_change_percent": result.price_change_percent,
+                        "detected_at": result.detected_at.isoformat(),
+                    }
+                )
+                hits += 1
+        return hits

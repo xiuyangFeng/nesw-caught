@@ -2,6 +2,33 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-02 情绪模块 Phase 2/3：回测方法学修复 + 置信度校准 + 个股情绪时间线 + 情绪-价格背离提醒
+
+- 修改人：Claude Fable（主控）+ 3 个并行 Sonnet 子智能体（worktree feat/sentiment-revamp，承接同日 Phase 1）
+- 修改范围：把情绪信号从「打分展示」推进到「被验证、可校准、可感知」。设计文档：`docs/superpowers/specs/2026-08-02-sentiment-phase2-3-design.md`。
+- 变更内容：
+  1. **回测方法学修复（工作块 E）**：
+     - 超额收益：样本级 `excess_return = forward_return - 代理基准`（库内无指数快照，用同窗口全部可评样本平均 forward_return 作代理基准，`benchmark_note` 如实说明）；overall/方向/各桶均加 `avg_excess_return`。
+     - 陈旧过滤：baseline 快照距发布超 `signal_backtest_max_snapshot_age_hours`（新配置，默认 24h）跳过并计 `skipped_stale_count`。
+     - 样本相关性：新增 `distinct_news_count` 与 `per_news_hit_rate`（每条新闻先对其 N 只股票取均值再等权平均，修正一条新闻多标的被当独立样本的统计偏差）。
+     - 新增 `score_buckets`（按 |sentiment_score| 0.2/0.4/0.6/0.8 分桶），替代无信息量的 importance 桶（旧桶保留兼容）。
+  2. **置信度校准（工作块 E）**：新 `sentiment_calibration.py`——按分数桶经验命中率生成校准映射（样本 <30 标 low_sample 回退线性公式）+ 建议阈值（命中率 ≥0.55 的最小桶下界）；回测 API 顺带重算并原子写 `backend/data/research/sentiment_calibration.json`；生产 hook：`sentiment_confidence_calibration_enabled=True`（默认 False，零行为变化）时 `signal_confidence` 改查校准映射（懒缓存 + mtime 失效，缺失回退旧公式）。
+  3. **个股情绪时间线（工作块 G+H）**：新端点 `GET /api/watchlist/{symbol}/sentiment-timeline?days=30&window=`——NewsStockMention×NewsItem 按 Asia/Shanghai 自然日聚合（avg_score/正负中计数/每日 |score| top3 要闻），内嵌最新背离判定；前端新组件 `SentimentTimelinePanel.vue`（手写 SVG 正负双色柱 + hover 当日要闻 + 背离徽章 + 空/错态）接入 `WatchlistDetailView`。
+  4. **情绪-价格背离提醒（工作块 G）**：新 `sentiment_divergence.py`——窗口内新闻 ≥3 的情绪均值 vs price_snapshot 首尾价变动，`情绪强正+价格显著跌 → bearish_divergence`（反向 bullish）；`sentiment_divergence_alert_enabled=True`（默认 False）时 `NotificationService.start()` 懒创建 30 分钟周期 `SentimentDivergenceAlertWorker` 巡检自选股，命中入队 `event_type="sentiment_divergence"`（severity=normal，遵守既有免打扰/去重治理，dedupe 键 symbol+方向+沪时区当日），飞书新增 `build_sentiment_divergence_card`。**未改 main.py**（worker 挂在 NotificationService 生命周期内）。
+  5. **回测视图增强（工作块 H）**：`SignalBacktestView.vue` additive 展示超额收益（含基准说明）、按新闻加权命中率/去重新闻数/陈旧跳过数、分数桶表格、校准区块（low_sample 灰显 + 建议阈值）；旧数据形状（无新字段）下全部优雅不渲染。
+- 影响文件：
+  - 后端修改：`app/api/routes/{backtest,watchlist}.py`、`app/core/config.py`（新增 7 个默认保守的配置项）、`app/schemas/{backtest,watchlist}.py`、`app/services/{feishu_client,news_signal_classifier,notification_service,signal_backtest}.py`、`app/workers/queue_worker.py`
+  - 后端新增：`app/services/{sentiment_calibration,sentiment_divergence,sentiment_timeline}.py`
+  - 后端测试：修改 `test_signal_backtest.py`，新增 `test_{sentiment_calibration,sentiment_divergence,sentiment_divergence_alert,sentiment_timeline}.py`
+  - 前端：`api/client.ts`、`api/mock.ts`、`api/mock/sentimentTimeline.ts`（新）、`types/api.ts`、`views/{SignalBacktestView,WatchlistDetailView}.vue(+test)`、`components/watchlist/SentimentTimelinePanel.vue(+test)`（新）
+  - 文档：`docs/superpowers/specs/2026-08-02-sentiment-phase2-3-design.md`（新）、本记录
+- 接口/数据结构变化：`BacktestSummaryView` additive 扩展（超额收益/分数桶/校准等 8 个字段）；新增只读端点 `GET /api/watchlist/{symbol}/sentiment-timeline`；config 新增 `signal_backtest_max_snapshot_age_hours`、`sentiment_confidence_calibration_enabled`、`sentiment_divergence_*`（默认全保守，行为不变）。无数据库迁移。`sentiment_calibration.json` 为 gitignored 运行时产物。
+- 验证情况：worktree 内 `conda run -n news-caught pytest backend/tests -q` → 1107 passed, 5 failed（同 Phase 1 记录的预存在硬编码路径失败，与本次无关）；前端 `npm --prefix frontend run test -- --run` → 430 passed，`npm --prefix frontend run build` 通过。
+- 风险/后续事项：
+  - 校准与背离提醒默认关闭；开启背离提醒需 `SENTIMENT_DIVERGENCE_ALERT_ENABLED=true` 且已配置飞书。校准建议阈值当前对正负方向对称（分桶按 |score|），方向不对称需另行分桶。
+  - 代理基准是市场均值近似，非真实指数；接入指数快照后可无缝换真实基准。
+  - 本分支与主工作区协作者未提交改动在 `config.py`/`types/api.ts` 等文件存在合并冲突面，合并 main 时需人工处理（已尽量避开 KlineChart/watchlistStore 等文件）。
+
 ## 2026-08-02 情绪评测模块重构 Phase 1：真 A/B + 金标工具链 + 落库闭环 + 两个 LLM bug 修复
 
 - 修改人：Claude Fable（主控）+ 4 个并行 Sonnet 子智能体（worktree feat/sentiment-revamp）

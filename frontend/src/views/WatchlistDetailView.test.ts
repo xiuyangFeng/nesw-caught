@@ -157,6 +157,15 @@ vi.mock('../components/watchlist/RelatedNewsSidebar.vue', () => ({
   },
 }));
 
+// SentimentTimelinePanel 自行经 apiClient 取数（不进 watchlistStore），本测试文件只关心
+// WatchlistDetailView 的接线（symbol prop 是否传对），数据加载行为由组件自身的单测覆盖。
+vi.mock('../components/watchlist/SentimentTimelinePanel.vue', () => ({
+  default: {
+    props: ['symbol'],
+    template: '<section data-role="sentiment-timeline-panel-stub">{{ symbol }}</section>',
+  },
+}));
+
 describe('WatchlistDetailView', () => {
   beforeEach(() => {
     push.mockClear();
@@ -185,6 +194,15 @@ describe('WatchlistDetailView', () => {
     expect(wrapper.find('[data-role="watchlist-detail-news"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="watchlist-settings-trigger"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="indicator-chart-stub"]').exists()).toBe(false);
+  });
+
+  it('wires the sentiment timeline panel with the current route symbol', async () => {
+    const wrapper = mount(WatchlistDetailView);
+    await flushPromises();
+
+    const panel = wrapper.find('[data-role="sentiment-timeline-panel-stub"]');
+    expect(panel.exists()).toBe(true);
+    expect(panel.text()).toBe('AAPL');
   });
 
   it('falls back to the watchlist list when the route symbol is missing', async () => {
