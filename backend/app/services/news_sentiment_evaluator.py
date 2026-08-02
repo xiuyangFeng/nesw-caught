@@ -179,7 +179,11 @@ def compute_importance_weighted_accuracy(
         if sample.sentiment_label == predicted:
             correct_weight += weight
 
-    return round(_safe_divide(correct_weight, total_weight), 4)
+    # 全部样本显式标注 importance=0 时权重和为 0：加权准确率不可计算，
+    # 返回 None 而不是误呈现为 0。
+    if total_weight <= 0.0:
+        return None
+    return round(correct_weight / total_weight, 4)
 
 
 def _safe_divide(numerator: float, denominator: float) -> float:

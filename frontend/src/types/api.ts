@@ -523,7 +523,8 @@ export interface SentimentEvalResponse {
 export interface SentimentTimelineNewsRef {
   id: number;
   title: string;
-  sentiment_label: SentimentLabel;
+  // 后端列可空（仅过滤 sentiment_score IS NOT NULL），历史脏数据可能 label 为空。
+  sentiment_label: SentimentLabel | null;
   sentiment_score: number;
 }
 
@@ -579,7 +580,8 @@ export interface CalibrationMappingEntry {
   score_min: number;
   score_max: number;
   sample_count: number;
-  hit_rate: number;
+  // 空桶（sample_count=0）时后端产出 null。
+  hit_rate: number | null;
   calibrated_confidence: number;
   low_sample: boolean;
 }

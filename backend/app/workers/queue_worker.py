@@ -572,21 +572,28 @@ class SentimentDivergenceAlertWorker(BaseWorker):
         with self.session_factory() as session:
             watchlist_items = WatchlistRepository(session).list_all()
             for item in watchlist_items:
-                result = detect_divergence(item.symbol, None, session)
-                if result is None:
-                    continue
-                self.notification_service.on_sentiment_divergence_detected(
-                    {
-                        "symbol": item.symbol,
-                        "display_name": item.display_name,
-                        "market": item.market,
-                        "status": result.status,
-                        "window_days": result.window_days,
-                        "sentiment_avg": result.sentiment_avg,
-                        "news_count": result.news_count,
-                        "price_change_percent": result.price_change_percent,
-                        "detected_at": result.detected_at.isoformat(),
-                    }
-                )
-                hits += 1
+                # 逐条隔离：单个 symbol 的意外异常不应让排在其后的自选股
+                # 本轮（乃至持久性数据问题下长期）失去背离巡检。
+                try:
+                    result = detect_divergence(item.symbol, None, session)
+                    if result is None:
+                        continue
+                    self.notification_service.on_sentiment_divergence_detected(
+                        {
+                            "symbol": item.symbol,
+                            "display_name": item.display_name,
+                            "market": item.market,
+                            "status": result.status,
+                            "window_days": result.window_days,
+                            "sentiment_avg": result.sentiment_avg,
+                            "news_count": result.news_count,
+                            "price_change_percent": result.price_change_percent,
+                            "detected_at": result.detected_at.isoformat(),
+                        }
+                    )
+                    hits += 1
+                except Exception:
+                    self.logger.warning(
+                        "sentiment divergence check failed for %s", item.symbol, exc_info=True
+                    )
         return hits

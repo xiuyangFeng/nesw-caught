@@ -2,6 +2,20 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-02 情绪分支自审修复（合并前 code review 收口）
+
+- 修改人：Claude Fable（主控，审查由 Sonnet 子智能体执行）
+- 修改范围：对 feat/sentiment-revamp 两个提交（b145f84 + 262a242）做合并前代码审查，修复审查发现的 1 个中危设计缺陷 + 2 处前端类型契约漂移 + 2 个低危加固点。
+- 变更内容：
+  1. **【中】校准落盘污染防护**：`routes/backtest.py` 原先每次 GET 回测都无条件把本次请求过滤条件（market/horizon）下算出的校准映射覆盖写入全局 `sentiment_calibration.json`，而生产端 `get_calibrated_confidence` 不区分市场——开启校准开关后，任何人查看一次「仅港股」回测就会让港股命中率静默套用到全市场线上置信度。现只有「全市场 + 默认 1d 前视」的回测才允许落盘；带过滤请求仍在响应里返回内存计算结果。
+  2. **【低】背离巡检逐条隔离**：`SentimentDivergenceAlertWorker.do_cycle` 的自选股循环加逐条 try/except——原先单个 symbol 异常会终止本轮循环，使排序在其后的自选股失去巡检（持久性数据问题下等价于长期失效）；现单条失败仅记 warning 日志。
+  3. **【低】加权准确率边界**：`compute_importance_weighted_accuracy` 在全部样本显式标注 importance=0（权重和为 0）时返回 None 而非误呈现为 0。
+  4. **前端类型对齐后端可空性**：`types/api.ts` 的 `CalibrationMappingEntry.hit_rate`（空桶时后端产出 null）与 `SentimentTimelineNewsRef.sentiment_label`（后端列可空）改为可空类型。
+- 影响文件：`backend/app/api/routes/backtest.py`、`backend/app/workers/queue_worker.py`、`backend/app/services/news_sentiment_evaluator.py`、`frontend/src/types/api.ts`、本记录
+- 接口/数据结构变化：无（行为收紧仅影响校准文件落盘时机；类型改动为对齐既有后端契约）。
+- 验证情况：`conda run -n news-caught pytest backend/tests -q` → 1107 passed（5 个预存在失败不变）；`npm --prefix frontend run test -- --run` → 430 passed；`npm --prefix frontend run build` 通过。
+- 风险/后续事项：审查确认无崩溃级问题；遗留低优先项——校准映射未按 market 分维（当前以「只落盘全市场结果」规避，若未来需要分市场校准需扩展文件结构与 `get_calibrated_confidence` 签名）。
+
 ## 2026-08-02 情绪模块 Phase 2/3：回测方法学修复 + 置信度校准 + 个股情绪时间线 + 情绪-价格背离提醒
 
 - 修改人：Claude Fable（主控）+ 3 个并行 Sonnet 子智能体（worktree feat/sentiment-revamp，承接同日 Phase 1）

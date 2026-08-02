@@ -35,9 +35,14 @@ def get_backtest_summary(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     calibration = build_calibration(summary)
-    try:
-        save_calibration(calibration)
-    except OSError:
-        logger.warning("failed to persist sentiment_calibration.json", exc_info=True)
+    # 只有「全市场 + 默认 1d 前视」的校准才允许落盘：生产端
+    # get_calibrated_confidence 不区分 market/horizon，若把窄过滤（如仅 hk、
+    # 仅 1h 前视）的经验命中率写进全局文件，会静默污染线上置信度。
+    # 带过滤的请求仍在响应里返回本次内存计算结果。
+    if market is None and horizon == "1d":
+        try:
+            save_calibration(calibration)
+        except OSError:
+            logger.warning("failed to persist sentiment_calibration.json", exc_info=True)
     summary["calibration"] = calibration
     return BacktestSummaryView.model_validate(summary)
