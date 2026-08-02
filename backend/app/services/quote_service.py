@@ -33,27 +33,39 @@ logger = logging.getLogger(__name__)
 # 单次超时（5s）覆盖的标的过多。按块切分后并发抓取，块内仍复用批量语义。
 _FALLBACK_CHUNK_SIZE = 20
 
+# 以腾讯为主源的市场。
+#
+# 2026-07-27 实测（002384.SZ 东山精密，收盘后）：Yahoo 对 A 股**当日**日线的
+# Close 是 NaN（Open/High/Low/Volume 都有值），批量路径 dropna 掉当日行后回退成
+# 上一交易日的收盘价，**而 status 仍是 ok** —— 于是"Yahoo 失败才降级腾讯"的兜底
+# 永远不触发，页面显示的是整整一天前的价格（199.18 而非真实的 211.90，漏掉
+# +6.39% 的涨幅），昨收/涨跌/振幅全为空。同一时刻腾讯字段完整且正确；港股两源
+# 一致；A 股昨收只有腾讯是对的（688256.SH：腾讯 1225.0 = 上一交易日收盘，
+# Yahoo 1216.0 错误）。美股腾讯不支持，仍以 Yahoo 为主源。
+_TENCENT_PRIMARY_MARKETS = ("cn", "hk")
+
 
 class QuoteService:
     def __init__(self) -> None:
         settings = get_settings()
         self.cache_ttl = timedelta(seconds=settings.market_quote_cache_ttl_seconds)
+        # 强制刷新时的抓取下限（见 config 里同名字段的说明）。
+        self.force_min_interval = timedelta(
+            seconds=max(0.0, float(getattr(settings, "market_quote_force_min_interval_seconds", 5.0)))
+        )
         self.provider = YahooFinanceQuoteProvider()
         self.fallback_provider = TencentQuoteProvider()
         self._max_workers = max(1, int(getattr(settings, "market_chart_max_workers", 8)))
-        self._hot_symbols_cache: set[str] | None = None
-        self._hot_symbols_cached_at: datetime | None = None
 
-    def _get_hot_symbols(self, session: Session) -> set[str]:
-        now = datetime.now(UTC)
-        if (
-            self._hot_symbols_cache is not None
-            and self._hot_symbols_cached_at is not None
-            and now - self._hot_symbols_cached_at < timedelta(seconds=60)
-        ):
-            return set(self._hot_symbols_cache)
+    def refresh_watchlist_quotes(self, session: Session, *, force: bool = False) -> list[dict]:
+        """刷新自选股行情。
 
-    def refresh_watchlist_quotes(self, session: Session) -> list[dict]:
+        ``force=True``（producer 轮询与手动 ``POST /market/refresh``）会把"跳过抓取"
+        的门槛从读路径的 ``cache_ttl``(180s) 换成 ``force_min_interval``(5s)。
+        此前两者共用 180s，导致 producer 每 15s 的轮询里 11 次直接吃缓存返回，
+        用户看到的价格最快也要 3 分钟才动一次。
+        """
+        freshness_window = self.force_min_interval if force else self.cache_ttl
         repository = WatchlistRepository(session)
         items = repository.list_all()
         if not items:
@@ -76,7 +88,7 @@ class QuoteService:
         cached_snapshots = market_repo.list_latest_by_symbols(symbols_to_lookup)
 
         # 2. Categorize items into cache hits or need refresh
-        to_fetch_yahoo = []
+        to_fetch = []
         results = {}
 
         for item in items:
@@ -89,10 +101,10 @@ class QuoteService:
 
             ns = ns_or_exc
             cached = cached_snapshots.get(ns.symbol)
-            if cached and self._is_fresh(cached):
+            if cached and self._is_fresh(cached, window=freshness_window):
                 results[item.symbol] = self._snapshot_to_payload(cached, item.display_name)
             else:
-                to_fetch_yahoo.append((item, ns, cached))
+                to_fetch.append((item, ns, cached))
 
         # 3. 阶段一：**只联网，不写库**。
         #    此前的写法是「Yahoo 批量抓取 -> 逐条 add/flush/refresh（写事务已开启）
@@ -100,40 +112,49 @@ class QuoteService:
         #    横跨整段网络调用，其它写者（ingestion / queue worker / notification）
         #    只能在 busy_timeout 内排队。现在把全部网络抓取前置，拿齐所有
         #    QuoteRecord 之后才进入写事务。
-        if to_fetch_yahoo:
-            yahoo_ns_list = [ns for _, ns, _ in to_fetch_yahoo]
-            yahoo_records = self.provider.fetch_quotes_batch(yahoo_ns_list)
-            yahoo_records_map = {r.symbol: r for r in yahoo_records}
+        if to_fetch:
+            # 3.1 按市场分流到各自的主源（见 _TENCENT_PRIMARY_MARKETS 的说明）。
+            tencent_first = [row for row in to_fetch if row[1].market in _TENCENT_PRIMARY_MARKETS]
+            yahoo_first = [row for row in to_fetch if row[1].market not in _TENCENT_PRIMARY_MARKETS]
+
+            primary_records: dict[str, QuoteRecord] = {}
+            if tencent_first:
+                primary_records.update(self._fetch_tencent_quotes([ns for _, ns, _ in tencent_first]))
+            if yahoo_first:
+                primary_records.update(
+                    self._fetch_yahoo_quotes([ns for _, ns, _ in yahoo_first])
+                )
 
             # resolved 元素：(item, ns, cached, ok_record | None, failure_message | None)
             resolved: list[tuple[object, object, PriceSnapshot | None, QuoteRecord | None, str | None]] = []
-            to_fetch_tencent = []
+            to_fetch_secondary = []
 
-            for item, ns, cached in to_fetch_yahoo:
-                record = yahoo_records_map.get(ns.symbol)
-
-                # Check if it failed and is eligible for tencent fallback (cn/hk)
-                if (not record or record.status != "ok") and ns.market in ("cn", "hk"):
-                    to_fetch_tencent.append((item, ns, cached, record))
-                elif record and record.status == "ok":
+            for item, ns, cached in to_fetch:
+                record = primary_records.get(ns.symbol)
+                if record and record.status == "ok":
                     resolved.append((item, ns, cached, record, None))
+                elif ns.market in _TENCENT_PRIMARY_MARKETS:
+                    # cn/hk 腾讯没拿到 -> 降级 Yahoo。
+                    to_fetch_secondary.append((item, ns, cached, record))
                 else:
+                    # 美股腾讯不支持，没有第二源可降。
                     exc_msg = record.message if record else "fetch returned empty"
                     resolved.append((item, ns, cached, None, exc_msg))
 
-            # 4. 腾讯回落同样在写事务之前完成；多标的按块并发。
-            if to_fetch_tencent:
-                tencent_ns_list = [ns for _, ns, _, _ in to_fetch_tencent]
-                tencent_records_map = self._fetch_fallback_quotes(tencent_ns_list)
+            # 4. 降级抓取同样在写事务之前完成。
+            if to_fetch_secondary:
+                secondary_records = self._fetch_yahoo_quotes(
+                    [ns for _, ns, _, _ in to_fetch_secondary]
+                )
 
-                for item, ns, cached, yahoo_record in to_fetch_tencent:
-                    record = tencent_records_map.get(ns.symbol)
+                for item, ns, cached, primary_record in to_fetch_secondary:
+                    record = secondary_records.get(ns.symbol)
                     if record and record.status == "ok":
                         resolved.append((item, ns, cached, record, None))
                     else:
-                        yahoo_msg = yahoo_record.message if yahoo_record else "Yahoo fetch failed"
-                        tencent_msg = record.message if record else "Tencent fetch failed"
-                        merged_msg = f"Yahoo: {yahoo_msg}; Fallback Tencent: {tencent_msg}"
+                        primary_msg = primary_record.message if primary_record else "Tencent fetch failed"
+                        secondary_msg = record.message if record else "Yahoo fetch failed"
+                        merged_msg = f"Tencent: {primary_msg}; Fallback Yahoo: {secondary_msg}"
                         resolved.append((item, ns, cached, None, merged_msg))
 
             # 5. 阶段二：**只写库，不联网**。写事务窗口收敛成一次纯本地 flush + 单次 commit。
@@ -155,12 +176,12 @@ class QuoteService:
 
         return [results[item.symbol] for item in items]
 
-    def _fetch_fallback_quotes(self, normalized_list: list[NormalizedSymbol]) -> dict[str, QuoteRecord]:
-        """并发抓取腾讯回落行情，返回 {symbol: QuoteRecord}。
+    def _fetch_tencent_quotes(self, normalized_list: list[NormalizedSymbol]) -> dict[str, QuoteRecord]:
+        """并发抓取腾讯行情，返回 {symbol: QuoteRecord}。
 
         TencentQuoteProvider.fetch_quotes_batch 本身会把一组 code 合并成一次
         HTTP 请求，因此只有在标的数超过一个分块时才真正需要并发；单块时保持
-        原来的“一次请求”语义（既有测试断言 fallback provider 只被调用一次）。
+        原来的“一次请求”语义（既有测试断言该 provider 只被调用一次）。
         任一分块异常都只影响该分块，不会让整轮刷新失败。
         """
         if not normalized_list:
@@ -171,21 +192,37 @@ class QuoteService:
             for index in range(0, len(normalized_list), _FALLBACK_CHUNK_SIZE)
         ]
         if len(chunks) == 1:
-            return {record.symbol: record for record in self._fetch_fallback_chunk(chunks[0])}
+            return {record.symbol: record for record in self._fetch_tencent_chunk(chunks[0])}
 
         records_map: dict[str, QuoteRecord] = {}
         with ThreadPoolExecutor(max_workers=min(len(chunks), self._max_workers)) as pool:
-            for records in pool.map(self._fetch_fallback_chunk, chunks):
+            for records in pool.map(self._fetch_tencent_chunk, chunks):
                 for record in records:
                     records_map[record.symbol] = record
         return records_map
 
-    def _fetch_fallback_chunk(self, chunk: list[NormalizedSymbol]) -> list[QuoteRecord]:
+    def _fetch_tencent_chunk(self, chunk: list[NormalizedSymbol]) -> list[QuoteRecord]:
         try:
             return self.fallback_provider.fetch_quotes_batch(chunk)
         except Exception as exc:  # pragma: no cover - 网络/provider 异常
-            logger.warning("tencent fallback batch failed (%d symbols): %s", len(chunk), exc)
+            logger.warning("tencent batch failed (%d symbols): %s", len(chunk), exc)
             return []
+
+    def _fetch_yahoo_quotes(self, normalized_list: list[NormalizedSymbol]) -> dict[str, QuoteRecord]:
+        """抓取 Yahoo 行情，返回 {symbol: QuoteRecord}；整批失败降级为空结果。"""
+        if not normalized_list:
+            return {}
+        try:
+            return {record.symbol: record for record in self.provider.fetch_quotes_batch(normalized_list)}
+        except Exception as exc:  # pragma: no cover - 网络/provider 异常
+            logger.warning("yahoo batch failed (%d symbols): %s", len(normalized_list), exc)
+            return {}
+
+    def _providers_in_priority_order(self, market: str) -> list[object]:
+        """按市场返回单票抓取的 provider 优先级（主源在前）。"""
+        if market in _TENCENT_PRIMARY_MARKETS:
+            return [self.fallback_provider, self.provider]
+        return [self.provider]
 
 
     def get_cached_watchlist_quotes(self, session: Session) -> list[dict]:
@@ -256,12 +293,8 @@ class QuoteService:
         # 这里刻意用独立的短写会话，而不是请求级的 session：请求级 session 在整个
         # handler 期间存活，用它写会把写事务的存活期拉长到 handler 结束。
         try:
-            live_quote = self.provider.fetch_quote(normalized)
-            if live_quote.status != "ok" and normalized.market in ("cn", "hk"):
-                fallback_quote = self.fallback_provider.fetch_quote(normalized)
-                if fallback_quote.status == "ok":
-                    live_quote = fallback_quote
-            if live_quote.status == "ok":
+            live_quote = self._fetch_single_quote(normalized)
+            if live_quote is not None and live_quote.status == "ok":
                 with SessionLocal() as local_session:
                     local_market_repo = MarketRepository(local_session)
                     saved_snapshot = self._save_live_quote(local_session, local_market_repo, live_quote)
@@ -279,6 +312,29 @@ class QuoteService:
             normalized.provider_symbol,
             has_hot_alert=is_hot,
         )
+
+    def _fetch_single_quote(self, normalized: NormalizedSymbol) -> QuoteRecord | None:
+        """按市场优先级逐个 provider 试，返回第一个 status=ok 的结果。
+
+        全部失败时返回最后一次的 record（保留其 message 供上层展示）；
+        provider 直接抛异常则继续试下一个。
+        """
+        last_record: QuoteRecord | None = None
+        for provider in self._providers_in_priority_order(normalized.market):
+            try:
+                record = provider.fetch_quote(normalized)
+            except Exception as exc:
+                logger.warning(
+                    "quote provider %s failed for %s: %s",
+                    getattr(provider, "source_name", provider),
+                    normalized.symbol,
+                    exc,
+                )
+                continue
+            if record is not None and record.status == "ok":
+                return record
+            last_record = record or last_record
+        return last_record
 
     def _get_quote_payload(
         self,
@@ -300,7 +356,9 @@ class QuoteService:
             return self._snapshot_to_payload(cached, display_name, hot_symbols)
 
         try:
-            live_quote = self.provider.fetch_quote(normalized)
+            live_quote = self._fetch_single_quote(normalized)
+            if live_quote is None:
+                raise RuntimeError("no quote provider returned a record")
             snapshot = self._save_live_quote(session, market_repo, live_quote)
             return self._snapshot_to_payload(snapshot, display_name, hot_symbols)
         except Exception as exc:  # pragma: no cover - network/provider behavior
@@ -407,12 +465,13 @@ class QuoteService:
             "has_hot_alert": has_hot_alert,
         }
 
-    def _is_fresh(self, snapshot: PriceSnapshot) -> bool:
+    def _is_fresh(self, snapshot: PriceSnapshot, *, window: timedelta | None = None) -> bool:
         fetched_at = snapshot.fetched_at
         if fetched_at.tzinfo is None:
             fetched_at = fetched_at.replace(tzinfo=UTC)
         age = datetime.now(UTC) - fetched_at
-        return age <= self.cache_ttl or age.total_seconds() < 0
+        return age <= (window or self.cache_ttl) or age.total_seconds() < 0
+
     _hot_symbols_cache: set[str] = set()
     _hot_symbols_cached_at: datetime | None = None
     _hot_symbols_lock = threading.Lock()

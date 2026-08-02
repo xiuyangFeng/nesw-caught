@@ -39,8 +39,22 @@ const mainChartRef = ref<HTMLElement | null>(null);
 const subChartRef = ref<HTMLElement | null>(null);
 const dashboardCollapsed = ref(false);
 
+const isValidCandle = (candle: unknown) => {
+  if (!candle || typeof candle !== 'object') {
+    return false;
+  }
+  const c = candle as Record<string, unknown>;
+  return (
+    typeof c.time === 'string' &&
+    typeof c.open === 'number' && Number.isFinite(c.open) &&
+    typeof c.high === 'number' && Number.isFinite(c.high) &&
+    typeof c.low === 'number' && Number.isFinite(c.low) &&
+    typeof c.close === 'number' && Number.isFinite(c.close)
+  );
+};
+
 const klineDataRef = computed(() => props.klineData);
-const candles = computed(() => props.klineData?.candles ?? []);
+const candles = computed(() => (props.klineData?.candles ?? []).filter(isValidCandle));
 const activeTemplate = computed(() => chartStore.activeTemplate);
 const activeLines = computed(() => (activeTemplate.value ? buildOverlayLines(activeTemplate.value, candles.value) : []));
 const activeSubIndicator = computed<KlineSubIndicator>(() => chartStore.subIndicator);

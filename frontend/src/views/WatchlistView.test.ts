@@ -174,6 +174,27 @@ vi.mock('../stores/runtimeStatusStore', () => ({
   }),
 }));
 
+const marketOverviewStore = reactive({
+  overview: null as any,
+  indexConfigs: [],
+  loading: false,
+  error: null as string | null,
+  usingMock: false,
+  configSaving: false,
+  configError: null as string | null,
+  loadOverview: vi.fn(async () => undefined),
+  startAutoRefresh: vi.fn(),
+  stopAutoRefresh: vi.fn(),
+  loadIndexConfig: vi.fn(async () => undefined),
+  createIndexConfig: vi.fn(async () => undefined),
+  updateIndexConfig: vi.fn(async () => undefined),
+  deleteIndexConfig: vi.fn(async () => undefined),
+});
+
+vi.mock('../stores/marketOverviewStore', () => ({
+  useMarketOverviewStore: () => marketOverviewStore,
+}));
+
 describe('WatchlistView', () => {
   beforeEach(() => {
     push.mockClear();
@@ -199,6 +220,13 @@ describe('WatchlistView', () => {
     watchlistStore.switchPeriod.mockClear();
     watchlistStore.klineData.indicators.kdj = [];
     watchlistStore.klineData.indicators.bollinger = [];
+    marketOverviewStore.overview = null;
+    marketOverviewStore.error = null;
+    marketOverviewStore.loading = false;
+    marketOverviewStore.loadOverview.mockClear();
+    marketOverviewStore.startAutoRefresh.mockClear();
+    marketOverviewStore.stopAutoRefresh.mockClear();
+    marketOverviewStore.loadIndexConfig.mockClear();
   });
 
   it('renders the standalone watchlist list page without the detail panel', async () => {
@@ -358,6 +386,58 @@ describe('WatchlistView', () => {
 
     expect(watchlistStore.deleteWatchlist).toHaveBeenCalledWith('AAPL');
     expect(wrapper.text()).toContain('删除自选股失败，请检查后端服务');
+  });
+
+  it('mounts the market overview panel above the tabs and starts the 60s auto refresh', async () => {
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    const panel = wrapper.get('[data-role="market-overview-panel"]');
+    const tabs = wrapper.get('[data-role="watchlist-tabs"]');
+    expect(panel.element.compareDocumentPosition(tabs.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(marketOverviewStore.loadOverview).toHaveBeenCalledTimes(1);
+    expect(marketOverviewStore.startAutoRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders one overview card per market when the overview payload is available', async () => {
+    marketOverviewStore.overview = {
+      generated_at: '2026-08-02T08:00:00Z',
+      markets: ['us', 'cn', 'kr', 'jp', 'eu'].map((key) => ({
+        market: key,
+        display_name: `市场-${key}`,
+        is_open: false,
+        indices: [],
+        quant_sentiment: null,
+        boards: { status: 'none', stale: false, source: 'none', items: [] },
+        news_sentiment: null,
+      })),
+    };
+
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-role^="market-overview-card-"]')).toHaveLength(5);
+    expect(wrapper.text()).toContain('市场-jp');
+  });
+
+  it('stops the overview auto refresh timer when the view unmounts', async () => {
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    wrapper.unmount();
+
+    expect(marketOverviewStore.stopAutoRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the tab area intact when the overview fails to load', async () => {
+    marketOverviewStore.error = '市场总览加载失败';
+
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    expect(wrapper.get('[data-role="market-overview-panel"]').text()).toContain('市场总览加载失败');
+    expect(wrapper.find('[data-role="watchlist-tabs"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="watchlist-sidebar"]').exists()).toBe(true);
   });
 
 });

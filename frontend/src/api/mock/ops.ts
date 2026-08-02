@@ -17,8 +17,12 @@ export const mockHealth: HealthStatus = {
   environment: 'development',
   now_utc: now.toISOString(),
   database: 'configured',
+  database_healthy: true,
+  active_stream_connections: 0,
   stream_mode: 'sse',
   ai_enabled: false,
+  ai_status: { enabled: false, last_call_at: null },
+  source_health_summary: { total: 0, disabled: 0, consecutive_failing: 0 },
   x_monitor_enabled: false,
   x_monitor_healthy: false,
 };

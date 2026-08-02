@@ -17,6 +17,10 @@ import type {
   MarketSnapshot,
   StockKlineResponse,
   MarketRefreshResult,
+  MarketIndexConfig,
+  MarketIndexConfigCreate,
+  MarketIndexConfigUpdate,
+  MarketOverview,
   NewsAnalysis,
   NewsDetail,
   NewsEventDetail,
@@ -229,6 +233,27 @@ export const apiClient = {
   },
   getMarketSnapshots() {
     return withMockFallback<MarketSnapshot[]>(() => getJson('/api/market/snapshots'), (mock) => mock.mockMarketSnapshots);
+  },
+  getMarketOverview() {
+    return withMockFallback<MarketOverview>(() => getJson('/api/market/overview'), (mock) => mock.mockMarketOverview);
+  },
+  getMarketIndexConfig() {
+    return withMockFallback<MarketIndexConfig[]>(
+      () => getJson('/api/market/index-config'),
+      (mock) => mock.mockMarketIndexConfigs,
+    );
+  },
+  createMarketIndexConfig(payload: MarketIndexConfigCreate) {
+    return postJson<MarketIndexConfig>('/api/market/index-config', payload).then((data) => ({ data, degraded: false }));
+  },
+  updateMarketIndexConfig(id: number, payload: MarketIndexConfigUpdate) {
+    return patchJson<MarketIndexConfig>(`/api/market/index-config/${id}`, payload).then((data) => ({
+      data,
+      degraded: false,
+    }));
+  },
+  deleteMarketIndexConfig(id: number) {
+    return deleteJson(`/api/market/index-config/${id}`).then((data) => ({ data, degraded: false }));
   },
   getWatchlistQuotes() {
     return withMockFallback<WatchlistQuoteSummary[]>(() => getJson('/api/market/watchlist'), (mock) => mock.mockWatchlistQuotes);

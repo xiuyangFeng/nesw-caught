@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from './client';
 import { HttpError } from './http';
-import { mockLlmConfig, mockLlmStats } from './mock';
+import { mockLlmConfig, mockLlmStats, mockMarketOverview } from './mock';
 
 describe('apiClient write operations', () => {
   afterEach(() => {
@@ -574,5 +574,145 @@ describe('apiClient.getLlmStats', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
 
     await expect(apiClient.getLlmStats()).rejects.toThrow('backend offline');
+  });
+});
+
+describe('apiClient market overview endpoints', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('loads the market overview aggregate from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ generated_at: '2026-08-02T08:00:00Z', markets: [] }),
+      }),
+    );
+
+    const response = await apiClient.getMarketOverview();
+
+    expect(fetch).toHaveBeenCalledWith('/api/market/overview', {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.generated_at).toBe('2026-08-02T08:00:00Z');
+  });
+
+  it('falls back to the bundled five-market mock overview when the backend is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    const response = await apiClient.getMarketOverview();
+
+    expect(response.degraded).toBe(true);
+    expect(response.data).toEqual(mockMarketOverview);
+    expect(response.data.markets.map((market) => market.market)).toEqual(['us', 'cn', 'kr', 'jp', 'eu']);
+  });
+
+  it('propagates overview read failures instead of serving mock data when not in dev', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.getMarketOverview()).rejects.toThrow('backend offline');
+  });
+
+  it('loads the index config list from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          { id: 1, symbol: '^GSPC', market: 'us', display_name: '标普500', kind: 'index', sort_order: 0, enabled: true },
+        ],
+      }),
+    );
+
+    const response = await apiClient.getMarketIndexConfig();
+
+    expect(fetch).toHaveBeenCalledWith('/api/market/index-config', {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data).toHaveLength(1);
+  });
+
+  it('posts new index config entries to the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 9, symbol: '^NDX', market: 'us', display_name: '纳指100', kind: 'index', sort_order: 3, enabled: true }),
+      }),
+    );
+
+    const payload = { symbol: '^NDX', market: 'us' as const, display_name: '纳指100', kind: 'index' as const };
+    const response = await apiClient.createMarketIndexConfig(payload);
+
+    expect(fetch).toHaveBeenCalledWith('/api/market/index-config', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.id).toBe(9);
+  });
+
+  it('patches index config entries without sending symbol or market', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 1, symbol: '^GSPC', market: 'us', display_name: '标普500指数', kind: 'index', sort_order: 1, enabled: false }),
+      }),
+    );
+
+    const payload = { display_name: '标普500指数', sort_order: 1, enabled: false };
+    const response = await apiClient.updateMarketIndexConfig(1, payload);
+
+    expect(fetch).toHaveBeenCalledWith('/api/market/index-config/1', {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    expect(response.degraded).toBe(false);
+    expect(response.data.enabled).toBe(false);
+  });
+
+  it('deletes index config entries via the contract endpoint', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 204, json: async () => null }));
+
+    await apiClient.deleteMarketIndexConfig(1);
+
+    expect(fetch).toHaveBeenCalledWith('/api/market/index-config/1', {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+  });
+
+  it('rejects index config mutations when the backend is unavailable instead of faking success', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(
+      apiClient.createMarketIndexConfig({ symbol: '^NDX', market: 'us', display_name: '纳指100' }),
+    ).rejects.toThrow('backend offline');
+    await expect(apiClient.updateMarketIndexConfig(1, { enabled: false })).rejects.toThrow('backend offline');
+    await expect(apiClient.deleteMarketIndexConfig(1)).rejects.toThrow('backend offline');
   });
 });

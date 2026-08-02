@@ -4,28 +4,27 @@
 
 ---
 
-## 一、 协作与开发流程 (Superpowers Workflow)
+## 一、 协作与开发流程 (Codex Development Workflow)
 
 ### 1. 生效前提
 - 本仓库默认后续使用 Codex 协作开发。
-- 相关 superpowers skills 需要先安装到本机 `~/.codex/skills`。
-- 若 skill 未加载成功，先修复安装或重启 Codex，不要假装流程已经生效。
-- 当前项目要求至少可用以下 skills：`using-superpowers`, `brainstorming`, `writing-plans`, `executing-plans`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `requesting-code-review`, `receiving-code-review`, `using-git-worktrees`, `subagent-driven-development`, `dispatching-parallel-agents`, `finishing-a-development-branch`。
+- 本仓库不要求安装、加载或调用 `superpowers` 套件及其 skills；不得因为相关 skill 不存在而中断正常开发。
+- 下述流程是仓库级工程约束，由协作者直接执行，不依赖特定外部 skill、插件或工具包。
 
 ### 2. 总体规则
-- **Brainstorming**: 任何新功能、行为变更、重构、接口调整，默认先走 `brainstorming`，形成设计后再进入实现。
-- **Writing Plans**: 设计确认后，必须走 `writing-plans`，把实现拆成可验证的任务，不允许“边想边改”。
-- **Test-Driven Development**: 进入实现时，必须遵循 TDD；没有先写失败测试的生产代码，视为不合规。
-- **Systematic Debugging**: Bug 排查默认走系统调试，先确认复现、收集证据、定位根因，再修复。
-- **Verification Before Completion**: 宣布完成前，必须执行验证，确认真实验证已做完，而不是口头判断。
-- **Code Review**: 实现阶段结束后，必须走 `requesting-code-review`；收到问题后按 `receiving-code-review` 处理。
-- **Subagents**: 涉及多步任务、长链路任务或并行任务时，优先使用子智能体。
-- **Git Worktrees**: 涉及隔离开发、风险较高改动、并行分支时，优先使用 git worktree。
+- **需求与设计**：任何新功能、行为变更、重构或接口调整，默认先澄清目标、边界、方案与风险，形成设计后再实现。
+- **实现计划**：设计确认后，把实现拆成可验证的任务，明确测试与验收方式，不允许在缺少基本方案的情况下盲目修改。
+- **测试驱动开发**：进入实现时遵循 TDD；原则上先写能暴露问题或描述新行为的失败测试，再修改生产代码并完成重构。
+- **系统化调试**：Bug 排查先确认复现、收集证据、缩小范围并定位根因，再实施修复，避免仅针对表象打补丁。
+- **完成前验证**：宣布完成前必须执行与改动范围相匹配的测试、构建或实测，并如实记录结果。
+- **代码评审**：较大或高风险改动完成后应进行代码评审；评审意见需逐项验证后处理，不得未经判断机械接受或忽略。
+- **子智能体**：涉及多步、长链路或可并行任务时，可优先使用子智能体，但不作为开发的强制依赖。
+- **Git Worktrees**：涉及隔离开发、风险较高改动或并行分支时，可优先使用 git worktree，但不作为普通修改的强制前提。
 
 ### 3. 面向本项目的补充要求
 - 开始较大改动前，先阅读最近的 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)，避免与最近改动冲突。
 - 必须遵守本文中“二、代码记录与提交规范”的要求；每次完成明确修改单元后，必须更新 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)。
-- 设计文档和计划文档统一放在 `docs/superpowers/` 下：
+- 设计文档和计划文档继续统一放在 `docs/superpowers/` 下；该目录名仅为历史兼容，不表示依赖 Superpowers 套件：
   - 设计：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
   - 计划：`docs/superpowers/plans/YYYY-MM-DD-<topic>-plan.md`
 - 后端改动的最小验证通常包括 `conda run -n news-caught pytest backend/tests` 中的相关测试。

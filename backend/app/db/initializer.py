@@ -37,6 +37,7 @@ from app.models.feishu_notify_config import FeishuNotifyConfig  # noqa: F401
 from app.models.llm_classification_cache import LLMClassificationCache  # noqa: F401
 from app.models.llm_provider_config import LLMProviderConfig  # noqa: F401
 from app.models.llm_token_usage import LLMTokenUsage  # noqa: F401
+from app.models.market_index_config import MarketIndexConfig  # noqa: F401
 from app.models.news_analysis_result import NewsAnalysisResult  # noqa: F401
 from app.models.news_item import NewsItem  # noqa: F401
 from app.models.news_stock_mention import NewsStockMention  # noqa: F401

@@ -245,7 +245,12 @@ class YahooFinanceQuoteProvider:
 
         frame = yf.download(
             tickers=[ns.provider_symbol for ns in normalized_list],
-            period="2d",
+            # 刻意宽于"昨天+今天"：Yahoo 对 A 股当日日线的 Close 常为 NaN
+            # （Open/High/Low/Volume 都有值），下面的 dropna 会把当日整行丢掉。
+            # period="2d" 时丢完只剩一行，iloc[-2] 取不到 → previous_close 与
+            # 涨跌全为 None，页面上表现为"昨收 --""涨跌 --""振幅 --"。
+            # 放宽到 5d 后，即使当日行不可用，也仍有前一交易日可当昨收。
+            period="5d",
             interval="1d",
             group_by="ticker",
             threads=True,

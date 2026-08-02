@@ -519,4 +519,31 @@ describe('KlineChart', () => {
     await wrapper.vm.$nextTick();
     expect(emptyDeletePreventSpy).not.toHaveBeenCalled();
   });
+
+  it('filters out candles with null or non-finite price values gracefully', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    setActivePinia(createPinia());
+    const { default: KlineChart } = await import('./KlineChart.vue');
+
+    const wrapper = mount(KlineChart, {
+      props: {
+        klineData: {
+          symbol: '0700.HK',
+          interval: '1d',
+          range: '6mo',
+          stale: false,
+          candles: [
+            { time: '2026-03-18', open: 530, high: 540, low: 520, close: 535, volume: 1200 },
+            { time: '2026-03-19', open: 535, high: 550, low: 530, close: null as unknown as number, volume: 1000 },
+            { time: '2026-03-20', open: 548, high: 560, low: 545, close: 558, volume: 980 },
+          ],
+          indicators: { ma5: [], ma10: [], ma20: [], ma60: [], macd: [], kdj: [], bollinger: [] },
+          news_events: [],
+        },
+      },
+    });
+
+    expect(wrapper.exists()).toBe(true);
+    expect(seriesMocks.some((series) => series.setData.mock.calls.some((args) => Array.isArray(args[0]) && args[0].length === 2))).toBe(true);
+  });
 });

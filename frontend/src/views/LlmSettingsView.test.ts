@@ -15,6 +15,7 @@ const llmStore = reactive({
   saveSuccess: null as string | null,
   testError: null as string | null,
   testSuccess: null as string | null,
+  pingStatuses: {} as Record<number, { loading: boolean; latency: number | null; error: string | null }>,
   loadConfig: vi.fn(),
   loadAllConfigs: vi.fn(),
   saveConfig: vi.fn(),
@@ -22,6 +23,7 @@ const llmStore = reactive({
   deleteConfig: vi.fn(),
   setDefaultConfig: vi.fn(),
   toggleConfigActive: vi.fn(),
+  pingConfig: vi.fn(),
 });
 
 vi.mock('../stores/llmStore', () => ({
@@ -51,11 +53,13 @@ describe('LlmSettingsView', () => {
     llmStore.saveSuccess = null;
     llmStore.testError = null;
     llmStore.testSuccess = null;
+    llmStore.pingStatuses = {};
     llmStore.configs = [];
     llmStore.loadConfig.mockReset();
     llmStore.loadAllConfigs.mockReset();
     llmStore.saveConfig.mockReset();
     llmStore.testConnection.mockReset();
+    llmStore.pingConfig.mockReset();
     llmStore.config = null;
   });
 
@@ -134,6 +138,85 @@ describe('LlmSettingsView', () => {
       monthly_budget_usd: null,
     });
     expect(wrapper.text()).toContain('LLM 配置已保存');
+  });
+
+  it('submits numeric pricing fields without crashing the settings module', async () => {
+    const wrapper = mount(LlmSettingsView);
+
+    await wrapper.find('input[name="provider_name"]').setValue('openai_compatible');
+    await wrapper.find('input[name="base_url"]').setValue('https://api.deepseek.com/v1');
+    await wrapper.find('input[name="model_name"]').setValue('deepseek-chat');
+    await wrapper.find('input[name="api_key"]').setValue('sk-test-key');
+    await wrapper.find('input[name="input_price_per_1k"]').setValue('0.0002');
+    await wrapper.find('input[name="output_price_per_1k"]').setValue('0.002');
+    await wrapper.find('input[name="monthly_budget_usd"]').setValue('25');
+    await wrapper.find('form').trigger('submit.prevent');
+
+    expect(llmStore.saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      input_price_per_1k: 0.0002,
+      output_price_per_1k: 0.002,
+      monthly_budget_usd: 25,
+    }));
+    expect(wrapper.text()).not.toContain('raw.trim is not a function');
+  });
+
+  it('shows inline validation and blocks malformed URLs and negative pricing', async () => {
+    const wrapper = mount(LlmSettingsView);
+
+    await wrapper.find('input[name="provider_name"]').setValue('openai_compatible');
+    await wrapper.find('input[name="base_url"]').setValue('deepseek-api');
+    await wrapper.find('input[name="model_name"]').setValue('deepseek-chat');
+    await wrapper.find('input[name="api_key"]').setValue('sk-test-key');
+    await wrapper.find('input[name="input_price_per_1k"]').setValue('-0.1');
+
+    expect(wrapper.text()).toContain('请输入完整有效的 Base URL');
+    expect(wrapper.text()).toContain('输入单价不能小于 0');
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined();
+    expect(llmStore.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('requires a new API key only when an edited config changes its Base URL', async () => {
+    llmStore.configs = [{
+      configured: true,
+      id: 7,
+      provider_name: 'openai_compatible',
+      display_name: 'DeepSeek',
+      base_url: 'https://api.deepseek.com/v1',
+      model_name: 'deepseek-chat',
+      api_key_set: true,
+      is_active: true,
+      is_default: true,
+      input_price_per_1k: 0.0002,
+      output_price_per_1k: 0.002,
+      monthly_budget_usd: 25,
+      updated_at: '2026-08-02T08:00:00Z',
+    }];
+
+    const wrapper = mount(LlmSettingsView);
+    const editButton = wrapper.findAll('button').find(button => button.text() === '编辑');
+    expect(editButton).toBeDefined();
+    await editButton!.trigger('click');
+
+    await wrapper.find('form').trigger('submit.prevent');
+    expect(llmStore.saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      id: 7,
+      api_key: undefined,
+      base_url: 'https://api.deepseek.com/v1',
+    }));
+
+    llmStore.saveConfig.mockClear();
+    await editButton!.trigger('click');
+    await wrapper.find('input[name="base_url"]').setValue('https://gateway.example.com/v1');
+    expect(wrapper.text()).toContain('修改 Base URL 后必须重新输入明文 API Key');
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined();
+
+    await wrapper.find('input[name="api_key"]').setValue('sk-replacement-key');
+    await wrapper.find('form').trigger('submit.prevent');
+    expect(llmStore.saveConfig).toHaveBeenCalledWith(expect.objectContaining({
+      id: 7,
+      api_key: 'sk-replacement-key',
+      base_url: 'https://gateway.example.com/v1',
+    }));
   });
 
   it('renders a saved-config connection test button and calls the store action', async () => {

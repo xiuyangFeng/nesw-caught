@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, provide, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 import StaleBadge from '../components/common/StaleBadge.vue';
 import SectionCard from '../components/common/SectionCard.vue';
+import MarketOverviewPanel from '../components/watchlist/MarketOverviewPanel.vue';
 import WatchlistAddModal from '../components/watchlist/WatchlistAddModal.vue';
 import WatchlistSidebar from '../components/watchlist/WatchlistSidebar.vue';
 import LoadingBlock from '../components/common/LoadingBlock.vue';
+import { useMarketOverviewStore } from '../stores/marketOverviewStore';
 import { useRuntimeStatusStore } from '../stores/runtimeStatusStore';
 import { useWatchlistStore } from '../stores/watchlistStore';
 import type { PortfolioSummary, WatchlistCandidate } from '../types/api';
@@ -19,6 +21,7 @@ const route = useRoute();
 const router = useRouter();
 const runtimeStatusStore = useRuntimeStatusStore();
 const watchlistStore = useWatchlistStore();
+const marketOverviewStore = useMarketOverviewStore();
 
 const isAddModalOpen = ref(false);
 const addModalQuery = ref('');
@@ -293,6 +296,9 @@ const runtimeDiagnostic = computed(() =>
 );
 
 onMounted(async () => {
+  // 市场总览:首次加载 + 60s 定时刷新(loadOverview 内部收敛错误,不会抛出)。
+  void marketOverviewStore.loadOverview();
+  marketOverviewStore.startAutoRefresh();
   try {
     await watchlistStore.loadCandidates();
   } catch {
@@ -300,6 +306,10 @@ onMounted(async () => {
   await watchlistStore.loadWatchlist();
   await loadPortfolio();
   void loadEarningsCountdown();
+});
+
+onUnmounted(() => {
+  marketOverviewStore.stopAutoRefresh();
 });
 </script>
 
@@ -338,6 +348,9 @@ onMounted(async () => {
 
       <StaleBadge :stale="watchlistStore.stale" label="行情列表" />
     </header>
+
+    <!-- 市场总览区块(五市场指数/板块/情绪,Tab 切换之上) -->
+    <MarketOverviewPanel />
 
     <!-- 视角 Tab 切换条 (Integrated View Tabs) -->
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-3" data-role="watchlist-tabs">

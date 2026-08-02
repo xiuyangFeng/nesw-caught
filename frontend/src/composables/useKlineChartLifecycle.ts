@@ -257,13 +257,23 @@ export function useKlineChartLifecycle(options: UseKlineChartLifecycleOptions) {
       return;
     }
     candleSeries.setData(
-      candles.value.map((candle) => ({
-        time: candle.time,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
-      })),
+      candles.value
+        .filter(
+          (candle) =>
+            candle &&
+            typeof candle.time === 'string' &&
+            typeof candle.open === 'number' && Number.isFinite(candle.open) &&
+            typeof candle.high === 'number' && Number.isFinite(candle.high) &&
+            typeof candle.low === 'number' && Number.isFinite(candle.low) &&
+            typeof candle.close === 'number' && Number.isFinite(candle.close),
+        )
+        .map((candle) => ({
+          time: candle.time,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+        })),
     );
     const activeKeys = new Set(activeLines.value.map((item) => item.key));
     activeLines.value.forEach((item) => {

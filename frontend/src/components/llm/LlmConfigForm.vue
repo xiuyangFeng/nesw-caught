@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 
 import SectionCard from '../common/SectionCard.vue';
 import { useLlmStore } from '../../stores/llmStore';
@@ -9,7 +9,23 @@ import type { LLMConfigSummary } from '../../types/api';
 const llmStore = useLlmStore();
 const toastStore = useToastStore();
 
-const formState = reactive({
+type NumericInput = string | number | null | undefined;
+
+interface LlmConfigFormState {
+  id: number | null;
+  provider_name: string;
+  display_name: string;
+  base_url: string;
+  model_name: string;
+  api_key: string;
+  is_active: boolean;
+  is_default: boolean;
+  input_price_per_1k: NumericInput;
+  output_price_per_1k: NumericInput;
+  monthly_budget_usd: NumericInput;
+}
+
+const formState = reactive<LlmConfigFormState>({
   id: null as number | null,
   provider_name: '',
   display_name: '',
@@ -24,23 +40,70 @@ const formState = reactive({
   monthly_budget_usd: '',
 });
 
-// 将价格输入框的字符串转换为 number | null；空串或非法值一律为 null。
-function toPrice(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === '') {
-    return null;
-  }
-  const value = Number(trimmed);
-  return Number.isFinite(value) ? value : null;
+const originalBaseUrl = ref('');
+
+function trimText(raw: string | null | undefined): string {
+  return typeof raw === 'string' ? raw.trim() : '';
 }
 
-const requiresKey = computed(() => !formState.id); // 新增时不建议 key 为空，编辑时可以不改 key
+function parseOptionalNonNegativeNumber(raw: NumericInput, label: string): { value: number | null; error: string | null } {
+  if (raw === null || raw === undefined || raw === '') {
+    return { value: null, error: null };
+  }
+
+  const normalized = typeof raw === 'number' ? raw : raw.trim();
+  if (normalized === '') {
+    return { value: null, error: null };
+  }
+
+  const value = typeof normalized === 'number' ? normalized : Number(normalized);
+  if (!Number.isFinite(value)) {
+    return { value: null, error: `${label}必须是有效数字` };
+  }
+  if (value < 0) {
+    return { value: null, error: `${label}不能小于 0` };
+  }
+  return { value, error: null };
+}
+
+function validateBaseUrl(raw: string): string | null {
+  const value = trimText(raw);
+  if (!value) {
+    return null;
+  }
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return 'Base URL 仅支持 http:// 或 https:// 地址';
+    }
+  } catch {
+    return '请输入完整有效的 Base URL，例如 https://api.example.com/v1';
+  }
+  return null;
+}
+
+const baseUrlChanged = computed(() => (
+  formState.id !== null && trimText(formState.base_url) !== originalBaseUrl.value
+));
+const requiresKey = computed(() => formState.id === null || baseUrlChanged.value);
+const inputPrice = computed(() => parseOptionalNonNegativeNumber(formState.input_price_per_1k, '输入单价'));
+const outputPrice = computed(() => parseOptionalNonNegativeNumber(formState.output_price_per_1k, '输出单价'));
+const monthlyBudget = computed(() => parseOptionalNonNegativeNumber(formState.monthly_budget_usd, '月度预算'));
+const validationErrors = computed(() => ({
+  provider_name: trimText(formState.provider_name) ? null : '请输入 Provider 名称',
+  base_url: validateBaseUrl(formState.base_url),
+  model_name: trimText(formState.model_name) ? null : '请输入 Model 名称',
+  api_key: requiresKey.value && !trimText(formState.api_key)
+    ? (baseUrlChanged.value ? '修改 Base URL 后必须重新输入明文 API Key' : '新模型配置必须填写 API Key')
+    : null,
+  input_price_per_1k: inputPrice.value.error,
+  output_price_per_1k: outputPrice.value.error,
+  monthly_budget_usd: monthlyBudget.value.error,
+}));
 const canSave = computed(() => {
-  const providerValid = formState.provider_name.trim().length > 0;
-  const modelValid = formState.model_name.trim().length > 0;
-  const keyValid = formState.api_key.trim().length > 0;
-  return providerValid && modelValid && (!requiresKey.value || keyValid);
+  return Object.values(validationErrors.value).every(error => error === null);
 });
+const saveDisabledReason = computed(() => Object.values(validationErrors.value).find(Boolean) ?? '');
 
 // 编辑配置
 function startEdit(cfg: LLMConfigSummary) {
@@ -55,6 +118,7 @@ function startEdit(cfg: LLMConfigSummary) {
   formState.input_price_per_1k = cfg.input_price_per_1k != null ? String(cfg.input_price_per_1k) : '';
   formState.output_price_per_1k = cfg.output_price_per_1k != null ? String(cfg.output_price_per_1k) : '';
   formState.monthly_budget_usd = cfg.monthly_budget_usd != null ? String(cfg.monthly_budget_usd) : '';
+  originalBaseUrl.value = trimText(cfg.base_url);
 }
 
 function cancelEdit() {
@@ -73,6 +137,7 @@ function resetForm() {
   formState.input_price_per_1k = '';
   formState.output_price_per_1k = '';
   formState.monthly_budget_usd = '';
+  originalBaseUrl.value = '';
 }
 
 async function submitConfig() {
@@ -80,19 +145,19 @@ async function submitConfig() {
     return;
   }
 
-  const trimmedKey = formState.api_key.trim();
+  const trimmedKey = trimText(formState.api_key);
   const payload = {
     id: formState.id,
-    provider_name: formState.provider_name.trim(),
-    display_name: formState.display_name.trim() || null,
-    base_url: formState.base_url.trim() || null,
-    model_name: formState.model_name.trim(),
+    provider_name: trimText(formState.provider_name),
+    display_name: trimText(formState.display_name) || null,
+    base_url: trimText(formState.base_url) || null,
+    model_name: trimText(formState.model_name),
     api_key: trimmedKey ? trimmedKey : undefined,
     is_active: formState.is_active,
     is_default: formState.is_default,
-    input_price_per_1k: toPrice(formState.input_price_per_1k),
-    output_price_per_1k: toPrice(formState.output_price_per_1k),
-    monthly_budget_usd: toPrice(formState.monthly_budget_usd),
+    input_price_per_1k: inputPrice.value.value,
+    output_price_per_1k: outputPrice.value.value,
+    monthly_budget_usd: monthlyBudget.value.value,
   };
 
   try {
@@ -123,6 +188,7 @@ defineExpose({ startEdit });
           type="text"
           :disabled="llmStore.loading || llmStore.saving"
           placeholder="例如 openai_compatible"
+          :aria-invalid="Boolean(validationErrors.provider_name)"
           required
         />
       </label>
@@ -148,7 +214,9 @@ defineExpose({ startEdit });
           type="text"
           :disabled="llmStore.loading || llmStore.saving"
           placeholder="例如 https://api.deepseek.com/v1"
+          :aria-invalid="Boolean(validationErrors.base_url)"
         />
+        <small v-if="validationErrors.base_url" class="text-danger">{{ validationErrors.base_url }}</small>
       </label>
       <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
         <span>Model 名称 *</span>
@@ -160,6 +228,7 @@ defineExpose({ startEdit });
           type="text"
           :disabled="llmStore.loading || llmStore.saving"
           placeholder="例如 deepseek-chat"
+          :aria-invalid="Boolean(validationErrors.model_name)"
           required
         />
       </label>
@@ -176,7 +245,9 @@ defineExpose({ startEdit });
             min="0"
             :disabled="llmStore.loading || llmStore.saving"
             placeholder="例如 0.0002"
+            :aria-invalid="Boolean(validationErrors.input_price_per_1k)"
           />
+          <small v-if="validationErrors.input_price_per_1k" class="text-danger">{{ validationErrors.input_price_per_1k }}</small>
         </label>
         <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
           <span>输出单价（$/1K tokens）</span>
@@ -190,7 +261,9 @@ defineExpose({ startEdit });
             min="0"
             :disabled="llmStore.loading || llmStore.saving"
             placeholder="例如 0.002"
+            :aria-invalid="Boolean(validationErrors.output_price_per_1k)"
           />
+          <small v-if="validationErrors.output_price_per_1k" class="text-danger">{{ validationErrors.output_price_per_1k }}</small>
         </label>
       </div>
       <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
@@ -205,7 +278,9 @@ defineExpose({ startEdit });
           min="0"
           :disabled="llmStore.loading || llmStore.saving"
           placeholder="留空表示不限制"
+          :aria-invalid="Boolean(validationErrors.monthly_budget_usd)"
         />
+        <small v-if="validationErrors.monthly_budget_usd" class="text-danger">{{ validationErrors.monthly_budget_usd }}</small>
         <small class="text-text-faint">用于默认模型的“本月累计花费 vs 预算”超支告警</small>
       </label>
       <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
@@ -218,8 +293,12 @@ defineExpose({ startEdit });
           type="password"
           :disabled="llmStore.loading || llmStore.saving"
           :placeholder="requiresKey ? '必填 API Key' : '留空表示保留当前 key'"
+          :aria-invalid="Boolean(validationErrors.api_key)"
         />
-        <small class="text-text-faint">{{ requiresKey ? '新模型配置必须填写 API key' : '不改 key 时可留空' }}</small>
+        <small v-if="validationErrors.api_key && baseUrlChanged" class="text-danger">{{ validationErrors.api_key }}</small>
+        <small v-else class="text-text-faint">
+          {{ formState.id === null ? '新模型配置必须填写 API Key' : (baseUrlChanged ? '修改服务地址后需要重新验证对应的 API Key' : '不改 Key 时可留空，系统会保留当前 Key') }}
+        </small>
       </label>
 
       <div class="flex items-center gap-6 py-1">
@@ -248,6 +327,7 @@ defineExpose({ startEdit });
           class="rounded-full bg-[linear-gradient(135deg,var(--system),var(--accent))] px-5 py-2.5 font-semibold text-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
           type="submit"
           :disabled="!canSave || llmStore.saving"
+          :title="!canSave ? saveDisabledReason : undefined"
         >
           {{ llmStore.saving ? '正在保存…' : (formState.id ? '更新配置' : '保存配置') }}
         </button>
