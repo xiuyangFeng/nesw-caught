@@ -238,6 +238,148 @@
         "title": "BacktestSummaryView",
         "type": "object"
       },
+      "BoardItemView": {
+        "properties": {
+          "advance_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Count"
+          },
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "decline_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decline Count"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "flat_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flat Count"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "net_inflow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Inflow"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "BoardItemView",
+        "type": "object"
+      },
+      "BoardSectionView": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BoardItemView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "source"
+        ],
+        "title": "BoardSectionView",
+        "type": "object"
+      },
       "BollingerPointView": {
         "properties": {
           "lower": {
@@ -1644,6 +1786,160 @@
         "title": "MacdPointView",
         "type": "object"
       },
+      "MarketIndexConfigCreateRequest": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "index",
+            "title": "Kind",
+            "type": "string"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "market",
+          "display_name"
+        ],
+        "title": "MarketIndexConfigCreateRequest",
+        "type": "object"
+      },
+      "MarketIndexConfigUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "MarketIndexConfigUpdateRequest",
+        "type": "object"
+      },
+      "MarketIndexConfigView": {
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "symbol",
+          "market",
+          "display_name",
+          "kind",
+          "sort_order",
+          "enabled"
+        ],
+        "title": "MarketIndexConfigView",
+        "type": "object"
+      },
       "MarketKlineView": {
         "properties": {
           "candles": {
@@ -1689,6 +1985,81 @@
           "indicators"
         ],
         "title": "MarketKlineView",
+        "type": "object"
+      },
+      "MarketOverviewMarketView": {
+        "properties": {
+          "boards": {
+            "$ref": "#/components/schemas/BoardSectionView"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "indices": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewIndexQuoteView"
+            },
+            "title": "Indices",
+            "type": "array"
+          },
+          "is_open": {
+            "title": "Is Open",
+            "type": "boolean"
+          },
+          "market": {
+            "title": "Market",
+            "type": "string"
+          },
+          "news_sentiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NewsSentimentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quant_sentiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantSentimentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "market",
+          "display_name",
+          "is_open",
+          "boards"
+        ],
+        "title": "MarketOverviewMarketView",
+        "type": "object"
+      },
+      "MarketOverviewView": {
+        "properties": {
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "markets": {
+            "items": {
+              "$ref": "#/components/schemas/MarketOverviewMarketView"
+            },
+            "title": "Markets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "markets"
+        ],
+        "title": "MarketOverviewView",
         "type": "object"
       },
       "MarketRefreshResultView": {
@@ -2921,6 +3292,103 @@
         "title": "NewsRuntimeView",
         "type": "object"
       },
+      "NewsSentimentView": {
+        "properties": {
+          "sample_count": {
+            "default": 0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "top_signals": {
+            "items": {
+              "$ref": "#/components/schemas/NewsSignalItemView"
+            },
+            "title": "Top Signals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "NewsSentimentView",
+        "type": "object"
+      },
+      "NewsSignalItemView": {
+        "properties": {
+          "canonical_url": {
+            "title": "Canonical Url",
+            "type": "string"
+          },
+          "news_id": {
+            "title": "News Id",
+            "type": "integer"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "signal_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Confidence"
+          },
+          "source_name": {
+            "title": "Source Name",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "news_id",
+          "title",
+          "source_name",
+          "canonical_url"
+        ],
+        "title": "NewsSignalItemView",
+        "type": "object"
+      },
       "NewsTopicRefView": {
         "properties": {
           "id": {
@@ -3529,6 +3997,78 @@
         "title": "OpsXSourceView",
         "type": "object"
       },
+      "OverviewIndexQuoteView": {
+        "properties": {
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "kind": {
+            "default": "index",
+            "title": "Kind",
+            "type": "string"
+          },
+          "previous_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Close"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "status": {
+            "default": "unavailable",
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "display_name"
+        ],
+        "title": "OverviewIndexQuoteView",
+        "type": "object"
+      },
       "PortfolioPositionView": {
         "description": "单只持仓的成本 / 盈亏 / 仓位权重明细。",
         "properties": {
@@ -3964,6 +4504,73 @@
           "fetched_at"
         ],
         "title": "PriceSnapshotView",
+        "type": "object"
+      },
+      "QuantSentimentInputsView": {
+        "properties": {
+          "adv_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adv Ratio"
+          },
+          "avg_change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Change Percent"
+          },
+          "vix": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vix"
+          }
+        },
+        "title": "QuantSentimentInputsView",
+        "type": "object"
+      },
+      "QuantSentimentView": {
+        "properties": {
+          "inputs": {
+            "$ref": "#/components/schemas/QuantSentimentInputsView"
+          },
+          "label": {
+            "default": "unknown",
+            "title": "Label",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "required": [
+          "inputs"
+        ],
+        "title": "QuantSentimentView",
         "type": "object"
       },
       "QuoteDetailView": {
@@ -7577,6 +8184,285 @@
         "summary": "Translate Text",
         "tags": [
           "llm"
+        ]
+      }
+    },
+    "/api/market/index-config": {
+      "get": {
+        "description": "全部指数配置（含 disabled），按 (market, sort_order) 排序。",
+        "operationId": "list_market_index_config_api_market_index_config_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MarketIndexConfigView"
+                  },
+                  "title": "Response List Market Index Config Api Market Index Config Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Market Index Config",
+        "tags": [
+          "market"
+        ]
+      },
+      "post": {
+        "operationId": "create_market_index_config_api_market_index_config_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketIndexConfigCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketIndexConfigView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Market Index Config",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/api/market/index-config/{config_id}": {
+      "delete": {
+        "description": "物理删除（单用户本地应用，不做回收站）。",
+        "operationId": "delete_market_index_config_api_market_index_config__config_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "config_id",
+            "required": true,
+            "schema": {
+              "title": "Config Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Market Index Config",
+        "tags": [
+          "market"
+        ]
+      },
+      "patch": {
+        "operationId": "update_market_index_config_api_market_index_config__config_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "config_id",
+            "required": true,
+            "schema": {
+              "title": "Config Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketIndexConfigUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketIndexConfigView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Market Index Config",
+        "tags": [
+          "market"
+        ]
+      }
+    },
+    "/api/market/overview": {
+      "get": {
+        "description": "五市场骨架聚合：指数快照 + 量化情绪 + 板块区 + 新闻情绪。\n\n读路径只查库 + 读进程内缓存，不阻塞等待外网（板块缓存为空的零延迟保底\n抓取带 5s 超时除外）。配置表为空时由 service 回落内置默认清单。",
+        "operationId": "get_market_overview_api_market_overview_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketOverviewView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Overview",
+        "tags": [
+          "market"
         ]
       }
     },

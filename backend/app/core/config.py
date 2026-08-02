@@ -165,6 +165,22 @@ class Settings(BaseSettings):
     # 门槛会让 15s 的轮询里 11 次空转、真实价格 3 分钟才更新一次。强制刷新改用
     # 这个更小的下限，既保证实时性，又能挡住刷新按钮被连点时的重复外网调用。
     market_quote_force_min_interval_seconds: float = 5.0
+    # ---------------------------------------------------------------------
+    # 市场总览（Market Overview）：指数/板块轮询与情绪聚合，独立于
+    # MarketQuoteProducer（自选股 15s 轮询），两者互不影响。
+    # ---------------------------------------------------------------------
+    # 单机单进程默认形态：overview producer 随后端 lifespan 一起启停，
+    # 对齐 market_quote_producer_enabled 的语义。
+    market_overview_producer_enabled: bool = True
+    # 盘中轮询间隔（秒）。
+    market_overview_poll_interval_seconds: float = 60.0
+    # us/cn/kr/jp/eu 全部闭市时的降频间隔（秒），见 market_hours.
+    # any_overview_market_open。
+    market_overview_idle_poll_interval_seconds: float = 300.0
+    # 东方财富板块榜单的进程内缓存 TTL（秒）；板块不落 price_snapshot。
+    market_board_cache_ttl_seconds: int = 60
+    # 新闻情绪"当日"窗口：滚动 N 小时（不按自然日/市场本地时区切割）。
+    market_overview_news_lookback_hours: int = 24
     tavily_api_key: str | None = None
     stock_news_min_count: int = 3
     data_cleanup_enabled: bool = True

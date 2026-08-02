@@ -3,6 +3,7 @@ from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_classification_cache import LLMClassificationCache
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.llm_token_usage import LLMTokenUsage
+from app.models.market_index_config import MarketIndexConfig
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
 from app.models.news_signal_result import NewsSignalResult
@@ -27,6 +28,7 @@ __all__ = [
     "LLMClassificationCache",
     "LLMProviderConfig",
     "LLMTokenUsage",
+    "MarketIndexConfig",
     "NewsAnalysisResult",
     "NewsItem",
     "NotificationJob",

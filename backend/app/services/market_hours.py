@@ -57,3 +57,55 @@ def any_market_open(now: datetime | None = None) -> bool:
     """A股/港股/美股中是否至少有一个处于交易时段。"""
     moment = now or datetime.now(UTC)
     return any(is_market_open(market, moment) for market in _SESSIONS_UTC)
+
+
+# ---------------------------------------------------------------------------
+# 市场总览（Market Overview）专用时段表：在 cn/hk/us 之外扩展 kr/jp/eu。
+# 刻意不动 _SESSIONS_UTC 与 is_market_open/any_market_open —— 它们服务于
+# 自选股 producer 的降频判断，新增市场会改变其行为（例如盘中窗口变长）。
+# ---------------------------------------------------------------------------
+_OVERVIEW_SESSIONS_UTC: dict[str, tuple[tuple[time, time], ...]] = {
+    "cn": _SESSIONS_UTC["cn"],
+    "hk": _SESSIONS_UTC["hk"],
+    "us": _SESSIONS_UTC["us"],
+    # 韩国 09:00-15:30 KST(UTC+9) -> 00:00-06:30 UTC
+    "kr": ((time(0, 0), time(6, 30)),),
+    # 日本 09:00-15:00 JST(UTC+9) -> 00:00-06:00 UTC（午休粗粒度忽略）
+    "jp": ((time(0, 0), time(6, 0)),),
+    # 欧洲 09:00-17:30 CET 粗粒度取 07:30-16:30 UTC（覆盖伦敦 08:00-16:30
+    # 与法兰克福，DST 取并集思路同美股）。
+    "eu": ((time(7, 30), time(16, 30)),),
+}
+
+
+def _is_open_in_sessions(sessions: tuple[tuple[time, time], ...], moment: datetime) -> bool:
+    """按给定时段表判断开市（含周末与边界外扩），与 is_market_open 同规则。"""
+    moment = moment.astimezone(UTC)
+    if moment.weekday() >= 5:
+        return False
+    current = _minutes(moment.timetz().replace(tzinfo=None))
+    return any(
+        _minutes(start) - _EDGE_MARGIN_MINUTES <= current <= _minutes(end) + _EDGE_MARGIN_MINUTES
+        for start, end in sessions
+    )
+
+
+def is_overview_market_open(market: str, now: datetime | None = None) -> bool:
+    """overview 覆盖市场（us/cn/hk/kr/jp/eu）单市场开市判断。
+
+    与 is_market_open 的关键差异：未知市场返回 False 而不是 True——
+    overview 的市场集合是封闭的，未知 key 属于调用方 bug，按闭市处理
+    不会让任何标的静止（overview 只消费这张表里的市场）。
+    """
+    sessions = _OVERVIEW_SESSIONS_UTC.get((market or "").lower())
+    if not sessions:
+        return False
+    return _is_open_in_sessions(sessions, now or datetime.now(UTC))
+
+
+def any_overview_market_open(now: datetime | None = None) -> bool:
+    """us/cn/hk/kr/jp/eu 中是否至少有一个处于交易时段（overview worker 降频用）。"""
+    moment = now or datetime.now(UTC)
+    return any(
+        _is_open_in_sessions(sessions, moment) for sessions in _OVERVIEW_SESSIONS_UTC.values()
+    )

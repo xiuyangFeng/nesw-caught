@@ -335,6 +335,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/market/index-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Market Index Config
+         * @description 全部指数配置（含 disabled），按 (market, sort_order) 排序。
+         */
+        get: operations["list_market_index_config_api_market_index_config_get"];
+        put?: never;
+        /** Create Market Index Config */
+        post: operations["create_market_index_config_api_market_index_config_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/index-config/{config_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Market Index Config
+         * @description 物理删除（单用户本地应用，不做回收站）。
+         */
+        delete: operations["delete_market_index_config_api_market_index_config__config_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Market Index Config */
+        patch: operations["update_market_index_config_api_market_index_config__config_id__patch"];
+        trace?: never;
+    };
+    "/api/market/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Market Overview
+         * @description 五市场骨架聚合：指数快照 + 量化情绪 + 板块区 + 新闻情绪。
+         *
+         *     读路径只查库 + 读进程内缓存，不阻塞等待外网（板块缓存为空的零延迟保底
+         *     抓取带 5s 超时除外）。配置表为空时由 service 回落内置默认清单。
+         */
+        get: operations["get_market_overview_api_market_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/market/refresh": {
         parameters: {
             query?: never;
@@ -1100,6 +1165,43 @@ export interface components {
             /** Window Days */
             window_days: number;
         };
+        /** BoardItemView */
+        BoardItemView: {
+            /** Advance Count */
+            advance_count?: number | null;
+            /** Change Percent */
+            change_percent?: number | null;
+            /** Code */
+            code: string;
+            /** Decline Count */
+            decline_count?: number | null;
+            /** Fetched At */
+            fetched_at?: string | null;
+            /** Flat Count */
+            flat_count?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Net Inflow */
+            net_inflow?: number | null;
+            /** Price */
+            price?: number | null;
+        };
+        /** BoardSectionView */
+        BoardSectionView: {
+            /** Items */
+            items?: components["schemas"]["BoardItemView"][];
+            /** Message */
+            message?: string | null;
+            /** Source */
+            source: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /** Status */
+            status: string;
+        };
         /** BollingerPointView */
         BollingerPointView: {
             /** Lower */
@@ -1629,6 +1731,62 @@ export interface components {
             /** Time */
             time: string;
         };
+        /** MarketIndexConfigCreateRequest */
+        MarketIndexConfigCreateRequest: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Kind
+             * @default index
+             */
+            kind: string;
+            /** Market */
+            market: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Symbol */
+            symbol: string;
+        };
+        /** MarketIndexConfigUpdateRequest */
+        MarketIndexConfigUpdateRequest: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Kind */
+            kind?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** MarketIndexConfigView */
+        MarketIndexConfigView: {
+            /** Created At */
+            created_at?: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Market */
+            market: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Symbol */
+            symbol: string;
+            /** Updated At */
+            updated_at?: string | null;
+        };
         /** MarketKlineView */
         MarketKlineView: {
             /** Candles */
@@ -1647,6 +1805,27 @@ export interface components {
             stale: boolean;
             /** Symbol */
             symbol: string;
+        };
+        /** MarketOverviewMarketView */
+        MarketOverviewMarketView: {
+            boards: components["schemas"]["BoardSectionView"];
+            /** Display Name */
+            display_name: string;
+            /** Indices */
+            indices?: components["schemas"]["OverviewIndexQuoteView"][];
+            /** Is Open */
+            is_open: boolean;
+            /** Market */
+            market: string;
+            news_sentiment?: components["schemas"]["NewsSentimentView"] | null;
+            quant_sentiment?: components["schemas"]["QuantSentimentView"] | null;
+        };
+        /** MarketOverviewView */
+        MarketOverviewView: {
+            /** Generated At */
+            generated_at: string;
+            /** Markets */
+            markets: components["schemas"]["MarketOverviewMarketView"][];
         };
         /** MarketRefreshResultView */
         MarketRefreshResultView: {
@@ -1989,6 +2168,37 @@ export interface components {
             /** Sources */
             sources: components["schemas"]["NewsRuntimeSourceView"][];
         };
+        /** NewsSentimentView */
+        NewsSentimentView: {
+            /**
+             * Sample Count
+             * @default 0
+             */
+            sample_count: number;
+            /** Score */
+            score?: number | null;
+            /** Status */
+            status: string;
+            /** Top Signals */
+            top_signals?: components["schemas"]["NewsSignalItemView"][];
+        };
+        /** NewsSignalItemView */
+        NewsSignalItemView: {
+            /** Canonical Url */
+            canonical_url: string;
+            /** News Id */
+            news_id: number;
+            /** Published At */
+            published_at?: string | null;
+            /** Signal Confidence */
+            signal_confidence?: number | null;
+            /** Source Name */
+            source_name: string;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title: string;
+        };
         /** NewsTopicRefView */
         NewsTopicRefView: {
             /** Id */
@@ -2210,6 +2420,31 @@ export interface components {
             /** Total Fetches */
             total_fetches: number;
         };
+        /** OverviewIndexQuoteView */
+        OverviewIndexQuoteView: {
+            /** Change Percent */
+            change_percent?: number | null;
+            /** Display Name */
+            display_name: string;
+            /** Fetched At */
+            fetched_at?: string | null;
+            /**
+             * Kind
+             * @default index
+             */
+            kind: string;
+            /** Previous Close */
+            previous_close?: number | null;
+            /** Price */
+            price?: number | null;
+            /**
+             * Status
+             * @default unavailable
+             */
+            status: string;
+            /** Symbol */
+            symbol: string;
+        };
         /**
          * PortfolioPositionView
          * @description 单只持仓的成本 / 盈亏 / 仓位权重明细。
@@ -2359,6 +2594,26 @@ export interface components {
             symbol: string;
             /** Volume */
             volume?: number | null;
+        };
+        /** QuantSentimentInputsView */
+        QuantSentimentInputsView: {
+            /** Adv Ratio */
+            adv_ratio?: number | null;
+            /** Avg Change Percent */
+            avg_change_percent?: number | null;
+            /** Vix */
+            vix?: number | null;
+        };
+        /** QuantSentimentView */
+        QuantSentimentView: {
+            inputs: components["schemas"]["QuantSentimentInputsView"];
+            /**
+             * Label
+             * @default unknown
+             */
+            label: string;
+            /** Score */
+            score?: number | null;
         };
         /** QuoteDetailView */
         QuoteDetailView: {
@@ -3838,6 +4093,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LLMTranslateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_market_index_config_api_market_index_config_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketIndexConfigView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_market_index_config_api_market_index_config_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketIndexConfigCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketIndexConfigView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_market_index_config_api_market_index_config__config_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                config_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_market_index_config_api_market_index_config__config_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                config_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketIndexConfigUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketIndexConfigView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_market_overview_api_market_overview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketOverviewView"];
                 };
             };
             /** @description Validation Error */

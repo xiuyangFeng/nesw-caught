@@ -15,6 +15,7 @@ from app.repositories.watchlist_repository import WatchlistRepository
 from app.services.backup import build_backup_worker
 from app.services.cleanup import build_data_cleanup_worker
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
+from app.services.market_overview_producer import MarketOverviewProducer
 from app.services.market_quote_producer import MarketQuoteProducer
 from app.services.news_dedup import configure_secondary_judge_from_settings
 from app.services.news_ingest_scheduler import NewsIngestScheduler
@@ -111,6 +112,16 @@ def build_market_quote_producer(event_bus: Any | None = None) -> MarketQuoteProd
     )
 
 
+def build_market_overview_producer() -> MarketOverviewProducer:
+    settings = get_settings()
+    return MarketOverviewProducer(
+        session_factory=SessionLocal,
+        poll_interval_seconds=settings.market_overview_poll_interval_seconds,
+        idle_poll_interval_seconds=settings.market_overview_idle_poll_interval_seconds,
+        logger=logger,
+    )
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # anyio 默认线程池只有 40 个 token，而本项目几乎所有路由都是同步 def
@@ -181,6 +192,7 @@ async def lifespan(_: FastAPI):
     digest_worker = None
     redis_consumer = None
     market_quote_producer: MarketQuoteProducer | None = None
+    market_overview_producer: MarketOverviewProducer | None = None
     x_health_probe_worker = None
     event_bus = get_event_bus()
     redis_publisher = getattr(event_bus, "redis_publisher", None)
@@ -237,6 +249,12 @@ async def lifespan(_: FastAPI):
         register_market_watchlist_handlers(event_bus)
         market_quote_producer = build_market_quote_producer(event_bus)
         market_quote_producer.start()
+    if settings.market_overview_producer_enabled:
+        # 市场总览（指数/ETF + 东财板块缓存）轮询 producer，与自选股 producer
+        # 完全独立、不发 event_bus 事件。多进程部署关掉该开关，改用独立入口
+        # `app.workers.market_overview_producer`。
+        market_overview_producer = build_market_overview_producer()
+        market_overview_producer.start()
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
@@ -285,6 +303,8 @@ async def lifespan(_: FastAPI):
         news_scheduler.stop()
     if market_quote_producer is not None:
         market_quote_producer.stop()
+    if market_overview_producer is not None:
+        market_overview_producer.stop()
     if queue_worker is not None:
         queue_worker.stop()
     if takeaway_worker is not None:

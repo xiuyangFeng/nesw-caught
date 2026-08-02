@@ -151,6 +151,52 @@ export interface WatchlistPositionUpdate {
   position_size?: number | null;
   average_cost?: number | null;
 }
+
+// ---------------------------------------------------------------------------
+// 市场总览（Market Overview）
+// C1 联调(2026-08-02)后统一以 generated 类型为准,仅保留两类增补:
+//   1. 后端 schema 中 market/kind/label/source 为普通 string,以下窄化联合
+//      仅用于前端表单/展示的 UI 状态,不代表后端契约;
+//   2. 后端 pydantic 字段带默认值(list default_factory / None)时 generated
+//      会标成可选(?),但契约(设计文档九节)保证字段始终下发,用交叉类型
+//      恢复必填,避免组件到处写 `?? []`。
+// ---------------------------------------------------------------------------
+export type MarketOverviewMarketKey = 'us' | 'cn' | 'kr' | 'jp' | 'eu';
+export type MarketIndexKind = 'index' | 'etf';
+export type QuantSentimentLabel = 'panic' | 'fear' | 'neutral' | 'greed' | 'greed_extreme' | 'unknown';
+export type MarketBoardSource = 'eastmoney' | 'preset_etf' | 'none';
+
+export type OverviewIndexQuote = Schemas['OverviewIndexQuoteView'];
+export type QuantSentimentInputs = Schemas['QuantSentimentInputsView'];
+export type QuantSentiment = Schemas['QuantSentimentView'];
+export type MarketBoardItem = Schemas['BoardItemView'];
+export type MarketBoardSection = Schemas['BoardSectionView'] & {
+  // 契约保证 items 始终为数组(后端 default_factory=list)。
+  items: MarketBoardItem[];
+};
+export type MarketNewsSignalItem = Schemas['NewsSignalItemView'];
+export type MarketNewsSentiment = Schemas['NewsSentimentView'];
+export type MarketOverviewMarket = Schemas['MarketOverviewMarketView'] & {
+  // 契约保证以下字段始终下发(后两者可为 null),generated 因后端默认值标成可选。
+  indices: OverviewIndexQuote[];
+  quant_sentiment: QuantSentiment | null;
+  boards: MarketBoardSection;
+  news_sentiment: MarketNewsSentiment | null;
+};
+export type MarketOverview = Omit<Schemas['MarketOverviewView'], 'markets'> & {
+  markets: MarketOverviewMarket[];
+};
+
+export type MarketIndexConfig = Schemas['MarketIndexConfigView'];
+// kind/sort_order/enabled 后端有默认值、客户端可省略;generated 把带默认值的
+// 字段标成必填,此处按真实线上契约放宽为可选。
+export type MarketIndexConfigCreate = Omit<
+  Schemas['MarketIndexConfigCreateRequest'],
+  'kind' | 'sort_order' | 'enabled'
+> &
+  Partial<Pick<Schemas['MarketIndexConfigCreateRequest'], 'kind' | 'sort_order' | 'enabled'>>;
+// PATCH 契约不允许修改 symbol / market(后端 extra="forbid",显式传入直接 422)。
+export type MarketIndexConfigUpdate = Schemas['MarketIndexConfigUpdateRequest'];
 // 前端 UI 专用:后端 WatchlistAiInsightView.failover 在 schema 中是无结构的
 // dict[str, str],此接口是前端对其约定字段的窄化描述,仅供展示层使用。
 export interface LlmFailoverInfo {
