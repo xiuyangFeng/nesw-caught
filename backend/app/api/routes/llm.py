@@ -270,6 +270,8 @@ async def chat_with_llm(
                         break
                     if event_type == "failover":
                         yield f"data: {json.dumps({'failover': data})}\n\n"
+                    elif event_type == "reasoning":
+                        yield f"data: {json.dumps({'reasoning': data})}\n\n"
                     else:
                         yield f"data: {json.dumps({'text': data})}\n\n"
             except asyncio.CancelledError:
@@ -494,4 +496,3 @@ def ping_llm_config(
         message="LLM connection succeeded",
         latency_ms=round(latency, 2)
     )
-

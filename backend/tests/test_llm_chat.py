@@ -30,6 +30,7 @@ async def mock_complete(*args, **kwargs):
 
 
 async def mock_chat_stream(*args, **kwargs):
+    yield ("reasoning", "Analyze first")
     yield ("token", "Hello")
     yield ("token", " ")
     yield ("token", "async")
@@ -166,14 +167,18 @@ def test_llm_chat_flow() -> None:
 
     # 读取流式响应内容并验证
     chunks = []
+    reasoning_chunks = []
     for line in chat_stream.iter_lines():
         if line.startswith("data: "):
             payload = json.loads(line[6:])
             if "text" in payload:
                 chunks.append(payload["text"])
+            if "reasoning" in payload:
+                reasoning_chunks.append(payload["reasoning"])
 
     response_text = "".join(chunks)
     assert response_text == "Hello async world"
+    assert "".join(reasoning_chunks) == "Analyze first"
 
 
 def test_llm_chat_stream_disconnect_generator() -> None:
@@ -320,4 +325,3 @@ def test_llm_chat_with_missing_news_id_still_succeeds() -> None:
     )
     assert response.status_code == 200
     assert response.json()["text"] == "This is a mock response from async generate text."
-

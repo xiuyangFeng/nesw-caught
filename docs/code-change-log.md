@@ -28,6 +28,58 @@
 - 接口/数据结构变化：新增端点 `POST /api/logs/frontend`（请求 `{entries:[{level,message,stack?,url?,ts?,context?}]}`，响应 `{accepted,dropped}`）；所有 HTTP 响应新增 `X-Request-ID` 头；json 日志格式新增 `module/lineno/request_id/task_id/exc/stack` 字段（原有 `ts/level/logger/message` 不变）；无数据库变化。
 - 验证情况：后端全量 `conda run -n news-caught pytest backend/tests -q` 1234 passed / 8 failed，8 个失败均为既有问题且与本次无关（7 个 test_news/test_news_analysis 顺序污染，隔离复跑 28 passed；1 个 test_news_relevance_experiment_runner 硬编码主 worktree 绝对路径，仅能在主 worktree 通过）；另外 4 个 test_a_share_search_service 失败系本 worktree 缺 gitignore 的 `backend/app/data/a_shares_dataset.json`，从主 worktree 复制后转绿。日志专项测试 36 个全过（含新增：json 堆栈保留、上下文注入、中间件 request_id 透传/清洗/排除/500 分级、上报端点截断/413/限流、initializer 不动 root handler 回归）。`ruff check backend/app backend/tests` 通过。前端 `npm --prefix frontend test -- --run` 83 文件 494 全绿（新增 logger 10 例），`npm run typecheck`（vue-tsc -p tsconfig.app.json）通过。
 - 风险或后续事项：访问日志对 SSE 连接在断开时才产生记录（已默认排除 `/api/stream`）；前端上报限流为进程级内存态，多进程部署时配额按进程独立；`alembic.ini` 的 [loggers] 段保留供 alembic CLI 直跑使用（应用进程内已隔离）；uvicorn 多 worker 形态下多进程共写同一轮转文件存在竞态风险，当前单进程形态无碍，若未来多进程部署建议按进程分文件或收敛到 stdout 采集。
+## 2026-08-03 LLM 分支合并审查：修复窄屏聊天页不可访问
+
+- 修改人：Codex
+- 修改范围：聊天路由 AppShell 响应式高度锁定、对应测试与设计说明。
+- 变更内容：代码审查发现 `/chat` 的 `100dvh + overflow-hidden` 被无条件应用；在低于 `shell` 断点的单列布局中，侧栏和主内容各占近一屏，外层又禁止滚动，导致第二行聊天主内容不可访问。现将视口锁定、内部侧栏滚动和主区两行 Grid 约束全部限制在 `shell:` 桌面断点；窄屏保持 `min-h-screen` 正常文档流，桌面端长对话仍只滚动消息 viewport。
+- 影响文件：`frontend/src/components/layout/AppShell.vue`、`frontend/src/components/layout/AppShell.test.ts`、`docs/superpowers/specs/2026-08-03-chat-inner-scroll-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：新增响应式类契约测试在旧实现下失败；修复后 `AppShell.test.ts`、`ChatView.test.ts`、`ChatMessageList.test.ts` 共 31 passed。分支全量测试和构建将在提交前继续执行。
+- 风险或后续事项：窄屏继续整页滚动，桌面端继续消息区内滚动；两种布局边界由 Tailwind `shell` 断点统一控制。
+
+## 2026-08-03 AI 对话改为消息内窗口滚动
+
+- 修改人：Codex
+- 修改范围：AppShell 聊天路由布局、ChatView 高度收缩、消息 viewport 滚动隔离、前端测试与文档
+- 变更内容：修复长回答把整个页面持续向下撑高的问题。`ChatView` 根工作区改用 `100dvh` 相关固定高度并增加 `min-h-0/overflow-hidden`，右侧三行 Grid 的消息轨道显式使用 `minmax(0,1fr)`；`ChatMessageList` 外层禁止溢出，实际消息区使用 `overflow-y-auto`、`overscroll-behavior:contain` 和稳定滚动条槽位。进一步根据浏览器量测确认 AppShell 左侧导航在矮窗口也会撑高文档，因此仅在 `/chat` 路由把应用壳锁定为单视口，左侧导航必要时内部滚动，其他页面继续保持整页滚动。模型栏、底部输入框与会话新建按钮不会再被长对话顶出视口。
+- 影响文件：`frontend/src/components/layout/AppShell.vue`、`frontend/src/components/layout/AppShell.test.ts`、`frontend/src/views/ChatView.vue`、`frontend/src/views/ChatView.test.ts`、`frontend/src/components/chat/ChatMessageList.vue`、`frontend/src/components/chat/ChatMessageList.test.ts`、`docs/superpowers/specs/2026-08-03-chat-inner-scroll-design.md`、`docs/superpowers/plans/2026-08-03-chat-inner-scroll-plan.md`、`docs/code-change-log.md`
+- 接口/数据结构变化：无；纯前端布局行为变化，仅 `/chat` 路由的外层页面滚动改为消息区内滚动。
+- 验证情况：TDD 新增用例在修改前稳定失败，分别暴露 ChatView 缺少视口约束、消息容器缺少 overflow/overscroll 约束、AppShell 未锁定聊天路由三处问题；实现后目标测试 `AppShell.test.ts + ChatView.test.ts + ChatMessageList.test.ts` 31 passed；`npm --prefix frontend test -- --run` 全量 84 files / 491 tests 通过；`npm --prefix frontend run build` 通过；`git diff --check` 通过。浏览器实测同一 743px 高窗口下，修复前 `document.scrollHeight=1470`，修复后 `document.scrollHeight=document.clientHeight=743`；消息区计算样式为 `overflow-y:auto`、`overscroll-behavior-y:contain`，输入栏保持完整可见，控制台无错误。
+- 风险或后续事项：聊天路由在较矮窗口下左侧导航会出现自己的内部滚动条，这是为保持整个聊天工作区固定在一屏内的预期行为；其他路由不受影响。
+
+## 2026-08-03 AI 对话内窗口滚动设计与计划
+
+- 修改人：Codex
+- 修改范围：AI 对话长消息滚动行为的根因分析、布局设计与 TDD 计划
+- 变更内容：根据用户截图确认长回答会触发 Grid item 默认 `min-height:auto`，把聊天页与外层文档一起撑高；新增设计文档，确定仅在 `/chat` 内采用动态视口高度、`min-h-0`、`overflow-hidden` 和 `overscroll-behavior:contain` 的三层约束，使模型栏和输入栏固定、消息记录仅在内窗口滚动；新增对应测试与浏览器验收计划。
+- 影响文件：`docs/superpowers/specs/2026-08-03-chat-inner-scroll-design.md`、`docs/superpowers/plans/2026-08-03-chat-inner-scroll-plan.md`、`docs/code-change-log.md`
+- 接口/数据结构变化：无。
+- 验证情况：设计阶段已检查 `AppShell.vue`、`ChatView.vue`、`ChatMessageList.vue` 与截图表现；纯文档阶段未运行测试或构建。
+- 风险或后续事项：本次只调整聊天页，不改变其他需要整页滚动的模块。
+
+## 2026-08-03 AI 对话流式推理展示与模型快捷预设
+
+- 修改人：Codex
+- 修改范围：LLM provider 流式协议、AI 对话消息状态与推理面板、模型设置快捷预设、测试与文档
+- 变更内容：
+  1. 后端 `AsyncOpenAICompatibleProvider.chat_stream` 新增 typed `reasoning` 事件，读取常见 OpenAI-compatible 流中的 `delta.reasoning_content`，并兼容字符串/简单对象形式的 `delta.reasoning`、`delta.thinking`；推理与正文都计入缺失 usage 时的 completion token 估算，也都视为首字节，避免推理已展示后对同一 provider 重试造成内容重复。`/api/llm/chat` SSE 新增独立 `{"reasoning":"..."}` 帧，已有 `text` / `failover` / `error` 帧保持兼容。
+  2. 前端 `ChatMessage` 新增可选 reasoning 状态；`useChatStream` 以同一 30ms 节拍分别平滑消费推理与正文缓冲区，两个缓冲区排空后才结束 streaming 并持久化，会话历史仍只回传最终答案正文。`ChatMessageList` 新增低视觉优先级的可折叠推理面板，生成中默认展开并显示“推理中”，无 reasoning 的模型维持原普通回答界面。
+  3. LLM 设置表单新增 OpenAI、Qwen/DashScope、DeepSeek、Moonshot/Kimi、SiliconFlow、Gemini 六组 OpenAI-compatible 快捷预设；点击后只填入公开的 Provider、显示名、Base URL 与推荐模型，不覆盖 API Key、价格、预算和启用状态；同时提供候选模型快捷按钮、官方文档链接和自定义模式。预设元数据抽出为独立模块并加单元测试。
+- 影响文件：`backend/app/services/llm_providers.py`、`backend/app/api/routes/llm.py`、`backend/tests/test_llm_providers.py`、`backend/tests/test_llm_chat.py`、`frontend/src/composables/useChatSessions.ts`、`frontend/src/composables/useChatStream.ts`、`frontend/src/composables/useChatStream.test.ts`、`frontend/src/components/chat/ChatMessageList.vue`、`frontend/src/components/chat/ChatMessageList.test.ts`、`frontend/src/components/llm/LlmConfigForm.vue`、`frontend/src/components/llm/providerPresets.ts`、`frontend/src/components/llm/providerPresets.test.ts`、`frontend/src/views/LlmSettingsView.test.ts`、`docs/superpowers/specs/2026-08-03-llm-stream-reasoning-and-presets-design.md`、`docs/superpowers/plans/2026-08-03-llm-stream-reasoning-and-presets-plan.md`、`docs/code-change-log.md`
+- 接口/数据结构变化：有，`POST /api/llm/chat` 的 SSE 流新增可选 `reasoning` JSON 帧；这是向后兼容的增量，既有只消费 `text` 的客户端无需修改。无数据库或持久化 schema 变化；前端 localStorage 消息对象可能新增可选 `reasoning` 字段，旧会话兼容。
+- 验证情况：TDD 阶段后端新增测试先稳定失败（provider 丢弃 reasoning、API 将 reasoning 错当 text）；实现后 `conda run -n news-caught pytest backend/tests/test_llm_providers.py backend/tests/test_llm_chat.py -q` 69 passed；`npm --prefix frontend test -- --run` 84 files / 488 tests 全绿；`npm --prefix frontend run build` 通过；`conda run -n news-caught ruff check backend/app/services/llm_providers.py backend/app/api/routes/llm.py backend/tests/test_llm_providers.py backend/tests/test_llm_chat.py` 通过；`git diff --check` 通过。浏览器实测 Qwen 预设字段、文档链接与 API Key 保留行为正确，配置栏无横向溢出、控制台无错误。
+- 风险或后续事项：只有实际返回 reasoning 字段的模型才会显示推理面板，OpenAI-compatible 服务之间字段仍可能存在未覆盖的私有变体；供应商模型名可能随时间变化，用户可随时自定义修改。`npm ci` 审计现有依赖树报告 10 个漏洞（1 moderate / 8 high / 1 critical），本次未改依赖版本且未执行可能引入破坏性升级的 `npm audit fix`，建议后续独立治理。
+
+## 2026-08-03 AI 对话推理流与模型快捷预设设计、实现计划
+
+- 修改人：Codex
+- 修改范围：AI 对话流式推理展示、LLM 模型快捷预设的需求设计与 TDD 实施计划
+- 变更内容：审查现有 `/api/llm/chat` SSE、`AsyncOpenAICompatibleProvider.chat_stream`、`useChatStream`、消息列表和 LLM 配置表单后，确认现有系统已支持正文流式回答但会丢弃 `reasoning_content`，配置页仍需逐项手填；新增设计文档，确定以独立 reasoning 事件传输模型实际返回的推理内容、前端双缓冲渐进渲染和可折叠推理面板，并以静态前端预设提供 OpenAI、Qwen/DashScope、DeepSeek、Moonshot/Kimi、SiliconFlow、Gemini OpenAI compatibility 的服务地址、推荐模型和官方文档入口；新增 TDD 实现计划，拆分后端协议、前端展示、快捷预设和验证评审四个任务。
+- 影响文件：`docs/superpowers/specs/2026-08-03-llm-stream-reasoning-and-presets-design.md`、`docs/superpowers/plans/2026-08-03-llm-stream-reasoning-and-presets-plan.md`、`docs/code-change-log.md`
+- 接口/数据结构变化：本条仅新增设计与计划，无运行时接口或数据结构变化；设计计划新增兼容性的 SSE `reasoning` 可选帧，不修改数据库。
+- 验证情况：已基于现有代码与测试完成设计审查；纯文档阶段未运行测试或构建。
+- 风险或后续事项：reasoning 字段并非所有 OpenAI-compatible 服务都提供；供应商模型名可能变化，因此预设只作为表单便利入口并保留完全自定义能力。
 
 ## 2026-08-02 本地功能分支终审、集成修复与合并 main
 

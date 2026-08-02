@@ -167,6 +167,31 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });
 
+  it('locks the outer document to one viewport on the chat route', () => {
+    routeState.path = '/chat';
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.get('[data-role="app-shell-root"]').classes()).toEqual(expect.arrayContaining([
+      'min-h-screen',
+      'shell:h-[100dvh]',
+      'shell:min-h-0',
+      'shell:overflow-hidden',
+    ]));
+    expect(wrapper.get('[data-role="app-shell-sidebar"]').classes()).toEqual(expect.arrayContaining([
+      'min-h-[calc(100vh-36px)]',
+      'shell:h-[calc(100dvh-36px)]',
+      'shell:min-h-0',
+      'shell:overflow-y-auto',
+    ]));
+    expect(wrapper.get('[data-role="app-shell-main"]').classes()).toEqual(expect.arrayContaining([
+      'content-start',
+      'shell:h-[calc(100dvh-36px)]',
+      'shell:min-h-0',
+      'shell:grid-rows-[auto_minmax(0,1fr)]',
+      'shell:overflow-hidden',
+    ]));
+  });
+
   it('uses the shared stacked layout for shell status indicator units', () => {
     const wrapper = mount(AppShell);
 

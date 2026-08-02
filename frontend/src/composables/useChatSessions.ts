@@ -14,6 +14,8 @@ export interface ChatMessageFailover {
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /** 模型 API 实际返回的推理内容；不回传到后续对话历史。 */
+  reasoning?: string;
   isStreaming?: boolean;
   failover?: ChatMessageFailover;
 }

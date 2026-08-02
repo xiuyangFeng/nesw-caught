@@ -27,9 +27,10 @@ logger = logging.getLogger(__name__)
 
 # Stream event types yielded by AsyncOpenAICompatibleProvider.chat_stream.
 STREAM_EVENT_TOKEN = "token"
+STREAM_EVENT_REASONING = "reasoning"
 STREAM_EVENT_FAILOVER = "failover"
 
-# ("token", str) | ("failover", dict[str, str])
+# ("token", str) | ("reasoning", str) | ("failover", dict[str, str])
 StreamEvent = tuple[str, "str | dict[str, str]"]
 
 
@@ -809,9 +810,10 @@ class AsyncOpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
     ) -> AsyncGenerator[StreamEvent, None]:
         """Stream a chat completion as typed events.
 
-        Yields ("token", text_chunk) for content deltas and, when the primary
-        provider fails and a backup takes over, a single ("failover", info)
-        event before the backup stream starts.
+        Yields ("reasoning", text_chunk) for provider-returned reasoning deltas,
+        ("token", text_chunk) for final-answer content deltas and, when the
+        primary provider fails and a backup takes over, a single
+        ("failover", info) event before the backup stream starts.
 
         同 provider 重试仅允许发生在"首字节前"：一旦已经向调用方 yield 过至少一个
         token（``first_byte_sent``），流中断就不再重试同一 provider（重新发起会
@@ -871,8 +873,20 @@ class AsyncOpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
                                     if isinstance(choices, list) and choices:
                                         delta = choices[0].get("delta")
                                         if isinstance(delta, dict):
+                                            reasoning = delta.get("reasoning_content")
+                                            if not reasoning:
+                                                reasoning = delta.get("reasoning")
+                                            if not reasoning:
+                                                reasoning = delta.get("thinking")
+                                            if isinstance(reasoning, dict):
+                                                reasoning = reasoning.get("content") or reasoning.get("text")
+                                            if isinstance(reasoning, str) and reasoning:
+                                                accumulated_tokens_text.append(reasoning)
+                                                first_byte_sent = True
+                                                yield (STREAM_EVENT_REASONING, reasoning)
+
                                             content = delta.get("content")
-                                            if content:
+                                            if isinstance(content, str) and content:
                                                 accumulated_tokens_text.append(content)
                                                 first_byte_sent = True
                                                 yield (STREAM_EVENT_TOKEN, content)

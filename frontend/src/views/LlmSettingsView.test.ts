@@ -82,6 +82,24 @@ describe('LlmSettingsView', () => {
     expect(wrapper.find('[data-surface="terminal-field"]').exists()).toBe(true);
   });
 
+  it('applies a Qwen preset without overwriting the API key typed by the user', async () => {
+    const wrapper = mount(LlmSettingsView);
+
+    await wrapper.find('input[name="api_key"]').setValue('sk-user-secret');
+    await wrapper.get('[data-testid="provider-preset-qwen"]').trigger('click');
+
+    expect((wrapper.find('input[name="provider_name"]').element as HTMLInputElement).value).toBe('openai_compatible');
+    expect((wrapper.find('input[name="display_name"]').element as HTMLInputElement).value).toBe('通义千问 Qwen');
+    expect((wrapper.find('input[name="base_url"]').element as HTMLInputElement).value).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1');
+    expect((wrapper.find('input[name="model_name"]').element as HTMLInputElement).value).toBe('qwen-plus');
+    expect((wrapper.find('input[name="api_key"]').element as HTMLInputElement).value).toBe('sk-user-secret');
+
+    const docsLink = wrapper.get('[data-testid="provider-docs-link"]');
+    expect(docsLink.attributes('href')).toContain('aliyun.com');
+    expect(docsLink.attributes('target')).toBe('_blank');
+    expect(docsLink.attributes('rel')).toContain('noreferrer');
+  });
+
   it('shows a load error when llm config cannot be fetched', () => {
     llmStore.loadError = 'backend offline';
 

@@ -128,6 +128,21 @@ describe('ChatView', () => {
     expect((wrapper.get('select').element as HTMLSelectElement).value).toBe('1');
   });
 
+  it('keeps the chat workspace constrained to the viewport so only the message pane scrolls', async () => {
+    const wrapper = mount(ChatView);
+    await flushPromises();
+
+    const workspace = wrapper.get('[data-role="chat-workspace"]');
+    expect(workspace.classes()).toEqual(expect.arrayContaining([
+      'h-[calc(100dvh-100px)]',
+      'min-h-0',
+      'overflow-hidden',
+    ]));
+
+    const mainColumn = wrapper.get('[data-role="chat-main-column"]');
+    expect(mainColumn.classes()).toEqual(expect.arrayContaining(['min-h-0', 'overflow-hidden']));
+  });
+
   it('shows a warning and disables the composer when there are no active LLM configs', async () => {
     llmStore.configs = [];
     const wrapper = mount(ChatView);

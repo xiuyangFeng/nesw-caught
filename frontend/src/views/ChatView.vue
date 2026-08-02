@@ -102,7 +102,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-[260px_1fr] gap-4 h-[calc(100vh-100px)]">
+  <div
+    class="grid h-[calc(100dvh-100px)] min-h-0 grid-cols-[260px_1fr] gap-4 overflow-hidden"
+    data-role="chat-workspace"
+  >
     <!-- Left Session sidebar -->
     <ChatSessionSidebar
       :sessions="sessions"
@@ -114,7 +117,10 @@ onBeforeUnmount(() => {
     />
 
     <!-- Right Chat Area -->
-    <div class="grid gap-4 grid-rows-[auto_1fr_auto] min-w-0">
+    <div
+      class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-4 overflow-hidden"
+      data-role="chat-main-column"
+    >
       <!-- Top header / Model selection -->
       <header class="surface flex flex-wrap items-center justify-between gap-4 rounded-lg px-4 py-3">
         <div class="flex items-center gap-3">
