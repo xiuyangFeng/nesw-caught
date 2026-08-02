@@ -3,6 +3,8 @@
  * Renders lists, bold, italics, tables, and code blocks with "Copy" functionality.
  */
 
+import { logger } from './logger';
+
 function escapeHtml(unsafe: string): string {
   return unsafe
     .replace(/&/g, '&amp;')
@@ -77,7 +79,7 @@ if (typeof window !== 'undefined' && !(window as any).__copyCodeToClipboard) {
         btn.classList.remove('text-success');
       }, 2000);
     }).catch((err) => {
-      console.error('Failed to copy', err);
+      logger.error('Failed to copy', err);
     });
   };
 }

@@ -11,6 +11,7 @@ import { useTopicStore } from '../stores/topicStore';
 import { sentimentText } from '../utils/format';
 import { getNewsSummary } from '../utils/news';
 import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
+import { logger } from '../utils/logger';
 
 const route = useRoute();
 const router = useRouter();
@@ -57,7 +58,7 @@ async function runAnalysis() {
     await newsStore.analyzeNews(newsId.value);
   } catch (e) {
     // 错误信息已写入 newsStore.analysisErrorMap 供模板展示，这里只吞掉 rejection。
-    console.error(e);
+    logger.error('Failed to analyze news', e);
   }
 }
 

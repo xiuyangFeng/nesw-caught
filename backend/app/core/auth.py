@@ -46,8 +46,8 @@ def init_app_token() -> str:
         _app_token = new_token
         logger.info("Generated new app token and saved to %s", token_file)
         return _app_token
-    except Exception as exc:
-        logger.error("Failed to generate app token: %s", exc)
+    except Exception:
+        logger.exception("Failed to generate app token")
         # 兜底在内存中临时生成，不至于服务崩溃但无法持久化
         temp_token = secrets.token_hex(32)
         _app_token = temp_token

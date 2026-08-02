@@ -54,8 +54,8 @@ class MarketChartService:
             payload = self._build_kline_payload(watchlist_item.symbol, watchlist_item.market, interval, range_name, session)
             self._set_cache(cache_key, payload, ttl_seconds=self._ttl_for_interval(interval))
             return payload
-        except Exception as exc:
-            logger.error("failed to build kline payload for %s: %s", symbol, exc)
+        except Exception:
+            logger.exception("failed to build kline payload for %s", symbol)
             # 过期缓存仍可作 stale 兜底。
             stale = self._get_cache(cache_key, allow_stale=True)
             if stale is not None:
@@ -221,7 +221,7 @@ class MarketChartService:
             fallback_frame = self._download_history_fallback(provider_symbol, period, interval)
             if fallback_frame is not None and not fallback_frame.empty:
                 return fallback_frame
-            logger.info("tencent kline unavailable for %s, falling back to yfinance", provider_symbol)
+            logger.warning("tencent kline unavailable for %s, falling back to yfinance", provider_symbol)
 
         yf_frame = self._download_yfinance_history(provider_symbol, period, interval)
         if yf_frame is not None and not yf_frame.empty:

@@ -8,8 +8,10 @@ setup:
 	$(PIP) install -r requirements.txt -e backend
 	$(NPM) install
 
+# --no-access-log：访问日志改由 RequestLoggingMiddleware 输出（带 request_id、
+# 遵循 LOG_FORMAT/文件轮转配置），uvicorn 自带的控制台访问行会重复，关掉。
 backend:
-	conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
+	conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 --no-access-log
 
 frontend:
 	$(NPM) run dev

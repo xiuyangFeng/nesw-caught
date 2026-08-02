@@ -255,7 +255,7 @@ def search_market_symbols(q: str, session: Session = Depends(get_db_session)):
     except Exception as exc:
         # 超时 / 连接失败 / 解析失败：一律快速降级到本地结果。
         future.cancel()
-        logger.info("yahoo symbol search degraded to local results (%s): %s", query, exc)
+        logger.warning("yahoo symbol search degraded to local results (%s): %s", query, exc)
         quotes = []
 
     for item in quotes:

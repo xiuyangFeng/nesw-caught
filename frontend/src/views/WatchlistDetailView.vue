@@ -11,6 +11,7 @@ import { useWatchlistStore } from '../stores/watchlistStore';
 import { apiClient } from '../api/client';
 import { useToastStore } from '../stores/toastStore';
 import type { StockResearchRating, StockResearchReport } from '../types/api';
+import { logger } from '../utils/logger';
 
 const route = useRoute();
 const router = useRouter();
@@ -126,7 +127,7 @@ async function copyResearch() {
     await navigator.clipboard.writeText(lines.join('\n'));
     toastStore.showSuccess('📋 AI 综合研判已复制到剪贴板');
   } catch (err) {
-    console.error('Failed to copy research', err);
+    logger.error('Failed to copy research', err);
     toastStore.showError('复制失败，请手动选择复制');
   }
 }

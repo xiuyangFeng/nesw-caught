@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.log_context import bind_task_id
 from app.repositories.worker_runtime_status_repository import WorkerRuntimeStatusRepository
 
 
@@ -84,9 +85,14 @@ class BaseWorker:
         raise NotImplementedError()
 
     def _run_loop(self) -> None:
+        cycle_seq = 0
         while self._is_running and not self._stop_event.is_set():
+            cycle_seq += 1
             started = time.perf_counter()
-            self.run_cycle()
+            # 同一周期内的所有日志（含深层调用链）自动携带 task=<worker>#<seq>
+            # 后缀/字段，多 worker 交织写同一份日志文件时可按周期串联。
+            with bind_task_id(f"{self.worker_name}#{cycle_seq}"):
+                self.run_cycle()
             elapsed = time.perf_counter() - started
             interval = max(self.get_interval() - elapsed, 0.1)
             self._stop_event.wait(interval)

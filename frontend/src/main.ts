@@ -4,6 +4,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { recoverFromChunkError } from './utils/lazyImport';
+import { logger } from './utils/logger';
 
 // 字体自托管（替代原 Google Fonts CDN），仅拉丁子集 Inter + JetBrains Mono，
 // 中文回落系统字体。见 docs/superpowers/specs/2026-07-18-cyber-terminal-restyle-design.md §5
@@ -23,8 +24,7 @@ const app = createApp(App);
 // break reactivity. The <RouteErrorBoundary> around <RouterView> contains view
 // errors; this is the last-resort net for anything outside that subtree.
 app.config.errorHandler = (err, _instance, info) => {
-  // eslint-disable-next-line no-console
-  console.error('[vue] unhandled error:', info, err);
+  logger.error('[vue] unhandled error:', err, { info });
 };
 
 // Vite emits this when a preloaded route chunk fails to load (stale build after

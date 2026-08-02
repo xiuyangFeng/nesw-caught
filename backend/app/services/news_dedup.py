@@ -153,7 +153,7 @@ class EmbeddingDuplicateJudge:
             similarity = _cosine_similarity(left, right)
             return self._remember(key, similarity >= self.similarity_threshold)
         except Exception:
-            self.logger.exception("embedding duplicate judge failed")
+            self.logger.exception("embedding duplicate judge failed: title_a=%r title_b=%r", title_a, title_b)
             return self._remember(key, None)
 
 

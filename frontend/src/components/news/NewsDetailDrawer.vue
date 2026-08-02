@@ -5,6 +5,7 @@ import { useNewsStore } from '../../stores/newsStore';
 import { useLlmStore } from '../../stores/llmStore';
 import LoadingBlock from '../common/LoadingBlock.vue';
 import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../../utils/time';
+import { logger } from '../../utils/logger';
 
 const props = defineProps<{
   newsId: number | null;
@@ -84,7 +85,7 @@ async function runAnalysis() {
     try {
       await newsStore.analyzeNews(props.newsId);
     } catch (e) {
-      console.error(e);
+      logger.error('Failed to analyze news', e);
     }
   }
 }

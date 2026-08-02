@@ -3,6 +3,7 @@ import { onErrorCaptured, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { isDynamicImportError, recoverFromChunkError } from '../../utils/lazyImport';
+import { logger } from '../../utils/logger';
 
 // Error boundary around <RouterView>. Without it, an uncaught error thrown while
 // a route view sets up or renders propagates to the root and breaks the whole
@@ -21,8 +22,7 @@ onErrorCaptured((err) => {
   }
   error.value = err instanceof Error ? err : new Error(String(err));
   // Surface it for debugging instead of swallowing silently.
-  // eslint-disable-next-line no-console
-  console.error('[RouteErrorBoundary] contained a view error:', err);
+  logger.error('[RouteErrorBoundary] contained a view error:', err);
   return false; // stop propagation so the rest of the app stays alive
 });
 

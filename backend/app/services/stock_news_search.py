@@ -256,7 +256,7 @@ class _ExternalSearchWorker:
                         return [str(k) for k in v if isinstance(k, str)][:5]
             return None
         except Exception:
-            logger.debug("LLM keyword expansion failed for %s, falling back to defaults", symbol)
+            logger.warning("LLM keyword expansion failed for %s, falling back to defaults", symbol)
             return None
 
     def _search_tavily(self, query: str) -> list[SourceItem]:
@@ -265,8 +265,8 @@ class _ExternalSearchWorker:
         try:
             client = TavilyClient(self.settings.tavily_api_key)
             return client.search_news(query, max_results=5)
-        except TavilyClientError:
-            logger.debug("tavily search failed for query: %s", query)
+        except TavilyClientError as exc:
+            logger.warning("tavily search failed for query: %s (%s)", query, exc)
             return []
 
     def _search_google_news(self, query: str, market: str) -> list[SourceItem]:
@@ -274,8 +274,8 @@ class _ExternalSearchWorker:
             client = GoogleNewsSearchClient()
             lang = _language_for_market(market)
             return client.search_news(query, max_results=8, language=lang)
-        except GoogleNewsSearchError:
-            logger.debug("google news search failed for query: %s", query)
+        except GoogleNewsSearchError as exc:
+            logger.warning("google news search failed for query: %s (%s)", query, exc)
             return []
 
     def _persist_news_item(self, item: SourceItem, market: str, url_hash: str) -> int | None:

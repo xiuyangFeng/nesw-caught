@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.logging import _MANAGED_HANDLER_ATTR, configure_logging
+from app.core.logging import configure_logging
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.services.event_bus import HybridEventBus, build_event_bus, set_event_bus
@@ -322,17 +322,10 @@ def main(argv: list[str] | None = None) -> int:
 
     _configure_logging()
     ensure_exclusive_ownership(settings, strict=not args.force)
+    # initialize_database() 内部跑 alembic 时经 config.attributes["configure_logger"]
+    # = False（app/db/initializer.py）阻止 fileConfig 接管日志配置，不再需要
+    # 此前"迁移后摘 handler 再重配"的补救逻辑；回归测试见 test_logging_config.py。
     initialize_database()
-    # initialize_database() 里的 alembic 会执行 `fileConfig(alembic.ini)`,把 root
-    # logger 的 level 压到 WARNING、并塞进一个它自己的 console handler —— 之后本进程
-    # 的 worker INFO 日志（批次领取、周期耗时）会被整体吞掉。本进程的可观测性几乎
-    # 全靠这些日志,所以迁移跑完后要先摘掉 alembic 留下的 handler（否则每条日志打
-    # 两遍）,再把本项目的日志配置重新装回来（configure_logging 幂等）。
-    root_logger = logging.getLogger()
-    for handler in list(root_logger.handlers):
-        if not getattr(handler, _MANAGED_HANDLER_ATTR, False):
-            root_logger.removeHandler(handler)
-    _configure_logging()
     run(build_runtime(settings=settings))
     return 0
 

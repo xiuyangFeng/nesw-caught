@@ -16,8 +16,20 @@ class Settings(BaseSettings):
     log_file_path: str | None = None
     log_file_max_bytes: int = 10 * 1024 * 1024
     log_file_backup_count: int = 5
-    # plain：人类可读单行文本；json：单行 JSON（ts/level/logger/message）。
+    # plain：人类可读单行文本；json：单行 JSON（ts/level/logger/message/
+    # module/lineno + 可选 request_id/task_id/exc）。
     log_format: str = "plain"
+    # HTTP 访问日志（logger "app.access"）：method path status 耗时 client。
+    access_log_enabled: bool = True
+    # 逗号分隔的路径前缀。健康检查是周期性噪声；SSE 长连接要到断开才出访问行、
+    # 徒增误导，二者默认排除（request_id 透传不受影响）。
+    access_log_exclude_prefixes: str = "/api/health,/api/stream"
+    # 前端错误日志上报（POST /api/logs/frontend）。
+    frontend_log_enabled: bool = True
+    frontend_log_max_entries_per_request: int = 20
+    frontend_log_max_message_length: int = 2000
+    # 进程级滑动窗口限流（条/分钟），防止前端故障风暴刷爆后端日志。
+    frontend_log_rate_limit_per_minute: int = 120
     database_url: str = Field(
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )

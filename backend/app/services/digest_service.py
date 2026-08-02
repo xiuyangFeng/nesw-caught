@@ -324,7 +324,11 @@ def generate_digest(
             generated_by = "llm"
             model_name = config.model_name
         except Exception as exc:  # LLM 不可用/返回异常 -> 优雅降级
-            logger.warning("digest llm generation failed, falling back to rule-based summary: %s", exc)
+            logger.warning(
+                "digest llm generation failed for scope=%s, falling back to rule-based summary: %s",
+                scope,
+                exc,
+            )
 
     if sections is None:
         sections = _rule_sections(context)

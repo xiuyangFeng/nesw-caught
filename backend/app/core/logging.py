@@ -5,6 +5,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from app.core.log_context import LogContextFilter
+
 # root logger 上由本模块添加的 handler 都打上这个标记，方便重复调用（例如
 # uvicorn --reload 触发的重新导入）时先精确摘掉旧 handler 再重建，不叠加。
 _MANAGED_HANDLER_ATTR = "_news_caught_managed"
@@ -25,14 +27,48 @@ class _JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "module": record.module,
+            "lineno": record.lineno,
         }
+        # 上下文字段由 LogContextFilter 注入；record 也可能来自未经 handler
+        # filter 的路径（如测试直接调 format），所以取值要容错。
+        request_id = getattr(record, "request_id", None)
+        if request_id:
+            payload["request_id"] = request_id
+        task_id = getattr(record, "task_id", None)
+        if task_id:
+            payload["task_id"] = task_id
+        # logger.exception()/exc_info 的堆栈此前在 json 模式下会整体丢失，
+        # 这里显式序列化进 exc 字段（多行文本，作为 JSON 字符串仍是单行日志）。
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        elif record.exc_text:
+            payload["exc"] = record.exc_text
+        if record.stack_info:
+            payload["stack"] = self.formatStack(record.stack_info)
         return json.dumps(payload, ensure_ascii=False)
+
+
+class _PlainFormatter(logging.Formatter):
+    """人类可读单行格式，追加 contextvars 上下文后缀（无上下文时为空）。
+
+    %(log_ctx)s 由 LogContextFilter 注入；record 若未经该 filter（极少数
+    直接 format 的路径），这里兜底补空串避免 KeyError。
+    """
+
+    def __init__(self) -> None:
+        super().__init__("%(asctime)s %(levelname)s [%(name)s]%(log_ctx)s %(message)s")
+
+    def format(self, record: logging.LogRecord) -> str:
+        if not hasattr(record, "log_ctx"):
+            record.log_ctx = ""
+        return super().format(record)
 
 
 def _build_formatter(log_format: str) -> logging.Formatter:
     if log_format == "json":
         return _JsonFormatter()
-    return logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+    return _PlainFormatter()
 
 
 def configure_logging(
@@ -58,9 +94,11 @@ def configure_logging(
             handler.close()
 
     formatter = _build_formatter(log_format)
+    context_filter = LogContextFilter()
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
+    console_handler.addFilter(context_filter)
     setattr(console_handler, _MANAGED_HANDLER_ATTR, True)
     root_logger.addHandler(console_handler)
 
@@ -74,5 +112,6 @@ def configure_logging(
             encoding="utf-8",
         )
         file_handler.setFormatter(formatter)
+        file_handler.addFilter(context_filter)
         setattr(file_handler, _MANAGED_HANDLER_ATTR, True)
         root_logger.addHandler(file_handler)

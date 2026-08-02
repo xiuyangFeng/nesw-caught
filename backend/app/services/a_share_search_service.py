@@ -33,8 +33,8 @@ def get_all_a_shares() -> list[dict[str, str]]:
                 _A_SHARES_CACHE = items
                 logger.info("Loaded %d A-share stocks into memory cache", len(items))
                 return items
-        except Exception as exc:
-            logger.error("Failed to load A-share dataset: %s", exc)
+        except Exception:
+            logger.exception("Failed to load A-share dataset from %s", DATASET_PATH)
             _A_SHARES_CACHE = []
             return _A_SHARES_CACHE
 

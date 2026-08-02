@@ -80,7 +80,8 @@ class XHealthProbeWorker(BaseWorker):
                 health.last_error = detail
             session.commit()
 
-        self.logger.info(
+        log = self.logger.info if healthy else self.logger.warning
+        log(
             "x health probe finished: healthy=%s detail=%s latency_ms=%s",
             healthy,
             detail,

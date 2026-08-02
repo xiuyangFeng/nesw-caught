@@ -11,6 +11,7 @@ from app.api.routes import (
     eval,
     health,
     llm,
+    logs,
     market,
     news,
     notify,
@@ -30,6 +31,7 @@ api_router.include_router(eval.router, prefix="/eval", tags=["eval"])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(digest.router, prefix="/digest", tags=["digest"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
+api_router.include_router(logs.router, prefix="/logs", tags=["logs"])
 api_router.include_router(news.router, prefix="/news", tags=["news"])
 api_router.include_router(notify.router, prefix="/notify", tags=["notify"])
 api_router.include_router(topics.router, prefix="/topics", tags=["topics"])

@@ -73,8 +73,8 @@ def _init_fernet() -> Fernet:
         _fernet = Fernet(new_key)
         logger.info("Generated new secret key and saved to %s", key_file)
         return _fernet
-    except Exception as exc:
-        logger.error("Failed to generate secret key: %s", exc)
+    except Exception:
+        logger.exception("Failed to generate secret key")
         # Fallback to a temp key in memory so system doesn't crash, though it won't persist across restarts
         temp_key = Fernet.generate_key()
         _fernet = Fernet(temp_key)
@@ -99,9 +99,7 @@ def decrypt_key(cipher_text: str | None) -> str:
     try:
         return fernet.decrypt(cipher_text.encode("utf-8")).decode("utf-8")
     except Exception as exc:
-        logger.error(
-            "Failed to decrypt a Fernet-formatted secret (wrong key or corrupted data): %s", exc
-        )
+        logger.exception("Failed to decrypt a Fernet-formatted secret (wrong key or corrupted data)")
         raise DecryptionError(
             "Failed to decrypt stored secret: the encryption key does not match or the "
             "data is corrupted. Check the .secret_key file / NEWS_CAUGHT_SECRET_KEY, "

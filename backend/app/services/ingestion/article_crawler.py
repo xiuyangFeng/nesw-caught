@@ -572,5 +572,5 @@ def _extract_article_text(html: str, *, url: str) -> str:
         # 质量闸门是明确结论，不能被下面的通用 except 改写成 "parse failed"
         raise
     except Exception as exc:
-        logger.error("Failed to parse article content from %s: %s", url, exc)
+        logger.exception("Failed to parse article content from %s: %s", url, exc)
         raise RuntimeError(f"Webpage parse failed: {exc}") from exc

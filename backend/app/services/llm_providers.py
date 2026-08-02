@@ -97,7 +97,7 @@ def log_token_usage(model_name: str, prompt_tokens: int, completion_tokens: int,
         )
     except Exception as exc:
         # 可恢复:计量丢失不影响本次 LLM 调用结果,继续走既有"最佳努力"语义。
-        logger.warning(f"Failed to log token usage to DB: {exc}")
+        logger.warning("Failed to log token usage to DB for model %s: %s", model_name, exc)
         _incr_llm_error("token_usage_log_failed")
 
 
@@ -149,7 +149,7 @@ def get_cached_classification(content_hash: str, session: Session | None = None)
             return entry.result_json if entry is not None else None
     except Exception as exc:
         # 可恢复:读缓存失败按未命中处理,回退到正常 LLM 调用,不影响正确性。
-        logger.warning(f"Failed to read classification cache: {exc}")
+        logger.warning("Failed to read classification cache (hash=%s): %s", content_hash, exc)
         _incr_llm_error("classification_cache_read_failed")
         return None
 
@@ -180,7 +180,7 @@ def store_classification(content_hash: str, result_json: str, model_name: str | 
             owned_session.commit()
     except Exception as exc:
         # 可恢复:写缓存失败只是丢失这次缓存收益,不影响本次分类结果的正确性。
-        logger.warning(f"Failed to write classification cache: {exc}")
+        logger.warning("Failed to write classification cache (hash=%s): %s", content_hash, exc)
         _incr_llm_error("classification_cache_write_failed")
 
 
@@ -324,8 +324,8 @@ def plan_failover(
         "reason": str(exc),
     }
     logger.warning(
-        f"{context} failed on provider {config.model_name}: {exc}. "
-        f"Retrying with backup provider: {backup_config.model_name}."
+        "%s failed on provider %s: %s. Retrying with backup provider: %s.",
+        context, config.model_name, exc, backup_config.model_name,
     )
     return backup_config, failover_info
 
@@ -674,7 +674,7 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
                     return json.loads(cached_json)
                 except json.JSONDecodeError:
                     # 缓存内容损坏则忽略缓存，回退到正常 LLM 调用。
-                    logger.warning("Discarding corrupted classification cache entry")
+                    logger.warning("Discarding corrupted classification cache entry (hash=%s)", content_hash)
 
         # system_prompt 未传时使用改造前的默认选股分析 prompt，保证既有调用方
         # (news_analysis.py / news_takeaway.py 等)行为不变；情绪分类等新调用方

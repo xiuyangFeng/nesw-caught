@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import defaultdict
@@ -11,6 +12,8 @@ from uuid import uuid4
 
 from app.core.config import Settings, get_settings
 from app.services.redis_stream_bus import RedisStreamPublisher
+
+logger = logging.getLogger(__name__)
 
 EventHandler = Callable[[dict[str, Any]], None]
 
@@ -72,8 +75,6 @@ class InMemoryEventBus:
                 self._handlers.pop(event_name, None)
 
     def publish(self, event_name: str, payload: dict[str, Any]) -> None:
-        import logging
-        logger = logging.getLogger(__name__)
         self.last_error = None
         # 锁内只取快照,锁外再调用 handler:避免持锁调用 handler(handler 内部
         # 再次 subscribe/unsubscribe 会重入同一把锁造成死锁),也避免跨线程
@@ -88,7 +89,7 @@ class InMemoryEventBus:
                 # 不变),这里只补上累计计数使其可观测。
                 handler_name = getattr(handler, "__name__", str(handler))
                 logger.exception(
-                    f"EventBus handler '{handler_name}' failed on event '{event_name}'"
+                    "EventBus handler '%s' failed on event '%s'", handler_name, event_name
                 )
                 self.last_error = f"Handler '{handler_name}' failed on event '{event_name}': {exc}"
                 self._incr_handler_error()

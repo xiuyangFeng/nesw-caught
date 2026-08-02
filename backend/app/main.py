@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.request_logging import RequestLoggingMiddleware
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.repositories.news_repository import NewsRepository  # noqa: F401 -- monkeypatched by tests
@@ -346,6 +347,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(api_router, prefix=settings.api_prefix)
+    app.add_middleware(
+        RequestLoggingMiddleware,
+        access_log_enabled=settings.access_log_enabled,
+        exclude_prefixes=tuple(
+            prefix.strip()
+            for prefix in settings.access_log_exclude_prefixes.split(",")
+            if prefix.strip()
+        ),
+    )
     return app
 
 
