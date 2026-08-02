@@ -322,7 +322,16 @@ export const apiClient = {
     return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
   },
   getSentimentEval() {
-    return getJson<SentimentEvalResponse>('/api/eval/sentiment').then((data) => ({ data, degraded: false }));
+    return withMockFallback<SentimentEvalResponse>(
+      () => getJson('/api/eval/sentiment'),
+      (mock) => mock.mockSentimentEval,
+    );
+  },
+  runSentimentEval() {
+    return withMockFallback<SentimentEvalResponse>(
+      () => postJson('/api/eval/sentiment/run', {}),
+      (mock) => mock.mockSentimentEval,
+    );
   },
   getXHealth() {
     return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);

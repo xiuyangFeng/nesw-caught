@@ -7,6 +7,7 @@
 //   - mock/llm.ts         LLM 配置、翻译、新闻个股映射分析、AI 投研简报
 //   - mock/xMonitor.ts    X（Twitter）监控：账号、帖子、情报雷达
 //   - mock/ops.ts         系统健康检查、SSE 流、飞书通知、新闻链路运行时状态
+//   - mock/sentimentEval.ts 情绪/利好利空评测闭环（GET/POST /api/eval/sentiment[/run]）
 //
 // 本文件只做 re-export，不新增/修改任何数据，保证所有既有 `from './mock'` /
 // `from '../api/mock'` 的导入路径与签名保持 100% 不变。
@@ -15,3 +16,4 @@ export * from './mock/market';
 export * from './mock/llm';
 export * from './mock/xMonitor';
 export * from './mock/ops';
+export * from './mock/sentimentEval';

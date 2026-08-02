@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
@@ -8,6 +9,24 @@ from app.repositories.llm_provider_config_repository import LLMProviderConfigRep
 from app.services.llm_providers import build_provider
 from app.services.news_structured_summary import build_structured_takeaway
 from app.services.topic_naming import resolve_topic_display_name
+
+logger = logging.getLogger(__name__)
+
+# 情绪精修专用 system prompt：必须与 _llm_refine 的 user prompt 要求的 key 集合一致
+# (sentiment_label/sentiment_score/summary/keywords/topic_title_hint/takeaway)。
+# 不能复用 analyze_json 默认的选股分析 system prompt(top_pick/candidates/...)，
+# 否则模型大概率按错误 schema 返回、导致 sentiment_label 等字段为空静默回退规则结果。
+SENTIMENT_REFINE_SYSTEM_PROMPT = (
+    "You are a financial news sentiment classifier. Return JSON only (no markdown, "
+    "no extra commentary) with exactly these keys: "
+    "sentiment_label (string, one of \"positive\", \"negative\", \"neutral\"), "
+    "sentiment_score (number from -1.0 to 1.0; negative=bearish, positive=bullish, 0=neutral), "
+    "summary (short string summarizing the news), "
+    "keywords (JSON array of up to 6 lowercase keyword strings), "
+    "topic_title_hint (short topic title string), "
+    "takeaway (a single Chinese sentence, at most 60 characters, stating who is affected, "
+    "whether it is bullish or bearish, and why; return an empty string if it cannot be judged)."
+)
 
 POSITIVE_TERMS = {
     "beat": 0.7,
@@ -170,6 +189,9 @@ class ClassificationResult:
 class NewsSignalClassifier:
     def __init__(self, session) -> None:
         self.config_repository = LLMProviderConfigRepository(session)
+        # 情绪 LLM 精修返回 payload 缺 key/类型错误时的失败计数(实例级，供日志/调试观察，
+        # 不再像改造前那样完全静默回退)。
+        self.llm_refine_failure_count = 0
 
     def classify(
         self,
@@ -246,22 +268,42 @@ class NewsSignalClassifier:
             ]
         )
         try:
-            payload = build_provider(config).analyze_json(prompt=prompt, title=title, summary=summary)
+            payload = build_provider(config).analyze_json(
+                prompt=prompt,
+                title=title,
+                summary=summary,
+                system_prompt=SENTIMENT_REFINE_SYSTEM_PROMPT,
+                cache_scope="sentiment",
+            )
         except Exception as exc:
+            self._record_llm_refine_failure("llm_call_exception", detail=str(exc))
             return ClassificationResult(
                 **{**baseline.__dict__, "classifier_type": "hybrid", "llm_error": str(exc)}
             )
 
         if not isinstance(payload, dict):
+            self._record_llm_refine_failure(
+                "invalid_payload_type", detail=f"payload type={type(payload).__name__}"
+            )
             return baseline
 
-        label = str(payload.get("sentiment_label") or baseline.sentiment_label).lower()
-        if label not in {"positive", "negative", "neutral"}:
+        # 单次精修内的多个字段问题合并计一次失败(而不是每个字段各计一次)，
+        # 计数语义是"这次 LLM 精修是否可信"，而非字段问题数量。
+        issues: list[str] = []
+        label_raw = payload.get("sentiment_label")
+        label = str(label_raw or baseline.sentiment_label).lower()
+        if label_raw is None:
+            issues.append("missing_sentiment_label")
+        elif label not in {"positive", "negative", "neutral"}:
+            issues.append(f"invalid_sentiment_label={label_raw!r}")
             label = baseline.sentiment_label
         try:
             score = float(payload.get("sentiment_score"))
         except (TypeError, ValueError):
+            issues.append(f"invalid_sentiment_score={payload.get('sentiment_score')!r}")
             score = baseline.sentiment_score
+        if issues:
+            self._record_llm_refine_failure("payload_schema_mismatch", detail="; ".join(issues))
         raw_keywords = payload.get("keywords")
         keywords = (
             [str(item).strip().lower() for item in raw_keywords if str(item).strip()]
@@ -293,6 +335,20 @@ class NewsSignalClassifier:
             else baseline.topic_title_hint,
             topic_summary_hint=summary_text[:280] if summary_text else baseline.topic_summary_hint,
             takeaway=takeaway,
+        )
+
+    def _record_llm_refine_failure(self, reason: str, *, detail: str | None = None) -> None:
+        """记 warning 日志 + 累加实例级失败计数。
+
+        改造前 LLM 返回缺 key/类型错误时静默回退规则结果，问题难以从日志发现；
+        这里保留同样的回退行为，只是不再完全静默。
+        """
+        self.llm_refine_failure_count += 1
+        logger.warning(
+            "news_signal_classifier sentiment LLM refine payload issue (reason=%s%s); "
+            "falling back to rule baseline field(s)",
+            reason,
+            f", detail={detail}" if detail else "",
         )
 
     def _zh_tokens(self, text: str) -> list[str]:

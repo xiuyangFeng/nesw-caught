@@ -112,13 +112,22 @@ def compute_classification_hash(content: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def compute_classification_fields_hash(title: str, summary: str | None, market: str | None) -> str:
-    """按 (title, summary, market) 计算分类缓存键。
+def compute_classification_fields_hash(
+    title: str, summary: str | None, market: str | None, scope: str | None = None
+) -> str:
+    """按 (title, summary, market[, scope]) 计算分类缓存键。
 
     正文唯一导致以整篇 prompt 为键时命中率≈0;改为结构化字段键后,
     相同标题+摘要+市场的新闻(如同题转载)直接命中缓存。
+
+    ``scope`` 区分同一新闻在不同用途下的 LLM 调用(如情绪分类 vs 选股分析)——
+    两者 system/user prompt schema 不同,不加区分会互相命中对方缓存拿到错误结构的 JSON。
+    未传 scope(None/空串)时哈希与旧签名完全一致,保证不作废存量选股分析缓存。
     """
-    normalized = "\x1f".join(normalize_classification_content(part or "") for part in (title, summary, market))
+    parts = [title, summary, market]
+    if scope:
+        parts.append(scope)
+    normalized = "\x1f".join(normalize_classification_content(part or "") for part in parts)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
@@ -643,15 +652,19 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
         title: str | None = None,
         summary: str | None = None,
         market: str | None = None,
+        system_prompt: str | None = None,
+        cache_scope: str | None = None,
     ) -> dict[str, object] | object:
         # 分类缓存：相同内容命中缓存则直接返回，跳过 LLM 调用与 token 计量。
-        # 提供 title 时按 (title+summary+market) 建键(相同标题新闻命中);
+        # 提供 title 时按 (title+summary+market[+cache_scope]) 建键(相同标题新闻命中);
         # 否则回退到整篇 prompt 建键(保持旧调用方行为)。
+        # cache_scope 区分不同用途的调用(如情绪分类 vs 选股分析)，避免互相命中
+        # 对方缓存拿到 schema 不匹配的 JSON；不传时行为与改造前完全一致。
         cache_enabled = get_settings().llm_classification_cache_enabled
         content_hash: str | None = None
         if cache_enabled:
             content_hash = (
-                compute_classification_fields_hash(title, summary, market)
+                compute_classification_fields_hash(title, summary, market, scope=cache_scope)
                 if title is not None
                 else compute_classification_hash(prompt)
             )
@@ -663,15 +676,16 @@ class OpenAICompatibleProvider(_BaseOpenAICompatibleProvider):
                     # 缓存内容损坏则忽略缓存，回退到正常 LLM 调用。
                     logger.warning("Discarding corrupted classification cache entry")
 
+        # system_prompt 未传时使用改造前的默认选股分析 prompt，保证既有调用方
+        # (news_analysis.py / news_takeaway.py 等)行为不变；情绪分类等新调用方
+        # 应传入与自身 user prompt schema 匹配的专用 system prompt。
+        resolved_system_prompt = system_prompt or (
+            "You analyze a single news item for stock read-throughs. "
+            "Return JSON only with keys: top_pick, candidates, summary, risk_notes, sentiment, context_limitations."
+        )
         result = self.complete(
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You analyze a single news item for stock read-throughs. "
-                        "Return JSON only with keys: top_pick, candidates, summary, risk_notes, sentiment, context_limitations."
-                    ),
-                },
+                {"role": "system", "content": resolved_system_prompt},
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},

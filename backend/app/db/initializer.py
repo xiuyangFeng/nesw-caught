@@ -42,6 +42,7 @@ from app.models.news_item import NewsItem  # noqa: F401
 from app.models.news_stock_mention import NewsStockMention  # noqa: F401
 from app.models.notification_job import NotificationJob  # noqa: F401
 from app.models.price_snapshot import PriceSnapshot  # noqa: F401
+from app.models.sentiment_eval_run import SentimentEvalRun  # noqa: F401
 from app.models.source_health import SourceHealth  # noqa: F401
 from app.models.topic_cluster import TopicCluster  # noqa: F401
 from app.models.topic_news_link import TopicNewsLink  # noqa: F401

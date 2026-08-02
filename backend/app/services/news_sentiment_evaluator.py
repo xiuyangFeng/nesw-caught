@@ -108,16 +108,26 @@ def build_rule_sentiment_classifier(
     *,
     positive_threshold: float = 0.2,
     negative_threshold: float = -0.2,
-) -> Callable[[str], str]:
-    """把一个带 classify(...) 的分类器包成 text -> label 的函数。
+) -> Callable[[SentimentGoldSample], str]:
+    """把一个带 classify(...) 的分类器包成 sample -> label 的函数（离线规则评测，allow_llm=False）。
 
     通过可调阈值切分 sentiment_score，方便对同一分类器做不同配置的 A/B。
-    分类器需暴露 classify(title=, summary=, body=, allow_llm=) -> 带 sentiment_score
-    的结果对象（news_signal_classifier.NewsSignalClassifier 即满足）。
+    输入与线上分类路径对齐：title=sample.effective_title、summary=sample.summary、
+    body=sample.body。分类器需暴露 classify(title=, summary=, body=, allow_llm=) ->
+    带 sentiment_score 的结果对象（news_signal_classifier.NewsSignalClassifier 即满足）。
+
+    注：NewsSignalClassifier.classify 当前不接受 market 参数，因此 sample.market
+    这里无法透传（工作块 A 未扩展该签名，本工作块也不改动 news_signal_classifier.py）；
+    中英词典路径仍由标题/摘要/正文内容本身决定。
     """
 
-    def classify(text: str) -> str:
-        result = classifier.classify(title=text, summary=None, body=None, allow_llm=False)
+    def classify(sample: SentimentGoldSample) -> str:
+        result = classifier.classify(
+            title=sample.effective_title,
+            summary=sample.summary,
+            body=sample.body,
+            allow_llm=False,
+        )
         score = getattr(result, "sentiment_score", 0.0)
         if score >= positive_threshold:
             return "positive"
@@ -126,6 +136,50 @@ def build_rule_sentiment_classifier(
         return "neutral"
 
     return classify
+
+
+def build_hybrid_sentiment_classifier(classifier: object) -> Callable[[SentimentGoldSample], str]:
+    """生产路径的 sample -> label 包装：classify(allow_llm=True)，置信度不足时走 LLM 精修。
+
+    与 build_rule_sentiment_classifier 同源输入对齐规则，唯一差异是 allow_llm=True，
+    对应 POST /sentiment/run 里的 `hybrid:<provider>/<model>` run。
+    """
+
+    def classify(sample: SentimentGoldSample) -> str:
+        result = classifier.classify(
+            title=sample.effective_title,
+            summary=sample.summary,
+            body=sample.body,
+            allow_llm=True,
+        )
+        return result.sentiment_label
+
+    return classify
+
+
+def compute_importance_weighted_accuracy(
+    samples: Sequence[SentimentGoldSample],
+    predicted_labels: Sequence[str],
+) -> float | None:
+    """按 sample.importance 加权的准确率；无标注样本权重按 1.0 计。
+
+    数据集内所有样本都没有 importance 标注时返回 None（没有额外信息量，
+    与未加权 accuracy 完全等价，不必重复展示）。
+    """
+    if not samples:
+        return None
+    if not any(sample.importance is not None for sample in samples):
+        return None
+
+    total_weight = 0.0
+    correct_weight = 0.0
+    for sample, predicted in zip(samples, predicted_labels, strict=True):
+        weight = sample.importance if sample.importance is not None else 1.0
+        total_weight += weight
+        if sample.sentiment_label == predicted:
+            correct_weight += weight
+
+    return round(_safe_divide(correct_weight, total_weight), 4)
 
 
 def _safe_divide(numerator: float, denominator: float) -> float:

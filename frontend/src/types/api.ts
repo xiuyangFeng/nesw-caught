@@ -416,16 +416,91 @@ export type Digest = Schemas['DigestView'];
 export type DigestLatest = Schemas['DigestLatestView'];
 // 情绪/利好利空评测 (Sentiment Eval Harness)
 // ---------------------------------------------------------------------------
+// 注：情绪评测重构 Phase 1（2026-08-02 设计 docs/superpowers/specs/
+// 2026-08-02-sentiment-eval-revamp-design.md）期间，后端工作块 B 正在并行扩展
+// `SentimentEvalResponse` 等 schema，`types/generated/api.d.ts` 尚未回填新字段。
+// 为避免阻塞前端联调，本节暂时改为手写接口（按设计文档「接口契约」严格对齐），
+// 待后端落地并重新生成 generated/api.d.ts 后，再统一改回 `Schemas['...']` 别名。
 export type SentimentEvalLabel = 'positive' | 'negative' | 'neutral';
 
-export type SentimentLabelMetrics = Schemas['SentimentLabelMetrics'];
+export interface SentimentLabelMetrics {
+  label: SentimentEvalLabel;
+  precision: number;
+  recall: number;
+  f1: number;
+  support: number;
+}
 
-export type SentimentEvaluationMetrics = Schemas['SentimentEvaluationMetrics'];
+export interface SentimentEvaluationMetrics {
+  accuracy: number;
+  macro_f1: number;
+  sample_count: number;
+  per_label: SentimentLabelMetrics[];
+  /** confusion_matrix[actual][predicted] = 计数 */
+  confusion_matrix: Record<string, Record<string, number>>;
+  /** 有 importance 标注的样本按权重的加权准确率；全部无标注时为 null。 */
+  importance_weighted_accuracy?: number | null;
+}
 
-export type SentimentModelRun = Schemas['SentimentModelRun'];
+export interface SentimentModelRun {
+  model_name: string;
+  metrics: SentimentEvaluationMetrics;
+}
 
-export type SentimentLabelDelta = Schemas['SentimentLabelDelta'];
+export interface SentimentLabelDelta {
+  label: SentimentEvalLabel;
+  f1_before: number;
+  f1_after: number;
+  f1_delta: number;
+}
 
-export type SentimentABComparison = Schemas['SentimentABComparison'];
+export interface SentimentABComparison {
+  model_a: SentimentModelRun;
+  model_b: SentimentModelRun;
+  accuracy_delta: number;
+  macro_f1_delta: number;
+  label_deltas: SentimentLabelDelta[];
+  winner: 'model_a' | 'model_b' | 'tie';
+  reason: string;
+}
 
-export type SentimentEvalResponse = Schemas['SentimentEvalResponse'];
+/** 最近 20 个 batch 摘要的一个点位（GET /api/eval/sentiment 的 history[]）。 */
+export interface SentimentEvalHistoryPoint {
+  batch_id: string;
+  evaluated_at: string;
+  dataset_hash: string;
+  sample_count: number;
+  entries: Array<{
+    model_name: string;
+    accuracy: number;
+    macro_f1: number;
+  }>;
+}
+
+/** 最新 batch 与上一个同 dataset_hash batch 的同名模型对比（跌幅最大者）。 */
+export interface SentimentEvalRegression {
+  model_name: string;
+  previous_macro_f1: number;
+  current_macro_f1: number;
+  delta: number;
+  regressed: boolean;
+}
+
+export interface SentimentEvalResponse {
+  available: boolean;
+  dataset_path: string;
+  sample_count: number;
+  primary: SentimentModelRun | null;
+  comparison: SentimentABComparison | null;
+  note?: string | null;
+  /** 最近 batch 的评测时间（ISO datetime），无记录时为 null。 */
+  evaluated_at?: string | null;
+  /** 本 batch 全部模型 run（rule/llm/hybrid），primary 始终为 rule-baseline。 */
+  runs?: SentimentModelRun[];
+  /** 是否存在激活的 LLM provider 配置。 */
+  llm_available?: boolean;
+  /** 最近 20 个 batch 的 macro_f1 走势摘要。 */
+  history?: SentimentEvalHistoryPoint[];
+  /** 与上一同 dataset_hash batch 的回归对比；无可比较历史或未回归可为 null。 */
+  regression?: SentimentEvalRegression | null;
+}

@@ -202,7 +202,16 @@ def test_process_news_ids_falls_back_to_rule_output_when_llm_fails(
 
     def _raise_provider_error(_config):
         class _FakeProvider:
-            def analyze_json(self, *, prompt: str, title=None, summary=None, market=None):
+            def analyze_json(
+                self,
+                *,
+                prompt: str,
+                title=None,
+                summary=None,
+                market=None,
+                system_prompt=None,
+                cache_scope=None,
+            ):
                 del prompt
                 raise LLMProviderError("simulated llm failure")
 
