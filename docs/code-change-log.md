@@ -2,6 +2,26 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-03 Latest Events 移除警报 UI 并新增手动新闻抓取
+
+- 修改人：Codex
+- 修改范围：Latest Events 页面信息层级、AppShell 主内容布局、手动新闻抓取交互及对应前端测试。
+- 变更内容：移除 Latest Events 的 Runtime 状态警报和 Raw Stream 标题说明，仅保留事件、主题、筛选与新闻流；移除 AppShell 主内容顶部的 SSE / Last event / Workspace 状态条，侧栏系统诊断继续保留；在 Latest Events 页头新增“抓取最新新闻”按钮，复用 `newsStore.refreshNews()` 和既有异步刷新接口，补充请求提交态、抓取中禁用态、成功/未启动轻量反馈及 `aria-live`；前端测试按新行为更新。
+- 影响文件：`frontend/src/views/NewsFeedView.vue`、`frontend/src/views/NewsFeedView.test.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/components/layout/AppShell.test.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无；继续调用现有 `POST /api/news/refresh?async_mode=true`，后端契约和数据库结构不变。
+- 验证情况：TDD 红灯已确认，旧实现下两个专项测试文件共 8 个新预期失败；修改后专项测试 `npm --prefix frontend test -- --run src/views/NewsFeedView.test.ts src/components/layout/AppShell.test.ts` 为 2 files / 41 tests 通过；前端全量 `npm --prefix frontend test -- --run` 为 82 files / 485 tests 通过；`npm --prefix frontend run build` 通过；`git diff --check` 通过。浏览器实测 `/news`：手动抓取按钮正常显示，Runtime 警报、Raw Stream 标题和 AppShell 顶部状态条均不存在，控制台无 error；为避免实测触发真实抓取和数据库写入，按钮请求行为由 Vitest mock 覆盖。
+- 风险或后续事项：异步接口被接受后可能没有新增条目，按钮反馈仅表述“开始抓取”；store 的 `false` 返回同时覆盖冷却、失败和 mock 降级，页面统一提示稍后重试。
+
+## 2026-08-03 Latest Events 精简警报与手动抓取设计/计划
+
+- 修改人：Codex
+- 修改范围：Latest Events 前端信息层级调整与手动新闻抓取交互设计。
+- 变更内容：根据用户提供的三张截图，明确移除页面 Runtime 警报、Raw Stream 标题说明和 AppShell 顶部 SSE 状态条；设计在 Latest Events 页头复用现有异步新闻刷新接口、store 冷却和刷新状态，并补充实现计划、测试边界与验收标准。
+- 影响文件：`docs/superpowers/specs/2026-08-03-latest-events-manual-refresh-design.md`、`docs/superpowers/plans/2026-08-03-latest-events-manual-refresh-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无；计划复用现有 `POST /api/news/refresh?async_mode=true`。
+- 验证情况：仅文档，未运行代码测试；已对照现有 `NewsFeedView`、`AppShell`、`newsStore.refreshNews` 和后端刷新路由确认方案可落地。
+- 风险或后续事项：异步接口只保证任务被接受，页面反馈不得将其表述为已抓取到新新闻；实现完成后需补充实际测试与构建结果。
+
 ## 2026-08-02 本地功能分支终审、集成修复与合并 main
 
 - 修改人：Codex

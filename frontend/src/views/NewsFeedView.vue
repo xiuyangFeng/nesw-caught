@@ -3,9 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowR
 import { useRouter } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
-import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
-import StatusBanner from '../components/common/StatusBanner.vue';
 import NewsCard from '../components/news/NewsCard.vue';
 import NewsVirtualList from '../components/news/NewsVirtualList.vue';
 import EventCapsuleStrip from '../components/news/EventCapsuleStrip.vue';
@@ -15,14 +13,12 @@ import { useFeedKeyboard } from '../composables/useFeedKeyboard';
 import { isAbortError } from '../api/http';
 import { partitionFoldableStream } from '../utils/newsFolding';
 import { markNewsRead, useReadNewsIds } from '../utils/readNews';
-import { useConnectionStore } from '../stores/connectionStore';
 import { useNewsStore } from '../stores/newsStore';
 import type { Market, SentimentLabel } from '../types/api';
 import type { EditorialStoryEntry } from '../utils/newsEditorial';
 import { rankEditorialStories } from '../utils/newsEditorial';
 
 const newsStore = useNewsStore();
-const connectionStore = useConnectionStore();
 const router = useRouter();
 const VIRTUAL_LIST_THRESHOLD = 30;
 const FEED_PAGE_SIZE = 50;
@@ -95,39 +91,24 @@ const sourceOptions = computed(() => [
 const hasVisibleFeedContent = computed(() => filteredEvents.value.length > 0 || filteredTopics.value.length > 0 || feedStreamItems.value.length > 0);
 const selectedSource = ref('');
 const hydratingIds = new Set<number>();
-const degradedSourceCount = computed(() =>
-  newsStore.sourceHealth.filter((item) => item.status === 'degraded' || item.status === 'offline').length,
-);
-const runtimeBannerTitle = computed(() => {
-  if (connectionStore.state === 'offline' || connectionStore.state === 'degraded') {
-    return '实时连接异常';
+const manualRefreshSubmitting = ref(false);
+const manualRefreshFeedback = ref<{ tone: 'success' | 'warning'; message: string } | null>(null);
+
+async function triggerManualNewsRefresh() {
+  if (manualRefreshSubmitting.value || newsStore.isRefreshing) {
+    return;
   }
-  const status = newsStore.newsRuntimeStatus?.feed_status;
-  if (status === 'degraded') {
-    return '新闻供给降级';
+  manualRefreshSubmitting.value = true;
+  manualRefreshFeedback.value = null;
+  try {
+    const started = await newsStore.refreshNews();
+    manualRefreshFeedback.value = started
+      ? { tone: 'success', message: '已开始抓取，最新新闻会自动进入列表。' }
+      : { tone: 'warning', message: '抓取暂未启动，请稍后重试。' };
+  } finally {
+    manualRefreshSubmitting.value = false;
   }
-  if (status === 'delayed') {
-    return '新闻更新延迟';
-  }
-  return '新闻供给正常';
-});
-const runtimeBannerTone = computed(() => {
-  if (connectionStore.state === 'offline' || connectionStore.state === 'degraded') {
-    return 'danger';
-  }
-  const status = newsStore.newsRuntimeStatus?.feed_status;
-  if (status === 'degraded') {
-    return 'danger';
-  }
-  if (status === 'delayed') {
-    return 'warning';
-  }
-  return 'success';
-});
-const runtimeBannerDetail = computed(() => {
-  const recentFlow = newsStore.lastIncrementalAt ?? '无';
-  return `最近入流 ${recentFlow} · 异常来源 ${degradedSourceCount.value}`;
-});
+}
 const visibleStreamIds = ref<number[]>([]);
 const hydrationInFlight = ref(false);
 const pendingHydrationPass = ref(false);
@@ -449,17 +430,45 @@ watch(loadMoreSentinelRef, (node, previous) => {
         <h1 class="page-title">Latest Events</h1>
         <p class="page-subtitle">聚焦最新市场事件，按事件优先、证据随后展开。</p>
       </div>
-      <StaleBadge :stale="newsStore.feedStale" label="新闻列表" />
+      <div class="flex flex-wrap items-start justify-end gap-2.5">
+        <div class="grid justify-items-end gap-1.5">
+          <button
+            type="button"
+            class="group inline-flex min-h-10 items-center gap-2 rounded-md border border-accent/45 bg-[var(--accent-soft)] px-3.5 py-2 text-xs font-semibold text-accent transition hover:-translate-y-0.5 hover:border-accent hover:shadow-glow disabled:cursor-wait disabled:opacity-65 disabled:hover:translate-y-0"
+            data-role="manual-news-refresh"
+            :disabled="manualRefreshSubmitting || newsStore.isRefreshing"
+            @click="triggerManualNewsRefresh"
+          >
+            <svg
+              class="h-3.5 w-3.5"
+              :class="manualRefreshSubmitting || newsStore.isRefreshing ? 'animate-spin' : 'transition-transform group-hover:rotate-45'"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              aria-hidden="true"
+            >
+              <path d="M20 11a8 8 0 1 0-2.34 5.66" />
+              <path d="M20 4v7h-7" />
+            </svg>
+            {{ manualRefreshSubmitting || newsStore.isRefreshing ? '抓取中' : '抓取最新新闻' }}
+          </button>
+          <p
+            v-if="manualRefreshFeedback"
+            class="m-0 max-w-[280px] text-right text-[11px] leading-snug"
+            :class="manualRefreshFeedback.tone === 'success' ? 'text-success' : 'text-warning'"
+            data-role="manual-news-refresh-feedback"
+            aria-live="polite"
+          >
+            {{ manualRefreshFeedback.message }}
+          </p>
+        </div>
+        <StaleBadge :stale="newsStore.feedStale" label="新闻列表" />
+      </div>
     </header>
 
     <section class="surface grid gap-[18px] rounded-lg p-5" data-role="news-feed-shell">
       <div class="grid gap-3" data-role="news-feed-toolbar">
-        <StatusBanner
-          kicker="Runtime"
-          :title="runtimeBannerTitle"
-          :tone="runtimeBannerTone"
-          :detail="runtimeBannerDetail"
-        />
         <div
           class="flex flex-wrap gap-2 rounded-lg border border-border bg-panel-strong p-2.5"
           data-role="filter-bar"
@@ -504,11 +513,8 @@ watch(loadMoreSentinelRef, (node, previous) => {
           <TopicChipsRow :topics="filteredTopics" @open-topic="openTopic" />
         </div>
 
-        <SectionCard
-          eyebrow="Live Flow"
-          title="Raw Stream"
-          subtitle="保留原始新闻卡片作为证据层，优先级低于事件和主题。"
-          compact
+        <section
+          class="surface rounded-lg px-4 py-3.5"
           data-role="news-stream-shell"
         >
           <!-- Delta Banner for incremental updates -->
@@ -569,7 +575,7 @@ watch(loadMoreSentinelRef, (node, previous) => {
           <p class="kbd-hint" data-role="feed-kbd-hint">
             <kbd>j</kbd>/<kbd>k</kbd> 上下 · <kbd>Enter</kbd> 阅读 · <kbd>Esc</kbd> 关闭
           </p>
-        </SectionCard>
+        </section>
       </LoadingBlock>
     </section>
 

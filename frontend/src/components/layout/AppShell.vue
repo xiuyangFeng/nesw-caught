@@ -101,39 +101,6 @@ const connectionSummary = computed(() => {
 
 const isLiveConnection = computed(() => connectionStore.state === 'live');
 
-const shellStatusRail = computed(() => {
-  if (connectionStore.state === 'live') {
-    return {
-      label: 'SSE LIVE',
-      detail: '实时流畅',
-      signalClass: 'bg-success',
-      pulse: true,
-    } as const;
-  }
-  if (connectionStore.state === 'degraded') {
-    return {
-      label: 'SSE DEGRADED',
-      detail: '降级至 Mock',
-      signalClass: 'bg-warning shadow-[0_0_10px_color-mix(in_srgb,var(--warning)_34%,transparent)]',
-      pulse: false,
-    } as const;
-  }
-  if (connectionStore.state === 'offline') {
-    return {
-      label: 'SSE OFF',
-      detail: '重连待机',
-      signalClass: 'bg-danger shadow-[0_0_10px_color-mix(in_srgb,var(--danger)_32%,transparent)]',
-      pulse: false,
-    } as const;
-  }
-  return {
-    label: 'SSE WAIT',
-    detail: '握手中',
-    signalClass: 'bg-warning shadow-[0_0_10px_color-mix(in_srgb,var(--warning)_34%,transparent)]',
-    pulse: false,
-  } as const;
-});
-
 const marketWorkerSummary = computed(() => {
   const status = runtimeStatusStore.marketWorkerStatus;
   if (!status) {
@@ -554,47 +521,6 @@ onBeforeUnmount(() => {
     </aside>
 
     <main class="grid min-w-0 content-start gap-3">
-      <section
-        class="surface flex min-h-12 items-center justify-between gap-4 rounded-[18px] px-4 py-3"
-        data-role="shell-status-rail"
-      >
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-soft">
-            <span
-              class="h-2 w-2 rounded-full"
-              :class="[shellStatusRail.signalClass, shellStatusRail.pulse ? 'pulse-dot' : '']"
-              :style="
-                shellStatusRail.pulse
-                  ? { '--pulse-color': 'color-mix(in srgb, var(--success) 35%, transparent)' }
-                  : undefined
-              "
-              data-role="shell-status-rail-signal"
-            />
-            {{ shellStatusRail.label }}
-          </span>
-          <span class="text-[10px] uppercase tracking-[0.16em] text-text-faint">{{ shellStatusRail.detail }}</span>
-          <span
-            v-if="newsStore.isRefreshing"
-            class="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-accent"
-            data-role="news-refresh-indicator"
-          >
-            <span
-              class="h-1.5 w-1.5 rounded-full bg-accent pulse-dot"
-              style="--pulse-color: color-mix(in srgb, var(--accent) 35%, transparent)"
-            />
-            同步中
-          </span>
-        </div>
-        <div class="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-[0.16em] text-muted">
-          <span>
-            Last event
-            {{ connectionStore.lastEventAt ? formatMarketTime(connectionStore.lastEventAt, 'hk') : '--' }}
-            HKT
-          </span>
-          <span>Workspace latest-event discovery</span>
-        </div>
-      </section>
-
       <RouteErrorBoundary>
         <RouterView />
       </RouteErrorBoundary>
