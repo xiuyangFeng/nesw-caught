@@ -156,6 +156,15 @@ class Settings(BaseSettings):
     # 双跑重复轮询;独立入口见 app.workers.market_quote_producer。
     market_quote_producer_enabled: bool = True
     market_quote_poll_interval_seconds: float = 15.0
+    # 全市场（A股/港股/美股）都闭市时 producer 的降频间隔。盘中按
+    # market_quote_poll_interval_seconds 走；闭市时价格不再变动，继续按 15s
+    # 打 provider 纯属浪费配额，还会拖高被限流的概率。
+    market_quote_idle_poll_interval_seconds: float = 120.0
+    # 强制刷新（producer 轮询 / 手动 /market/refresh）的抓取下限。
+    # market_quote_cache_ttl_seconds(180s) 是**读路径**的陈旧度阈值，用它当抓取
+    # 门槛会让 15s 的轮询里 11 次空转、真实价格 3 分钟才更新一次。强制刷新改用
+    # 这个更小的下限，既保证实时性，又能挡住刷新按钮被连点时的重复外网调用。
+    market_quote_force_min_interval_seconds: float = 5.0
     tavily_api_key: str | None = None
     stock_news_min_count: int = 3
     data_cleanup_enabled: bool = True

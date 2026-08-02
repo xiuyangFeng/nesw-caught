@@ -801,4 +801,101 @@ describe('watchlistStore', () => {
       expect(error).toMatchObject({ status: 404 });
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // 实时行情：SSE 推送的增量合并 + 轮询兜底。此前 quotes 只在 bootstrap 时
+  // loadWatchlist() 一次性写入，不点手动刷新按钮价格就永远停在打开那一刻。
+  // ---------------------------------------------------------------------------
+  const quote = (symbol: string, price: number, extra: Record<string, unknown> = {}) => ({
+    symbol,
+    market: 'us',
+    display_name: symbol,
+    provider_symbol: symbol,
+    price,
+    change_amount: 1,
+    change_percent: 0.5,
+    open_price: price,
+    previous_close: price,
+    day_high: price,
+    day_low: price,
+    volume: 1,
+    status: 'ok',
+    source: 'yahoo_finance',
+    message: null,
+    is_abnormal: false,
+    abnormal_reason: null,
+    fetched_at: '2026-07-27T01:30:00Z',
+    ...extra,
+  });
+
+  it('merges pushed quotes in place and leaves untouched symbols alone', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    (store as any).quotes = [quote('AAPL', 200), quote('0700.HK', 330)];
+
+    (store as any).applyQuoteBatch([quote('AAPL', 222)]);
+
+    expect((store as any).quotes).toHaveLength(2);
+    expect((store as any).quotes.find((q: any) => q.symbol === 'AAPL').price).toBe(222);
+    expect((store as any).quotes.find((q: any) => q.symbol === '0700.HK').price).toBe(330);
+    expect((store as any).lastLoadedAt).not.toBeNull();
+  });
+
+  it('appends symbols that are not in the local quote list yet', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    (store as any).quotes = [quote('AAPL', 200)];
+    (store as any).applyQuoteBatch([quote('NVDA', 900)]);
+
+    expect((store as any).quotes.map((q: any) => q.symbol)).toEqual(['AAPL', 'NVDA']);
+  });
+
+  it('keeps the open detail panel in sync with the pushed quote', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    (store as any).selectedSymbol = 'AAPL';
+    (store as any).quoteDetail = quote('AAPL', 200);
+    (store as any).applyQuoteBatch([quote('AAPL', 222)]);
+
+    expect((store as any).quoteDetail.price).toBe(222);
+  });
+
+  it('refreshQuotes only re-reads the cached quote endpoint', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    apiClient.getWatchlistQuotes.mockResolvedValue({ data: [quote('AAPL', 222)], degraded: false });
+
+    await (store as any).refreshQuotes();
+
+    expect((store as any).quotes[0].price).toBe(222);
+    // 轮询兜底必须是"最轻的一次只读查询"：不重拉 items，也不重算 sparkline，
+    // 否则 15s 一次的兜底会把 /watchlist + /sparklines 一起放大。
+    expect(apiClient.getWatchlist).not.toHaveBeenCalled();
+    expect(apiClient.getWatchlistSparklines).not.toHaveBeenCalled();
+  });
+
+  it('refreshQuotes swallows errors so a transient failure never breaks the poll loop', async () => {
+    const { createPinia, setActivePinia } = await import('pinia');
+    const { useWatchlistStore } = await import('./watchlistStore');
+    setActivePinia(createPinia());
+    const store = useWatchlistStore();
+
+    (store as any).quotes = [quote('AAPL', 200)];
+    apiClient.getWatchlistQuotes.mockRejectedValue(new Error('network down'));
+
+    await expect((store as any).refreshQuotes()).resolves.toBeUndefined();
+    expect((store as any).quotes[0].price).toBe(200);
+  });
 });

@@ -41,6 +41,8 @@ const topicStore = {
 
 const watchlistStore = {
   loadWatchlist: vi.fn(async () => undefined),
+  applyQuoteBatch: vi.fn(),
+  refreshQuotes: vi.fn(async () => undefined),
 };
 
 const runtimeStatusStore = {
@@ -138,6 +140,8 @@ describe('AppShell', () => {
     topicStore.loadTopics.mockClear();
     topicStore.upsertTopic.mockClear();
     watchlistStore.loadWatchlist.mockClear();
+    watchlistStore.applyQuoteBatch.mockClear();
+    watchlistStore.refreshQuotes.mockClear();
     runtimeStatusStore.loadRuntimeStatus.mockClear();
     runtimeStatusStore.loadRuntimeStatusIfStale.mockClear();
   });
@@ -515,6 +519,90 @@ describe('AppShell', () => {
     const wrapper = mount(AppShell);
 
     expect(wrapper.find('[data-role="news-refresh-indicator"]').exists()).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 实时行情：SSE 推送 + 可见性感知的轮询兜底。修复前 market.watchlist_refreshed
+  // 既不被后端转发、前端也没有 handler，自选股价格只能靠手动点刷新按钮。
+  // ---------------------------------------------------------------------------
+  it('applies pushed watchlist quotes to both the watchlist and market stores', async () => {
+    mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
+    const quote = {
+      symbol: 'AAPL',
+      market: 'us',
+      display_name: 'Apple',
+      provider_symbol: 'AAPL',
+      price: 222,
+      change_amount: 2,
+      change_percent: 1,
+      open_price: 220,
+      previous_close: 220,
+      day_high: 223,
+      day_low: 219,
+      volume: 100,
+      status: 'ok',
+      source: 'yahoo_finance',
+      message: null,
+      is_abnormal: false,
+      abnormal_reason: null,
+      fetched_at: '2026-07-27T01:30:00Z',
+    };
+
+    handleEvent({
+      type: 'market.watchlist_refreshed',
+      occurred_at: '2026-07-27T01:30:00Z',
+      payload: { symbols: ['AAPL'], quotes: [quote] },
+    });
+
+    expect(watchlistStore.applyQuoteBatch).toHaveBeenCalledWith([quote]);
+    expect(marketStore.upsertSnapshot).toHaveBeenCalledWith(quote);
+  });
+
+  it('ignores malformed watchlist refresh payloads instead of throwing in the SSE handler', async () => {
+    mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls[0]?.[0];
+
+    expect(() =>
+      handleEvent({
+        type: 'market.watchlist_refreshed',
+        occurred_at: '2026-07-27T01:30:00Z',
+        payload: { symbols: [], quotes: null },
+      }),
+    ).not.toThrow();
+    expect(watchlistStore.applyQuoteBatch).not.toHaveBeenCalled();
+  });
+
+  it('polls quotes as an SSE fallback and pauses the loop while the tab is hidden', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    const wrapper = mount(AppShell);
+    await flushPromises();
+    expect(watchlistStore.refreshQuotes).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watchlistStore.refreshQuotes).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(watchlistStore.refreshQuotes).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    // 切回前台立刻补一次，避免用户盯着一屏切走前的旧价格等满一个轮询周期。
+    expect(watchlistStore.refreshQuotes).toHaveBeenCalledTimes(2);
+
+    wrapper.unmount();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(watchlistStore.refreshQuotes).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it('redirects root navigation to the news discovery page', async () => {

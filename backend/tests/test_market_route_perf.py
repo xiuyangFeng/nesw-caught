@@ -245,7 +245,7 @@ def test_fallback_quote_chunks_are_fetched_concurrently() -> None:
 
     with patch.object(service.fallback_provider, "fetch_quotes_batch", side_effect=slow_batch):
         started_at = time.monotonic()
-        records = service._fetch_fallback_quotes(ns_list)
+        records = service._fetch_tencent_quotes(ns_list)
         elapsed = time.monotonic() - started_at
 
     assert len(records) == 45
@@ -263,7 +263,7 @@ def test_single_chunk_fallback_still_uses_one_batch_request() -> None:
         "fetch_quotes_batch",
         return_value=[_quote_record("600519.SH", "cn")],
     ) as batch_mock:
-        records = service._fetch_fallback_quotes(ns_list)
+        records = service._fetch_tencent_quotes(ns_list)
 
     batch_mock.assert_called_once()
     assert set(records) == {"600519.SH"}

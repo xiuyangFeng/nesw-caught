@@ -32,7 +32,7 @@ def test_market_quote_producer_run_cycle_publishes_refresh_event() -> None:
 
     producer.run_cycle()
 
-    quote_service.refresh_watchlist_quotes.assert_called_once_with(session)
+    quote_service.refresh_watchlist_quotes.assert_called_once_with(session, force=True)
     event_bus.publish.assert_called_once_with(
         "market.watchlist_refreshed",
         {
@@ -98,7 +98,7 @@ def test_market_quote_producer_run_cycle_skips_empty_watchlist() -> None:
 
     producer.run_cycle()
 
-    quote_service.refresh_watchlist_quotes.assert_called_once_with(session)
+    quote_service.refresh_watchlist_quotes.assert_called_once_with(session, force=True)
     event_bus.publish.assert_not_called()
 
 
@@ -271,12 +271,23 @@ def test_market_quote_worker_main_initializes_runtime_and_starts_producer(monkey
         lambda event_bus=None: calls.append(f"build-producer:{event_bus.__class__.__name__}") or FakeProducer(),
     )
 
-    market_quote_worker.main()
+    # main() 会 set_event_bus(FakeEventBus()) 改写**全局单例**，而 monkeypatch 只还原
+    # market_quote_worker 上的模块属性、还不回单例本身。不显式恢复的话，本用例之后
+    # 任何走 /api/stream/events 的用例都会报
+    # AttributeError: 'FakeEventBus' object has no attribute 'subscribe'（跨文件污染，
+    # 单独跑 test_stream_events.py 时全绿、合并跑才挂，很难定位）。
+    from app.services.event_bus import get_event_bus, set_event_bus
 
-    assert calls == [
-        "init-db",
-        "build-bus",
-        "register-market:FakeEventBus",
-        "build-producer:FakeEventBus",
-        "run-forever",
-    ]
+    original_event_bus = get_event_bus()
+    try:
+        market_quote_worker.main()
+
+        assert calls == [
+            "init-db",
+            "build-bus",
+            "register-market:FakeEventBus",
+            "build-producer:FakeEventBus",
+            "run-forever",
+        ]
+    finally:
+        set_event_bus(original_event_bus)

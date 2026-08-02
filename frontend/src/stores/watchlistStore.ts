@@ -128,6 +128,52 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     loading.value = false;
   }
 
+  /**
+   * 把一批推送/轮询拿到的行情就地合并进 quotes。
+   *
+   * 用 upsert 而不是整体替换：sparkline、items 等其它状态与 quotes 同列渲染，
+   * 整体替换会让未变动的标的也触发一次列表重排。
+   */
+  function applyQuoteBatch(incoming: WatchlistQuoteSummary[]) {
+    if (!Array.isArray(incoming) || incoming.length === 0) {
+      return;
+    }
+    const next = [...quotes.value];
+    for (const item of incoming) {
+      if (!item?.symbol) {
+        continue;
+      }
+      const index = next.findIndex((candidate) => candidate.symbol === item.symbol);
+      if (index >= 0) {
+        next.splice(index, 1, item);
+      } else {
+        next.push(item);
+      }
+      // 详情页打开时,它读的是独立的 quoteDetail,不会被 quotes 的更新带上,
+      // 必须显式同步,否则详情页价格会比列表更陈旧。
+      if (selectedSymbol.value === item.symbol && quoteDetail.value?.symbol === item.symbol) {
+        quoteDetail.value = { ...quoteDetail.value, ...item };
+      }
+    }
+    quotes.value = next;
+    lastLoadedAt.value = new Date().toISOString();
+  }
+
+  /**
+   * 轮询兜底：只重读 /api/market/watchlist（纯本地快照查询），
+   * 不重拉 items、不重算 sparkline。SSE 断线或事件丢失时保证价格仍会前进。
+   * 失败静默：这是后台定时器，一次网络抖动不应该冒泡成未捕获 rejection。
+   */
+  async function refreshQuotes() {
+    try {
+      const response = await apiClient.getWatchlistQuotes();
+      applyQuoteBatch(response.data);
+      usingMock.value = usingMock.value || response.degraded;
+    } catch {
+      // 保留上一轮价格，等下一次轮询/推送。
+    }
+  }
+
   async function refreshMarketQuotes() {
     refreshLoading.value = true;
     refreshError.value = null;
@@ -356,6 +402,8 @@ export const useWatchlistStore = defineStore('watchlistStore', () => {
     candidateError,
     loadCandidates,
     loadWatchlist,
+    applyQuoteBatch,
+    refreshQuotes,
     refreshMarketQuotes,
     loadQuoteDetail,
     loadRelatedNews,

@@ -54,13 +54,31 @@ class MarketChartService:
             payload = self._build_kline_payload(watchlist_item.symbol, watchlist_item.market, interval, range_name, session)
             self._set_cache(cache_key, payload, ttl_seconds=self._ttl_for_interval(interval))
             return payload
-        except Exception:
+        except Exception as exc:
+            logger.error("failed to build kline payload for %s: %s", symbol, exc)
             # 过期缓存仍可作 stale 兜底。
             stale = self._get_cache(cache_key, allow_stale=True)
             if stale is not None:
                 stale["stale"] = True
                 return stale
-            raise
+            # 兜底返回空 candles 描述结构，标记 stale: True，避免向上层路由抛 500
+            return {
+                "symbol": watchlist_item.symbol.upper(),
+                "interval": interval,
+                "range": range_name,
+                "stale": True,
+                "candles": [],
+                "indicators": {
+                    "ma5": [],
+                    "ma10": [],
+                    "ma20": [],
+                    "ma60": [],
+                    "macd": [],
+                    "kdj": [],
+                    "bollinger": [],
+                },
+                "news_events": [],
+            }
 
     def get_sparklines(self, symbols: list[str], session: Session) -> dict[str, dict[str, list[float]]]:
         if len(symbols) > 30:
@@ -187,21 +205,145 @@ class MarketChartService:
         raise HTTPException(status_code=404, detail="watchlist symbol not found")
 
     def _download_history(self, provider_symbol: str, period: str, interval: str) -> pd.DataFrame:
+        """取 K 线原始数据；A股/港股以腾讯为主源，其余以 yfinance 为主源。
+
+        与报价路径（QuoteService._TENCENT_PRIMARY_MARKETS）保持一致的选源策略，
+        原因也相同：Yahoo 对 A 股**当日**日线的 Close 是 NaN（Open/High/Low/Volume
+        都有值），而此前只有"抛异常或返回空 frame"才降级，"非空但最新行不完整"
+        会被原样返回，_serialize_candles 再把该行跳过——表现为**日 K 图上今天这根
+        蜡烛整根缺失**，且不触发任何降级。
+        统一主源同时保证了"现价"与"最后一根蜡烛"同源，不会出现两种口径打架。
+        """
+        # 能映射出腾讯代码即视为 A股/港股（美股映射为 None）。
+        tencent_first = self._to_tencent_kline_symbol(provider_symbol) is not None
+
+        if tencent_first:
+            fallback_frame = self._download_history_fallback(provider_symbol, period, interval)
+            if fallback_frame is not None and not fallback_frame.empty:
+                return fallback_frame
+            logger.info("tencent kline unavailable for %s, falling back to yfinance", provider_symbol)
+
+        yf_frame = self._download_yfinance_history(provider_symbol, period, interval)
+        if yf_frame is not None and not yf_frame.empty:
+            # 最新一根 Close 为 NaN = 当日蜡烛不可用。主源已是腾讯的标的不必再试，
+            # 其余标的再给降级源一次机会；降级源也没有时，仍返回 yfinance 的数据，
+            # 绝不因为末行不完整就把整条 K 线打成失败。
+            if not tencent_first and self._has_incomplete_latest_row(yf_frame):
+                fallback_frame = self._download_history_fallback(provider_symbol, period, interval)
+                if fallback_frame is not None and not fallback_frame.empty:
+                    return fallback_frame
+            return yf_frame
+
+        if not tencent_first:
+            fallback_frame = self._download_history_fallback(provider_symbol, period, interval)
+            if fallback_frame is not None and not fallback_frame.empty:
+                return fallback_frame
+
+        raise RuntimeError(f"no kline data for {provider_symbol}")
+
+    def _download_yfinance_history(self, provider_symbol: str, period: str, interval: str) -> pd.DataFrame | None:
         import yfinance as yf
 
-        frame = yf.download(
-            provider_symbol,
-            period=period,
-            interval=interval,
-            auto_adjust=False,
-            progress=False,
-            timeout=10,
-            multi_level_index=False,
-        )
-        frame = self._normalize_history_frame(frame)
+        try:
+            frame = yf.download(
+                provider_symbol,
+                period=period,
+                interval=interval,
+                auto_adjust=False,
+                progress=False,
+                timeout=10,
+                multi_level_index=False,
+            )
+            return self._normalize_history_frame(frame)
+        except Exception as exc:
+            logger.warning("yfinance download failed for %s: %s", provider_symbol, exc)
+            return None
+
+    @staticmethod
+    def _has_incomplete_latest_row(frame: pd.DataFrame) -> bool:
+        """最新一根蜡烛的四价是否缺失（Yahoo 对当日行常只缺 Close）。"""
         if frame.empty:
-            raise RuntimeError(f"no kline data for {provider_symbol}")
-        return frame
+            return False
+        latest = frame.iloc[-1]
+        return any(pd.isna(latest.get(field)) for field in ("Open", "High", "Low", "Close"))
+
+    def _download_history_fallback(self, provider_symbol: str, period: str, interval: str) -> pd.DataFrame | None:
+        """当 yfinance 无法连接/超时时，针对 A 股/港股标的从腾讯财经 K线 API 获取数据降级。"""
+        import urllib.request
+
+        tc_symbol = self._to_tencent_kline_symbol(provider_symbol)
+        if not tc_symbol:
+            return None
+
+        interval_map = {"1d": "day", "1wk": "week", "1mo": "month"}
+        tc_interval = interval_map.get(interval, "day")
+
+        count_map = {"1mo": 40, "3mo": 90, "6mo": 180, "1y": 300, "2y": 500, "5y": 1000}
+        count = count_map.get(period, 300)
+
+        url = f"http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={tc_symbol},{tc_interval},,,{count},qfq"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
+                raw_data = resp.read().decode("utf-8", errors="replace")
+                data = json.loads(raw_data)
+        except Exception as exc:
+            logger.warning("tencent kline fallback request failed for %s (%s): %s", provider_symbol, tc_symbol, exc)
+            return None
+
+        sym_data = data.get("data", {}).get(tc_symbol, {})
+        raw_kline = sym_data.get(f"qfq{tc_interval}") or sym_data.get(tc_interval)
+        if not raw_kline or not isinstance(raw_kline, list):
+            return None
+
+        # 成交量单位对齐：A 股腾讯接口返回的是**手**（1 手 = 100 股），港股返回的
+        # 已经是**股**。实测比值分别为 100.00 与 1.00（002384.SZ 腾讯 827,580 手 vs
+        # Yahoo 82,758,019 股；9988.HK 两源均为 58,415,973）。不换算的话，切到腾讯
+        # 主源后 A 股 K 线的成交量会整体缩小 100 倍。
+        # 报价路径的 TencentQuoteProvider 做的是同一件事。
+        volume_scale = 1 if tc_symbol.startswith("hk") else 100
+
+        records = []
+        for row in raw_kline:
+            if not isinstance(row, list) or len(row) < 6:
+                continue
+            date_str = str(row[0])
+            try:
+                records.append(
+                    {
+                        "Date": pd.to_datetime(date_str),
+                        "Open": float(row[1]),
+                        "Close": float(row[2]),
+                        "High": float(row[3]),
+                        "Low": float(row[4]),
+                        "Volume": float(row[5]) * volume_scale,
+                    }
+                )
+            except (ValueError, TypeError):
+                continue
+
+        if not records:
+            return None
+
+        df = pd.DataFrame(records).set_index("Date")
+        return df
+
+    @staticmethod
+    def _to_tencent_kline_symbol(provider_symbol: str) -> str | None:
+        raw = provider_symbol.strip().upper()
+        if raw.endswith(".SS") or raw.endswith(".SH"):
+            digits = raw.split(".")[0]
+            if digits.isdigit() and len(digits) == 6:
+                return f"sh{digits}"
+        if raw.endswith(".SZ"):
+            digits = raw.split(".")[0]
+            if digits.isdigit() and len(digits) == 6:
+                return f"sz{digits}"
+        if raw.endswith(".HK"):
+            digits = raw.split(".")[0].zfill(5)
+            if digits.isdigit():
+                return f"hk{digits}"
+        return None
 
     def _normalize_history_frame(self, history: pd.DataFrame) -> pd.DataFrame:
         if not isinstance(history.columns, pd.MultiIndex):
@@ -214,13 +356,19 @@ class MarketChartService:
     def _serialize_candles(self, history: pd.DataFrame) -> list[dict]:
         candles: list[dict] = []
         for index, row in history.iterrows():
+            open_val = row.get("Open")
+            high_val = row.get("High")
+            low_val = row.get("Low")
+            close_val = row.get("Close")
+            if pd.isna(open_val) or pd.isna(high_val) or pd.isna(low_val) or pd.isna(close_val):
+                continue
             candles.append(
                 {
                     "time": self._format_time(index),
-                    "open": float(row["Open"]),
-                    "high": float(row["High"]),
-                    "low": float(row["Low"]),
-                    "close": float(row["Close"]),
+                    "open": float(open_val),
+                    "high": float(high_val),
+                    "low": float(low_val),
+                    "close": float(close_val),
                     "volume": None if pd.isna(row.get("Volume")) else int(row["Volume"]),
                 }
             )
@@ -329,7 +477,10 @@ class MarketChartService:
         return pd.Timestamp(value).strftime("%Y-%m-%d")
 
     def _build_cache_key(self, symbol: str, interval: str, range_name: str) -> str:
-        return f"{self._cache_prefix}{symbol.upper()}:{interval}:{range_name}"
+        # v2：A股/港股主源由 yfinance(不复权) 切到腾讯(前复权)，两种口径的历史价格
+        # 不同。键里不带版本的话，切换后 Redis 里的旧 payload 会继续命中（日K TTL
+        # 300s、周月K 3600s），前端仍会看到旧口径的 K 线。
+        return f"{self._cache_prefix}{symbol.upper()}:{interval}:{range_name}:v2"
 
     def _ttl_for_interval(self, interval: str) -> int:
         return 3600 if interval in {"1wk", "1mo"} else 300

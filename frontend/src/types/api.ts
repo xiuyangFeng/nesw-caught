@@ -317,6 +317,11 @@ export interface StreamEventMap {
   'news.updated': NewsUpdateEvent;
   'topic.updated': Pick<TopicItem, 'id' | 'topic_title' | 'market' | 'importance_score' | 'news_count' | 'last_seen_at'>;
   'watchlist.movement': MarketSnapshot;
+  // MarketQuoteProducer 每轮刷新后发布，是自选股行情的推送通道
+  // （后端 STREAM_EVENT_NAMES 与 app/services/market_quote_producer.py 对齐）。
+  // quotes 来自 QuoteService._snapshot_to_payload，字段与 PriceSnapshotView 同构
+  // （比 QuoteSummaryView 多 is_abnormal / abnormal_reason），因此用 MarketSnapshot。
+  'market.watchlist_refreshed': { symbols: string[]; quotes: MarketSnapshot[] };
   'stream.keepalive': { status: 'ok' };
 }
 

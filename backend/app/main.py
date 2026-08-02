@@ -106,6 +106,7 @@ def build_market_quote_producer(event_bus: Any | None = None) -> MarketQuoteProd
         quote_service_factory=get_quote_service,
         event_bus=event_bus or get_event_bus(),
         poll_interval_seconds=settings.market_quote_poll_interval_seconds,
+        idle_poll_interval_seconds=settings.market_quote_idle_poll_interval_seconds,
         logger=logger,
     )
 

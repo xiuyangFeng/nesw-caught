@@ -28,9 +28,15 @@ const feedLayoutDebounceMs = 500;
 // 只有 topic.updated(结构变化无法本地增量)与周期兜底才触发全量。
 const feedLayoutPollIntervalMs = 60_000;
 const newsRefreshPollIntervalMs = 5 * 60_000;
+// 行情轮询兜底：正常情况下价格走 SSE 的 market.watchlist_refreshed 推送
+// （后端 producer 盘中 15s 一轮）。这个定时器只负责补两种漏：SSE 断线期间，
+// 以及慢客户端被有界队列丢弃事件的情况。命中的是纯本地快照查询
+// /api/market/watchlist，不触发外网抓取，因此 30s 一次的代价可以忽略。
+const quotesPollIntervalMs = 30_000;
 let runtimeStatusPollHandle: ReturnType<typeof setInterval> | null = null;
 let feedLayoutPollHandle: ReturnType<typeof setInterval> | null = null;
 let newsRefreshPollHandle: ReturnType<typeof setInterval> | null = null;
+let quotesPollHandle: ReturnType<typeof setInterval> | null = null;
 let feedLayoutDebounceHandle: ReturnType<typeof setTimeout> | null = null;
 let shellDisposed = false;
 
@@ -277,6 +283,26 @@ function startNewsRefreshPolling() {
   newsRefreshPollHandle = setInterval(triggerNewsRefresh, newsRefreshPollIntervalMs);
 }
 
+function triggerQuotesRefresh() {
+  if (shellDisposed) {
+    return;
+  }
+  void watchlistStore.refreshQuotes();
+}
+
+function stopQuotesPolling() {
+  if (quotesPollHandle === null) {
+    return;
+  }
+  clearInterval(quotesPollHandle);
+  quotesPollHandle = null;
+}
+
+function startQuotesPolling() {
+  stopQuotesPolling();
+  quotesPollHandle = setInterval(triggerQuotesRefresh, quotesPollIntervalMs);
+}
+
 function handleVisibilityChange() {
   if (shellDisposed) {
     return;
@@ -284,8 +310,13 @@ function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
     triggerNewsRefresh();
     startNewsRefreshPolling();
+    // 后台期间没有轮询、SSE 也可能已被浏览器挂起，切回前台先补一次，
+    // 否则用户会先看到切走时的旧价格、等满一个轮询周期才刷新。
+    triggerQuotesRefresh();
+    startQuotesPolling();
   } else {
     stopNewsRefreshPolling();
+    stopQuotesPolling();
   }
 }
 
@@ -329,6 +360,7 @@ async function bootstrap() {
   document.addEventListener('visibilitychange', handleVisibilityChange);
   if (document.visibilityState === 'visible') {
     startNewsRefreshPolling();
+    startQuotesPolling();
   }
 
   connectionStore.connect(
@@ -360,6 +392,20 @@ async function bootstrap() {
         void runtimeStatusStore.loadRuntimeStatusIfStale();
         return;
       }
+      if (event.type === 'market.watchlist_refreshed') {
+        // MarketQuoteProducer 每轮刷新的批量推送：自选股列表/详情的价格主通道。
+        // payload 由后端 SSE 直接透传，这里对形状做一次防御性校验，避免一条
+        // 异常事件把整个 handler 打断（handler 抛错会连带影响后续事件处理）。
+        const quotes = event.payload?.quotes;
+        if (!Array.isArray(quotes) || quotes.length === 0) {
+          return;
+        }
+        watchlistStore.applyQuoteBatch(quotes);
+        // 仪表盘的异动榜读的是 marketStore.snapshots，与 watchlist 是两套状态，
+        // 需要各自更新。两者字段同构（QuoteSummaryView ⊃ PriceSnapshotView）。
+        quotes.forEach((quote) => marketStore.upsertSnapshot(quote));
+        return;
+      }
       if (event.type === 'stream.keepalive') {
         void runtimeStatusStore.loadRuntimeStatusIfStale();
       }
@@ -382,6 +428,7 @@ onBeforeUnmount(() => {
   stopFeedLayoutPolling();
   stopRuntimeStatusPolling();
   stopNewsRefreshPolling();
+  stopQuotesPolling();
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   connectionStore.disconnect();
 });

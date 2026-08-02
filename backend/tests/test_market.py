@@ -551,7 +551,7 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
                 ],
             ]
 
-        def refresh_watchlist_quotes(self, session):  # pragma: no cover - exercised through producer
+        def refresh_watchlist_quotes(self, session, *, force=False):  # pragma: no cover - exercised through producer
             return self.responses.pop(0)
 
     class FakeWatchlistRepository:
@@ -747,7 +747,8 @@ def test_market_watchlist_quotes_return_unavailable_payload_from_cache_reader(mo
 
 def test_market_refresh_route_runs_one_shot_refresh_and_publishes_event(monkeypatch) -> None:
     class FakeQuoteService:
-        def refresh_watchlist_quotes(self, session):  # pragma: no cover - exercised through route
+        def refresh_watchlist_quotes(self, session, *, force=False):  # pragma: no cover - exercised through route
+            assert force is True, "手动刷新必须绕过读路径缓存 TTL"
             return [
                 {
                     "symbol": "0700.HK",
@@ -1142,10 +1143,17 @@ def test_market_chart_service_serves_fresh_kline_from_cache_without_redownload()
     """TTL 内第二次 get_kline 直接返回缓存,不再触发 yf.download。"""
     symbol = "HK7000"
     _seed_watchlist_symbol(symbol, "hk")
-    MarketChartService._cache.pop(f"market:kline:{symbol}:1d:6mo", None)
     service = MarketChartService(redis_client=_NullRedis())
+    # 用 _build_cache_key 而非硬编码字符串：键里带数据源口径版本段，
+    # 硬编码会在版本变更后静默失配，让用例变成"假通过"。
+    MarketChartService._cache.pop(service._build_cache_key(symbol, "1d", "6mo"), None)
 
-    with patch("yfinance.download", return_value=_kline_history_frame()) as mock_download:
+    # 港股主源已是腾讯；这里置为不可用，既让用例聚焦 yfinance + 缓存行为，
+    # 也避免对一个不存在的代码发起真实腾讯请求。
+    with (
+        patch("yfinance.download", return_value=_kline_history_frame()) as mock_download,
+        patch.object(service, "_download_history_fallback", return_value=None),
+    ):
         with SessionLocal() as session:
             first = service.get_kline(symbol, "1d", "6mo", session)
         with SessionLocal() as session:
@@ -1172,14 +1180,23 @@ def test_market_chart_service_returns_stale_cache_when_download_fails() -> None:
         "news_events": [],
     }
     # ttl 为负 => 写入即过期,模拟"有旧缓存但已过 TTL"。
-    service._set_cache(f"market:kline:{symbol}:1d:6mo", payload, ttl_seconds=-1)
+    # 必须用 _build_cache_key：硬编码的键在缓存版本变更后会失配，
+    # 于是走到"完全失败的空 stale payload"分支——stale=True 依然成立，
+    # 用例看似通过，实际已经不再验证"返回的是那份旧缓存"。
+    service._set_cache(service._build_cache_key(symbol, "1d", "6mo"), payload, ttl_seconds=-1)
 
-    with patch("yfinance.download", side_effect=RuntimeError("yf down")):
+    with (
+        patch("yfinance.download", side_effect=RuntimeError("yf down")),
+        patch.object(service, "_download_history_fallback", return_value=None),
+    ):
         with SessionLocal() as session:
             result = service.get_kline(symbol, "1d", "6mo", session)
 
     assert result["stale"] is True
     assert result["symbol"] == symbol
+    # 断言拿到的确实是那份旧缓存，而不是兜底的空 payload。
+    assert result["interval"] == "1d"
+    assert result["range"] == "6mo"
 
 
 def test_news_mentions_repository_list_related_news_applies_limit() -> None:
@@ -1227,7 +1244,13 @@ def test_market_chart_service_flattens_yfinance_multiindex_history() -> None:
         index=pd.to_datetime(["2025-09-29", "2025-09-30"]),
     )
 
-    with patch("yfinance.download", return_value=history):
+    # 0700.HK 是港股，主源已改为腾讯（见 _download_history 的说明）。这里显式把
+    # 腾讯置为不可用，才能走到本用例真正要验证的 yfinance MultiIndex 展平分支；
+    # 不 mock 的话会向腾讯发起真实网络请求，用例既不稳定也测不到目标代码。
+    with (
+        patch("yfinance.download", return_value=history),
+        patch.object(service, "_download_history_fallback", return_value=None),
+    ):
         normalized = service._download_history("0700.HK", period="6mo", interval="1d")
 
     candles = service._serialize_candles(normalized)
@@ -1251,6 +1274,63 @@ def test_market_chart_service_flattens_yfinance_multiindex_history() -> None:
             "volume": 20610633,
         },
     ]
+
+
+def test_serialize_candles_skips_nan_rows():
+    service = MarketChartService()
+    history = pd.DataFrame(
+        {
+            "Open": [649.5, float("nan"), 660.0],
+            "High": [664.5, 666.5, 670.0],
+            "Low": [647.5, 657.5, 659.0],
+            "Close": [660.0, 663.0, float("nan")],
+            "Volume": [20489556, 1000, 2000],
+        },
+        index=pd.to_datetime(["2025-09-29", "2025-09-30", "2025-10-01"]),
+    )
+
+    candles = service._serialize_candles(history)
+
+    assert len(candles) == 1
+    assert candles[0]["time"] == "2025-09-29"
+
+
+def test_download_history_fallbacks_to_tencent_on_yf_error():
+    service = MarketChartService()
+    fallback_df = pd.DataFrame(
+        {
+            "Open": [199.11],
+            "Close": [199.18],
+            "High": [205.83],
+            "Low": [196.98],
+            "Volume": [72822591.0],
+        },
+        index=pd.to_datetime(["2026-07-28"]),
+    )
+
+    with patch("yfinance.download", side_effect=TimeoutError("Yahoo Finance Timeout")), patch.object(
+        service, "_download_history_fallback", return_value=fallback_df
+    ) as mock_fallback:
+        res = service._download_history("002384.SZ", period="6mo", interval="1d")
+
+    mock_fallback.assert_called_once_with("002384.SZ", "6mo", "1d")
+    assert not res.empty
+    assert res.iloc[0]["Close"] == 199.18
+
+
+def test_get_kline_returns_empty_stale_payload_on_complete_failure():
+    service = MarketChartService()
+    mock_item = MagicMock(symbol="002384.SZ", market="cn")
+
+    with patch.object(service, "_require_watchlist_symbol", return_value=mock_item), patch.object(
+        service, "_build_kline_payload", side_effect=RuntimeError("Network unreachable")
+    ):
+        res = service.get_kline("002384.SZ", "1d", "6mo", session=MagicMock())
+
+    assert res["symbol"] == "002384.SZ"
+    assert res["stale"] is True
+    assert res["candles"] == []
+
 
 
 def test_market_chart_service_skips_failed_symbols_when_building_sparklines() -> None:

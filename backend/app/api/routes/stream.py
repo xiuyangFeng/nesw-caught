@@ -11,13 +11,17 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.session import get_db_session
 from app.repositories.worker_runtime_status_repository import WorkerRuntimeStatusRepository
+from app.schemas.common import serialize_utc
 from app.schemas.stream import MarketWorkerStatusView, StreamStatusResponse
 from app.services.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-STREAM_EVENT_NAMES = ("news.created", "news.updated")
+# market.watchlist_refreshed 由 MarketQuoteProducer 每轮刷新后发布。此前它不在
+# 这个名单里，行情事件只在进程内被告警 handler 消费掉，前端永远收不到推送，自选
+# 股价格只能靠用户手动点刷新——这是"行情看起来不更新"的推送侧根因。
+STREAM_EVENT_NAMES = ("news.created", "news.updated", "market.watchlist_refreshed")
 STREAM_KEEPALIVE_SECONDS = 15
 
 # 只读的 SSE 活跃连接计数器，供 /health 汇报"推送连接数"使用；仅在本模块内自增/自减，
@@ -48,6 +52,30 @@ def _utc_now() -> datetime:
 
 def _serialize_timestamp(value: datetime) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _json_default(value: object) -> str:
+    """SSE 信封的 JSON 兜底序列化。
+
+    行情事件的 payload 里带 ``fetched_at``(datetime)，裸 ``json.dumps`` 会抛
+    TypeError —— 而这个异常发生在生成器体内，直接把整条 SSE 连接打断。与
+    RedisStreamPublisher 的 ``_json_default`` 保持同样的"绝不因序列化失败中断
+    投递"策略。
+
+    这里必须走 ``serialize_utc``（naive 按 UTC ``replace``）而不是上面
+    ``_serialize_timestamp`` 的 ``astimezone``：payload 里的 ``fetched_at`` 直接来自
+    SQLite，是 **naive 的 UTC 值**（全项目约定，见 app/schemas/common.py）。用
+    astimezone 会把它当本机时区解读，实测把时间戳整体推后了本机 UTC 偏移量
+    （UTC-7 环境下推后 7 小时），前端的"最后更新时间"与 isStale 判定会一起错乱。
+    ``occurred_at`` 那一路来自 ``_utc_now()``，本身 aware，两种写法等价。
+    """
+    if isinstance(value, datetime):
+        return serialize_utc(value)
+    return str(value)
+
+
+def _dump_envelope(envelope: dict[str, object]) -> str:
+    return json.dumps(envelope, separators=(",", ":"), default=_json_default)
 
 
 def get_market_worker_runtime_status(session: Session) -> dict[str, object] | None:
@@ -186,7 +214,7 @@ async def stream_events(request: Request, limit: int | None = None) -> Streaming
                         "occurred_at": _serialize_timestamp(_utc_now()),
                         "payload": {"status": "ok"},
                     }
-                    yield f"data: {json.dumps(envelope, separators=(',', ':'))}\n\n"
+                    yield f"data: {_dump_envelope(envelope)}\n\n"
                     sent += 1
                     continue
                 envelope = {
@@ -194,7 +222,7 @@ async def stream_events(request: Request, limit: int | None = None) -> Streaming
                     "occurred_at": _serialize_timestamp(occurred_at),
                     "payload": payload,
                 }
-                yield f"data: {json.dumps(envelope, separators=(',', ':'))}\n\n"
+                yield f"data: {_dump_envelope(envelope)}\n\n"
                 sent += 1
                 # 事件级日志降为 DEBUG:此前是 INFO,"每条事件 × 每条连接"一行,
                 # 是纯粹的日志放大;连接开/关仍保留 INFO。

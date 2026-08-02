@@ -686,7 +686,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Stream Events */
+        /**
+         * Stream Events
+         * @description SSE 事件流：持续推送 news.created / news.updated 等事件，空闲时发送 keepalive 心跳。
+         */
         get: operations["stream_events_api_stream_events_get"];
         put?: never;
         post?: never;
@@ -720,7 +723,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Topics */
+        /**
+         * List Topics
+         * @description 话题列表。
+         *
+         *     limit/offset 为可选分页参数:不传时保持原有的“全量返回”语义(前端契约不变)。
+         */
         get: operations["list_topics_api_topics_get"];
         put?: never;
         post?: never;
@@ -998,6 +1006,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AiServiceStatus
+         * @description AI 服务状态：是否启用 + 最近一次 LLM 调用时间（无专门的 provider 健康表可查，用作存活参考）。
+         */
+        AiServiceStatus: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Last Call At */
+            last_call_at?: string | null;
+        };
         /**
          * AlertGovernanceUpdate
          * @description 告警治理运行期覆盖（保存在 NotificationService 内存，不落库）。全部可选。
@@ -1296,16 +1317,32 @@ export interface components {
         };
         /** HealthResponse */
         HealthResponse: {
+            /**
+             * Active Stream Connections
+             * @default 0
+             */
+            active_stream_connections: number;
             /** Ai Enabled */
             ai_enabled: boolean;
+            ai_status: components["schemas"]["AiServiceStatus"];
             /** App Name */
             app_name: string;
             /** Database */
             database: string;
+            /**
+             * Database Healthy
+             * @default false
+             */
+            database_healthy: boolean;
             /** Environment */
             environment: string;
+            /** Last Market Quote Refresh At */
+            last_market_quote_refresh_at?: string | null;
+            /** Last Rss Fetch At */
+            last_rss_fetch_at?: string | null;
             /** Now Utc */
             now_utc: string;
+            source_health_summary: components["schemas"]["SourceHealthSummary"];
             /** Status */
             status: string;
             /** Stream Mode */
@@ -2537,6 +2574,27 @@ export interface components {
             source_type: string;
             /** Status */
             status: string;
+        };
+        /**
+         * SourceHealthSummary
+         * @description 数据源健康汇总，避免请求方再单独调用 /health/sources 拼接。
+         */
+        SourceHealthSummary: {
+            /**
+             * Consecutive Failing
+             * @default 0
+             */
+            consecutive_failing: number;
+            /**
+             * Disabled
+             * @default 0
+             */
+            disabled: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** SourceHealthView */
         SourceHealthView: {
@@ -4264,7 +4322,9 @@ export interface operations {
     };
     analyze_news_api_news__news_id__analyze_post: {
         parameters: {
-            query?: never;
+            query?: {
+                async_mode?: boolean;
+            };
             header?: {
                 "X-App-Token"?: string | null;
             };
@@ -4555,7 +4615,10 @@ export interface operations {
     };
     list_topics_api_topics_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number | null;
+                offset?: number;
+            };
             header?: {
                 "X-App-Token"?: string | null;
             };

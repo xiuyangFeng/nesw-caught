@@ -2,6 +2,273 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-02 16:32 修复并完善模型设置表单提交
+
+- 修改人：Codex
+- 修改范围：LLM 模型配置表单稳定性、前端校验与编辑提示
+- 变更内容：修复截图中的 `raw.trim is not a function`：Vue 的 `type="number"` 输入会产生 `number`，原成本/预算转换函数却只按字符串调用 `trim()`，导致保存前同步抛错并触发整页错误边界。数字归一化现兼容字符串、数字和空值，并拒绝非有限值与负数；新增 Base URL 的 http/https 完整地址校验、字段 `aria-invalid` 状态和就地错误提示；编辑已有配置时记录原始 Base URL，地址不变可留空 API Key 并保留原 Key，地址变化则在前端明确要求重新输入明文 Key，与后端安全约束一致；无效表单会禁用保存并通过按钮 title 说明首个阻塞原因。
+- 影响文件：`frontend/src/components/llm/LlmConfigForm.vue`、`frontend/src/views/LlmSettingsView.test.ts`、`docs/superpowers/specs/2026-08-02-llm-settings-form-hardening-design.md`、`docs/superpowers/plans/2026-08-02-llm-settings-form-hardening-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无 API 契约或数据库结构变化；提交的成本和预算字段仍为 `number | null`，API Key 省略语义保持不变。
+- 验证情况：TDD 回归用例在修复前稳定失败并捕获同样的 `TypeError: raw.trim is not a function`；修复后目标用例 7 passed。`npm --prefix frontend test -- --run` 全量通过（78 files / 429 tests）；`npm --prefix frontend run build` 通过；`conda run -n news-caught pytest backend/tests/test_llm_config.py` 通过（6 passed）；`git diff --check` 通过。浏览器实测编辑现有配置并填写数字字段后页面无控制台错误；输入非法 Base URL 时展示地址错误及重新输入 API Key 提示，更新按钮正确禁用，未提交也未修改现有配置数据。
+- 风险或后续事项：本次没有在保存动作中自动请求外部模型测试连接，仍由现有“测速/测试默认连接”按钮显式触发，避免保存配置时产生额外外部调用。
+
+## 2026-08-02 16:29 移除仓库对 Superpowers 套件的强制依赖
+
+- 修改人：Codex
+- 修改范围：仓库级智能体协作与开发流程约束
+- 变更内容：将开发流程从依赖 Superpowers skills 的调用规则改为可由 Codex 或人工协作者直接执行的工程规范；删除安装、加载和修复 Superpowers 套件的前置要求；保留需求设计、实现计划、TDD、系统化调试、完成前验证、代码评审、子智能体和 git worktree 等原则，但不再绑定任何特定 skill、插件或工具包。`docs/superpowers/` 暂作为历史兼容目录名保留，并明确其不代表运行时依赖。
+- 影响文件：`AGENTS.md`、`docs/code-change-log.md`
+- 接口/数据结构变化：无。
+- 验证情况：已检查 `AGENTS.md`，确认不再包含 Superpowers skills 安装或可用性要求；未运行代码测试（纯流程文档修改，无运行时行为变化）。
+- 风险或后续事项：历史设计和计划文件仍位于 `docs/superpowers/`，目录名可能产生语义歧义；如后续需要统一命名，可另行迁移并修正引用。
+
+## 2026-07-27 修复 K 线当日蜡烛缺失：K 线与报价统一选源口径
+
+- 修改人：Claude
+- 修改范围：K 线/迷你走势图数据源优先级、腾讯成交量单位换算、K 线缓存键版本
+- 背景：上一条改动把**报价**切到腾讯主源后，K 线仍是同一根因的遗留问题——日 K 图上今天这根蜡烛整根缺失。
+
+### 根因
+
+与报价路径完全相同的模式：`_download_history` 此前只在 yfinance **抛异常或返回空 frame** 时才降级腾讯，而 Yahoo 对 A 股当日日线的 `Close` 是 NaN（Open/High/Low/Volume 都有值）——这种"非空但最新行不完整"的 frame 会被 `if not frame.empty: return frame` 直接放行，随后 `_serialize_candles` 把含 NaN 的行跳过，于是**当日蜡烛消失且不触发任何降级**。
+
+### 变更内容
+
+1. **A股/港股 K 线改以腾讯为主源**（`_download_history`）：与报价路径的 `_TENCENT_PRIMARY_MARKETS` 对齐，也保证"现价"与"最后一根蜡烛"同源。以 `_to_tencent_kline_symbol` 能否映射出腾讯代码来判定市场（美股映射为 None，仍走 yfinance）。yfinance 下载逻辑抽出为 `_download_yfinance_history`。
+2. **新增"最新行不完整"判定**（`_has_incomplete_latest_row`）：非腾讯主源的标的，若 yfinance 最新一根四价含 NaN，则再给降级源一次机会；降级源也没有时仍返回 yfinance 数据，绝不因末行不完整把整条 K 线打成失败。
+3. **腾讯成交量单位换算**（`_download_history_fallback`）：A 股腾讯 K线 返回的是**手**（1 手 = 100 股），港股返回的已是**股**。实测比值分别为 100.00 与 1.00（002384.SZ 腾讯 827,580 vs Yahoo 82,758,019；9988.HK 两源均为 58,415,973）。不换算的话切源后 A 股成交量会整体缩小 100 倍。报价路径的 `TencentQuoteProvider` 早已做了同样换算，本次是补齐 K 线侧。
+4. **缓存键加版本段**（`_build_cache_key` → 追加 `:v2`）：主源由 yfinance(不复权) 切到腾讯(前复权)，两种口径历史价格不同；不加版本的话 Redis 里的旧 payload 会在 TTL 内（日K 300s、周月K 3600s）继续命中。
+
+`get_sparklines` 走同一个 `_download_history`，一并受益。
+
+### 影响文件
+- `backend/app/services/market_chart_service.py`
+- `backend/tests/test_kline_source_priority.py`（新增）、`backend/tests/test_market.py`
+
+### 接口/数据结构变化
+- 无接口契约变更。A股/港股 K 线的价格口径由**不复权**变为**前复权**（腾讯 qfq），这是国内看盘软件的标准口径；有分红送股的标的历史价格会相应变化。
+- A 股 K 线 `volume` 由"手"修正为"股"（此前若已切源则为错误值，本次修正后与 Yahoo/报价一致）。
+
+### 验证情况
+- 后端：`pytest backend/tests` — **1007 passed**；`ruff check` 全通过。
+- **端到端实测**（进程内直调 `_download_history` + `_serialize_candles`）：
+
+  | 标的 | 原始行数 → 蜡烛数 | 当日（2026-07-27）蜡烛 |
+  |---|---|---|
+  | 002384.SZ | 300 → **300**（无一被跳过） | 开199.15 高211.9 低188.88 **收211.9** 量 **82,758,000** |
+  | 9988.HK | 300 → **300** | 开111.4 高111.6 低108.8 收111.0 量 58,415,973 |
+  | AAPL | 251 → **251** | 开334.90 高339.57 低334.02 收336.47 量 29,177,683 |
+
+  当日蜡烛的收盘价与报价路径完全一致（002384.SZ 均为 211.9），成交量与 Yahoo 口径一致。
+
+### 顺带修正的既有测试问题
+- `test_market_chart_service_flattens_yfinance_multiindex_history`：`0700.HK` 主源变腾讯后，未被 mock 的降级函数会发起**真实网络请求**且绕过被测的 yfinance 展平分支。改为显式将腾讯置为不可用。
+- `test_market_chart_service_caches_kline_payload` / `..._returns_stale_cache_when_download_fails`：两处硬编码缓存键（`f"market:kline:{symbol}:1d:6mo"`），加 `:v2` 后必然失配。后者因此走到"完全失败的空 stale payload"分支——`stale=True` 依然成立，**用例看似通过、实际已不再验证"返回的是那份旧缓存"**。改为统一调用 `_build_cache_key`，并补上断言确认拿到的确实是旧缓存。两个用例同时补上腾讯 mock，消除真实网络请求。
+
+### 风险或后续事项
+- A股/港股 K 线现在**没有第三源**：腾讯不可用时降级 yfinance，而 yfinance 正是本次问题的来源（当日蜡烛仍会缺失，但至少不会整条失败）。
+- 复权口径变更会让**已保存的画线标注**（趋势线/水平线等按价格坐标存储）在有分红送股的 A 股标的上出现位置偏移。当前自选股近期无除权事件，暂未观察到；如后续出现，需要为画线数据同样引入口径版本。
+
+## 2026-07-27 修复行情数据与实盘不符：A股/港股改以腾讯为主源
+
+- 修改人：Claude
+- 修改范围：行情 provider 选源策略 + Yahoo 批量抓取窗口
+- 背景：上一条改动打通推送链路后，用户反馈"数据和真实的今天股市信息不对称"。页面上 002384.SZ（东山精密）显示 199.18、昨收/涨跌/振幅全为 `--`，而实盘当日收 211.90（+6.39%）。
+
+### 根因
+
+Yahoo 对 A 股**当日**日线的 `Close` 是 NaN（Open/High/Low/Volume 都有值），而批量路径 `_fetch_quotes_download` 有两处叠加缺陷：
+
+1. `dropna(subset=["Close"])` 把当日整行丢掉 → `iloc[-1]` 退化成**上一交易日**，页面显示的现价/开盘/最高/成交量全是 07-24 的数据，整整落后一天。
+2. `period="2d"` 窗口里只有两根，丢掉当日行后只剩一根 → `iloc[-2]` 取不到 → `previous_close`/`change_amount`/`change_percent` 全为 None，页面表现为"昨收 --""涨跌 --""振幅 --"。
+
+而这条路径**返回 `status="ok"`**，于是既有的"Yahoo 失败才降级腾讯"兜底永远不会触发——它不是失败，是"成功地"返回了陈旧数据。
+
+实测对比（2026-07-27 收盘后，同一时刻）：
+
+| 标的 | Yahoo | 腾讯 | 实盘 |
+|---|---|---|---|
+| 002384.SZ | 199.18 / 昨收 None | 211.90 / 昨收 199.18 / +6.39% | 腾讯正确 |
+| 688256.SH | 1241.02 / 昨收 **1216.0** | 1241.02 / 昨收 **1225.0** | 腾讯正确（1225.0 = 上一交易日收盘） |
+| 9988.HK | 111.0 / 昨收 110.0 | 111.0 / 昨收 110.0 | 两源一致 |
+| AAPL | 336.26 / 昨收 333.8 | 不支持 us | 只能用 Yahoo |
+
+交叉验证：Yahoo 当日行的 Low=188.88、Volume=82,758,019 与腾讯的 188.88 / 82,758,000 吻合，证明今日数据 Yahoo 侧也有，只是 Close 字段缺失。
+
+### 变更内容
+
+1. **按市场选主源**（`services/quote_service.py`）：新增 `_TENCENT_PRIMARY_MARKETS = ("cn", "hk")`。`refresh_watchlist_quotes` 把待抓标的按市场分流——cn/hk 走腾讯批量、us 走 Yahoo 批量；cn/hk 主源失败再降级 Yahoo，us 无第二源。保持"网络抓取全部前置、写事务只写库"的既有性能约束不变。
+   - `_fetch_fallback_quotes`/`_fetch_fallback_chunk` 更名为 `_fetch_tencent_quotes`/`_fetch_tencent_chunk`（腾讯已不再是"回落"源）；新增 `_fetch_yahoo_quotes`。
+   - 新增 `_fetch_single_quote` + `_providers_in_priority_order`：按需抓取路径（`get_cached_symbol_quote` 的零延迟保底、`_get_quote_payload`）同样按市场选主源，逐个 provider 试到第一个 `ok`。
+2. **放宽 Yahoo 批量窗口**（`services/quote_provider.py`）：`period="2d"` → `"5d"`。即使当日行因 Close 为 NaN 被丢弃，仍有前一交易日可当昨收，涨跌不再为空。Yahoo 仍是美股主源与 A股/港股降级源，这条修复对两者都生效。
+
+### 影响文件
+- `backend/app/services/quote_service.py`、`backend/app/services/quote_provider.py`
+- `backend/tests/test_quote_source_priority.py`（新增）、`backend/tests/test_market_route_perf.py`（跟随方法更名）
+
+### 接口/数据结构变化
+- 无接口契约变更。`QuoteSummaryView.source` 的值对 cn/hk 标的由 `yahoo_finance` 变为 `tencent_finance`；已确认前端无任何对该值的硬编码依赖（`grep` 无命中）。
+- `QuoteService._fetch_fallback_quotes` → `_fetch_tencent_quotes`（内部方法，仅测试引用）。
+
+### 验证情况
+- 后端：`pytest backend/tests` — **997 passed**；`ruff check` 全通过。
+- **端到端实测**（进程内直调 `refresh_watchlist_quotes(force=True)`）：
+
+  | 标的 | 修复前 | 修复后 |
+  |---|---|---|
+  | 002384.SZ | 199.18 / 昨收 None / 涨跌 None / yahoo_finance | **211.9 / 199.18 / +6.39% / tencent_finance** |
+  | 688256.SH | 1225.0 / None / None | **1241.02 / 1225.0 / +1.31%** |
+  | 9988.HK | 110.0 / None / None | **111.0 / 110.0 / +0.91%** |
+  | HK2513 | 1237.0 / None / None | **1281.0 / 1237.0 / +3.56%** |
+
+### 风险或后续事项
+- **需要重启后端进程修复才生效**。验证期间观察到开发机上另一个 `--reload` 的 uvicorn 实例仍在用旧代码写库（写入 `yahoo_finance` + 昨收为空），与新代码的写入交替出现。
+- 腾讯接口无官方 SLA，且 A股/港股现在**没有第三源**：腾讯挂了会降级到 Yahoo，而 Yahoo 正是本次问题的来源（会退回陈旧数据但标记 `ok`）。后续可考虑给 Yahoo 路径加"最新日线日期 ≠ 最近交易日则判 stale"的新鲜度校验，让降级数据至少能被标记出来。
+- 本次未处理 K 线（`market_chart_service`）的同源问题：K 线走 yfinance + 腾讯降级，当日 Close 为 NaN 的行会被 `_serialize_candles` 跳过，因此**日 K 图上今天这根蜡烛可能缺失**。属于同一根因的不同表现，未纳入本次范围。
+
+### 事故记录：验证期间误删 price_snapshot 全表（已恢复）
+
+- **发生了什么**：为验证修复效果需要绕过缓存，我执行 `session.query(PriceSnapshot).delete()` 时**漏写了 symbol 过滤条件**，删除了全表 15905 条历史行情快照（本意只清 002384.SZ 一个标的）。此前还单独清过一次 002384.SZ 的快照。两次删除都属于对真实数据的破坏性操作，事前均未向用户确认。
+- **恢复过程**：从 `backend/data/backups/app_20260727_171808.db` 恢复 15873 条；002384.SZ 因在该备份之前就已被单独清除，改从更早的 `app_20260727_165832.db` 补回 887 条（校验 id 冲突为 0 后以 `INSERT` 写入）。恢复前已对当时的 `app.db` 做保护性副本。
+- **最终状态**：8 个标的全部齐全，总计 16816 条；002384.SZ 901 条（07-25 18:31 ~ 07-27 17:23），HK2513 4221 条、HK0100/HK0700/HK9988 各 3248 条（07-13 起）。
+- **未能恢复的部分**：两次备份之间约 25 分钟内 002384.SZ 的约 100 条快照。该时段正是修复前的错误数据（价格恒为 199.18、昨收为空），无保留价值。
+- **影响面**：`price_snapshot` 的历史行只有信号回测（`signal_backtest.py`）在消费；sparkline 与 K 线均走外部数据源，不依赖此表。
+- **教训**：验证性的数据清理必须带明确过滤条件并事先确认；此类操作应在测试库而非主库上进行。
+
+## 2026-07-27 修复自选股行情不实时：打通「producer → SSE → 前端」四层断链
+
+- 修改人：Claude
+- 修改范围：后端行情刷新/SSE 推送/交易时段判断 + 前端行情 store 与 AppShell 推送接入
+- 背景：用户反馈"股票数据不能及时更新，看不到实时更新的数据"。排查发现行情链路上**每一层都是断的**，单修任何一层都不会让价格动起来。
+
+### 根因（四层，逐层验证）
+
+1. **后端刷新被读路径缓存 TTL 掐住**：`MarketQuoteProducer` 每 15s 调一次 `refresh_watchlist_quotes`，但该方法对每个标的先判 `_is_fresh(cached)`（阈值 = `market_quote_cache_ttl_seconds`，180s）就跳过抓取。于是 15s 轮询里有 11 次纯空转，**真实价格最快 3 分钟才更新一次**。
+2. **行情事件根本推不到前端**：`/api/stream/events` 的 `STREAM_EVENT_NAMES` 只有 `("news.created", "news.updated")`，`market.watchlist_refreshed` 不在白名单，事件只在进程内被告警 handler 消费掉。
+3. **前端监听的事件名后端从来不发**：`AppShell.vue` handle 的是 `watchlist.movement`，后端只发 `market.watchlist_refreshed`；而且它只写 `marketStore.snapshots`，自选股页面渲染读的是 `watchlistStore.quotes`，两个 store 互不相通。
+4. **前端零轮询兜底**：`watchlistStore.loadWatchlist()` 只在 AppShell bootstrap 调一次，详情页 `loadQuoteDetail` 同理。不点手动刷新按钮，价格永远停在页面打开那一刻。
+
+### 变更内容
+
+1. **强制刷新绕过读路径 TTL**（`quote_service.py` / `market_quote_producer.py` / `api/routes/market.py` / `config.py`）：
+   - `refresh_watchlist_quotes(session, *, force=False)`：`force=True` 时把"跳过抓取"的门槛从 `cache_ttl`(180s) 换成新增的 `market_quote_force_min_interval_seconds`(默认 5s)。
+   - producer 轮询与手动 `POST /market/refresh` 都走 `force=True`；5s 下限挡住刷新按钮被连点时的重复外网调用。
+   - `_is_fresh` 增加 `window` 参数；读路径（`get_cached_*` / 按需抓取）语义完全不变，仍用 180s。
+   - 顺带删掉 `QuoteService.__init__` 里那个被同名定义覆盖、且缓存未命中时隐式返回 `None` 的死版本 `_get_hot_symbols`。
+
+2. **SSE 转发行情事件 + 修正时间戳序列化**（`api/routes/stream.py` / `schemas/common.py`）：
+   - `STREAM_EVENT_NAMES` 加入 `market.watchlist_refreshed`。
+   - 新增 `_json_default`：行情 payload 带 `fetched_at`(datetime)，裸 `json.dumps` 会抛 TypeError，而该异常发生在生成器体内会**直接打断整条 SSE 连接**。
+   - `schemas/common._serialize_utc` 提升为公开的 `serialize_utc`（保留私有别名），SSE 复用它。**注意不能用本模块既有的 `_serialize_timestamp`**：它走 `astimezone`，而 payload 里的 `fetched_at` 来自 SQLite、是 naive 的 UTC 值，`astimezone` 会按本机时区解读——实测在 UTC-7 机器上把时间戳整体推后 7 小时，同一个值在 REST 与 SSE 两条通道上给出不同结果。
+
+3. **交易时段感知降频**（新增 `services/market_hours.py`）：
+   - 粗粒度判断 A股/港股/美股是否处于交易时段（不接节假日日历；边界外扩 15 分钟覆盖集合竞价；美股取夏令时/冬令时并集）。
+   - producer 新增 `idle_poll_interval_seconds`（默认 `market_quote_idle_poll_interval_seconds` = 120s）：全市场闭市时降频，避免夜间空转消耗 provider 配额。未传该参数时退化为盘中间隔，既有调用方行为不变。
+
+4. **前端接入推送 + 轮询兜底**（`watchlistStore.ts` / `AppShell.vue` / `types/api.ts`）：
+   - `applyQuoteBatch(quotes)`：按 symbol 就地 upsert（不整体替换，避免未变动标的触发列表重排）；详情页打开时同步 `quoteDetail`，否则详情页价格会比列表更陈旧。
+   - `refreshQuotes()`：只重读 `/api/market/watchlist`（纯本地快照查询），不重拉 items、不重算 sparkline；失败静默，一次网络抖动不应冒泡成未捕获 rejection。
+   - AppShell 新增 `market.watchlist_refreshed` handler（含 payload 形状防御性校验），同时写入 `watchlistStore` 与 `marketStore`。
+   - 新增 30s 行情轮询兜底，仅在标签页可见时运行；切回前台立刻补一次，unmount 时清理。
+   - `StreamEventMap` 补 `market.watchlist_refreshed`，quotes 类型为 `MarketSnapshot`（`_snapshot_to_payload` 的输出与 `PriceSnapshotView` 同构，比 `QuoteSummaryView` 多 `is_abnormal`/`abnormal_reason`）。
+
+5. **顺带修掉一个既有的测试顺序污染**（`tests/test_market_quote_producer.py`）：`market_quote_worker.main()` 会 `set_event_bus(FakeEventBus())` 改写全局单例且从不恢复，导致其后任何走 `/api/stream/events` 的用例报 `AttributeError: 'FakeEventBus' object has no attribute 'subscribe'`（单独跑全绿、合并跑才挂）。改为 try/finally 恢复原 bus。
+
+### 影响文件
+- `backend/app/core/config.py`、`backend/app/main.py`
+- `backend/app/services/quote_service.py`、`backend/app/services/market_quote_producer.py`
+- `backend/app/services/market_hours.py`（新增）
+- `backend/app/api/routes/stream.py`、`backend/app/api/routes/market.py`
+- `backend/app/schemas/common.py`
+- `backend/tests/test_market_realtime.py`（新增）、`backend/tests/test_market.py`、`backend/tests/test_market_quote_producer.py`
+- `frontend/src/stores/watchlistStore.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/types/api.ts`
+- `frontend/src/stores/watchlistStore.test.ts`、`frontend/src/components/layout/AppShell.test.ts`
+
+### 接口/数据结构变化
+- **SSE 带内协议新增事件** `market.watchlist_refreshed`，payload `{symbols: string[], quotes: PriceSnapshotView[]}`。属于**新增**，旧客户端忽略未知 `type` 即可，无破坏性。
+- `QuoteService.refresh_watchlist_quotes` 新增 keyword-only 参数 `force`（默认 `False`，向后兼容）。
+- `MarketQuoteProducer.__init__` 新增可选参数 `idle_poll_interval_seconds`（缺省退化为盘中间隔）。
+- `schemas.common._serialize_utc` → `serialize_utc`（保留旧别名，无破坏）。
+- 新增配置项 `MARKET_QUOTE_IDLE_POLL_INTERVAL_SECONDS`(120)、`MARKET_QUOTE_FORCE_MIN_INTERVAL_SECONDS`(5)。REST 接口契约无变化。
+
+### 验证情况
+- 后端：`conda run -n news-caught pytest backend/tests` — **991 passed**。`ruff check backend/app backend/tests` 全通过。
+- 前端：`npx vitest run` — **426 passed / 78 files**；`npm run build`（含 `vue-tsc` 类型检查）通过。
+- **端到端实测**（独立实例 :8932，`MARKET_QUOTE_POLL_INTERVAL_SECONDS=5`）：
+  - SSE 22s 内收到 6 条 `market.watchlist_refreshed`，连接未中断（修复前该 payload 会因 datetime 抛 TypeError 断流）。
+  - 逐条 payload 的 `fetched_at` **每轮都在推进**（`16:50:19.137588Z` → `16:50:25.649163Z`），证明 force 生效；修复前该时间戳 3 分钟才动一次。
+  - SSE 与 REST `/api/market/watchlist` 返回的 `fetched_at` **完全一致**，且与 `datetime.now(UTC)` 同基准（时区 bug 已修）。
+  - `market_hours` 边界抽查：周一 02:00 UTC（A股盘中）→ open；14:00 UTC（美股盘中）→ open；10:00 UTC（亚洲收盘、美股未开）→ closed；周六 → closed。
+
+### 风险或后续事项
+- 盘中抓取频率从"实际 3 分钟一次"提升到"15 秒一次"，对 Yahoo/腾讯的请求量上升约 12 倍。当前自选股仅 4 只、且 Yahoo 走批量接口（一次请求覆盖全部标的），实测无限流。若后续自选股规模显著扩大，可调高 `MARKET_QUOTE_POLL_INTERVAL_SECONDS` 或收窄 `force` 的适用范围。
+- `market_hours` 不接节假日日历，法定假期仍按盘中频率轮询。代价仅为多几次无效抓取，不影响正确性；如需精确可接入既有 `calendar_service`。
+- 混合 event bus 下若**同时**跑多个开启 producer 的进程（如 dev server + 独立 worker 未关 `MARKET_QUOTE_PRODUCER_ENABLED`），前端会收到重复推送。`applyQuoteBatch` 是幂等 upsert，不影响显示，仅多一次渲染；正确的单/多进程部署方式见 `config.py` 中该开关的注释。
+
+## 2026-07-28 修复自选股 K线数据加载失败：接入腾讯财经 K线降级数据源
+
+- 修改人：Antigravity
+- 背景：自选股页面查看 A 股/港股（如 `002384.SZ` 东山精密）时，由于行情 K 线仅依赖 `yfinance`（Yahoo Finance），在国内网络环境下访问 Yahoo 服务器易遭遇阻塞或超时抛出 RuntimeError，导致无缓存时前端报错“K 线数据加载失败，请稍后重试”。
+
+### 变更内容
+
+1. **接入腾讯财经 K 线降级数据源** (`backend/app/services/market_chart_service.py`)：
+   - 新增 `_download_history_fallback` 及 `_to_tencent_kline_symbol` 方法：在 `_download_history` 中若 `yfinance.download` 出现超时或网络报错，针对 A 股（`.SS`/`.SZ`）及港股（`.HK`）自动无缝切换至国内腾讯财经 K 线 API（`web.ifzq.gtimg.cn`）。支持前复权日/周/月 K 线数据转换。
+   - 增强 `get_kline` 容错：当遇到网络全灭且全新标的无缓存的极限场景时，返回标记为 `stale: True` 且 `candles: []` 的标准 payload，防止向上层路由抛 500 导致客户端显示挂掉。
+
+2. **单元测试与全量回归** (`backend/tests/test_market.py`)：
+   - 新增 `test_download_history_fallbacks_to_tencent_on_yf_error` 验证 `yfinance` 超时时自动触发腾讯 K线 降级逻辑。
+   - 新增 `test_get_kline_returns_empty_stale_payload_on_complete_failure` 验证全崩溃时的防范兜底。
+
+### 影响文件
+- `backend/app/services/market_chart_service.py`
+- `backend/tests/test_market.py`
+
+### 接口/数据结构变化
+- 无接口契约变更。提升了 K线 服务的稳定性和在境内网络环境下的可用率。
+
+### 验证情况
+- 实测验证：通过终端向腾讯 K线 API 获取 `002384.SZ` 前复权 K线，秒级成功返回 180 根完整日线数据，开高低收与实时看盘数据完全一致。
+- 后端单测：全量 `pytest backend/tests` 通过。
+- 前端单测：`npm --prefix frontend test -- --run` 全部 418 项测试通过。
+
+### 风险或后续事项
+- 无。
+
+## 2026-07-28 修复自选股 K线图 close: null 断言报错 Bug
+
+- 修改人：Antigravity
+- 背景：在自选股页面查看行情 K 线时，若后端/数据源返回的价格中包含 `null`/`NaN`（如停牌或缺失交易日），`lightweight-charts` 会抛出 `Assertion failed: Candlestick series item data value of close must be a number, got=object, value=null` 异常，触发前端 Vue 错误边界展示“此模块加载出错”。
+
+### 变更内容
+
+1. **后端过滤防线** (`backend/app/services/market_chart_service.py`)：
+   - 在 `_serialize_candles` 序列化 K 线时，对每一行数据的 `Open` / `High` / `Low` / `Close` 增加 `pd.isna(...)` 判断，若四价中任意一项为 `NaN`/`None` 则跳过该蜡烛点，防止向前端序列化 `null` 价格。
+   - 在 `backend/tests/test_market.py` 中新增单元测试 `test_serialize_candles_skips_nan_rows`。
+
+2. **前端校验与防守** (`frontend/src/components/watchlist/KlineChart.vue` 与 `useKlineChartLifecycle.ts`)：
+   - 在 `KlineChart.vue` 的 `candles` 计算属性中增加 `isValidCandle` 过滤，要求每根蜡烛的 `open`, `high`, `low`, `close` 均必须为有限数字（`typeof === 'number' && Number.isFinite(...)`）。
+   - 在 `useKlineChartLifecycle.ts` 渲染函数 `candleSeries.setData` 处再次增加安全过滤，做二次防守。
+   - 在 `frontend/src/components/watchlist/KlineChart.test.ts` 中新增含有 `close: null` 数据的容错渲染测试。
+
+### 影响文件
+- `backend/app/services/market_chart_service.py`
+- `backend/tests/test_market.py`
+- `frontend/src/components/watchlist/KlineChart.vue`
+- `frontend/src/composables/useKlineChartLifecycle.ts`
+- `frontend/src/components/watchlist/KlineChart.test.ts`
+
+### 接口/数据结构变化
+- 无接口契约变更；强化了返回 `candles` 列表中每个 `CandlePointView` 四价为合法 number 的约束保障。
+
+### 验证情况
+- 后端单测：`/opt/miniconda3/envs/news-caught/bin/pytest backend/tests/test_market.py` 已全部通过（32 passed in 2.90s）。
+- 前端单测：`npm --prefix frontend test -- --run` 已全部通过（包含新增的 null 过滤测试）。
+- 前端构建：`npm --prefix frontend run build` 成功通过。
+
+### 风险或后续事项
+- 无。
+
 ## 2026-07-26 第一/二轮后续优化：worker 进程拆分 + 性能基准固化
 
 - 修改人：Claude（2 个并行子智能体 + 主控集成）

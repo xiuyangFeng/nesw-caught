@@ -144,7 +144,9 @@ def get_watchlist_sparklines(
 @router.post("/refresh", response_model=MarketRefreshResultView)
 def refresh_market_quotes(session: Session = Depends(get_db_session)) -> MarketRefreshResultView:
     service = get_quote_service()
-    quotes = service.refresh_watchlist_quotes(session)
+    # 手动刷新是用户"我现在就要最新价"的明确意图，必须绕过读路径的 180s 缓存 TTL；
+    # 连点保护由 QuoteService.force_min_interval（默认 5s）兜住。
+    quotes = service.refresh_watchlist_quotes(session, force=True)
     get_event_bus().publish(
         "market.watchlist_refreshed",
         {
