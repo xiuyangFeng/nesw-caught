@@ -136,8 +136,8 @@ def refresh_news_sources(
             with SessionLocal() as s:
                 try:
                     NewsIngestionService(s).refresh_all()
-                except Exception as exc:
-                    logger.warning(f"Background ingestion refresh failed: {exc}")
+                except Exception:
+                    logger.exception("Background ingestion refresh failed")
 
         background_tasks.add_task(do_async_refresh)
         return JSONResponse(
@@ -230,7 +230,7 @@ def _publish_analysis_completed_event(session: Session, news_id: int, result: Ne
             "risk_notes": result.risk_notes,
         })
     except Exception:
-        logger.exception("failed to publish analysis event")
+        logger.exception("failed to publish analysis event: news_id=%s", news_id)
 
 
 @router.post("/{news_id}/analyze", response_model=NewsAnalysisView)
@@ -250,9 +250,9 @@ def analyze_news(
                     # 后台任务不经过 get_db_session 依赖,需要自行提交成功结果
                     # （analyze_news 的成功路径依赖调用方提交，见该方法内注释）。
                     s.commit()
-                except Exception as exc:
+                except Exception:
                     s.rollback()
-                    logger.warning(f"Background news analysis failed for news_id={news_id}: {exc}")
+                    logger.exception("Background news analysis failed for news_id=%s", news_id)
 
         background_tasks.add_task(do_async_analyze)
         return JSONResponse(

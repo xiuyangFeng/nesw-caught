@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { apiClient } from '../api/client';
 import { useToastStore } from '../stores/toastStore';
 import type { NewsDetail } from '../types/api';
+import { logger } from '../utils/logger';
 
 export interface ChatMessageFailover {
   from_model: string;
@@ -74,7 +75,7 @@ export function useChatSessions(options: UseChatSessionsOptions) {
           activeSessionId.value = sessions.value[0].id;
         }
       } catch (err) {
-        console.error('Failed to parse chat sessions', err);
+        logger.error('Failed to parse chat sessions', err);
       }
     }
   }
@@ -164,7 +165,7 @@ export function useChatSessions(options: UseChatSessionsOptions) {
       session.title = `新闻: ${response.data.title}`;
       saveSessionsToStorage();
     } catch (err) {
-      console.error('Failed to load news detail for session context', err);
+      logger.error('Failed to load news detail for session context', err);
       toastStore.showError('加载关联新闻失败');
     }
   }

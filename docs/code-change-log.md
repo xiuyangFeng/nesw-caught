@@ -2,6 +2,33 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-03 日志分支合并审查与安全加固
+
+- 修改人：Codex
+- 修改范围：请求访问日志上下文与敏感信息保护、前端卸载日志上报鉴权、独立抓取入口日志配置、环境变量示例和配套设计/计划。
+- 变更内容：修复正常 HTTP 请求在清理 contextvar 后才记录访问日志、导致 `app.access` 缺失 `request_id` 的生命周期问题；访问日志创建 `LogRecord` 时显式写入 `request_id/task_id/log_ctx`，不再依赖 handler filter 的执行顺序，兼容测试或运行时重配 root logger；访问日志对 `token`、`app_token`、`access_token`、`api_key`、`authorization` 查询值统一脱敏，并避免重复追加 `X-Request-ID` 响应头；前端 `pagehide` 上报由无法携带 `X-App-Token` 的 `sendBeacon` 改为带鉴权请求头的 keepalive fetch；独立 `news_fetcher` 入口补齐日志文件、轮转和格式参数；调整 `.gitignore` 允许根目录 `.env.example` 纳入版本控制；补充日志加固设计与计划文档。
+- 影响文件：`backend/app/core/request_logging.py`、`backend/tests/test_request_logging.py`、`backend/app/workers/news_fetcher.py`、`frontend/src/utils/logger.ts`、`frontend/src/utils/logger.test.ts`、`.gitignore`、`.env.example`、`docs/superpowers/specs/2026-08-03-logging-observability-hardening-design.md`、`docs/superpowers/plans/2026-08-03-logging-observability-hardening-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无新增接口或数据库变化；`POST /api/logs/frontend` 契约不变。访问日志中的敏感查询值由明文改为 `***`，属于安全收紧。
+- 验证情况：TDD 红灯确认普通访问日志缺少 `request_id` 且敏感查询值明文出现；首次修复通过专项测试后，全量套件进一步暴露 handler 重配置场景仍会丢字段，已改为 LogRecord 显式上下文并复测。日志专项后端测试 28 passed，前端 logger 测试 10 passed；Ruff 与前端构建通过。二次修复后的分支全量后端结果为 1234 passed / 9 failed：7 个为既有新闻测试顺序污染，1 个为 A 股搜索性能阈值抖动，1 个为工作树绝对路径测试；本次新增及修改的日志测试全部通过。
+- 风险或后续事项：keepalive 请求受浏览器卸载传输大小限制，当前客户端队列和批大小限制使常规错误批次处于可接受范围；多进程日志轮转竞态仍沿用原分支记录的后续事项。
+
+## 2026-08-02 日志系统重构：结构化增强 + 链路透传 + alembic 冲突根治 + 前端日志封装与上报
+
+- 修改人：Claude
+- 修改范围：后端日志基础设施（core/logging、上下文透传、访问日志中间件、alembic 配置统一）、前端日志上报端点、163 处后端日志调用点逐点梳理、前端 logger 封装与 11 处 console.error 替换。
+- 变更内容：
+  1. **核心封装增强**（`backend/app/core/logging.py`）：`_JsonFormatter` 补全 `module/lineno` 字段并修复 `logger.exception()` 堆栈在 json 模式下整体丢失的问题（新增 `exc`/`stack` 字段）；plain 格式改为 `_PlainFormatter`，支持追加上下文后缀。新增 `backend/app/core/log_context.py`：contextvars 承载 `request_id`/`task_id`，`LogContextFilter` 以 handler filter 形式注入 LogRecord（json 输出独立字段、plain 输出 ` [req=… task=…]` 后缀，对第三方库日志同样生效）。
+  2. **链路透传与访问日志**：新增 `backend/app/core/request_logging.py` 的 `RequestLoggingMiddleware`（纯 ASGI，规避 BaseHTTPMiddleware 对 SSE 的缓冲问题）——生成/透传并回写 `X-Request-ID`（入站值经白名单字符与长度清洗）、以 logger `app.access` 记录 method/path/status/耗时/客户端（5xx 记 warning），按前缀排除（默认 `/api/health,/api/stream`，排除时 request_id 仍透传）。`BaseWorker._run_loop` 每周期绑定 `task_id={worker_name}#{seq}`，多 worker 交织日志可按周期串联。Makefile `backend` 目标加 `--no-access-log` 避免与 uvicorn 自带访问日志重复。
+  3. **alembic 双配置冲突根治**：`app/db/initializer.py` 已用 alembic 官方 `configure_logger=False` attribute 阻止 fileConfig 接管日志，据此删除 `pipeline_worker_main.py` 中"迁移后摘 handler 再重配"的过时补救逻辑（含 `_MANAGED_HANDLER_ATTR` 导入），补回归测试钉死前提。
+  4. **前端错误日志上报**：新增 `POST /api/logs/frontend`（`backend/app/api/routes/logs.py` + `schemas/frontend_log.py`，挂 api_router 继承鉴权）——批量接收 warn/error 条目落入 logger `frontend`，三层防滥用：单批 ≤20 条（超出 413）、单字段截断（message/stack ≤2000 字符）、进程级滑动窗口限流（默认 120 条/分钟，超额静默丢弃仍返 200）。
+  5. **前端 logger 封装**：新增 `frontend/src/utils/logger.ts`（debug/info dev-only，warn/error 恒输出；prod 下 error 批量上报——5s 定时或攒 10 条 flush、30 条/分钟客户端限流、失败静默不重入、pagehide 走 sendBeacon；传输层独立原生 fetch + 复用 `__APP_TOKEN__` → `X-App-Token` 机制，不 import api client 避免循环依赖）。替换全部 11 处裸 `console.error`。
+  6. **163 处调用点逐点梳理**（4 个并行子智能体 + 主控覆盖基础设施文件）：修正约 25 处——意外异常的 `logger.error` 改 `logger.exception` 补堆栈（auth/crypto/article_crawler/a_share_search/market_chart/news 路由等）、降级路径 debug/info 提级 warning（stock_news_search 的 LLM/Tavily/Google 降级、market 路由 Yahoo 降级、market_chart 主源切备源、x_health_probe 按 healthy 分级）、补关键上下文（notification job id、redis stream 名、dedup 标题对、digest scope、llm cache hash 等）、消灭 f-string 插值与 `workers/news_fetcher.py` 的 2 处 print（该独立入口同时补 `configure_logging` 调用避免转 logger 后静默）、`event_bus` 函数内 import logging 上提为模块级。`ensure_exclusive_ownership(log=...)` 的可注入参数名与 `getLogger()` 取 root 属刻意设计，保留。
+  7. **配套**：新增根目录 `.env.example` 记录全部日志相关环境变量（LOG_*/ACCESS_LOG_*/FRONTEND_LOG_*）；`config.py` 新增 access_log_enabled/access_log_exclude_prefixes/frontend_log_* 共 6 个配置项。
+- 影响文件：新增 `backend/app/core/log_context.py`、`backend/app/core/request_logging.py`、`backend/app/api/routes/logs.py`、`backend/app/schemas/frontend_log.py`、`backend/tests/test_request_logging.py`、`backend/tests/test_frontend_log_endpoint.py`、`frontend/src/utils/logger.ts`、`frontend/src/utils/logger.test.ts`、`.env.example`；修改 `backend/app/core/logging.py`、`config.py`、`main.py`、`api/router.py`、`workers/base_worker.py`、`pipeline_worker_main.py`、`Makefile`、`docs/code-change-log.md`，以及调用点梳理涉及的 18 个后端文件与前端 11 处替换涉及的 10 个文件（全清单见 git status，共 35 改 + 9 新增）。
+- 接口/数据结构变化：新增端点 `POST /api/logs/frontend`（请求 `{entries:[{level,message,stack?,url?,ts?,context?}]}`，响应 `{accepted,dropped}`）；所有 HTTP 响应新增 `X-Request-ID` 头；json 日志格式新增 `module/lineno/request_id/task_id/exc/stack` 字段（原有 `ts/level/logger/message` 不变）；无数据库变化。
+- 验证情况：后端全量 `conda run -n news-caught pytest backend/tests -q` 1234 passed / 8 failed，8 个失败均为既有问题且与本次无关（7 个 test_news/test_news_analysis 顺序污染，隔离复跑 28 passed；1 个 test_news_relevance_experiment_runner 硬编码主 worktree 绝对路径，仅能在主 worktree 通过）；另外 4 个 test_a_share_search_service 失败系本 worktree 缺 gitignore 的 `backend/app/data/a_shares_dataset.json`，从主 worktree 复制后转绿。日志专项测试 36 个全过（含新增：json 堆栈保留、上下文注入、中间件 request_id 透传/清洗/排除/500 分级、上报端点截断/413/限流、initializer 不动 root handler 回归）。`ruff check backend/app backend/tests` 通过。前端 `npm --prefix frontend test -- --run` 83 文件 494 全绿（新增 logger 10 例），`npm run typecheck`（vue-tsc -p tsconfig.app.json）通过。
+- 风险或后续事项：访问日志对 SSE 连接在断开时才产生记录（已默认排除 `/api/stream`）；前端上报限流为进程级内存态，多进程部署时配额按进程独立；`alembic.ini` 的 [loggers] 段保留供 alembic CLI 直跑使用（应用进程内已隔离）；uvicorn 多 worker 形态下多进程共写同一轮转文件存在竞态风险，当前单进程形态无碍，若未来多进程部署建议按进程分文件或收敛到 stdout 采集。
+
 ## 2026-08-02 本地功能分支终审、集成修复与合并 main
 
 - 修改人：Codex

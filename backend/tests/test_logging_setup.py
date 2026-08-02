@@ -154,3 +154,77 @@ def test_repeated_calls_do_not_duplicate_log_lines(tmp_path):
 
     content = log_path.read_text(encoding="utf-8")
     assert content.count("only once") == 1
+
+
+# --------------------------------------------------------------- 2026-08 重构新增
+# JSON 字段补全（module/lineno/exc）与 contextvars 上下文注入的回归测试。
+
+
+def _read_last_json_line(log_path) -> dict:
+    lines = [line for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert lines
+    return json.loads(lines[-1])
+
+
+def test_json_format_includes_module_and_lineno(tmp_path):
+    log_path = tmp_path / "backend.log"
+    configure_logging("INFO", file_enabled=True, file_path=str(log_path), log_format="json")
+    logging.getLogger("test.logging.loc").info("locate me")
+    for handler in _managed_handlers():
+        handler.flush()
+
+    payload = _read_last_json_line(log_path)
+    assert payload["module"] == "test_logging_setup"
+    assert isinstance(payload["lineno"], int)
+
+
+def test_json_format_preserves_exception_stack(tmp_path):
+    """升级前 _JsonFormatter 不调 formatException，json 模式下堆栈整体丢失。"""
+    log_path = tmp_path / "backend.log"
+    configure_logging("INFO", file_enabled=True, file_path=str(log_path), log_format="json")
+    try:
+        raise ValueError("boom for json")
+    except ValueError:
+        logging.getLogger("test.logging.exc").exception("cycle failed")
+    for handler in _managed_handlers():
+        handler.flush()
+
+    payload = _read_last_json_line(log_path)
+    assert payload["message"] == "cycle failed"
+    assert "ValueError: boom for json" in payload["exc"]
+    assert "Traceback" in payload["exc"]
+
+
+def test_json_format_includes_bound_context(tmp_path):
+    from app.core.log_context import bind_request_id, bind_task_id
+
+    log_path = tmp_path / "backend.log"
+    configure_logging("INFO", file_enabled=True, file_path=str(log_path), log_format="json")
+    with bind_request_id("req-abc123"), bind_task_id("worker#7"):
+        logging.getLogger("test.logging.ctx").info("with context")
+    logging.getLogger("test.logging.ctx").info("without context")
+    for handler in _managed_handlers():
+        handler.flush()
+
+    lines = [line for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    bound, unbound = json.loads(lines[-2]), json.loads(lines[-1])
+    assert bound["request_id"] == "req-abc123"
+    assert bound["task_id"] == "worker#7"
+    assert "request_id" not in unbound
+    assert "task_id" not in unbound
+
+
+def test_plain_format_appends_context_suffix(tmp_path):
+    from app.core.log_context import bind_request_id
+
+    log_path = tmp_path / "backend.log"
+    configure_logging("INFO", file_enabled=True, file_path=str(log_path), log_format="plain")
+    with bind_request_id("req-xyz"):
+        logging.getLogger("test.logging.plainctx").info("bound line")
+    logging.getLogger("test.logging.plainctx").info("free line")
+    for handler in _managed_handlers():
+        handler.flush()
+
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    assert "[req=req-xyz] bound line" in lines[-2]
+    assert "req=" not in lines[-1]

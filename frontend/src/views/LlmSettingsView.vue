@@ -9,6 +9,7 @@ import { useLlmStore } from '../stores/llmStore';
 import { useToastStore } from '../stores/toastStore';
 import { apiClient } from '../api/client';
 import type { LLMConfigSummary } from '../types/api';
+import { logger } from '../utils/logger';
 
 const llmStore = useLlmStore();
 const toastStore = useToastStore();
@@ -22,7 +23,7 @@ async function loadStats() {
     const res = await apiClient.getLlmStats();
     stats.value = res.data;
   } catch (err) {
-    console.error('Failed to load stats', err);
+    logger.error('Failed to load stats', err);
   } finally {
     loadingStats.value = false;
   }

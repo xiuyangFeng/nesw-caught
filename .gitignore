@@ -2,6 +2,7 @@
 .env
 .env.*
 **/.env*
+!.env.example
 **/.secret_key
 **/.app_token
 **/news_caught.db

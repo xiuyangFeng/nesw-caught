@@ -10,6 +10,7 @@ import RelatedNewsSidebar from './RelatedNewsSidebar.vue';
 import { useWatchlistStore } from '../../stores/watchlistStore';
 import { parseMarkdown } from '../../utils/markdown';
 import { useToastStore } from '../../stores/toastStore';
+import { logger } from '../../utils/logger';
 
 const watchlistStore = useWatchlistStore();
 const toastStore = useToastStore();
@@ -140,7 +141,7 @@ async function copyInsight() {
     await navigator.clipboard.writeText(aiInsight.value.text);
     toastStore.showSuccess('📋 AI 投研报告已成功复制到剪贴板，请随时转发分享！');
   } catch (err) {
-    console.error('Failed to copy text', err);
+    logger.error('Failed to copy text', err);
     toastStore.showError('复制失败，请手动选择复制');
   }
 }

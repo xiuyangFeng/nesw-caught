@@ -549,10 +549,14 @@ class NotificationService:
                 )
                 session.commit()
         except FeishuClientError as exc:
-            logger.exception("feishu notification send failed")
+            logger.exception(
+                "feishu notification send failed: job_id=%s event_type=%s", job.id, job.event_type
+            )
             self._mark_failure(job=job, error=str(exc), retryable=exc.retryable, now=now)
         except Exception:
-            logger.exception("unexpected error sending feishu notification")
+            logger.exception(
+                "unexpected error sending feishu notification: job_id=%s event_type=%s", job.id, job.event_type
+            )
             self._mark_failure(job=job, error="unexpected send error", retryable=True, now=now)
 
     def _mark_failure(self, *, job: Any, error: str, retryable: bool, now: datetime) -> None:

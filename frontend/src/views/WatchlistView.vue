@@ -15,6 +15,7 @@ import type { PortfolioSummary, WatchlistCandidate } from '../types/api';
 import { getRuntimeDiagnostic } from '../utils/runtimeDiagnostics';
 import { formatNumber, formatPercent, sentimentText } from '../utils/format';
 import { formatMarketTime } from '../utils/time';
+import { logger } from '../utils/logger';
 import { apiClient } from '../api/client';
 
 const route = useRoute();
@@ -206,7 +207,7 @@ function performSearch(queryText: string) {
       const res = await apiClient.searchMarketSymbols(trimmed);
       dynamicMatches.value = res.data;
     } catch (err) {
-      console.error('Failed to search market symbols', err);
+      logger.error('Failed to search market symbols', err);
     } finally {
       isSearching.value = false;
     }

@@ -152,7 +152,7 @@ class RedisStreamConsumer:
         except TypeError:
             rows = self.client.xread(streams, count=count, block=0)
         except Exception:
-            self._log_error_throttled("redis stream xread failed")
+            self._log_error_throttled(f"redis stream xread failed: streams={self.streams}")
             return 0
 
         if not rows:
@@ -208,5 +208,5 @@ class RedisStreamConsumer:
                 if consumed == 0:
                     time.sleep(self.poll_interval_seconds)
             except Exception:
-                self._log_error_throttled("redis stream consumer loop failed")
+                self._log_error_throttled(f"redis stream consumer loop failed: streams={self.streams}")
                 time.sleep(self.poll_interval_seconds)
