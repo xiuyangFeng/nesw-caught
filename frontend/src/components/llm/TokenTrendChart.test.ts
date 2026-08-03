@@ -11,35 +11,29 @@ const daily: TokenDailyStats[] = [
 ];
 
 describe('TokenTrendChart', () => {
-  it('renders the svg trend line with one dot and label per day', () => {
+  it('renders one stacked prompt/completion bar and label per day', () => {
     const wrapper = mount(TokenTrendChart, { props: { daily } });
 
     expect(wrapper.find('[data-role="chart-container"]').exists()).toBe(true);
-    expect(wrapper.findAll('circle')).toHaveLength(3);
-    // X 轴标签展示 MM-DD
+    expect(wrapper.findAll('[data-role="token-day-bar"]')).toHaveLength(3);
+    expect(wrapper.findAll('[data-role="prompt-token-segment"]')).toHaveLength(3);
+    expect(wrapper.findAll('[data-role="completion-token-segment"]')).toHaveLength(3);
     expect(wrapper.text()).toContain('07-01');
     expect(wrapper.text()).toContain('07-03');
-    // Y 轴最大值
     expect(wrapper.text()).toContain('400');
-
-    const linePath = wrapper.findAll('path').find((p) => p.attributes('stroke') === '#22d3ee');
-    expect(linePath).toBeTruthy();
-    expect(linePath!.attributes('d')).toMatch(/^M /);
   });
 
-  it('shows a tooltip for the hovered point on mousemove', async () => {
+  it('shows token composition details for the hovered day', async () => {
     const wrapper = mount(TokenTrendChart, { props: { daily } });
 
-    const svg = wrapper.find('svg');
-    (svg.element as unknown as HTMLElement).getBoundingClientRect = () =>
-      ({ left: 0, width: 500, top: 0, height: 140 }) as DOMRect;
-    await svg.trigger('mousemove', { clientX: 0 });
+    await wrapper.findAll('[data-role="token-day-bar"]')[0].trigger('mouseenter');
 
     expect(wrapper.text()).toContain('2026-07-01');
-    expect(wrapper.text()).toContain('Total:');
+    expect(wrapper.text()).toContain('输入 100');
+    expect(wrapper.text()).toContain('输出 200');
 
-    await svg.trigger('mouseleave');
-    expect(wrapper.text()).not.toContain('Total:');
+    await wrapper.findAll('[data-role="token-day-bar"]')[0].trigger('mouseleave');
+    expect(wrapper.text()).not.toContain('输入 100');
   });
 
   it('renders an empty state when there is no daily data', () => {

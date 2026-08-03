@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import LlmConfigForm from '../components/llm/LlmConfigForm.vue';
+import LlmConfigModal from '../components/llm/LlmConfigModal.vue';
 import LlmConfigList from '../components/llm/LlmConfigList.vue';
 import TokenUsageConsole from '../components/llm/TokenUsageConsole.vue';
 import type { TokenStats } from '../components/llm/types';
@@ -43,10 +43,27 @@ async function submitConnectionTest() {
   }
 }
 
-const configFormRef = ref<InstanceType<typeof LlmConfigForm> | null>(null);
+const configModalOpen = ref(false);
+const editingConfig = ref<LLMConfigSummary | null>(null);
+
+function openNewConfig() {
+  editingConfig.value = null;
+  configModalOpen.value = true;
+}
 
 function handleEdit(cfg: LLMConfigSummary) {
-  configFormRef.value?.startEdit(cfg);
+  editingConfig.value = cfg;
+  configModalOpen.value = true;
+}
+
+function closeConfigModal() {
+  configModalOpen.value = false;
+  editingConfig.value = null;
+}
+
+function handleConfigSaved() {
+  closeConfigModal();
+  void loadStats();
 }
 
 onMounted(() => {
@@ -79,16 +96,38 @@ onMounted(() => {
     <!-- Model usage token auditing dashboard -->
     <TokenUsageConsole v-if="stats" :stats="stats" :loading="loadingStats" @refresh="loadStats" />
 
-    <div class="grid gap-6 lg:grid-cols-[1fr_380px]" data-role="llm-settings-grid">
-      <!-- 左侧：模型列表 -->
-      <div class="grid gap-4 self-start">
-        <LlmConfigList @edit="handleEdit" />
+    <section
+      class="surface relative overflow-hidden rounded-lg border border-border px-5 py-4"
+      data-role="llm-config-launcher"
+    >
+      <div class="absolute inset-y-0 left-0 w-1 bg-[linear-gradient(180deg,var(--accent),var(--ai))]" />
+      <div class="flex flex-wrap items-center justify-between gap-4 pl-2">
+        <div class="max-w-2xl">
+          <p class="label-mono text-[10px] text-accent">MODEL ACCESS</p>
+          <h2 class="mt-1 text-lg font-bold text-text">需要接入或调整模型？</h2>
+          <p class="mt-1 text-sm leading-6 text-text-soft">
+            可在这里填写模型服务地址、API Key、价格与预算。配置表单只在需要时打开，不占用页面工作区。
+          </p>
+        </div>
+        <button
+          type="button"
+          class="group inline-flex items-center gap-2 rounded-full border border-accent/45 bg-[var(--accent-soft)] px-4 py-2.5 text-sm font-semibold text-accent transition hover:-translate-y-0.5 hover:border-accent hover:shadow-glow"
+          data-role="open-llm-config"
+          @click="openNewConfig"
+        >
+          <span class="text-lg leading-none transition group-hover:rotate-90">＋</span>
+          填写模型配置
+        </button>
       </div>
+    </section>
 
-      <!-- 右侧：表单配置 -->
-      <div class="grid gap-4 self-start">
-        <LlmConfigForm ref="configFormRef" />
-      </div>
-    </div>
+    <LlmConfigList @edit="handleEdit" />
+
+    <LlmConfigModal
+      :config="editingConfig"
+      :open="configModalOpen"
+      @close="closeConfigModal"
+      @saved="handleConfigSaved"
+    />
   </div>
 </template>

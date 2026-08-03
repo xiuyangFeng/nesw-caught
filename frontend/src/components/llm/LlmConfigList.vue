@@ -49,7 +49,7 @@ async function handleToggleActive(id: number, currentActive: boolean) {
   <SectionCard title="已配置模型列表" subtitle="系统支持的全部 LLM 配置，可在提问聊天时任意选择">
     <p v-if="llmStore.loadError" class="text-danger my-2">{{ llmStore.loadError }}</p>
     <div v-if="!hasConfigs" class="text-center py-8 text-text-faint">
-      <p>尚未配置任何模型，请在右侧添加您的首个 LLM 配置。</p>
+      <p>尚未配置任何模型。点击上方“填写模型配置”即可接入第一个服务。</p>
     </div>
     <div v-else class="grid gap-3.5 mt-2">
       <div

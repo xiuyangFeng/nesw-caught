@@ -2,6 +2,26 @@
 
 > 用于记录本项目每一次实际修改。新增记录时，追加到最上方。
 
+## 2026-08-03 LLM 配置弹窗与 Token 用量可视化优化
+
+- 修改人：Codex
+- 修改范围：LLM 设置页配置入口、配置弹窗、模型配置表单、Token 用量账本与趋势图、前端测试；已合并工作树和本地功能分支清理。
+- 变更内容：将原本常驻页面的大模型配置表单收起为紧凑的“MODEL ACCESS”提示入口，点击新增或模型列表中的编辑按钮后复用居中弹窗；弹窗限制为 `88vh` 并在内部滚动，支持遮罩、关闭按钮、取消按钮和 Escape 关闭，保存成功后自动关闭并刷新用量统计，保存失败时保留窗口；配置字段改为双列/三列紧凑布局，保留服务预设、API Key 不回显和 Base URL 变化时重新校验 Key 的既有语义。Token 用量区重做为紧凑指标带、输入/输出占比、预算进度、按日堆叠柱状图、模型实际 Token 排行和操作类型标签，单日数据也能形成可读图形。清理前逐一确认五个功能工作树干净且对应提交已进入 `main`，随后移除工作树目录及本地 `feature/frontend-optimization`、`feature/llm-optimization`、`feature/logging-optimization`、`feature/watchlist-optimization`、`feature/dashboard-optimization` 分支，仅保留主工作树和无关/保护分支。
+- 影响文件：`frontend/src/views/LlmSettingsView.vue`、`frontend/src/views/LlmSettingsView.test.ts`、`frontend/src/components/llm/LlmConfigModal.vue`、`frontend/src/components/llm/LlmConfigForm.vue`、`frontend/src/components/llm/LlmConfigList.vue`、`frontend/src/components/llm/TokenUsageConsole.vue`、`frontend/src/components/llm/TokenUsageConsole.test.ts`、`frontend/src/components/llm/TokenTrendChart.vue`、`frontend/src/components/llm/TokenTrendChart.test.ts`、`docs/superpowers/specs/2026-08-03-llm-settings-modal-usage-redesign-design.md`、`docs/superpowers/plans/2026-08-03-llm-settings-modal-usage-redesign-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无；继续使用现有 LLM 配置接口与 `/api/llm/stats` 响应结构，未修改数据库。
+- 验证情况：TDD 新增预期在旧布局下失败，完成后 LLM 设置、Token 用量账本与趋势图专项共 14 tests passed；前端全量 `npm --prefix frontend test -- --run --maxWorkers=1` 为 87 files / 511 tests passed；`npm --prefix frontend run build` 通过；`git diff --check` 通过。浏览器在 1452×743 视口实测默认页保持紧凑，新增和编辑均打开同一居中弹窗，编辑态字段正确带入，弹窗约 896×654、内部可滚动，单日 Token 堆叠柱可读，控制台无错误。
+- 风险或后续事项：弹窗当前提供常用关闭方式但未实现完整焦点循环；统计图按接口当前最多七日数据设计，若未来扩展为更长时间范围，需增加横向滚动或时间粒度切换。根目录既有未跟踪 `node_modules/` 未纳入本次修改或提交。
+
+## 2026-08-03 LLM 设置弹窗化与用量账本重设计方案
+
+- 修改人：Codex
+- 修改范围：LLM 设置页面配置交互和 Token 用量可视化设计、TDD 实施计划。
+- 变更内容：基于用户截图确定移除常驻大表单，页面改为紧凑配置提示与按需居中弹窗；新增/编辑复用同一窗口，保存成功关闭；用量区从四张等权卡、稀疏折线和传统表格改为紧凑指标带、输入/输出堆叠柱、模型占比排行和预算轨道；补充测试边界、无障碍关闭方式和分步实现计划。
+- 影响文件：`docs/superpowers/specs/2026-08-03-llm-settings-modal-usage-redesign-design.md`、`docs/superpowers/plans/2026-08-03-llm-settings-modal-usage-redesign-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无；继续使用现有 LLM 配置接口和 `/api/llm/stats` 数据结构。
+- 验证情况：设计阶段已检查 `LlmSettingsView`、`LlmConfigForm`、`LlmConfigList`、`TokenUsageConsole`、`TokenTrendChart` 及现有测试；纯文档阶段未运行测试或构建。
+- 风险或后续事项：模态表单字段较多，需限制窗口高度并让内容内部滚动；实现阶段必须确认编辑配置注入和保存后关闭不会破坏 API Key 保留语义。
+
 ## 2026-08-03 五工作树终审与主分支集成
 
 - 修改人：Codex

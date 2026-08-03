@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 
-import SectionCard from '../common/SectionCard.vue';
 import { useLlmStore } from '../../stores/llmStore';
 import { useToastStore } from '../../stores/toastStore';
 import type { LLMConfigSummary } from '../../types/api';
@@ -9,6 +8,10 @@ import { LLM_PROVIDER_PRESETS } from './providerPresets';
 
 const llmStore = useLlmStore();
 const toastStore = useToastStore();
+const emit = defineEmits<{
+  saved: [];
+  cancel: [];
+}>();
 
 type NumericInput = string | number | null | undefined;
 
@@ -142,10 +145,6 @@ function startEdit(cfg: LLMConfigSummary) {
   selectedPresetId.value = LLM_PROVIDER_PRESETS.find((preset) => preset.baseUrl === originalBaseUrl.value)?.id ?? null;
 }
 
-function cancelEdit() {
-  resetForm();
-}
-
 function resetForm() {
   formState.id = null;
   formState.provider_name = '';
@@ -186,20 +185,17 @@ async function submitConfig() {
     await llmStore.saveConfig(payload);
     toastStore.showSuccess('大模型配置保存成功');
     resetForm();
+    emit('saved');
   } catch (err: any) {
     toastStore.showError(err.message || '保存失败');
   }
 }
 
-defineExpose({ startEdit });
+defineExpose({ startEdit, resetForm });
 </script>
 
 <template>
-  <SectionCard
-    :title="formState.id ? '编辑配置' : '新增配置'"
-    :subtitle="formState.id ? `正在修改 ${formState.display_name || '配置'}` : '接入更多模型并启用'"
-  >
-    <form class="grid gap-[14px] mt-2" @submit.prevent="submitConfig">
+  <form class="grid gap-4" data-role="llm-config-form" @submit.prevent="submitConfig">
       <section class="grid gap-3 rounded-xl border border-border bg-panel/50 p-3" aria-label="模型服务快捷预设">
         <div class="flex items-start justify-between gap-3">
           <div>
@@ -244,73 +240,79 @@ defineExpose({ startEdit });
         </div>
       </section>
 
-      <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-        <span>Provider 名称 *</span>
-        <input
-          v-model="formState.provider_name"
-          data-surface="terminal-field"
-          class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-          name="provider_name"
-          type="text"
-          :disabled="llmStore.loading || llmStore.saving"
-          placeholder="例如 openai_compatible"
-          :aria-invalid="Boolean(validationErrors.provider_name)"
-          required
-        />
-      </label>
-      <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-        <span>显示名称</span>
-        <input
-          v-model="formState.display_name"
-          data-surface="terminal-field"
-          class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-          name="display_name"
-          type="text"
-          :disabled="llmStore.loading || llmStore.saving"
-          placeholder="例如 DeepSeek-Chat"
-        />
-      </label>
-      <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-        <span>Base URL</span>
-        <input
-          v-model="formState.base_url"
-          data-surface="terminal-field"
-          class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-          name="base_url"
-          type="text"
-          :disabled="llmStore.loading || llmStore.saving"
-          placeholder="例如 https://api.deepseek.com/v1"
-          :aria-invalid="Boolean(validationErrors.base_url)"
-        />
-        <small v-if="validationErrors.base_url" class="text-danger">{{ validationErrors.base_url }}</small>
-      </label>
-      <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-        <span>Model 名称 *</span>
-        <input
-          v-model="formState.model_name"
-          data-surface="terminal-field"
-          class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-          name="model_name"
-          type="text"
-          :disabled="llmStore.loading || llmStore.saving"
-          placeholder="例如 deepseek-chat"
-          :aria-invalid="Boolean(validationErrors.model_name)"
-          required
-        />
-        <div v-if="activePreset" class="flex flex-wrap gap-1.5 pt-1">
-          <button
-            v-for="model in activePreset.models"
-            :key="model"
-            class="rounded-full border border-border px-2 py-1 font-mono text-[10px] font-normal text-text-faint transition hover:border-accent hover:text-text"
-            :class="formState.model_name === model ? 'border-accent bg-[var(--accent-soft)] text-accent' : ''"
-            type="button"
-            @click="formState.model_name = model"
-          >
-            {{ model }}
-          </button>
-        </div>
-      </label>
-      <div class="grid gap-[14px] sm:grid-cols-2">
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
+          <span>Provider 名称 *</span>
+          <input
+            v-model="formState.provider_name"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text text-sm"
+            name="provider_name"
+            type="text"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="例如 openai_compatible"
+            :aria-invalid="Boolean(validationErrors.provider_name)"
+            required
+          />
+        </label>
+        <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
+          <span>显示名称</span>
+          <input
+            v-model="formState.display_name"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text text-sm"
+            name="display_name"
+            type="text"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="例如 DeepSeek-Chat"
+          />
+        </label>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="grid content-start gap-1.5 font-semibold text-text-faint text-xs">
+          <span>Base URL</span>
+          <input
+            v-model="formState.base_url"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text text-sm"
+            name="base_url"
+            type="text"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="例如 https://api.deepseek.com/v1"
+            :aria-invalid="Boolean(validationErrors.base_url)"
+          />
+          <small v-if="validationErrors.base_url" class="text-danger">{{ validationErrors.base_url }}</small>
+        </label>
+        <label class="grid content-start gap-1.5 font-semibold text-text-faint text-xs">
+          <span>Model 名称 *</span>
+          <input
+            v-model="formState.model_name"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2.5 text-text text-sm"
+            name="model_name"
+            type="text"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="例如 deepseek-chat"
+            :aria-invalid="Boolean(validationErrors.model_name)"
+            required
+          />
+          <div v-if="activePreset" class="flex flex-wrap gap-1.5 pt-1">
+            <button
+              v-for="model in activePreset.models"
+              :key="model"
+              class="rounded-full border border-border px-2 py-1 font-mono text-[10px] font-normal text-text-faint transition hover:border-accent hover:text-text"
+              :class="formState.model_name === model ? 'border-accent bg-[var(--accent-soft)] text-accent' : ''"
+              type="button"
+              @click="formState.model_name = model"
+            >
+              {{ model }}
+            </button>
+          </div>
+        </label>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-3">
         <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
           <span>输入单价（$/1K tokens）</span>
           <input
@@ -343,24 +345,23 @@ defineExpose({ startEdit });
           />
           <small v-if="validationErrors.output_price_per_1k" class="text-danger">{{ validationErrors.output_price_per_1k }}</small>
         </label>
+        <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
+          <span>月度预算（$）</span>
+          <input
+            v-model="formState.monthly_budget_usd"
+            data-surface="terminal-field"
+            class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
+            name="monthly_budget_usd"
+            type="number"
+            step="0.01"
+            min="0"
+            :disabled="llmStore.loading || llmStore.saving"
+            placeholder="留空表示不限制"
+            :aria-invalid="Boolean(validationErrors.monthly_budget_usd)"
+          />
+          <small v-if="validationErrors.monthly_budget_usd" class="text-danger">{{ validationErrors.monthly_budget_usd }}</small>
+        </label>
       </div>
-      <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-        <span>月度预算（$）</span>
-        <input
-          v-model="formState.monthly_budget_usd"
-          data-surface="terminal-field"
-          class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-          name="monthly_budget_usd"
-          type="number"
-          step="0.01"
-          min="0"
-          :disabled="llmStore.loading || llmStore.saving"
-          placeholder="留空表示不限制"
-          :aria-invalid="Boolean(validationErrors.monthly_budget_usd)"
-        />
-        <small v-if="validationErrors.monthly_budget_usd" class="text-danger">{{ validationErrors.monthly_budget_usd }}</small>
-        <small class="text-text-faint">用于默认模型的“本月累计花费 vs 预算”超支告警</small>
-      </label>
       <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
         <span>API Key {{ requiresKey ? '*' : '' }}</span>
         <input
@@ -400,7 +401,15 @@ defineExpose({ startEdit });
         </label>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3 mt-1">
+      <div class="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 pt-4">
+        <button
+          class="rounded-full border border-border px-5 py-2.5 font-semibold text-text-faint transition hover:border-text-faint hover:text-text"
+          type="button"
+          data-role="cancel-llm-config"
+          @click="emit('cancel')"
+        >
+          取消
+        </button>
         <button
           class="rounded-full bg-[linear-gradient(135deg,var(--system),var(--accent))] px-5 py-2.5 font-semibold text-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
           type="submit"
@@ -409,19 +418,10 @@ defineExpose({ startEdit });
         >
           {{ llmStore.saving ? '正在保存…' : (formState.id ? '更新配置' : '保存配置') }}
         </button>
-        <button
-          v-if="formState.id"
-          class="rounded-full bg-white/[0.08] hover:bg-white/[0.15] px-5 py-2.5 font-semibold text-text transition"
-          type="button"
-          @click="cancelEdit"
-        >
-          取消
-        </button>
       </div>
       <p v-if="llmStore.saveSuccess" class="text-xs text-success mt-1">{{ llmStore.saveSuccess }}</p>
       <p v-else-if="llmStore.saveError" class="text-xs text-danger mt-1">{{ llmStore.saveError }}</p>
       <p v-if="llmStore.testSuccess" class="text-xs text-success mt-1">{{ llmStore.testSuccess }}</p>
       <p v-else-if="llmStore.testError" class="text-xs text-danger mt-1">{{ llmStore.testError }}</p>
-    </form>
-  </SectionCard>
+  </form>
 </template>

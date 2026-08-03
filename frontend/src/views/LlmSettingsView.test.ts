@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -43,6 +43,12 @@ vi.mock('../stores/toastStore', () => ({
   useToastStore: () => toastStore,
 }));
 
+async function openConfigDialog(wrapper: ReturnType<typeof mount>) {
+  await wrapper.get('[data-role="open-llm-config"]').trigger('click');
+  await flushPromises();
+  return wrapper.get('[data-role="llm-config-modal"]');
+}
+
 describe('LlmSettingsView', () => {
   beforeEach(() => {
     llmStore.loading = false;
@@ -76,14 +82,27 @@ describe('LlmSettingsView', () => {
 
     const wrapper = mount(LlmSettingsView);
 
-    expect(wrapper.find('[data-role="llm-settings-grid"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="llm-config-launcher"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="llm-config-modal"]').exists()).toBe(false);
     expect(wrapper.text()).toContain('尚未配置任何模型');
-    expect(wrapper.find('input[type="password"]').attributes('placeholder')).toContain('必填 API Key');
-    expect(wrapper.find('[data-surface="terminal-field"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('填写模型服务地址、API Key、价格与预算');
+  });
+
+  it('opens the configuration form in a centered dialog only when requested', async () => {
+    const wrapper = mount(LlmSettingsView);
+
+    expect(wrapper.find('input[name="provider_name"]').exists()).toBe(false);
+    const dialog = await openConfigDialog(wrapper);
+
+    expect(dialog.attributes('role')).toBe('dialog');
+    expect(dialog.attributes('aria-modal')).toBe('true');
+    expect(dialog.find('input[name="provider_name"]').exists()).toBe(true);
+    expect(dialog.find('input[type="password"]').attributes('placeholder')).toContain('必填 API Key');
   });
 
   it('applies a Qwen preset without overwriting the API key typed by the user', async () => {
     const wrapper = mount(LlmSettingsView);
+    await openConfigDialog(wrapper);
 
     await wrapper.find('input[name="api_key"]').setValue('sk-user-secret');
     await wrapper.get('[data-testid="provider-preset-qwen"]').trigger('click');
@@ -132,6 +151,7 @@ describe('LlmSettingsView', () => {
     });
 
     const wrapper = mount(LlmSettingsView);
+    await openConfigDialog(wrapper);
 
     // Select by name attribute rather than positional index so the assertion
     // stays stable as the config form grows new fields (e.g. pricing/budget).
@@ -141,6 +161,7 @@ describe('LlmSettingsView', () => {
     await wrapper.find('input[name="model_name"]').setValue('deepseek-reasoner');
     await wrapper.find('input[name="api_key"]').setValue('sk-test-key');
     await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
 
     expect(llmStore.saveConfig).toHaveBeenCalledWith({
       id: null,
@@ -155,11 +176,13 @@ describe('LlmSettingsView', () => {
       output_price_per_1k: null,
       monthly_budget_usd: null,
     });
-    expect(wrapper.text()).toContain('LLM 配置已保存');
+    expect(toastStore.showSuccess).toHaveBeenCalledWith('大模型配置保存成功');
+    expect(wrapper.find('[data-role="llm-config-modal"]').exists()).toBe(false);
   });
 
   it('submits numeric pricing fields without crashing the settings module', async () => {
     const wrapper = mount(LlmSettingsView);
+    await openConfigDialog(wrapper);
 
     await wrapper.find('input[name="provider_name"]').setValue('openai_compatible');
     await wrapper.find('input[name="base_url"]').setValue('https://api.deepseek.com/v1');
@@ -180,6 +203,7 @@ describe('LlmSettingsView', () => {
 
   it('shows inline validation and blocks malformed URLs and negative pricing', async () => {
     const wrapper = mount(LlmSettingsView);
+    await openConfigDialog(wrapper);
 
     await wrapper.find('input[name="provider_name"]').setValue('openai_compatible');
     await wrapper.find('input[name="base_url"]').setValue('deepseek-api');
@@ -214,16 +238,23 @@ describe('LlmSettingsView', () => {
     const editButton = wrapper.findAll('button').find(button => button.text() === '编辑');
     expect(editButton).toBeDefined();
     await editButton!.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-role="llm-config-modal"]').exists()).toBe(true);
+    expect((wrapper.find('input[name="display_name"]').element as HTMLInputElement).value).toBe('DeepSeek');
 
     await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
     expect(llmStore.saveConfig).toHaveBeenCalledWith(expect.objectContaining({
       id: 7,
       api_key: undefined,
       base_url: 'https://api.deepseek.com/v1',
     }));
+    expect(wrapper.find('[data-role="llm-config-modal"]').exists()).toBe(false);
 
     llmStore.saveConfig.mockClear();
     await editButton!.trigger('click');
+    await flushPromises();
     await wrapper.find('input[name="base_url"]').setValue('https://gateway.example.com/v1');
     expect(wrapper.text()).toContain('修改 Base URL 后必须重新输入明文 API Key');
     expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined();
@@ -258,6 +289,6 @@ describe('LlmSettingsView', () => {
     await button.trigger('click');
 
     expect(llmStore.testConnection).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain('连接成功');
+    expect(toastStore.showSuccess).toHaveBeenCalledWith('连接成功');
   });
 });

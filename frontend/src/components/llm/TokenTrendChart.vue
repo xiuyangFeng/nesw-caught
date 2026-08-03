@@ -1,177 +1,114 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { readCssVar } from '../../utils/cssVars';
 import type { TokenDailyStats } from './types';
 
 const props = defineProps<{
   daily: TokenDailyStats[];
 }>();
 
-// 折线主色 = 电青令牌；path stroke 需具体色值（测试环境无令牌时回落既有青）。
-const accentColor = readCssVar('--accent', '#22d3ee');
-
 const hoveredIdx = ref<number | null>(null);
-const dailyData = computed(() => props.daily || []);
+const dailyData = computed(() => props.daily ?? []);
+const maxTotal = computed(() => Math.max(...dailyData.value.map((item) => item.total_tokens), 0));
 
-const chartWidth = 500;
-const chartHeight = 140;
-const paddingLeft = 40;
-const paddingRight = 20;
-const paddingTop = 15;
-const paddingBottom = 20;
+const bars = computed(() => dailyData.value.map((item) => {
+  const total = Math.max(item.total_tokens, 0);
+  const heightPct = maxTotal.value > 0 ? Math.max(6, (total / maxTotal.value) * 100) : 6;
+  const promptPct = total > 0 ? Math.max(0, Math.min(100, (item.prompt_tokens / total) * 100)) : 50;
+  return {
+    ...item,
+    heightPct,
+    promptPct,
+    completionPct: 100 - promptPct,
+  };
+}));
 
-function handleChartMouseMove(e: MouseEvent) {
-  if (!dailyData.value.length) return;
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  const clickX = e.clientX - rect.left;
-  const relativeX = clickX / rect.width;
-  const idx = Math.round(relativeX * (dailyData.value.length - 1));
-  if (idx >= 0 && idx < dailyData.value.length) {
-    hoveredIdx.value = idx;
-  }
+const activeDay = computed(() => (
+  hoveredIdx.value === null ? null : bars.value[hoveredIdx.value] ?? null
+));
+
+function compactNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
+  return value.toLocaleString();
 }
-
-function handleChartMouseLeave() {
-  hoveredIdx.value = null;
-}
-
-const chartPoints = computed(() => {
-  const data = dailyData.value;
-  if (!data.length) return [];
-  const maxVal = Math.max(...data.map(d => d.total_tokens), 0) || 1000;
-  const W = chartWidth - paddingLeft - paddingRight;
-  const H = chartHeight - paddingTop - paddingBottom;
-
-  return data.map((d, i) => {
-    const x = paddingLeft + (data.length > 1 ? (i / (data.length - 1)) * W : W / 2);
-    const y = chartHeight - paddingBottom - (d.total_tokens / maxVal) * H;
-    return { x, y, ...d };
-  });
-});
-
-const linePath = computed(() => {
-  const pts = chartPoints.value;
-  if (!pts.length) return '';
-  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-});
-
-const areaPath = computed(() => {
-  const pts = chartPoints.value;
-  if (!pts.length) return '';
-  const start = linePath.value;
-  const lastX = pts[pts.length - 1].x;
-  const firstX = pts[0].x;
-  const yBottom = chartHeight - paddingBottom;
-  return `${start} L ${lastX.toFixed(1)} ${yBottom} L ${firstX.toFixed(1)} ${yBottom} Z`;
-});
 </script>
 
 <template>
-  <div class="mt-5 relative border border-border/50 bg-white/[0.01] rounded-2xl p-4 overflow-hidden" data-role="token-trend-card">
-    <div class="flex items-center justify-between mb-3">
-      <div class="text-xs font-bold text-text-faint tracking-wider uppercase font-mono">7日 Token 消耗趋势</div>
-      <div class="text-[10px] text-muted font-mono">鼠标悬停可显示明细</div>
-    </div>
+  <section class="grid min-h-[260px] gap-4 rounded-[20px] border border-border/70 bg-black/10 p-4" data-role="token-trend-card">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="label-mono text-[10px] text-accent">TOKEN FLOW / 7D</p>
+        <h3 class="mt-1 text-sm font-bold text-text">输入与输出流量</h3>
+      </div>
+      <div class="flex items-center gap-3 font-mono text-[10px] text-text-faint">
+        <span class="inline-flex items-center gap-1.5"><i class="h-2 w-2 rounded-sm bg-accent" />输入</span>
+        <span class="inline-flex items-center gap-1.5"><i class="h-2 w-2 rounded-sm bg-ai" />输出</span>
+      </div>
+    </header>
 
-    <div v-if="dailyData.length > 0" class="relative w-full h-[140px]" data-role="chart-container">
-      <svg
-        class="w-full h-full cursor-crosshair overflow-visible"
-        viewBox="0 0 500 140"
-        preserveAspectRatio="none"
-        @mousemove="handleChartMouseMove"
-        @mouseleave="handleChartMouseLeave"
-      >
-        <defs>
-          <linearGradient id="chartAreaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25" />
-            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0" />
-          </linearGradient>
-        </defs>
-
-        <!-- Horizontal grid lines -->
-        <g stroke="color-mix(in srgb, var(--text) 4%, transparent)" stroke-dasharray="2 3">
-          <line x1="40" y1="15" x2="480" y2="15" />
-          <line x1="40" y1="50" x2="480" y2="50" />
-          <line x1="40" y1="85" x2="480" y2="85" />
-          <line x1="40" y1="120" x2="480" y2="120" />
-        </g>
-
-        <!-- X Axis Labels -->
-        <g fill="var(--text-faint)" font-size="8" font-family="monospace" text-anchor="middle">
-          <text v-for="(p, i) in chartPoints" :key="i" :x="p.x" y="134">
-            {{ p.date && typeof p.date === 'string' ? p.date.substring(5) : (p.date || '--') }}
-          </text>
-        </g>
-
-        <!-- Y Axis indicators (Max / Min) -->
-        <g fill="color-mix(in srgb, var(--text) 25%, transparent)" font-size="7" font-family="monospace" text-anchor="end">
-          <text x="32" y="18">{{ Math.max(...dailyData.map(d => d.total_tokens), 0).toLocaleString() }}</text>
-          <text x="32" y="123">0</text>
-        </g>
-
-        <!-- Area block -->
-        <path :d="areaPath" fill="url(#chartAreaGrad)" />
-
-        <!-- Highlight line -->
-        <path :d="linePath" fill="none" :stroke="accentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-
-        <!-- Cursor crosshair vertical line -->
-        <line
-          v-if="hoveredIdx !== null && chartPoints[hoveredIdx]"
-          :x1="chartPoints[hoveredIdx].x"
-          y1="15"
-          :x2="chartPoints[hoveredIdx].x"
-          y2="120"
-          stroke="var(--accent)"
-          stroke-opacity="0.3"
-          stroke-dasharray="2 2"
-        />
-
-        <!-- Dots -->
-        <circle
-          v-for="(p, i) in chartPoints"
-          :key="i"
-          :cx="p.x"
-          :cy="p.y"
-          r="3.5"
-          fill="var(--panel-strong)"
-          :stroke="hoveredIdx === i ? 'var(--text)' : accentColor"
-          stroke-width="1.5"
-          :style="{ transform: hoveredIdx === i ? 'scale(1.5)' : 'none' }"
-          class="transition-all duration-100 origin-center"
-        />
-      </svg>
-
-      <!-- Interactive HTML tooltip popover -->
-      <div
-        v-if="hoveredIdx !== null && chartPoints[hoveredIdx]"
-        class="absolute pointer-events-none rounded-xl border border-accent/30 bg-panel-stronger/95 p-2.5 text-[10px] text-text-faint font-mono tabular-nums shadow-lg z-10 space-y-1 w-28"
-        :style="{
-          left: `${(chartPoints[hoveredIdx].x / chartWidth) * 100}%`,
-          top: `${(chartPoints[hoveredIdx].y / chartHeight) * 100 - 50}%`,
-          transform: 'translate(-50%, -100%)'
-        }"
-      >
-        <div class="text-text font-bold border-b border-border pb-0.5 mb-1">{{ chartPoints[hoveredIdx].date }}</div>
-        <div class="flex justify-between gap-1">
-          <span>Total:</span>
-          <span class="text-accent font-bold">{{ chartPoints[hoveredIdx].total_tokens.toLocaleString() }}</span>
+    <div v-if="bars.length > 0" class="grid gap-3" data-role="chart-container">
+      <div class="relative h-44 overflow-hidden rounded-[16px] border border-border/50 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--panel-strong)_72%,transparent),transparent)] px-3 pt-5">
+        <div class="pointer-events-none absolute inset-x-3 top-5 grid h-[118px] content-between">
+          <span v-for="line in 4" :key="line" class="block border-t border-dashed border-border/45" />
         </div>
-        <div class="flex justify-between gap-1 text-[9px] text-muted">
-          <span>Prompt:</span>
-          <span>{{ chartPoints[hoveredIdx].prompt_tokens.toLocaleString() }}</span>
+
+        <div
+          class="relative z-10 grid h-[138px] items-end gap-2"
+          :style="{ gridTemplateColumns: `repeat(${bars.length}, minmax(34px, 1fr))` }"
+        >
+          <button
+            v-for="(bar, index) in bars"
+            :key="bar.date"
+            type="button"
+            class="group grid h-full min-w-0 grid-rows-[1fr_auto] items-end gap-2 rounded-lg outline-none"
+            data-role="token-day-bar"
+            @mouseenter="hoveredIdx = index"
+            @mouseleave="hoveredIdx = null"
+            @focus="hoveredIdx = index"
+            @blur="hoveredIdx = null"
+          >
+            <div class="flex h-full flex-col items-center justify-end">
+              <span class="mb-1 font-mono text-[9px] tabular-nums text-text-faint transition group-hover:text-text">
+                {{ compactNumber(bar.total_tokens) }}
+              </span>
+              <span
+                class="flex w-full max-w-14 flex-col-reverse overflow-hidden rounded-t-md border border-border/60 bg-panel shadow-[0_0_16px_color-mix(in_srgb,var(--accent)_8%,transparent)] transition duration-200 group-hover:-translate-y-1 group-hover:border-accent/50"
+                :style="{ height: `${bar.heightPct}%` }"
+              >
+                <i
+                  class="block w-full bg-accent/85"
+                  data-role="prompt-token-segment"
+                  :style="{ height: `${bar.promptPct}%` }"
+                />
+                <i
+                  class="block w-full bg-ai/80"
+                  data-role="completion-token-segment"
+                  :style="{ height: `${bar.completionPct}%` }"
+                />
+              </span>
+            </div>
+            <span class="truncate font-mono text-[9px] text-text-faint">{{ bar.date.slice(5) }}</span>
+          </button>
         </div>
-        <div class="flex justify-between gap-1 text-[9px] text-muted">
-          <span>Reply:</span>
-          <span>{{ chartPoints[hoveredIdx].completion_tokens.toLocaleString() }}</span>
+      </div>
+
+      <div class="min-h-11 rounded-[14px] border border-border/60 bg-panel/65 px-3 py-2 font-mono text-[10px] text-text-faint">
+        <div v-if="activeDay" class="flex flex-wrap items-center justify-between gap-2">
+          <strong class="text-text">{{ activeDay.date }}</strong>
+          <span>合计 <b class="text-text">{{ activeDay.total_tokens.toLocaleString() }}</b></span>
+          <span>输入 {{ activeDay.prompt_tokens.toLocaleString() }}</span>
+          <span>输出 {{ activeDay.completion_tokens.toLocaleString() }}</span>
         </div>
+        <p v-else class="m-0">悬停或聚焦某一天，查看 Token 构成。</p>
       </div>
     </div>
 
-    <div v-else class="flex flex-col items-center justify-center py-8 text-center border border-dashed border-border/40 rounded-xl bg-white/[0.005]">
-      <span class="text-xl mb-1">📊</span>
-      <p class="text-xs text-text-faint">暂无足够历史 Token 用量趋势数据</p>
+    <div v-else class="grid min-h-40 place-items-center rounded-[16px] border border-dashed border-border/60 bg-black/10 text-center">
+      <div>
+        <p class="label-mono text-[10px] text-text-faint">NO TOKEN LEDGER</p>
+        <p class="mt-2 text-sm text-text-soft">暂无足够历史 Token 用量趋势数据</p>
+      </div>
     </div>
-  </div>
+  </section>
 </template>
