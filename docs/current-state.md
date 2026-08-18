@@ -17,11 +17,11 @@
 
 | 模块 | 入口 / 关键能力 |
 |------|-----------------|
-| 交易台首页 | `/desk`：状态带、三 sleeve 漏斗、机会卡/空态、事件雷达列、组合提案摘要；手动重跑合成/规则流水线 |
-| 个股研究 | `/desk/stocks/:symbol`：纵横研究包、显式缺口、「问 AI」装载研究上下文 |
+| 交易台首页 | `/desk`：状态带、图形化仪表盘（覆盖率/漏斗/最近运行/提案权重）、机会卡/空态、事件雷达列；手动重跑默认走真实行情流水线（`scenario=real`），合成夹具保留用于测试 |
+| 个股研究 | `/desk/stocks/:symbol`：K 线（日/周，复用 KlineChart）、A 股资金流面板、纵横研究包、显式缺口、「问 AI」装载研究上下文；K 线接口不再要求标的在自选股内 |
 | 组合提案 | `/desk/portfolio-proposal`：现金底仓与分配器权重，LLM 不参与 |
 | 成绩单 | `/desk/report-card`：按 sleeve 漏斗计数；财务未覆盖前不宣称超额收益 |
-| 策略工作台 | `/desk/strategies`：因子注册表 DSL 预览/保存，默认探索性 |
+| 策略工作台 | `/desk/strategies`：因子注册表表格、示例 DSL 一键填入、DSL 预览/保存；空库启动种子 3 条探索性默认策略（每 sleeve 一条，`is_active=0`） |
 | 回测实验室 | `/desk/backtest`：walk-forward，exploratory 且不得 qualified |
 | 运行中心 | `/desk/ops`：流水线 Runs、数据健康、AI 审计、决策日志 |
 | 模拟盘 | `/portfolio` 增加确认后撮合的 paper account；停牌/未确认不成交 |
@@ -38,6 +38,8 @@
 | 运维 | `/ops`，运行状态与源健康 |
 | 情绪评测 | `/eval/sentiment` |
 | 信号统计 | `/analytics/backtest`，新闻情绪信号命中率（不是策略回测引擎） |
+
+选票流水线：`POST /api/quant/recommendations/run` 默认 `scenario=real`，基于 `market_data.db` 真实日线/资金流跑三 sleeve 规则打分（trend 可 qualify；event 由新闻 rule mention 驱动、grade C 只进 WATCH；fundamental 财务未采购显式 gap 不产候选），涨跌停开盘不可成交降级，组合提案由 allocator 从 qualified 派生（vol 用 20 日日收益标准差）。行情覆盖率以 `GET /api/quant/data/status` 真实计数为准；`make quant-backfill` 支持 `QUANT_BACKFILL_LIMIT/SLEEP/DAYS` 环境变量与失败退避重试，仍无每日自动增量 worker。
 
 后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送。量化内核含 PIT/除权/涨跌停/T+1、三 sleeve 规则打分、组合分配器、DSL、walk-forward 与模拟撮合。
 

@@ -11,6 +11,7 @@ from app.schemas.quant import (
     QuantCopilotToolsView,
     QuantDataStatusView,
     QuantDecisionLogView,
+    QuantFactorView,
     QuantFundFlowView,
     QuantPaperAccountView,
     QuantPaperOrderRequest,
@@ -50,6 +51,11 @@ def run_recommendations(
 @router.get("/data/status", response_model=QuantDataStatusView)
 def get_quant_data_status(session: Session = Depends(get_db_session)) -> QuantDataStatusView:
     return QuantDeskService().get_data_status(session)
+
+
+@router.get("/factors", response_model=list[QuantFactorView])
+def get_quant_factors() -> list[QuantFactorView]:
+    return QuantDeskService().list_factors()
 
 
 @router.get("/radar", response_model=QuantRadarView)

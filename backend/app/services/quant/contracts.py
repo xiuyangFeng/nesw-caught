@@ -49,6 +49,7 @@ class RunStatus(StrEnum):
 class PipelineScenario(StrEnum):
     ABSTAIN = "abstain"
     MIXED = "mixed"
+    REAL = "real"
 
 
 @dataclass(frozen=True)

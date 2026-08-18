@@ -43,15 +43,15 @@ class MarketChartService:
         self._max_workers = max(1, int(getattr(settings, "market_chart_max_workers", 8)))
 
     def get_kline(self, symbol: str, interval: str, range_name: str, session: Session) -> dict:
-        watchlist_item = self._require_watchlist_symbol(symbol, session)
-        cache_key = self._build_cache_key(watchlist_item.symbol, interval, range_name)
+        resolved_symbol, resolved_market = self._resolve_kline_symbol(symbol, session)
+        cache_key = self._build_cache_key(resolved_symbol, interval, range_name)
         # TTL 内命中缓存直接返回,避免每次请求都走 yf.download(1-3s)。
         cached = self._get_cache(cache_key)
         if cached is not None:
             return cached
 
         try:
-            payload = self._build_kline_payload(watchlist_item.symbol, watchlist_item.market, interval, range_name, session)
+            payload = self._build_kline_payload(resolved_symbol, resolved_market, interval, range_name, session)
             self._set_cache(cache_key, payload, ttl_seconds=self._ttl_for_interval(interval))
             return payload
         except Exception:
@@ -63,7 +63,7 @@ class MarketChartService:
                 return stale
             # 兜底返回空 candles 描述结构，标记 stale: True，避免向上层路由抛 500
             return {
-                "symbol": watchlist_item.symbol.upper(),
+                "symbol": resolved_symbol.upper(),
                 "interval": interval,
                 "range": range_name,
                 "stale": True,
@@ -203,6 +203,24 @@ class MarketChartService:
             if item is not None:
                 return item
         raise HTTPException(status_code=404, detail="watchlist symbol not found")
+
+    def _resolve_kline_symbol(self, symbol: str, session: Session) -> tuple[str, str]:
+        """K 线不要求标的在自选股内:交易台(/desk)候选大多不在自选股里。
+
+        自选股命中沿用其 symbol/market 口径(用户可能存了别名写法);
+        未命中时按代码本身推断市场(normalize_symbol 对 A股/港股有确定后缀规则),
+        推断不了才 404,保持与旧行为一致的错误语义。
+        """
+        try:
+            item = self._require_watchlist_symbol(symbol, session)
+            return item.symbol, item.market
+        except HTTPException:
+            pass
+        try:
+            normalized = normalize_symbol(symbol.upper())
+        except ValueError:
+            raise HTTPException(status_code=404, detail="watchlist symbol not found") from None
+        return normalized.symbol, normalized.market
 
     def _download_history(self, provider_symbol: str, period: str, interval: str) -> pd.DataFrame:
         """取 K 线原始数据；A股/港股以腾讯为主源，其余以 yfinance 为主源。

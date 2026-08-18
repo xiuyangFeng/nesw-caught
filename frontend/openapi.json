@@ -5096,6 +5096,29 @@
         "title": "QuantDecisionLogView",
         "type": "object"
       },
+      "QuantFactorView": {
+        "properties": {
+          "horizon": {
+            "title": "Horizon",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "sleeve": {
+            "title": "Sleeve",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "sleeve",
+          "horizon"
+        ],
+        "title": "QuantFactorView",
+        "type": "object"
+      },
       "QuantFundFlowPointView": {
         "properties": {
           "large_net": {
@@ -5879,7 +5902,7 @@
       "QuantRunRequest": {
         "properties": {
           "scenario": {
-            "default": "abstain",
+            "default": "real",
             "title": "Scenario",
             "type": "string"
           },
@@ -12242,6 +12265,59 @@
           }
         },
         "summary": "Get Decision Log",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/factors": {
+      "get": {
+        "operationId": "get_quant_factors_api_quant_factors_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuantFactorView"
+                  },
+                  "title": "Response Get Quant Factors Api Quant Factors Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Quant Factors",
         "tags": [
           "quant"
         ]

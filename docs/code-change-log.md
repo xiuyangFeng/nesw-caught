@@ -5,6 +5,21 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-08-18 量化交易台补全：真实选票流水线、个股 K 线、首页仪表盘与默认策略
+
+- 修改人：Claude（三个 Sonnet 子智能体并行实施 + 协调者收尾）
+- 修改范围：选票内核从合成夹具升级为真实行情驱动；个股研究页 K 线/资金流；交易台首页图形化仪表盘；策略工作台因子表与默认策略种子；K 线接口解除自选股绑定；东财回填健壮性。设计与计划见 `docs/archive/superpowers/` 下 2026-08-18 real-pipeline 两篇。
+- 变更内容：
+  - 新增 `run_market_pipeline`（`scenario=real`，`QuantRunRequest.scenario` 默认改 real）：data_gate（无行情 → DEGRADED+no_market_data）→ 真实 U2（bar 数≥120、20 日中位成交额≥1e8、最新交易日有 bar）→ 三 sleeve 打分首次接入 `factors.py`（trend 用最新主力净流入+20 日均成交额，可 qualify；event 用近 7 日 rule mention 聚合，grade C 只进 WATCH；fundamental 显式 no_financials gap 不产候选）→ 涨跌停开盘不可成交降级 → 状态机/排名/result_hash 复用。`get_proposal` 的 allocate vol 改用 20 日日收益标准差。实测（29 只真实库）：14 候选、000034.SZ 神州数码 trend qualified、提案 8% 仓位 + 92% 现金。
+  - 新增 `GET /api/quant/factors`；`scripts/seed_demo_data.py` 幂等种子 3 条探索性默认策略（每 sleeve 一条）。
+  - `DeskStockView` 加 K 线卡（日/周，复用 KlineChart + `getStockKline`）与 A 股 FundFlowPanel；`MarketChartService.get_kline` 自选股未命中时按代码后缀推断市场（`_resolve_kline_symbol`），交易台候选不再 404。
+  - `DeskView` 状态带下新增「交易台仪表盘」（覆盖率进度条、三 sleeve 漏斗、最近运行徽章、提案权重条，纯 CSS）；「手动重跑」默认发 `real`。`DeskStrategiesView` 加因子注册表表格与「填入示例」。
+  - 回填：`backfill.py` 每 symbol 失败重试 3 次（2s/8s/30s 退避）；`backfill_main.py` 支持 `QUANT_BACKFILL_LIMIT/SLEEP/DAYS`。实测东财对连续抓取限流（代理与直连均断），断点续传 + 退避循环可恢复。
+- 影响文件：`backend/app/services/quant/recommendation/market_pipeline.py`（新）、`backend/app/services/quant/contracts.py`、`backend/app/services/quant_desk_service.py`、`backend/app/api/routes/quant.py`、`backend/app/schemas/quant.py`、`backend/app/services/market_chart_service.py`、`backend/app/services/quant/market_data/backfill{,_main}.py`、`scripts/seed_demo_data.py`、`backend/tests/quant/test_market_pipeline.py`（新）、`backend/tests/test_kline_non_watchlist.py`（新）、`backend/tests/quant/test_market_backfill.py`、`backend/tests/test_quant_api.py`、`frontend/src/views/Desk{View,StockView,StrategiesView}.{vue,test.ts}`、`frontend/src/stores/deskStore.ts`、`frontend/src/api/client.ts`、`frontend/src/api/mock/quant.ts`、`frontend/src/types/{api.ts,generated/api.d.ts}`、`frontend/openapi.json`、`docs/current-state.md`。
+- 接口/数据结构变化：新增 `GET /api/quant/factors`；`POST /api/quant/recommendations/run` 的 `scenario` 增加 `real` 并作为默认值（旧值 abstain/mixed 兼容）；`GET /api/market/symbols/{symbol}/kline` 对可推断市场的非自选股标的从 404 变为正常返回（无法推断仍 404）。无表结构变化。
+- 验证情况：后端 `pytest backend/tests/quant backend/tests/test_quant_api.py` 63 passed，kline/market 相关 47 passed，回填 3 passed；全量 1302 passed / 7 failed——该 7 个 news 失败为**基线预先存在的测试顺序污染**（干净 HEAD worktree 全量跑有 13 个失败，含这 7 个；均单测隔离可过），非本次引入。前端全量 vitest 546 passed、`vue-tsc -p tsconfig.app.json` 零错、`npm run build` 通过、`check:api-drift` OK。活服务实测：POST run(real) 出真实候选、提案/因子/策略/K 线端点全部验证通过。
+- 风险或后续事项：东财/腾讯源无 SLA；行情仍无每日自动增量 worker（手动 `make quant-backfill`）；BSE 板块推断对 `9xxxxx.BJ` 归为 MAIN（当前池内无 BJ 标的，未触发）；event sleeve 仅对过 U2 流动性门槛的标的打分；K 线 Redis 缓存可能缓存到"抓取瞬时失败的空 candles"（TTL 300s 自愈）；基线全量套件的测试顺序污染问题待专项修复。
+
 ## 2026-08-18 量化交易台 Phase 2～5：研究包、三 sleeve、DSL 回测与模拟盘
 
 - 修改人：Cursor Grok

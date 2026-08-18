@@ -24,6 +24,12 @@ class QuantRecommendationItemView(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class QuantFactorView(BaseModel):
+    key: str
+    sleeve: str
+    horizon: str
+
+
 class QuantRunStageView(BaseModel):
     stage: str
     status: str
@@ -60,14 +66,14 @@ class QuantRecommendationLatestView(BaseModel):
 
 
 class QuantRunRequest(BaseModel):
-    scenario: str = "abstain"
+    scenario: str = "real"
     trigger: str = "manual"
 
     @field_validator("scenario")
     @classmethod
     def scenario_must_be_known(cls, value: str) -> str:
-        if value not in {"abstain", "mixed"}:
-            raise ValueError("scenario must be abstain or mixed")
+        if value not in {"abstain", "mixed", "real"}:
+            raise ValueError("scenario must be abstain, mixed or real")
         return value
 
 

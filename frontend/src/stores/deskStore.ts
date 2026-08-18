@@ -73,7 +73,7 @@ export const useDeskStore = defineStore('deskStore', () => {
     }
   }
 
-  async function rerun(scenario: 'abstain' | 'mixed' = 'abstain') {
+  async function rerun(scenario: 'real' | 'abstain' | 'mixed' = 'real') {
     running.value = true;
     error.value = null;
     try {

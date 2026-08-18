@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import statistics
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -36,6 +37,7 @@ from app.schemas.quant import (
     QuantCopilotToolsView,
     QuantDataStatusView,
     QuantDecisionLogView,
+    QuantFactorView,
     QuantFundFlowPointView,
     QuantFundFlowView,
     QuantPaperAccountView,
@@ -55,8 +57,9 @@ from app.schemas.quant import (
     QuantSymbolEventView,
 )
 from app.services.quant.ai.guard import DEGRADE_ORDER, wrap_untrusted_evidence
-from app.services.quant.contracts import PipelineResult, RunVersions
+from app.services.quant.contracts import PipelineResult, PipelineScenario, RunVersions
 from app.services.quant.radar.ingest import list_recent
+from app.services.quant.recommendation.market_pipeline import run_market_pipeline
 from app.services.quant.recommendation.pipeline import run_synthetic_pipeline
 from app.services.quant.research.pack import build_research_pack
 from app.services.quant.trading_rules import RULE_VERSION
@@ -94,7 +97,7 @@ class QuantDeskService:
         self,
         session: Session,
         *,
-        scenario: str = "abstain",
+        scenario: str = "real",
         trigger: str = "manual",
     ) -> QuantRecommendationLatestView:
         repo = QuantRecommendationRepository(session)
@@ -103,15 +106,27 @@ class QuantDeskService:
             return self.get_latest(session)
 
         now = datetime.now(UTC)
-        versions = RunVersions(
-            dataset_version=PHASE0_DATASET_VERSION,
-            factor_version=PHASE0_FACTOR_VERSION,
-            rule_version=RULE_VERSION,
-            code_commit=PHASE0_CODE_COMMIT,
-            config_snapshot=dict(PHASE0_CONFIG),
-            source_cutoff=datetime(2026, 4, 10, 7, 30, tzinfo=UTC),
-        )
-        result = run_synthetic_pipeline(scenario=scenario, versions=versions)
+        scenario_key = PipelineScenario(scenario)
+        if scenario_key is PipelineScenario.REAL:
+            versions = RunVersions(
+                dataset_version=_real_dataset_version(),
+                factor_version="rule-v1",
+                rule_version=RULE_VERSION,
+                code_commit=PHASE0_CODE_COMMIT,
+                config_snapshot=dict(PHASE0_CONFIG),
+                source_cutoff=now,
+            )
+            result = run_market_pipeline(versions=versions)
+        else:
+            versions = RunVersions(
+                dataset_version=PHASE0_DATASET_VERSION,
+                factor_version=PHASE0_FACTOR_VERSION,
+                rule_version=RULE_VERSION,
+                code_commit=PHASE0_CODE_COMMIT,
+                config_snapshot=dict(PHASE0_CONFIG),
+                source_cutoff=datetime(2026, 4, 10, 7, 30, tzinfo=UTC),
+            )
+            result = run_synthetic_pipeline(scenario=scenario, versions=versions)
         self._persist(
             repo,
             result,
@@ -343,7 +358,13 @@ class QuantDeskService:
 
     def get_proposal(self, session: Session) -> QuantProposalView:
         latest = self.get_latest(session)
-        qualified = [(item.symbol, item.sleeve, 1.0) for item in latest.items if item.state == "qualified"]
+        qualified_symbols = [item.symbol for item in latest.items if item.state == "qualified"]
+        vol_by_symbol = _volatility_20d(qualified_symbols)
+        qualified = [
+            (item.symbol, item.sleeve, vol_by_symbol.get(item.symbol, 1.0))
+            for item in latest.items
+            if item.state == "qualified"
+        ]
         from app.services.quant.allocator import allocate
 
         positions, cash = allocate(qualified)
@@ -508,6 +529,14 @@ class QuantDeskService:
 
         return QuantCopilotToolsView(tools=list(READONLY_TOOLS))
 
+    def list_factors(self) -> list[QuantFactorView]:
+        from app.services.quant.factors import FACTOR_REGISTRY
+
+        return [
+            QuantFactorView(key=key, sleeve=meta["sleeve"], horizon=meta["horizon"])
+            for key, meta in FACTOR_REGISTRY.items()
+        ]
+
     def _persist(
         self,
         repo: QuantRecommendationRepository,
@@ -611,6 +640,40 @@ def _item_view(item: RecommendationItem) -> QuantRecommendationItemView:
         valid_until=item.valid_until,
         evidence_ids=json.loads(item.evidence_ids),
     )
+
+
+def _volatility_20d(symbols: list[str]) -> dict[str, float]:
+    """qualified 候选的 20 日日收益标准差，供 allocate() 做反波动率加权；样本不足回落 1.0。"""
+    vols: dict[str, float] = {}
+    if not symbols:
+        return vols
+    with MarketSessionLocal() as market_session:
+        for symbol in symbols:
+            bars = list(
+                market_session.scalars(
+                    select(DailyBar)
+                    .where(DailyBar.symbol == symbol)
+                    .order_by(DailyBar.trade_date.desc())
+                    .limit(21)
+                )
+            )
+            closes = [bar.close for bar in reversed(bars) if bar.close]
+            returns = [
+                (closes[i] - closes[i - 1]) / closes[i - 1]
+                for i in range(1, len(closes))
+                if closes[i - 1]
+            ]
+            if len(returns) >= 2:
+                vols[symbol] = statistics.pstdev(returns) or 1.0
+    return vols
+
+
+def _real_dataset_version() -> str:
+    """real scenario 的 dataset_version：eastmoney-daily-{最新交易日}，无数据时落回 unknown
+    （此时 run_market_pipeline 会自行判定 DEGRADED，这里只负责给版本号一个可读占位）。"""
+    with MarketSessionLocal() as market_session:
+        last_trade_date = market_session.scalar(select(func.max(DailyBar.trade_date)))
+    return f"eastmoney-daily-{last_trade_date.isoformat() if last_trade_date else 'unknown'}"
 
 
 def _market_coverage() -> dict:

@@ -34,6 +34,7 @@ import type {
   OpsHealth,
   PortfolioSummary,
   QuantDataStatus,
+  QuantFactor,
   QuantFundFlow,
   QuantRadar,
   QuantRecommendationLatest,
@@ -469,7 +470,7 @@ export const apiClient = {
       (mock) => mock.mockQuantLatest,
     );
   },
-  runQuantRecommendations(scenario: 'abstain' | 'mixed' = 'abstain') {
+  runQuantRecommendations(scenario: 'real' | 'abstain' | 'mixed' = 'real') {
     return postJson<QuantRecommendationLatest>('/api/quant/recommendations/run', { scenario, trigger: 'manual' }).then(
       (data) => ({ data, degraded: false }),
     );
@@ -478,6 +479,12 @@ export const apiClient = {
     return withMockFallback<QuantDataStatus>(
       () => getJson('/api/quant/data/status'),
       (mock) => mock.mockQuantDataStatus,
+    );
+  },
+  getQuantFactors() {
+    return withMockFallback<QuantFactor[]>(
+      () => getJson('/api/quant/factors'),
+      (mock) => mock.mockQuantFactors,
     );
   },
   getQuantRadar() {

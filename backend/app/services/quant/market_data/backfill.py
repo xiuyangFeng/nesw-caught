@@ -108,6 +108,32 @@ def _save_checkpoint(path: Path, done: set[str]) -> None:
     path.write_text(json.dumps({"done": sorted(done)}, ensure_ascii=False), encoding="utf-8")
 
 
+# 东财聚合接口无 SLA,限流表现为直接断开连接(实测 2026-08-18 连续抓 29 只后被掐)。
+# 单次失败不代表永久失败,按指数退避重试;仍失败才记 failure 并跳过该 symbol。
+_RETRY_BACKOFF_SECONDS = (2.0, 8.0, 30.0)
+
+
+def _fetch_with_retry(
+    fetch: Callable,
+    *args,
+    max_attempts: int,
+    retry_sleep: Callable[[float], None],
+    **kwargs,
+):
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fetch(*args, **kwargs)
+        except Exception:
+            if attempt >= max_attempts:
+                raise
+            backoff = _RETRY_BACKOFF_SECONDS[min(attempt - 1, len(_RETRY_BACKOFF_SECONDS) - 1)]
+            logger.warning(
+                "fetch attempt %s/%s failed, retrying in %.0fs", attempt, max_attempts, backoff
+            )
+            retry_sleep(backoff)
+    raise RuntimeError("unreachable")  # pragma: no cover
+
+
 def backfill_symbols(
     symbols: Sequence[str],
     *,
@@ -117,6 +143,8 @@ def backfill_symbols(
     sleep_seconds: float = 0.2,
     fetch_bars: Callable = fetch_daily_bars,
     fetch_flow: Callable = fetch_fund_flow,
+    max_attempts: int = 3,
+    retry_sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, int]:
     done = _load_checkpoint(checkpoint_path)
     bar_count = 0
@@ -126,8 +154,17 @@ def backfill_symbols(
         if symbol in done:
             continue
         try:
-            bars = fetch_bars(symbol, start=start, end=end)
-            flows = fetch_flow(symbol)
+            bars = _fetch_with_retry(
+                fetch_bars,
+                symbol,
+                start=start,
+                end=end,
+                max_attempts=max_attempts,
+                retry_sleep=retry_sleep,
+            )
+            flows = _fetch_with_retry(
+                fetch_flow, symbol, max_attempts=max_attempts, retry_sleep=retry_sleep
+            )
             with MarketSessionLocal() as session:
                 bar_count += upsert_daily_bars(session, bars)
                 flow_count += upsert_fund_flow(session, flows)

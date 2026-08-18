@@ -12,6 +12,7 @@ At application startup the seed runs automatically only when the
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from app.models.article_content import ArticleContent  # noqa: E402
 from app.models.news_item import NewsItem  # noqa: E402
 from app.models.news_stock_mention import NewsStockMention  # noqa: E402
 from app.models.price_snapshot import PriceSnapshot  # noqa: E402
+from app.models.quant import QuantStrategy  # noqa: E402
 from app.models.topic_cluster import TopicCluster  # noqa: E402
 from app.models.topic_news_link import TopicNewsLink  # noqa: E402
 from app.models.watchlist_item import WatchlistItem  # noqa: E402
@@ -59,8 +61,18 @@ def seed_demo_data(session_factory=None) -> None:
         has_x_accounts = session.scalar(select(XAccount.id).limit(1)) is not None
         has_x_posts = session.scalar(select(XPost.id).limit(1)) is not None
         has_x_health = session.scalar(select(XSourceHealth.id).limit(1)) is not None
+        has_quant_strategy = session.scalar(select(QuantStrategy.id).limit(1)) is not None
 
-        if has_watchlist and has_news and has_snapshots and has_topics and has_x_accounts and has_x_posts and has_x_health:
+        if (
+            has_watchlist
+            and has_news
+            and has_snapshots
+            and has_topics
+            and has_x_accounts
+            and has_x_posts
+            and has_x_health
+            and has_quant_strategy
+        ):
             return
 
         now = datetime.now(timezone.utc)
@@ -327,6 +339,63 @@ def seed_demo_data(session_factory=None) -> None:
                     avg_latency_ms=None,
                     last_error=None,
                 )
+            )
+
+        if not has_quant_strategy:
+            # 三条探索性默认策略，每 sleeve 一条；DSL 只引用 FACTOR_REGISTRY 内的因子，
+            # 与 POST /api/quant/strategies 的 validate_dsl 校验格式一致。is_active=0、
+            # exploratory=1：仅作为因子/DSL 用法的可见样例，不参与真实选票排名。
+            session.add_all(
+                [
+                    QuantStrategy(
+                        name="资金流趋势探索",
+                        dsl=json.dumps(
+                            {
+                                "sleeve": "trend_flow",
+                                "horizon": "5d",
+                                "logic": "and",
+                                "conditions": [
+                                    {"factor": "main_inflow_1d", "op": ">", "value": 50000000}
+                                ],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        is_active=0,
+                        exploratory=1,
+                    ),
+                    QuantStrategy(
+                        name="事件催化探索",
+                        dsl=json.dumps(
+                            {
+                                "sleeve": "event_catalyst",
+                                "horizon": "5d",
+                                "logic": "and",
+                                "conditions": [
+                                    {"factor": "news_novelty", "op": ">", "value": 0.5}
+                                ],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        is_active=0,
+                        exploratory=1,
+                    ),
+                    QuantStrategy(
+                        name="基本面重估探索",
+                        dsl=json.dumps(
+                            {
+                                "sleeve": "fundamental_revalue",
+                                "horizon": "60d",
+                                "logic": "and",
+                                "conditions": [
+                                    {"factor": "gap_unfilled", "op": "<", "value": 1}
+                                ],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        is_active=0,
+                        exploratory=1,
+                    ),
+                ]
             )
 
         session.commit()

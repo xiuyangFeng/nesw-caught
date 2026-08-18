@@ -3,6 +3,7 @@ import type {
   QuantCopilotTools,
   QuantDataStatus,
   QuantDecisionLog,
+  QuantFactor,
   QuantFundFlow,
   QuantPaperAccount,
   QuantProposal,
@@ -92,6 +93,13 @@ export const mockQuantReportCard: QuantReportCard = {
 };
 
 export const mockQuantStrategies: QuantStrategy[] = [];
+
+// 对齐 backend FACTOR_REGISTRY(app/services/quant/factors.py)：因子键/所属 sleeve/有效期限。
+export const mockQuantFactors: QuantFactor[] = [
+  { key: 'main_inflow_1d', sleeve: 'trend_flow', horizon: '5d' },
+  { key: 'news_novelty', sleeve: 'event_catalyst', horizon: '5d' },
+  { key: 'gap_unfilled', sleeve: 'fundamental_revalue', horizon: '60d' },
+];
 
 export const mockQuantPaperAccount: QuantPaperAccount = {
   id: 1,

@@ -540,3 +540,11 @@ export type QuantPaperOrderRequest = Schemas['QuantPaperOrderRequest'];
 export type QuantPaperOrder = Schemas['QuantPaperOrderView'];
 export type QuantDecisionLog = Schemas['QuantDecisionLogView'];
 export type QuantCopilotTools = Schemas['QuantCopilotToolsView'];
+
+// GET /api/quant/factors 手写契约：后端因子注册表端点与本次改动并行落地，
+// openapi.json 尚未重新生成前手写类型，字段对齐 FACTOR_REGISTRY（key/sleeve/horizon）。
+export interface QuantFactor {
+  key: string;
+  sleeve: string;
+  horizon: string;
+}

@@ -886,6 +886,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quant/factors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Quant Factors */
+        get: operations["get_quant_factors_api_quant_factors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quant/paper/account": {
         parameters: {
             query?: never;
@@ -3255,6 +3272,15 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** QuantFactorView */
+        QuantFactorView: {
+            /** Horizon */
+            horizon: string;
+            /** Key */
+            key: string;
+            /** Sleeve */
+            sleeve: string;
+        };
         /** QuantFundFlowPointView */
         QuantFundFlowPointView: {
             /** Large Net */
@@ -3536,7 +3562,7 @@ export interface components {
         QuantRunRequest: {
             /**
              * Scenario
-             * @default abstain
+             * @default real
              */
             scenario: string;
             /**
@@ -6423,6 +6449,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuantDecisionLogView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quant_factors_api_quant_factors_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantFactorView"][];
                 };
             };
             /** @description Validation Error */

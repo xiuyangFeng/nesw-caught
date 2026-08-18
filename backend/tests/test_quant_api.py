@@ -1,6 +1,8 @@
 """Phase 0 Quant API：无 run 空态、弃权、三 sleeve、幂等重跑。"""
 
-from datetime import date
+import importlib.util
+from datetime import date, timedelta
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -265,3 +267,101 @@ def test_phase3_to_5_desk_endpoints() -> None:
     decisions = client.get("/api/quant/decision-log")
     assert decisions.status_code == 200
     assert any(item["action"] == "paper_buy" for item in decisions.json()["items"])
+
+
+def _load_seed_module():
+    """镜像 app/db/initializer.py 的动态加载方式：scripts/ 不在 backend 包内。"""
+    seed_path = Path(__file__).resolve().parents[2] / "scripts" / "seed_demo_data.py"
+    spec = importlib.util.spec_from_file_location("test_seed_demo_data", seed_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_real_scenario_run_without_market_data_is_degraded() -> None:
+    _cleanup()
+    client = TestClient(app)
+    resp = client.post("/api/quant/recommendations/run", json={"scenario": "real"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["run"]["status"] == "degraded"
+    assert body["run"]["scenario"] == "real"
+    assert body["empty_reason"] == "no_market_data"
+    assert body["items"] == []
+
+
+def test_real_scenario_run_qualifies_trend_candidate_from_market_data() -> None:
+    _cleanup()
+    today = date.today()
+    symbol = "000099.SZ"
+    with MarketSessionLocal() as market_session:
+        for i in range(130):
+            trade_date = today - timedelta(days=129 - i)
+            market_session.add(
+                DailyBar(
+                    symbol=symbol,
+                    trade_date=trade_date,
+                    open=10.0,
+                    high=10.0,
+                    low=10.0,
+                    close=10.0,
+                    volume=1000,
+                    amount=2e8,
+                )
+            )
+        market_session.commit()
+        market_session.add(
+            FundFlowDaily(symbol=symbol, trade_date=today, main_net_inflow=8e7, main_net_pct=0.1)
+        )
+        market_session.commit()
+
+    client = TestClient(app)
+    resp = client.post("/api/quant/recommendations/run", json={"scenario": "real"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["run"]["status"] == "ok"
+    assert body["run"]["scenario"] == "real"
+    assert body["run"]["dataset_version"].startswith("eastmoney-daily-")
+    trend_items = [
+        item for item in body["items"] if item["sleeve"] == "trend_flow" and item["symbol"] == symbol
+    ]
+    assert len(trend_items) == 1
+    assert trend_items[0]["state"] == "qualified"
+
+    proposal = client.get("/api/quant/portfolio-proposals/latest")
+    assert proposal.status_code == 200
+    assert proposal.json()["cash_weight"] < 1.0
+
+
+def test_factors_endpoint_lists_registry() -> None:
+    client = TestClient(app)
+    resp = client.get("/api/quant/factors")
+    assert resp.status_code == 200
+    body = resp.json()
+    keys = {row["key"] for row in body}
+    assert keys == {"main_inflow_1d", "news_novelty", "gap_unfilled"}
+    by_key = {row["key"]: row for row in body}
+    assert by_key["main_inflow_1d"]["sleeve"] == "trend_flow"
+    assert by_key["news_novelty"]["horizon"] == "5d"
+
+
+def test_default_strategy_seed_is_idempotent_and_visible() -> None:
+    _cleanup()  # 会清空 quant_strategy 表（见 _cleanup 定义）
+    seed_module = _load_seed_module()
+    seed_module.seed_demo_data()
+
+    client = TestClient(app)
+    resp = client.get("/api/quant/strategies")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 3
+    sleeves = {row["dsl"]["sleeve"] for row in body}
+    assert sleeves == {"trend_flow", "event_catalyst", "fundamental_revalue"}
+    assert all(row["is_active"] is False for row in body)
+    assert all(row["exploratory"] is True for row in body)
+    assert all(row["errors"] == [] for row in body)
+
+    # 幂等：再跑一次种子不应重复插入。
+    seed_module.seed_demo_data()
+    resp2 = client.get("/api/quant/strategies")
+    assert len(resp2.json()) == 3

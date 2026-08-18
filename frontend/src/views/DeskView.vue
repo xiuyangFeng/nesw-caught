@@ -38,6 +38,46 @@ const runStatusLabel = computed(() => {
 
 const cashLabel = computed(() => `${Math.round((deskStore.proposal.cash_weight ?? 1) * 100)}% 现金`);
 
+// ---- 仪表盘分区：数据覆盖率 / 三 sleeve 漏斗 / 最近运行 / 组合提案权重 ----
+const coverageWidth = computed(() => {
+  const pct = deskStore.dataStatus?.coverage_pct;
+  return pct == null ? 0 : Math.max(0, Math.min(100, Math.round(pct)));
+});
+
+// 漏斗横条按三 sleeve 中最大计数归一化，便于横向比较；无数据时退化为空条(合法空态)。
+const funnelMaxTotal = computed(() => {
+  const totals = Object.values(deskStore.sleeveCounts).map((bucket) => bucket.qualified + bucket.watch);
+  return Math.max(1, ...totals);
+});
+
+function funnelWidth(count: number): number {
+  return Math.round((count / funnelMaxTotal.value) * 100);
+}
+
+const runStatusTone = computed<'success' | 'warning' | 'danger' | 'neutral'>(() => {
+  const status = deskStore.latest.run?.status ?? deskStore.dataStatus?.last_run_status;
+  if (status === 'ok') return 'success';
+  if (status === 'degraded') return 'warning';
+  if (status === 'failed') return 'danger';
+  return 'neutral';
+});
+
+function formatRunTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function truncateHash(hash: string | null | undefined): string {
+  if (!hash) return '—';
+  return hash.length > 10 ? `${hash.slice(0, 10)}…` : hash;
+}
+
+const cashWidth = computed(() =>
+  Math.max(0, Math.min(100, Math.round((deskStore.proposal.cash_weight ?? 1) * 100))),
+);
+
 const emptyTitle = computed(() => {
   if (deskStore.latest.empty_reason === 'no_run_yet') return '今日无正期望机会';
   if (deskStore.latest.empty_reason === 'no_positive_edge') return '今日无正期望机会';
@@ -47,7 +87,7 @@ const emptyTitle = computed(() => {
 
 async function handleRerun() {
   try {
-    await deskStore.rerun('abstain');
+    await deskStore.rerun('real');
   } catch {
     // 错误已由 store 记录
   }
@@ -98,6 +138,117 @@ onMounted(() => {
     </section>
 
     <p v-if="deskStore.error" class="text-sm text-danger" data-role="desk-error">{{ deskStore.error }}</p>
+
+    <SectionCard
+      eyebrow="Dashboard"
+      title="交易台仪表盘"
+      subtitle="数据覆盖、三 sleeve 漏斗、最近运行与组合权重一览"
+      data-role="desk-dashboard"
+    >
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-md border border-border bg-panel-soft p-3" data-role="desk-dashboard-coverage">
+          <p class="label-mono mb-2 text-[10px] text-muted">数据覆盖率</p>
+          <strong class="num text-lg text-text">{{ coverageLabel }}</strong>
+          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-panel-strong">
+            <span
+              class="block h-full rounded-full bg-accent transition-[width] duration-500"
+              data-role="desk-dashboard-coverage-bar"
+              :style="{ width: `${coverageWidth}%` }"
+            />
+          </div>
+          <dl class="mt-3 grid gap-1 text-xs">
+            <div class="flex items-center justify-between">
+              <dt class="text-muted">已回填标的</dt>
+              <dd class="num text-text">{{ deskStore.dataStatus?.symbol_count ?? 0 }}</dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt class="text-muted">日线条数</dt>
+              <dd class="num text-text">{{ deskStore.dataStatus?.daily_bar_count ?? 0 }}</dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt class="text-muted">最新交易日</dt>
+              <dd class="num text-text">{{ deskStore.dataStatus?.last_trade_date ?? '—' }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="rounded-md border border-border bg-panel-soft p-3" data-role="desk-dashboard-funnel">
+          <p class="label-mono mb-2 text-[10px] text-muted">Sleeve 漏斗</p>
+          <ul class="grid gap-2.5">
+            <li v-for="(label, key) in sleeveLabels" :key="key">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-text">{{ label }}</span>
+                <span class="text-muted">
+                  合格 {{ deskStore.sleeveCounts[key]?.qualified ?? 0 }} · 观察 {{ deskStore.sleeveCounts[key]?.watch ?? 0 }}
+                </span>
+              </div>
+              <div class="mt-1 flex h-1.5 overflow-hidden rounded-full bg-panel-strong">
+                <span
+                  class="block h-full bg-accent"
+                  :style="{ width: `${funnelWidth(deskStore.sleeveCounts[key]?.qualified ?? 0)}%` }"
+                />
+                <span
+                  class="block h-full bg-border-strong"
+                  :style="{ width: `${funnelWidth(deskStore.sleeveCounts[key]?.watch ?? 0)}%` }"
+                />
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="rounded-md border border-border bg-panel-soft p-3" data-role="desk-dashboard-run">
+          <p class="label-mono mb-2 text-[10px] text-muted">最近运行</p>
+          <span class="pill" :class="runStatusTone" data-role="desk-dashboard-run-badge">{{ runStatusLabel }}</span>
+          <dl class="mt-3 grid gap-1 text-xs">
+            <div class="flex items-center justify-between">
+              <dt class="text-muted">开始</dt>
+              <dd class="num text-text">{{ formatRunTime(deskStore.latest.run?.started_at) }}</dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt class="text-muted">结束</dt>
+              <dd class="num text-text">{{ formatRunTime(deskStore.latest.run?.finished_at) }}</dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt class="text-muted">Hash</dt>
+              <dd class="num text-text">{{ truncateHash(deskStore.latest.run?.result_hash) }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="rounded-md border border-border bg-panel-soft p-3" data-role="desk-dashboard-proposal">
+          <p class="label-mono mb-2 text-[10px] text-muted">组合提案权重</p>
+          <p
+            v-if="!deskStore.proposal.items?.length"
+            class="text-xs text-muted"
+            data-role="desk-dashboard-proposal-empty"
+          >
+            现金 {{ cashWidth }}%：无合格机会时保持现金是合法结果。
+          </p>
+          <template v-else>
+            <ul class="grid gap-2">
+              <li v-for="item in deskStore.proposal.items" :key="`${item.sleeve}-${item.symbol}`">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-text">{{ item.symbol }}</span>
+                  <span class="num text-muted">{{ Math.round(item.weight * 100) }}%</span>
+                </div>
+                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-panel-strong">
+                  <span class="block h-full rounded-full bg-accent" :style="{ width: `${Math.round(item.weight * 100)}%` }" />
+                </div>
+              </li>
+            </ul>
+            <div class="mt-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-muted">现金</span>
+                <span class="num text-muted">{{ cashWidth }}%</span>
+              </div>
+              <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-panel-strong">
+                <span class="block h-full rounded-full bg-border-strong" :style="{ width: `${cashWidth}%` }" />
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </SectionCard>
 
     <div class="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_240px]">
       <SectionCard eyebrow="Sleeves" title="分层概览" subtitle="三 sleeve 独立计分，LLM 不改排名">
