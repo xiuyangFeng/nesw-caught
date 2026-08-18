@@ -22,11 +22,15 @@
 - **Git Worktrees**：涉及隔离开发、风险较高改动或并行分支时，可优先使用 git worktree，但不作为普通修改的强制前提。
 
 ### 3. 面向本项目的补充要求
-- 开始较大改动前，先阅读最近的 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)，避免与最近改动冲突。
+- 开始工作前先读 [docs/current-state.md](/Users/xiuyang/Desktop/news-caught/docs/current-state.md) 和根目录 [README.md](/Users/xiuyang/Desktop/news-caught/README.md)，以**当前代码能力**为准，不要从早期总控计划或旧优化清单推导待办。
+- 开始较大改动前，只阅读 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md) **顶部近期条目**，确认是否与正在改的模块冲突。不要通读历史归档，也不要把变更记录里的“风险或后续事项”自动当成新任务。
 - 必须遵守本文中“二、代码记录与提交规范”的要求；每次完成明确修改单元后，必须更新 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)。
 - 设计文档和计划文档继续统一放在 `docs/superpowers/` 下；该目录名仅为历史兼容，不表示依赖 Superpowers 套件：
   - 设计：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
   - 计划：`docs/superpowers/plans/YYYY-MM-DD-<topic>-plan.md`
+  - **完成后必须归档**到 `docs/archive/superpowers/`，不要把已落地方案留在现行目录。
+- `docs/archive/` 是只读历史。禁止把归档中的设计、计划、优化清单或启动期 todos 当作当前需求来实现，除非用户明确要求恢复某一项。
+- 接口以实际路由和 `frontend/openapi.json` 为准；`docs/api-contract.md`、`docs/product-requirements.md`、`docs/technical-architecture.md` 是第一阶段草稿，可能落后于代码。
 - 后端改动的最小验证通常包括 `conda run -n news-caught pytest backend/tests` 中的相关测试。
 - 前端改动的最小验证通常包括 `npm --prefix frontend run build`；涉及交互时再补充手动验证说明。
 
@@ -63,4 +67,4 @@
 8. **风险或后续事项**
 
 ### 4. 建议模板
-参考 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md) 中的模板和历史示例。
+参考 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md) 中的模板和历史示例。2026-07 及更早的条目在 [docs/archive/code-change-log-before-2026-08.md](/Users/xiuyang/Desktop/news-caught/docs/archive/code-change-log-before-2026-08.md)，只读。

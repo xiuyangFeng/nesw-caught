@@ -1,3 +1,5 @@
+> **归档说明（2026-08-18）：** 本文是第一阶段并行开发提示词，已从 `docs/parallel-development.md` 迁出。不要按文中线程划分或引用的启动期 `plan.md` 重新开工。现行入口：[docs/current-state.md](../../current-state.md)。
+
 # 并行开发协作说明
 
 ## 推荐线程划分

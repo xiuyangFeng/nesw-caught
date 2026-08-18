@@ -1,3 +1,5 @@
+> **归档说明（2026-08-18）：** 本文是项目启动期执行计划，已从 `docs/project-management-plan.md` 迁出。阶段划分和里程碑不要再当作未完成工作。现行入口：[docs/current-state.md](../../current-state.md)。
+
 # 项目执行计划
 
 ## 1. 项目边界

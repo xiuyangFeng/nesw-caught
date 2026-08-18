@@ -1,5 +1,7 @@
 # News Caught
 
+后续优化和开发请先读 [docs/current-state.md](/Users/xiuyang/Desktop/news-caught/docs/current-state.md)。已完成的设计、启动期计划和旧优化清单在 `docs/archive/`，只读，不作为当前待办。
+
 本项目包含：
 
 - `backend/`: FastAPI + SQLAlchemy + 高性能并发抓取与行情引擎后端
@@ -437,9 +439,11 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
 
 ## 变更记录要求
 
-项目根目录下的 [AGENTS.md](/Users/xiuyang/Desktop/news-caught/AGENTS.md) 已生效，是基于 `obra/superpowers` 的开发流程约束的唯一权威文档（历史上曾因拼写错误存在 `ANGENT.md`，现已合并，仅保留指向本文件的占位说明）。后续若使用 Codex 协作开发，需要先确保相关 superpowers skills 已安装到 `~/.codex/skills`，并在安装后重启 Codex 使其生效。
+协作规范见根目录 [AGENTS.md](/Users/xiuyang/Desktop/news-caught/AGENTS.md)。仓库不要求安装 Superpowers 套件；历史上曾因拼写错误存在 `ANGENT.md`，现仅保留指向 `AGENTS.md` 的占位说明。
 
-从现在开始，任何代码、配置、文档、脚本、接口或测试修改，都必须同步回填到：
+后续优化和开发请先读 [docs/current-state.md](/Users/xiuyang/Desktop/news-caught/docs/current-state.md)。`docs/archive/` 中的旧计划、优化清单和已完成设计稿都是只读历史，不构成当前待办。
+
+任何代码、配置、文档、脚本、接口或测试修改，都必须同步回填到：
 
 - [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)
 

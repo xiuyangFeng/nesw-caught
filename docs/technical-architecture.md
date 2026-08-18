@@ -1,5 +1,8 @@
 # 技术架构说明
 
+> **文档状态（2026-08-18）：** 本文是 2026-03 架构草稿。模块名、流水线和数据模型可能已落后于代码。
+> 实现以 `backend/`、`frontend/`、Alembic 迁移和 `frontend/openapi.json` 为准。不要按本文重建已不存在的模块。当前能力见 [current-state.md](./current-state.md)。
+
 ## 1. 总体架构
 
 采用单体应用架构：

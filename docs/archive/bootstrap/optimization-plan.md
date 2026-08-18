@@ -1,3 +1,5 @@
+> **归档说明（2026-08-18）：** 本文已从 `docs/optimization-plan.md` 迁出。多数条目已落地；文内“未做 / 部分完成”**不自动构成当前待办**。新优化必须从现行代码重新诊断。现行入口：[docs/current-state.md](../../current-state.md)。
+
 # news-caught 优化清单(Master Lin Review)
 
 > 范围:`backend/`(FastAPI + SQLAlchemy + SQLite)与 `frontend/`(Vue3 + Pinia)。
