@@ -3,19 +3,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import DeskOpsView from './DeskOpsView.vue';
 
-const { getQuantDataStatus } = vi.hoisted(() => ({
+const { getQuantDataStatus, getQuantAiAudit, getQuantRuns, getQuantDecisionLog } = vi.hoisted(() => ({
   getQuantDataStatus: vi.fn(),
+  getQuantAiAudit: vi.fn(),
+  getQuantRuns: vi.fn(),
+  getQuantDecisionLog: vi.fn(),
 }));
 
 vi.mock('../api/client', () => ({
   apiClient: {
     getQuantDataStatus,
+    getQuantAiAudit,
+    getQuantRuns,
+    getQuantDecisionLog,
   },
 }));
 
 describe('DeskOpsView', () => {
   beforeEach(() => {
-    getQuantDataStatus.mockReset();
+    getQuantAiAudit.mockReset();
+    getQuantRuns.mockReset();
+    getQuantDecisionLog.mockReset();
+    getQuantAiAudit.mockResolvedValue({ data: { items: [], note: '暂无调用记录。' }, degraded: false });
+    getQuantRuns.mockResolvedValue({ data: [], degraded: false });
+    getQuantDecisionLog.mockResolvedValue({ data: { items: [] }, degraded: false });
     getQuantDataStatus.mockResolvedValue({
       data: {
         regime: 'normal',
@@ -43,5 +54,21 @@ describe('DeskOpsView', () => {
     expect(wrapper.find('[data-role="desk-ops-data-health"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('日线条数');
     expect(wrapper.text()).toContain('独立行情库');
+  });
+
+  it('renders the AI audit tab', async () => {
+    const wrapper = mount(DeskOpsView);
+    await flushPromises();
+    await wrapper.get('[data-role="desk-ops-tab-ai"]').trigger('click');
+    expect(wrapper.find('[data-role="desk-ops-ai-audit"]').exists()).toBe(true);
+  });
+
+  it('renders pipeline runs and decision log tabs', async () => {
+    const wrapper = mount(DeskOpsView);
+    await flushPromises();
+    await wrapper.get('[data-role="desk-ops-tab-runs"]').trigger('click');
+    expect(wrapper.find('[data-role="desk-ops-runs"]').exists()).toBe(true);
+    await wrapper.get('[data-role="desk-ops-tab-decisions"]').trigger('click');
+    expect(wrapper.find('[data-role="desk-ops-decisions"]').exists()).toBe(true);
   });
 });

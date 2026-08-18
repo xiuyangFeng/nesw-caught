@@ -44,7 +44,23 @@ from app.models.news_signal_result import NewsSignalResult  # noqa: F401
 from app.models.news_stock_mention import NewsStockMention  # noqa: F401
 from app.models.notification_job import NotificationJob  # noqa: F401
 from app.models.price_snapshot import PriceSnapshot  # noqa: F401
-from app.models.quant import QuantRunStageLog, RecommendationItem, RecommendationRun  # noqa: F401
+from app.models.quant import (  # noqa: F401
+    AiCallAudit,
+    DecisionLog,
+    LlmRoleBinding,
+    PaperAccount,
+    PaperOrder,
+    PaperTrade,
+    PortfolioProposal,
+    PortfolioProposalItem,
+    QuantBacktestRun,
+    QuantRunStageLog,
+    QuantStrategy,
+    RadarEvent,
+    RecommendationItem,
+    RecommendationRun,
+    ResearchSnapshot,
+)
 from app.models.sentiment_eval_run import SentimentEvalRun  # noqa: F401
 from app.models.source_health import SourceHealth  # noqa: F401
 from app.models.topic_cluster import TopicCluster  # noqa: F401

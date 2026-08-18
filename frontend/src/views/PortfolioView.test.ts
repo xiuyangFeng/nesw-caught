@@ -4,13 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PortfolioSummary } from '../types/api';
 import PortfolioView from './PortfolioView.vue';
 
-const { getPortfolio } = vi.hoisted(() => ({
+const { getPortfolio, getQuantPaperAccount, placeQuantPaperOrder } = vi.hoisted(() => ({
   getPortfolio: vi.fn(),
+  getQuantPaperAccount: vi.fn(),
+  placeQuantPaperOrder: vi.fn(),
 }));
 
 vi.mock('../api/client', () => ({
   apiClient: {
     getPortfolio,
+    getQuantPaperAccount,
+    placeQuantPaperOrder,
   },
 }));
 
@@ -90,7 +94,13 @@ const summary: PortfolioSummary = {
 describe('PortfolioView', () => {
   beforeEach(() => {
     getPortfolio.mockReset();
+    getQuantPaperAccount.mockReset();
+    placeQuantPaperOrder.mockReset();
     getPortfolio.mockResolvedValue({ data: summary, degraded: false });
+    getQuantPaperAccount.mockResolvedValue({
+      data: { id: 1, cash: 1_000_000, initial_cash: 1_000_000, note: '确认后才撮合' },
+      degraded: false,
+    });
   });
 
   it('renders summary cards, positions and weighted news', async () => {
@@ -109,6 +119,7 @@ describe('PortfolioView', () => {
 
     expect(wrapper.find('[data-role="portfolio-weighted-news"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('Apple 新品发布利好');
+    expect(wrapper.find('[data-role="portfolio-paper-cash"]').text()).toContain('1,000,000');
   });
 
   it('shows the no-holdings state when there are no positions', async () => {

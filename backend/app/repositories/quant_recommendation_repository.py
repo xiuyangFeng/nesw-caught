@@ -25,6 +25,10 @@ class QuantRecommendationRepository:
         stmt = select(RecommendationRun).order_by(RecommendationRun.id.desc())
         return self.session.scalars(stmt).first()
 
+    def list_recent(self, limit: int = 20) -> list[RecommendationRun]:
+        stmt = select(RecommendationRun).order_by(RecommendationRun.id.desc()).limit(limit)
+        return list(self.session.scalars(stmt))
+
     def list_items(self, run_id: int) -> list[RecommendationItem]:
         stmt = (
             select(RecommendationItem)

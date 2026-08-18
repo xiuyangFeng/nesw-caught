@@ -3,10 +3,13 @@ import { computed, onMounted, ref } from 'vue';
 
 import SectionCard from '../components/common/SectionCard.vue';
 import { apiClient } from '../api/client';
-import type { QuantDataStatus } from '../types/api';
+import type { QuantAiAudit, QuantDataStatus, QuantDecisionLog, QuantRecommendationRun } from '../types/api';
 
 const tab = ref<'runs' | 'data' | 'ai' | 'decisions'>('data');
 const status = ref<QuantDataStatus | null>(null);
+const audit = ref<QuantAiAudit | null>(null);
+const runs = ref<QuantRecommendationRun[]>([]);
+const decisions = ref<QuantDecisionLog | null>(null);
 const error = ref<string | null>(null);
 
 const coverageLabel = computed(() => {
@@ -16,8 +19,16 @@ const coverageLabel = computed(() => {
 
 onMounted(async () => {
   try {
-    const response = await apiClient.getQuantDataStatus();
-    status.value = response.data;
+    const [statusRes, auditRes, runsRes, decisionsRes] = await Promise.all([
+      apiClient.getQuantDataStatus(),
+      apiClient.getQuantAiAudit(),
+      apiClient.getQuantRuns(),
+      apiClient.getQuantDecisionLog(),
+    ]);
+    status.value = statusRes.data;
+    audit.value = auditRes.data;
+    runs.value = Array.isArray(runsRes.data) ? runsRes.data : [];
+    decisions.value = decisionsRes.data;
   } catch (err) {
     error.value = err instanceof Error ? err.message : '数据健康加载失败';
   }
@@ -32,10 +43,10 @@ onMounted(async () => {
     </header>
 
     <div class="flex flex-wrap gap-2" data-role="desk-ops-tabs">
-      <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'runs' ? 'border-accent text-accent' : 'border-border text-muted'" @click="tab = 'runs'">流水线 Runs</button>
+      <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'runs' ? 'border-accent text-accent' : 'border-border text-muted'" data-role="desk-ops-tab-runs" @click="tab = 'runs'">流水线 Runs</button>
       <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'data' ? 'border-accent text-accent' : 'border-border text-muted'" data-role="desk-ops-tab-data" @click="tab = 'data'">数据健康</button>
-      <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'ai' ? 'border-accent text-accent' : 'border-border text-muted'" @click="tab = 'ai'">AI 审计</button>
-      <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'decisions' ? 'border-accent text-accent' : 'border-border text-muted'" @click="tab = 'decisions'">决策日志</button>
+      <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'ai' ? 'border-accent text-accent' : 'border-border text-muted'" data-role="desk-ops-tab-ai" @click="tab = 'ai'">AI 审计</button>
+      <button type="button" class="rounded-md border px-3 py-1.5 text-sm" :class="tab === 'decisions' ? 'border-accent text-accent' : 'border-border text-muted'" data-role="desk-ops-tab-decisions" @click="tab = 'decisions'">决策日志</button>
     </div>
 
     <p v-if="error" class="text-sm text-danger">{{ error }}</p>
@@ -69,8 +80,48 @@ onMounted(async () => {
       </dl>
     </SectionCard>
 
-    <SectionCard v-else :title="tab === 'runs' ? '流水线 Runs' : tab === 'ai' ? 'AI 审计' : '决策日志'" subtitle="后续 Phase 接入阶段日志与审计表">
-      <p class="text-sm text-muted">本期仅数据健康 Tab 可读。其余视图将在 Phase 2/3 接入。</p>
+    <SectionCard v-else-if="tab === 'ai'" eyebrow="Audit" title="AI 审计" subtitle="角色/模型/缓存/降级；不回显 prompt 全文">
+      <p class="mb-3 text-sm text-muted">{{ audit?.note }}</p>
+      <table v-if="audit?.items?.length" class="w-full text-left text-sm" data-role="desk-ops-ai-audit">
+        <thead class="text-muted">
+          <tr>
+            <th class="py-1 font-normal">角色</th>
+            <th class="py-1 font-normal">模型</th>
+            <th class="py-1 font-normal">状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in audit.items" :key="row.id" class="text-text">
+            <td class="py-1">{{ row.role }}</td>
+            <td class="py-1">{{ row.model }}</td>
+            <td class="py-1">{{ row.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="text-sm text-muted" data-role="desk-ops-ai-audit">暂无调用记录。</p>
+    </SectionCard>
+
+    <SectionCard v-else-if="tab === 'runs'" eyebrow="Runs" title="流水线 Runs" subtitle="阶段时间线与 result hash；同版本重跑应一致">
+      <p v-if="!runs.length" class="text-sm text-muted" data-role="desk-ops-runs">尚无运行记录。可在机会雷达手动重跑。</p>
+      <ul v-else class="grid gap-3" data-role="desk-ops-runs">
+        <li v-for="run in runs" :key="run.id" class="rounded-md border border-border px-3 py-3 text-sm">
+          <p class="font-medium text-text">{{ run.run_date }} · {{ run.status }} · {{ run.trigger }}</p>
+          <p class="mt-1 text-muted">hash {{ run.result_hash }} · {{ run.empty_reason ?? '有合格机会或观察池' }}</p>
+          <ul v-if="run.stages?.length" class="mt-2 grid gap-1 text-xs text-muted">
+            <li v-for="stage in run.stages" :key="stage.stage">{{ stage.stage }} · {{ stage.status }}</li>
+          </ul>
+        </li>
+      </ul>
+    </SectionCard>
+
+    <SectionCard v-else eyebrow="Decisions" title="决策日志" subtitle="模拟下单、拒绝原因与确认动作">
+      <p v-if="!(decisions?.items ?? []).length" class="text-sm text-muted" data-role="desk-ops-decisions">暂无决策记录。</p>
+      <ul v-else class="grid gap-2 text-sm" data-role="desk-ops-decisions">
+        <li v-for="(item, index) in decisions?.items" :key="String(item.id ?? index)">
+          <span class="text-text">{{ item.symbol ?? '—' }}</span>
+          <span class="text-muted"> · {{ item.action }} · {{ item.reason }}</span>
+        </li>
+      </ul>
     </SectionCard>
   </div>
 </template>

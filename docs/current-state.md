@@ -6,7 +6,7 @@
 
 ## 产品定位
 
-本地单用户的消息工作台，正在升级为量化交易与个股情报台：默认首页是机会雷达 `/desk`，新闻流仍是支撑视图。系统不承诺收益；没有过线机会时现金是合法结果。交易台骨架与独立行情库已上线；机会流水线仍用合成夹具，未接入真实因子/LLM。
+本地单用户的消息工作台，已升级为量化交易与个股情报台：默认首页是机会雷达 `/desk`，新闻流仍是支撑视图。系统不承诺收益；没有过线机会时现金是合法结果。LLM 不改排名或仓位。
 
 - 使用形态：本机运行，浏览器访问
 - 存储：主库 SQLite `app.db`；独立行情库 `backend/data/market_data.db`（东财日线/资金流，需 `make quant-backfill`；未回填时覆盖率为 0）
@@ -17,12 +17,18 @@
 
 | 模块 | 入口 / 关键能力 |
 |------|-----------------|
-| 交易台 | `/desk`（默认首页），机会雷达骨架：状态带、空态机会流、手动重跑合成流水线；`/desk/ops` 运行中心数据健康 Tab |
-| 新闻流 | `/news`，多源抓取、去重、主题聚合、事件详情、手动刷新；pipeline 阶段 2 会写入 A 股 rule mention |
+| 交易台首页 | `/desk`：状态带、三 sleeve 漏斗、机会卡/空态、事件雷达列、组合提案摘要；手动重跑合成/规则流水线 |
+| 个股研究 | `/desk/stocks/:symbol`：纵横研究包、显式缺口、「问 AI」装载研究上下文 |
+| 组合提案 | `/desk/portfolio-proposal`：现金底仓与分配器权重，LLM 不参与 |
+| 成绩单 | `/desk/report-card`：按 sleeve 漏斗计数；财务未覆盖前不宣称超额收益 |
+| 策略工作台 | `/desk/strategies`：因子注册表 DSL 预览/保存，默认探索性 |
+| 回测实验室 | `/desk/backtest`：walk-forward，exploratory 且不得 qualified |
+| 运行中心 | `/desk/ops`：流水线 Runs、数据健康、AI 审计、决策日志 |
+| 模拟盘 | `/portfolio` 增加确认后撮合的 paper account；停牌/未确认不成交 |
+| 新闻流 | `/news`，多源抓取、去重、主题聚合、事件详情、手动刷新；pipeline 阶段 2 写入 A 股 rule mention 并进入快循环雷达 |
 | 仪表盘 | `/dashboard`，市场总览、情绪/恐慌可视化、动态行情条 |
-| 自选股 | `/watchlist`，全量 A 股检索、真实行情、K 线、关联新闻；A 股详情含资金流面板（无数据时合法空态） |
-| 持仓 | `/portfolio` |
-| AI 对话 | `/chat`，多模型、流式回答、可选推理面板、新闻上下文追问 |
+| 自选股 | `/watchlist`，全量 A 股检索、真实行情、K 线、关联新闻；A 股详情含资金流面板 |
+| AI 对话 | `/chat`，多模型、流式回答；`desk_symbol` 研究副驾只读，不改排名/仓位 |
 | LLM 设置 | `/settings/llm`，多模型配置弹窗、Token 用量账本 |
 | 通知 | `/settings/notify`，站内通知与飞书等通道 |
 | X Monitor | `/x-monitor`，可选 Twitter/X 增强层，不并入新闻主链路 |
@@ -33,7 +39,7 @@
 | 情绪评测 | `/eval/sentiment` |
 | 信号统计 | `/analytics/backtest`，新闻情绪信号命中率（不是策略回测引擎） |
 
-后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送。
+后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送。量化内核含 PIT/除权/涨跌停/T+1、三 sleeve 规则打分、组合分配器、DSL、walk-forward 与模拟撮合。
 
 ## 权威来源（按优先级）
 
@@ -47,7 +53,7 @@
 
 以下内容只读，**不要据此重新实施或“补齐未完成阶段”**：
 
-- `docs/archive/superpowers/`：已落地或已过期的设计/计划
+- `docs/archive/superpowers/`：已落地或已过期的设计/计划（含量化交易台 Phase 0～5）
 - `docs/archive/optimization-2026-06/`：2026-06 十三项优化，已全部落地
 - `docs/archive/bootstrap/`：项目启动期总控计划、初期项目管理、并行开发提示词、旧优化诊断清单
 - `docs/archive/code-change-log-before-2026-08.md`：2026-07 及更早的变更流水

@@ -4,11 +4,16 @@ import { RouterLink } from 'vue-router';
 
 import SectionCard from '../components/common/SectionCard.vue';
 import { apiClient } from '../api/client';
-import type { PortfolioSummary } from '../types/api';
+import type { PortfolioSummary, QuantPaperAccount, QuantPaperOrder } from '../types/api';
 import { formatNumber, formatPercent, sentimentText } from '../utils/format';
 import { formatMarketTime } from '../utils/time';
 
 const summary = ref<PortfolioSummary | null>(null);
+const paper = ref<QuantPaperAccount | null>(null);
+const lastOrder = ref<QuantPaperOrder | null>(null);
+const paperSymbol = ref('600519.SH');
+const paperQuantity = ref(100);
+const paperConfirmed = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -24,6 +29,36 @@ async function loadPortfolio() {
     error.value = '组合数据加载失败，请检查后端服务';
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadPaper() {
+  try {
+    const response = await apiClient.getQuantPaperAccount();
+    paper.value = response.data;
+  } catch {
+    paper.value = null;
+  }
+}
+
+async function submitPaperOrder() {
+  try {
+    const response = await apiClient.placeQuantPaperOrder({
+      symbol: paperSymbol.value,
+      side: 'buy',
+      quantity: paperQuantity.value,
+      confirmed: paperConfirmed.value,
+    });
+    lastOrder.value = response.data;
+    await loadPaper();
+  } catch (err) {
+    lastOrder.value = {
+      id: null,
+      status: 'rejected',
+      filled: false,
+      reason: err instanceof Error ? err.message : '下单失败',
+      price: null,
+    };
   }
 }
 
@@ -59,6 +94,7 @@ const generatedAtLabel = computed(() => {
 
 onMounted(() => {
   void loadPortfolio();
+  void loadPaper();
 });
 </script>
 
@@ -96,6 +132,38 @@ onMounted(() => {
     <p v-if="error" class="rounded-[16px] border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
       {{ error }}
     </p>
+
+    <SectionCard
+      v-if="paper"
+      eyebrow="Paper"
+      title="模拟盘"
+      subtitle="确认后才撮合；停牌/涨跌停拒单与回测一致。探索性策略不得晋级实盘。"
+    >
+      <p class="text-sm text-text" data-role="portfolio-paper-cash">
+        现金 {{ formatNumber(paper.cash) }} / 初始 {{ formatNumber(paper.initial_cash) }}
+      </p>
+      <p class="mt-1 text-xs text-muted">{{ paper.note }}</p>
+      <div class="mt-3 flex flex-wrap items-end gap-2">
+        <label class="grid gap-1 text-xs text-muted">
+          标的
+          <input v-model="paperSymbol" class="rounded-md border border-border bg-panel px-2 py-1 text-sm text-text" data-role="portfolio-paper-symbol" />
+        </label>
+        <label class="grid gap-1 text-xs text-muted">
+          数量
+          <input v-model.number="paperQuantity" type="number" class="rounded-md border border-border bg-panel px-2 py-1 text-sm text-text" data-role="portfolio-paper-qty" />
+        </label>
+        <label class="flex items-center gap-2 text-xs text-muted">
+          <input v-model="paperConfirmed" type="checkbox" data-role="portfolio-paper-confirm" />
+          已确认次日开盘撮合
+        </label>
+        <button type="button" class="rounded-md border border-accent px-3 py-1.5 text-sm text-accent" data-role="portfolio-paper-submit" @click="submitPaperOrder">
+          提交模拟买单
+        </button>
+      </div>
+      <p v-if="lastOrder" class="mt-2 text-sm text-muted" data-role="portfolio-paper-result">
+        {{ lastOrder.status }} · {{ lastOrder.filled ? '已成交' : lastOrder.reason }}
+      </p>
+    </SectionCard>
 
     <div v-if="loading && !summary" class="text-text-faint">正在加载组合数据…</div>
 

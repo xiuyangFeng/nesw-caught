@@ -221,6 +221,9 @@ describe('AppShell', () => {
     const wrapper = mount(AppShell);
 
     expect(wrapper.text()).toContain('运行中心');
+    expect(wrapper.text()).toContain('组合提案');
+    expect(wrapper.text()).toContain('成绩单');
+    expect(wrapper.text()).toContain('回测实验室');
     const activeLink = wrapper.find('[data-route-active="true"]');
     expect(activeLink.exists()).toBe(true);
     expect(activeLink.text()).toContain('运行中心');

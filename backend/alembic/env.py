@@ -24,7 +24,23 @@ from app.models.news_signal_result import NewsSignalResult
 from app.models.news_stock_mention import NewsStockMention
 from app.models.notification_job import NotificationJob
 from app.models.price_snapshot import PriceSnapshot
-from app.models.quant import QuantRunStageLog, RecommendationItem, RecommendationRun
+from app.models.quant import (
+    AiCallAudit,
+    DecisionLog,
+    LlmRoleBinding,
+    PaperAccount,
+    PaperOrder,
+    PaperTrade,
+    PortfolioProposal,
+    PortfolioProposalItem,
+    QuantBacktestRun,
+    QuantRunStageLog,
+    QuantStrategy,
+    RadarEvent,
+    RecommendationItem,
+    RecommendationRun,
+    ResearchSnapshot,
+)
 from app.models.sentiment_eval_run import SentimentEvalRun
 from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster

@@ -34,6 +34,19 @@ describe('router', () => {
     expect(router.currentRoute.value.name).toBe('desk-ops');
   });
 
+  it('resolves desk product pages added in later phases', async () => {
+    const { default: router } = await import('./index');
+
+    await router.push('/desk/portfolio-proposal');
+    expect(router.currentRoute.value.name).toBe('desk-proposal');
+    await router.push('/desk/report-card');
+    expect(router.currentRoute.value.name).toBe('desk-report-card');
+    await router.push('/desk/strategies');
+    expect(router.currentRoute.value.name).toBe('desk-strategies');
+    await router.push('/desk/backtest');
+    expect(router.currentRoute.value.name).toBe('desk-backtest');
+  });
+
   it('resolves event detail routes by event key', async () => {
     const { default: router } = await import('./index');
 

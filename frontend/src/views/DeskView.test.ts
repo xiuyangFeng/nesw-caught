@@ -48,12 +48,25 @@ const deskStore = reactive({
   watchItems: [] as QuantRecommendationLatest['items'],
   isDegraded: false,
   hasQualified: false,
+  proposal: { cash_weight: 1, items: [], note: '无合格机会时现金为 100%。LLM 不参与权重。' },
+  sleeveCounts: {
+    event_catalyst: { qualified: 0, watch: 0, total: 0 },
+    trend_flow: { qualified: 0, watch: 0, total: 0 },
+    fundamental_revalue: { qualified: 0, watch: 0, total: 0 },
+  },
   loadDesk: vi.fn(async () => undefined),
   rerun: vi.fn(async () => undefined),
 });
 
 vi.mock('../stores/deskStore', () => ({
   useDeskStore: () => deskStore,
+}));
+
+vi.mock('vue-router', () => ({
+  RouterLink: {
+    props: ['to'],
+    template: '<a :href="typeof to === \'string\' ? to : to.path"><slot /></a>',
+  },
 }));
 
 describe('DeskView', () => {

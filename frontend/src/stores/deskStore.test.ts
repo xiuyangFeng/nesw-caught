@@ -4,6 +4,7 @@ const apiClient = {
   getQuantLatest: vi.fn(),
   getQuantDataStatus: vi.fn(),
   getQuantRadar: vi.fn(),
+  getQuantProposal: vi.fn(),
   runQuantRecommendations: vi.fn(),
 };
 
@@ -36,11 +37,16 @@ describe('deskStore', () => {
       degraded: false,
     });
     apiClient.getQuantRadar.mockResolvedValue({ data: { candidates: [] }, degraded: false });
+    apiClient.getQuantProposal.mockResolvedValue({
+      data: { cash_weight: 1, items: [], note: '无合格机会时现金为 100%。' },
+      degraded: false,
+    });
 
     await store.loadDesk();
 
     expect(store.latest.empty_reason).toBe('no_run_yet');
     expect(store.hasQualified).toBe(false);
+    expect(store.proposal.cash_weight).toBe(1);
     expect(store.loading).toBe(false);
     expect(store.error).toBeNull();
   });
@@ -61,6 +67,10 @@ describe('deskStore', () => {
     });
     apiClient.getQuantDataStatus.mockResolvedValue({ data: { regime: 'normal', note: '', pit_ready: true, dataset_version: 'v', factor_version: 'v', rule_version: 'v', backfill_progress_pct: 0 }, degraded: false });
     apiClient.getQuantRadar.mockResolvedValue({ data: { candidates: [] }, degraded: false });
+    apiClient.getQuantProposal.mockResolvedValue({
+      data: { cash_weight: 1, items: [], note: '现金为合法结果' },
+      degraded: false,
+    });
 
     await store.rerun('abstain');
 

@@ -1430,6 +1430,28 @@
             ],
             "title": "Config Id"
           },
+          "desk_context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desk Context"
+          },
+          "desk_symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desk Symbol"
+          },
           "history": {
             "default": [],
             "items": {
@@ -4725,6 +4747,238 @@
         "title": "PriceSnapshotView",
         "type": "object"
       },
+      "QuantAiAuditRowView": {
+        "properties": {
+          "cache_hit": {
+            "title": "Cache Hit",
+            "type": "boolean"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "pool": {
+            "title": "Pool",
+            "type": "string"
+          },
+          "prompt_version": {
+            "title": "Prompt Version",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "token_in": {
+            "title": "Token In",
+            "type": "integer"
+          },
+          "token_out": {
+            "title": "Token Out",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "model",
+          "prompt_version",
+          "cache_hit",
+          "latency_ms",
+          "token_in",
+          "token_out",
+          "status",
+          "pool",
+          "created_at"
+        ],
+        "title": "QuantAiAuditRowView",
+        "type": "object"
+      },
+      "QuantAiAuditView": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QuantAiAuditRowView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "QuantAiAuditView",
+        "type": "object"
+      },
+      "QuantAiBudgetView": {
+        "properties": {
+          "degrade_order": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Degrade Order",
+            "type": "array"
+          },
+          "note": {
+            "default": "副驾预算独立；流水线预算耗尽只降级解释层。",
+            "title": "Note",
+            "type": "string"
+          },
+          "pools": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Pools",
+            "type": "object"
+          }
+        },
+        "title": "QuantAiBudgetView",
+        "type": "object"
+      },
+      "QuantAiRoleBindingUpdate": {
+        "properties": {
+          "config_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Id"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "tier": {
+            "default": "standard",
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "QuantAiRoleBindingUpdate",
+        "type": "object"
+      },
+      "QuantAiRoleBindingView": {
+        "properties": {
+          "config_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Id"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "tier"
+        ],
+        "title": "QuantAiRoleBindingView",
+        "type": "object"
+      },
+      "QuantBacktestView": {
+        "properties": {
+          "exploratory": {
+            "title": "Exploratory",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "title": "Metrics",
+            "type": "object"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "qualified": {
+            "default": false,
+            "title": "Qualified",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "exploratory"
+        ],
+        "title": "QuantBacktestView",
+        "type": "object"
+      },
+      "QuantCopilotToolsView": {
+        "properties": {
+          "note": {
+            "default": "全部只读，副驾不能下单或改策略。",
+            "title": "Note",
+            "type": "string"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tools",
+            "type": "array"
+          }
+        },
+        "title": "QuantCopilotToolsView",
+        "type": "object"
+      },
       "QuantDataStatusView": {
         "properties": {
           "backfill_progress_pct": {
@@ -4826,6 +5080,20 @@
           "note"
         ],
         "title": "QuantDataStatusView",
+        "type": "object"
+      },
+      "QuantDecisionLogView": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "title": "QuantDecisionLogView",
         "type": "object"
       },
       "QuantFundFlowPointView": {
@@ -4939,6 +5207,184 @@
         "title": "QuantFundFlowView",
         "type": "object"
       },
+      "QuantPaperAccountView": {
+        "properties": {
+          "cash": {
+            "title": "Cash",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "initial_cash": {
+            "title": "Initial Cash",
+            "type": "number"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "id",
+          "cash",
+          "initial_cash"
+        ],
+        "title": "QuantPaperAccountView",
+        "type": "object"
+      },
+      "QuantPaperOrderRequest": {
+        "properties": {
+          "confirmed": {
+            "default": false,
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "quantity": {
+            "default": 100,
+            "title": "Quantity",
+            "type": "number"
+          },
+          "side": {
+            "default": "buy",
+            "title": "Side",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "QuantPaperOrderRequest",
+        "type": "object"
+      },
+      "QuantPaperOrderView": {
+        "properties": {
+          "filled": {
+            "default": false,
+            "title": "Filled",
+            "type": "boolean"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "QuantPaperOrderView",
+        "type": "object"
+      },
+      "QuantProposalItemView": {
+        "properties": {
+          "reject_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "sleeve": {
+            "title": "Sleeve",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "symbol",
+          "sleeve",
+          "weight"
+        ],
+        "title": "QuantProposalItemView",
+        "type": "object"
+      },
+      "QuantProposalView": {
+        "properties": {
+          "cash_weight": {
+            "title": "Cash Weight",
+            "type": "number"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QuantProposalItemView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "cash_weight"
+        ],
+        "title": "QuantProposalView",
+        "type": "object"
+      },
       "QuantRadarCandidateView": {
         "properties": {
           "display_name": {
@@ -4946,11 +5392,45 @@
             "title": "Display Name",
             "type": "string"
           },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "evidence_grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Grade"
+          },
+          "news_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "News Id"
+          },
           "reason_code": {
             "title": "Reason Code",
             "type": "string"
           },
           "sleeve": {
+            "default": "event_catalyst",
             "title": "Sleeve",
             "type": "string"
           },
@@ -4976,7 +5456,6 @@
         },
         "required": [
           "symbol",
-          "sleeve",
           "state",
           "reason_code"
         ],
@@ -5284,6 +5763,119 @@
         "title": "QuantRecommendationRunView",
         "type": "object"
       },
+      "QuantReportCardView": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "sample_size": {
+            "default": 0,
+            "title": "Sample Size",
+            "type": "integer"
+          },
+          "sleeves": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sleeves",
+            "type": "object"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window"
+        ],
+        "title": "QuantReportCardView",
+        "type": "object"
+      },
+      "QuantResearchModuleView": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "question",
+          "answer"
+        ],
+        "title": "QuantResearchModuleView",
+        "type": "object"
+      },
+      "QuantResearchPackView": {
+        "properties": {
+          "ask_ai_context": {
+            "default": "",
+            "title": "Ask Ai Context",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/QuantResearchModuleView"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "QuantResearchPackView",
+        "type": "object"
+      },
       "QuantRunRequest": {
         "properties": {
           "scenario": {
@@ -5410,6 +6002,113 @@
           "inputs"
         ],
         "title": "QuantSentimentView",
+        "type": "object"
+      },
+      "QuantStrategyUpsert": {
+        "properties": {
+          "dsl": {
+            "additionalProperties": true,
+            "title": "Dsl",
+            "type": "object"
+          },
+          "is_active": {
+            "default": false,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "QuantStrategyUpsert",
+        "type": "object"
+      },
+      "QuantStrategyView": {
+        "properties": {
+          "dsl": {
+            "additionalProperties": true,
+            "title": "Dsl",
+            "type": "object"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "exploratory": {
+            "default": true,
+            "title": "Exploratory",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_active": {
+            "default": false,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "QuantStrategyView",
+        "type": "object"
+      },
+      "QuantSymbolEventView": {
+        "properties": {
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "evidence_grade": {
+            "title": "Evidence Grade",
+            "type": "string"
+          },
+          "news_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "News Id"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "evidence_grade",
+          "event_type",
+          "state",
+          "reason_code"
+        ],
+        "title": "QuantSymbolEventView",
         "type": "object"
       },
       "QuoteDetailView": {
@@ -11118,6 +11817,338 @@
         ]
       }
     },
+    "/api/quant/ai/audit": {
+      "get": {
+        "operationId": "get_ai_audit_api_quant_ai_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantAiAuditView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Audit",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/ai/budget": {
+      "get": {
+        "operationId": "get_ai_budget_api_quant_ai_budget_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantAiBudgetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Budget",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/ai/role-bindings": {
+      "get": {
+        "operationId": "get_role_bindings_api_quant_ai_role_bindings_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuantAiRoleBindingView"
+                  },
+                  "title": "Response Get Role Bindings Api Quant Ai Role Bindings Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Role Bindings",
+        "tags": [
+          "quant"
+        ]
+      },
+      "put": {
+        "operationId": "put_role_binding_api_quant_ai_role_bindings_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantAiRoleBindingUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantAiRoleBindingView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Role Binding",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/backtests": {
+      "post": {
+        "operationId": "create_backtest_api_quant_backtests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantStrategyUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantBacktestView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Backtest",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/copilot/tools": {
+      "get": {
+        "operationId": "get_copilot_tools_api_quant_copilot_tools_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantCopilotToolsView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Copilot Tools",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
     "/api/quant/data/status": {
       "get": {
         "operationId": "get_quant_data_status_api_quant_data_status_get",
@@ -11162,6 +12193,212 @@
           }
         },
         "summary": "Get Quant Data Status",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/decision-log": {
+      "get": {
+        "operationId": "get_decision_log_api_quant_decision_log_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantDecisionLogView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Decision Log",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/paper/account": {
+      "get": {
+        "operationId": "get_paper_account_api_quant_paper_account_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantPaperAccountView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Paper Account",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/paper/orders": {
+      "post": {
+        "operationId": "post_paper_order_api_quant_paper_orders_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantPaperOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantPaperOrderView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Paper Order",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/portfolio-proposals/latest": {
+      "get": {
+        "operationId": "get_latest_proposal_api_quant_portfolio_proposals_latest_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantProposalView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Latest Proposal",
         "tags": [
           "quant"
         ]
@@ -11331,6 +12568,351 @@
         ]
       }
     },
+    "/api/quant/recommendations/runs": {
+      "get": {
+        "operationId": "list_recommendation_runs_api_quant_recommendations_runs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuantRecommendationRunView"
+                  },
+                  "title": "Response List Recommendation Runs Api Quant Recommendations Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recommendation Runs",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/report-card": {
+      "get": {
+        "operationId": "get_report_card_api_quant_report_card_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantReportCardView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Card",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/strategies": {
+      "get": {
+        "operationId": "list_strategies_api_quant_strategies_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuantStrategyView"
+                  },
+                  "title": "Response List Strategies Api Quant Strategies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Strategies",
+        "tags": [
+          "quant"
+        ]
+      },
+      "post": {
+        "operationId": "create_strategy_api_quant_strategies_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantStrategyUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantStrategyView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Strategy",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/strategies/preview": {
+      "post": {
+        "operationId": "preview_strategy_api_quant_strategies_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantStrategyUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Strategy Api Quant Strategies Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Strategy",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/symbols/{symbol}/events": {
+      "get": {
+        "operationId": "get_symbol_events_api_quant_symbols__symbol__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuantSymbolEventView"
+                  },
+                  "title": "Response Get Symbol Events Api Quant Symbols  Symbol  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Symbol Events",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
     "/api/quant/symbols/{symbol}/fund-flow": {
       "get": {
         "operationId": "get_symbol_fund_flow_api_quant_symbols__symbol__fund_flow_get",
@@ -11384,6 +12966,122 @@
           }
         },
         "summary": "Get Symbol Fund Flow",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/symbols/{symbol}/research": {
+      "get": {
+        "operationId": "get_symbol_research_api_quant_symbols__symbol__research_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantResearchPackView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Symbol Research",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/symbols/{symbol}/research/refresh": {
+      "post": {
+        "operationId": "refresh_symbol_research_api_quant_symbols__symbol__research_refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantResearchPackView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh Symbol Research",
         "tags": [
           "quant"
         ]

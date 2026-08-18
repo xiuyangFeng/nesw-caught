@@ -26,6 +26,7 @@ export interface ChatSession {
   messages: ChatMessage[];
   newsId: number | null;
   newsDetail: NewsDetail | null;
+  deskSymbol: string | null;
   selectedConfigId: number | null;
   createdAt: number;
 }
@@ -36,6 +37,7 @@ const ACTIVE_SESSION_STORAGE_KEY = 'news_caught_active_session_id';
 const DEFAULT_GREETING =
   '你好！我是 AI 智能助理。你可以向我发起日常咨询，或者基于特定新闻让我为您深度解析、总结要点或分析相关的个股影响。请在下方输入您的问题。';
 const NEWS_GREETING = '你好！我已经将选定新闻的完整正文载入为上下文，请随时向我提问。';
+const DESK_GREETING = '你好！我已装载该标的研究包上下文。只做研究问答，不会改排名或仓位。';
 
 export interface UseChatSessionsOptions {
   /** 新会话默认绑定的模型配置 id（通常来自 llmStore 的默认配置）。 */
@@ -70,7 +72,10 @@ export function useChatSessions(options: UseChatSessionsOptions) {
     const storedActive = localStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
     if (stored) {
       try {
-        sessions.value = JSON.parse(stored);
+        sessions.value = (JSON.parse(stored) as ChatSession[]).map((session) => ({
+          ...session,
+          deskSymbol: session.deskSymbol ?? null,
+        }));
         if (storedActive && sessions.value.some((s) => s.id === storedActive)) {
           activeSessionId.value = storedActive;
         } else if (sessions.value.length > 0) {
@@ -84,7 +89,7 @@ export function useChatSessions(options: UseChatSessionsOptions) {
 
   /** 统一的会话创建入口：普通新对话与新闻上下文会话共用（消除重复创建逻辑）。 */
   function createSession(
-    overrides: { title?: string; greeting?: string; newsId?: number | null } = {},
+    overrides: { title?: string; greeting?: string; newsId?: number | null; deskSymbol?: string | null } = {},
   ): ChatSession {
     const id = Math.random().toString(36).substring(2, 9);
     const newSession: ChatSession = {
@@ -98,6 +103,7 @@ export function useChatSessions(options: UseChatSessionsOptions) {
       ],
       newsId: overrides.newsId ?? null,
       newsDetail: null,
+      deskSymbol: overrides.deskSymbol ?? null,
       selectedConfigId: options.getDefaultConfigId() ?? null,
       createdAt: Date.now(),
     };
@@ -187,10 +193,24 @@ export function useChatSessions(options: UseChatSessionsOptions) {
     void loadNewsContextForSession(newSession, newsId);
   }
 
+  function openDeskResearchSession(symbol: string) {
+    const existingSession = sessions.value.find((s) => s.deskSymbol === symbol);
+    if (existingSession) {
+      activeSessionId.value = existingSession.id;
+      return;
+    }
+    createSession({
+      title: `研究 ${symbol}`,
+      greeting: DESK_GREETING,
+      deskSymbol: symbol,
+    });
+  }
+
   function clearNewsContext() {
     if (currentSession.value) {
       currentSession.value.newsId = null;
       currentSession.value.newsDetail = null;
+      currentSession.value.deskSymbol = null;
       currentSession.value.title = '新对话';
       saveSessionsToStorage();
     }
@@ -209,6 +229,7 @@ export function useChatSessions(options: UseChatSessionsOptions) {
     deleteSession,
     renameSession,
     openNewsSession,
+    openDeskResearchSession,
     clearNewsContext,
   };
 }

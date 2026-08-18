@@ -21,6 +21,7 @@ function buildSession(): ChatSession {
     messages: [{ role: 'assistant', content: '欢迎' }],
     newsId: null,
     newsDetail: null,
+    deskSymbol: null,
     selectedConfigId: 3,
     createdAt: Date.now(),
   };
@@ -90,6 +91,7 @@ describe('useChatStream', () => {
       message: '第一条提问',
       history: [{ role: 'assistant', content: '欢迎' }],
       news_id: null,
+      desk_symbol: null,
       config_id: 3,
       stream: true,
     });

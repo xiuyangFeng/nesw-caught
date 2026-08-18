@@ -10,21 +10,55 @@ from sqlalchemy.orm import Session
 
 from app.db.market_session import MarketSessionLocal
 from app.models.market_data import DailyBar, FundFlowDaily
-from app.models.quant import QuantRunStageLog, RecommendationItem, RecommendationRun
+from app.models.news_item import NewsItem
+from app.models.news_stock_mention import NewsStockMention
+from app.models.quant import (
+    AiCallAudit,
+    DecisionLog,
+    LlmRoleBinding,
+    PaperAccount,
+    PaperOrder,
+    QuantBacktestRun,
+    QuantRunStageLog,
+    QuantStrategy,
+    RadarEvent,
+    RecommendationItem,
+    RecommendationRun,
+    ResearchSnapshot,
+)
 from app.repositories.quant_recommendation_repository import QuantRecommendationRepository
 from app.schemas.quant import (
+    QuantAiAuditRowView,
+    QuantAiAuditView,
+    QuantAiBudgetView,
+    QuantAiRoleBindingView,
+    QuantBacktestView,
+    QuantCopilotToolsView,
     QuantDataStatusView,
+    QuantDecisionLogView,
     QuantFundFlowPointView,
     QuantFundFlowView,
+    QuantPaperAccountView,
+    QuantPaperOrderView,
+    QuantProposalItemView,
+    QuantProposalView,
     QuantRadarCandidateView,
     QuantRadarView,
     QuantRecommendationItemView,
     QuantRecommendationLatestView,
     QuantRecommendationRunView,
+    QuantReportCardView,
+    QuantResearchModuleView,
+    QuantResearchPackView,
     QuantRunStageView,
+    QuantStrategyView,
+    QuantSymbolEventView,
 )
+from app.services.quant.ai.guard import DEGRADE_ORDER, wrap_untrusted_evidence
 from app.services.quant.contracts import PipelineResult, RunVersions
+from app.services.quant.radar.ingest import list_recent
 from app.services.quant.recommendation.pipeline import run_synthetic_pipeline
+from app.services.quant.research.pack import build_research_pack
 from app.services.quant.trading_rules import RULE_VERSION
 
 PHASE0_DATASET_VERSION = "synthetic-v0"
@@ -138,23 +172,341 @@ class QuantDeskService:
         return QuantFundFlowView(symbol=symbol.upper(), points=points, note=note)
 
     def get_radar(self, session: Session) -> QuantRadarView:
-        latest = self.get_latest(session)
+        events = list_recent(session, limit=40)
         candidates = [
             QuantRadarCandidateView(
-                symbol=item.symbol,
-                display_name=item.display_name,
-                sleeve=item.sleeve,
-                state=item.state,
-                reason_code=item.reason_code,
-                thesis_md=item.thesis_md,
+                symbol=row.symbol,
+                display_name=row.symbol,
+                sleeve="event_catalyst",
+                state=row.state,
+                reason_code=row.reason_code,
+                thesis_md=row.title,
+                evidence_grade=row.evidence_grade,
+                event_type=row.event_type,
+                news_id=row.news_id,
             )
-            for item in latest.items
+            for row in events
         ]
+        if not candidates:
+            latest = self.get_latest(session)
+            candidates = [
+                QuantRadarCandidateView(
+                    symbol=item.symbol,
+                    display_name=item.display_name,
+                    sleeve=item.sleeve,
+                    state=item.state,
+                    reason_code=item.reason_code,
+                    thesis_md=item.thesis_md,
+                )
+                for item in latest.items
+            ]
         return QuantRadarView(
-            as_of=latest.run.source_cutoff if latest.run is not None else None,
+            as_of=datetime.now(UTC),
             candidates=candidates,
-            note="Phase 0 合成事件雷达，快循环尚未接入新闻主链路。",
+            note="快循环雷达读取 news mention；D 级传闻不会单独进入 qualified。",
         )
+
+    def get_research(self, session: Session, symbol: str) -> QuantResearchPackView:
+        symbol = symbol.upper()
+        news_rows = list(
+            session.execute(
+                select(NewsItem.id, NewsItem.title, NewsItem.source_name, NewsItem.summary)
+                .join(NewsStockMention, NewsStockMention.news_id == NewsItem.id)
+                .where(NewsStockMention.symbol == symbol)
+                .order_by(NewsItem.effective_at.desc())
+                .limit(12)
+            )
+        )
+        news = [
+            {"id": row.id, "title": row.title, "source_name": row.source_name, "summary": row.summary}
+            for row in news_rows
+        ]
+        pack = build_research_pack(symbol=symbol, display_name=symbol, news=news)
+        return QuantResearchPackView(
+            symbol=pack.symbol,
+            display_name=pack.display_name,
+            modules=[
+                QuantResearchModuleView(
+                    key=module.key,
+                    question=module.question,
+                    answer=module.answer,
+                    evidence_ids=module.evidence_ids,
+                    gap=module.gap,
+                )
+                for module in pack.modules
+            ],
+            ask_ai_context=wrap_untrusted_evidence(pack.ask_ai_context),
+        )
+
+    def refresh_research(self, session: Session, symbol: str) -> QuantResearchPackView:
+        pack = self.get_research(session, symbol)
+        session.add(
+            ResearchSnapshot(
+                symbol=pack.symbol,
+                display_name=pack.display_name,
+                payload=json.dumps(pack.model_dump(mode="json"), ensure_ascii=False),
+                evidence_hash=str(hash(pack.ask_ai_context)),
+            )
+        )
+        session.add(
+            AiCallAudit(
+                role="ThesisBuilder",
+                model="rules",
+                prompt_version="research-pack-v0",
+                status="degraded",
+                pool="quant_research",
+                detail=json.dumps({"reason": "llm_optional_rules_fallback"}, ensure_ascii=False),
+            )
+        )
+        session.commit()
+        return pack
+
+    def list_symbol_events(self, session: Session, symbol: str) -> list[QuantSymbolEventView]:
+        rows = list(
+            session.scalars(
+                select(RadarEvent).where(RadarEvent.symbol == symbol.upper()).order_by(RadarEvent.created_at.desc())
+            )
+        )
+        return [
+            QuantSymbolEventView(
+                news_id=row.news_id,
+                title=row.title,
+                evidence_grade=row.evidence_grade,
+                event_type=row.event_type,
+                state=row.state,
+                reason_code=row.reason_code,
+            )
+            for row in rows
+        ]
+
+    def list_role_bindings(self, session: Session) -> list[QuantAiRoleBindingView]:
+        roles = ("EvidenceExtractor", "ThesisBuilder", "PeerComparator", "Skeptic", "Copilot")
+        existing = {row.role: row for row in session.scalars(select(LlmRoleBinding))}
+        views = []
+        for role in roles:
+            row = existing.get(role)
+            views.append(
+                QuantAiRoleBindingView(
+                    role=role,
+                    tier=row.tier if row is not None else ("fast" if role == "EvidenceExtractor" else "deep"),
+                    config_id=row.config_id if row is not None else None,
+                )
+            )
+        return views
+
+    def upsert_role_binding(self, session: Session, role: str, config_id: int | None, tier: str) -> QuantAiRoleBindingView:
+        row = session.scalar(select(LlmRoleBinding).where(LlmRoleBinding.role == role))
+        if row is None:
+            row = LlmRoleBinding(role=role, config_id=config_id, tier=tier)
+            session.add(row)
+        else:
+            row.config_id = config_id
+            row.tier = tier
+        session.commit()
+        return QuantAiRoleBindingView(role=row.role, tier=row.tier, config_id=row.config_id)
+
+    def list_ai_audit(self, session: Session, role: str | None = None) -> QuantAiAuditView:
+        stmt = select(AiCallAudit).order_by(AiCallAudit.created_at.desc()).limit(100)
+        if role:
+            stmt = stmt.where(AiCallAudit.role == role)
+        rows = list(session.scalars(stmt))
+        return QuantAiAuditView(
+            items=[
+                QuantAiAuditRowView(
+                    id=row.id,
+                    role=row.role,
+                    model=row.model,
+                    prompt_version=row.prompt_version,
+                    cache_hit=bool(row.cache_hit),
+                    latency_ms=row.latency_ms,
+                    token_in=row.token_in,
+                    token_out=row.token_out,
+                    status=row.status,
+                    pool=row.pool,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ],
+            note="未调用 LLM 时审计可为空；规则研究包刷新会记一条 degraded ThesisBuilder。",
+        )
+
+    def get_ai_budget(self) -> QuantAiBudgetView:
+        return QuantAiBudgetView(
+            pools={
+                "quant_extract": "ok",
+                "quant_research": "ok",
+                "quant_copilot": "independent",
+                "quant_review": "ok",
+            },
+            degrade_order=list(DEGRADE_ORDER),
+        )
+
+    def get_proposal(self, session: Session) -> QuantProposalView:
+        latest = self.get_latest(session)
+        qualified = [(item.symbol, item.sleeve, 1.0) for item in latest.items if item.state == "qualified"]
+        from app.services.quant.allocator import allocate
+
+        positions, cash = allocate(qualified)
+        return QuantProposalView(
+            cash_weight=cash,
+            items=[
+                QuantProposalItemView(
+                    symbol=item.symbol,
+                    sleeve=item.sleeve,
+                    weight=item.weight,
+                    reject_reason=item.reject_reason,
+                )
+                for item in positions
+            ],
+            note="无合格机会时现金为 100%。LLM 不参与权重。",
+        )
+
+    def get_report_card(self, session: Session, window: str = "30d") -> QuantReportCardView:
+        latest = self.get_latest(session)
+        sleeves = {"event_catalyst": {"qualified": 0, "watch": 0}, "trend_flow": {"qualified": 0, "watch": 0}, "fundamental_revalue": {"qualified": 0, "watch": 0}}
+        for item in latest.items:
+            bucket = sleeves.setdefault(item.sleeve, {"qualified": 0, "watch": 0})
+            if item.state == "qualified":
+                bucket["qualified"] += 1
+            elif item.state == "watch":
+                bucket["watch"] += 1
+        return QuantReportCardView(
+            window=window,
+            sleeves=sleeves,
+            sample_size=len(latest.items),
+            note="财务未覆盖前成绩单只展示漏斗计数，不宣称超额收益。",
+        )
+
+    def list_runs(self, session: Session) -> list[QuantRecommendationRunView]:
+        repo = QuantRecommendationRepository(session)
+        return [_run_view(run, repo.list_stages(run.id)) for run in repo.list_recent()]
+
+    def upsert_strategy(self, session: Session, name: str, dsl: dict, is_active: bool) -> QuantStrategyView:
+        from app.services.quant.dsl import validate_dsl
+
+        errors = validate_dsl(dsl)
+        row = QuantStrategy(
+            name=name,
+            dsl=json.dumps(dsl, ensure_ascii=False),
+            is_active=1 if is_active and not errors else 0,
+            exploratory=1,
+        )
+        session.add(row)
+        session.commit()
+        return QuantStrategyView(id=row.id, name=row.name, dsl=dsl, is_active=bool(row.is_active), exploratory=True, errors=errors)
+
+    def list_strategies(self, session: Session) -> list[QuantStrategyView]:
+        rows = list(session.scalars(select(QuantStrategy).order_by(QuantStrategy.id.desc())))
+        return [
+            QuantStrategyView(
+                id=row.id,
+                name=row.name,
+                dsl=json.loads(row.dsl),
+                is_active=bool(row.is_active),
+                exploratory=bool(row.exploratory),
+            )
+            for row in rows
+        ]
+
+    def preview_strategy(self, dsl: dict) -> dict:
+        from app.services.quant.dsl import evaluate_dsl, validate_dsl
+
+        errors = validate_dsl(dsl)
+        return {"errors": errors, "hit": False if errors else evaluate_dsl(dsl, {"main_inflow_1d": 80_000_000, "news_novelty": 1, "gap_unfilled": 0})}
+
+    def run_backtest(self, session: Session, strategy_id: int | None, dsl: dict | None) -> QuantBacktestView:
+        from datetime import date as date_cls
+
+        from app.services.quant.backtest_engine import walk_forward
+        from app.services.quant.contracts import Bar, Board
+
+        payload = dsl or {"sleeve": "trend_flow", "horizon": "20d", "logic": "and", "conditions": [{"factor": "main_inflow_1d", "op": ">", "value": 1}]}
+        bars = [
+            Bar("SYN", date_cls(2026, 4, 8), 10, 10, 10, 10, 1, 1),
+            Bar("SYN", date_cls(2026, 4, 9), 11, 11, 11, 11, 1, 1),
+            Bar("SYN", date_cls(2026, 4, 10), 10.5, 10.5, 10.5, 10.5, 1, 1),
+        ]
+        metrics = walk_forward(
+            dsl=payload,
+            bars=bars,
+            board=Board.MAIN,
+            features_by_date={date_cls(2026, 4, 8): {"main_inflow_1d": 2}, date_cls(2026, 4, 9): {"main_inflow_1d": 0}},
+        )
+        row = QuantBacktestRun(
+            strategy_id=strategy_id,
+            status="completed",
+            exploratory=1,
+            metrics=json.dumps(metrics),
+            note="探索性回测：退市股未补齐，不得显示 qualified。",
+        )
+        session.add(row)
+        session.commit()
+        return QuantBacktestView(
+            id=row.id,
+            status=row.status,
+            exploratory=True,
+            qualified=False,
+            metrics=metrics,
+            note=row.note,
+        )
+
+    def get_or_create_paper_account(self, session: Session) -> QuantPaperAccountView:
+        row = session.scalar(select(PaperAccount).order_by(PaperAccount.id.asc()))
+        if row is None:
+            row = PaperAccount(name="default", cash=1_000_000, initial_cash=1_000_000)
+            session.add(row)
+            session.commit()
+        return QuantPaperAccountView(id=row.id, cash=row.cash, initial_cash=row.initial_cash, note="确认后才撮合，不能用生成前价格成交。")
+
+    def place_paper_order(self, session: Session, symbol: str, side: str, quantity: float, confirmed: bool) -> QuantPaperOrderView:
+        from datetime import date as date_cls
+
+        from app.services.quant.contracts import Bar, Board
+        from app.services.quant.paper import place_order
+
+        account = session.scalar(select(PaperAccount).order_by(PaperAccount.id.asc()))
+        if account is None:
+            account = PaperAccount()
+            session.add(account)
+            session.flush()
+        result = place_order(
+            confirmed=confirmed,
+            signal_date=date_cls(2026, 4, 9),
+            next_open_bar=Bar(symbol.upper(), date_cls(2026, 4, 10), 10, 10, 10, 10, 1, 1),
+            prev_close=9.5,
+            board=Board.MAIN,
+            halted=False,
+        )
+        order = PaperOrder(
+            account_id=account.id,
+            symbol=symbol.upper(),
+            side=side,
+            quantity=quantity,
+            status=result["status"],
+            reject_reason=None if result.get("filled") else result.get("reason"),
+            source="manual",
+        )
+        session.add(order)
+        session.add(DecisionLog(symbol=symbol.upper(), action=f"paper_{side}", reason=result.get("reason") or "", payload=json.dumps(result)))
+        session.commit()
+        return QuantPaperOrderView(
+            id=order.id,
+            status=result["status"],
+            filled=bool(result.get("filled")),
+            reason=result.get("reason"),
+            price=result.get("price"),
+        )
+
+    def list_decisions(self, session: Session) -> QuantDecisionLogView:
+        rows = list(session.scalars(select(DecisionLog).order_by(DecisionLog.id.desc()).limit(50)))
+        return QuantDecisionLogView(
+            items=[{"id": row.id, "symbol": row.symbol, "action": row.action, "reason": row.reason} for row in rows]
+        )
+
+    def copilot_tools(self) -> QuantCopilotToolsView:
+        from app.services.quant.ai.tools import READONLY_TOOLS
+
+        return QuantCopilotToolsView(tools=list(READONLY_TOOLS))
 
     def _persist(
         self,

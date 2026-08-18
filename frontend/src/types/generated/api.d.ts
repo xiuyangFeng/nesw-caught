@@ -766,6 +766,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quant/ai/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Audit */
+        get: operations["get_ai_audit_api_quant_ai_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/ai/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ai Budget */
+        get: operations["get_ai_budget_api_quant_ai_budget_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/ai/role-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Role Bindings */
+        get: operations["get_role_bindings_api_quant_ai_role_bindings_get"];
+        /** Put Role Binding */
+        put: operations["put_role_binding_api_quant_ai_role_bindings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/backtests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Backtest */
+        post: operations["create_backtest_api_quant_backtests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/copilot/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Copilot Tools */
+        get: operations["get_copilot_tools_api_quant_copilot_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quant/data/status": {
         parameters: {
             query?: never;
@@ -775,6 +861,74 @@ export interface paths {
         };
         /** Get Quant Data Status */
         get: operations["get_quant_data_status_api_quant_data_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/decision-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Decision Log */
+        get: operations["get_decision_log_api_quant_decision_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/paper/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Paper Account */
+        get: operations["get_paper_account_api_quant_paper_account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/paper/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Paper Order */
+        post: operations["post_paper_order_api_quant_paper_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/portfolio-proposals/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Latest Proposal */
+        get: operations["get_latest_proposal_api_quant_portfolio_proposals_latest_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -834,6 +988,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quant/recommendations/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Recommendation Runs */
+        get: operations["list_recommendation_runs_api_quant_recommendations_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/report-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Card */
+        get: operations["get_report_card_api_quant_report_card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/strategies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Strategies */
+        get: operations["list_strategies_api_quant_strategies_get"];
+        put?: never;
+        /** Create Strategy */
+        post: operations["create_strategy_api_quant_strategies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/strategies/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Strategy */
+        post: operations["preview_strategy_api_quant_strategies_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/symbols/{symbol}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Symbol Events */
+        get: operations["get_symbol_events_api_quant_symbols__symbol__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quant/symbols/{symbol}/fund-flow": {
         parameters: {
             query?: never;
@@ -845,6 +1085,40 @@ export interface paths {
         get: operations["get_symbol_fund_flow_api_quant_symbols__symbol__fund_flow_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/symbols/{symbol}/research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Symbol Research */
+        get: operations["get_symbol_research_api_quant_symbols__symbol__research_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/symbols/{symbol}/research/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Symbol Research */
+        post: operations["refresh_symbol_research_api_quant_symbols__symbol__research_refresh_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1767,6 +2041,10 @@ export interface components {
         LLMChatRequest: {
             /** Config Id */
             config_id?: number | null;
+            /** Desk Context */
+            desk_context?: string | null;
+            /** Desk Symbol */
+            desk_symbol?: string | null;
             /**
              * History
              * @default []
@@ -2824,6 +3102,103 @@ export interface components {
             /** Volume */
             volume?: number | null;
         };
+        /** QuantAiAuditRowView */
+        QuantAiAuditRowView: {
+            /** Cache Hit */
+            cache_hit: boolean;
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model */
+            model: string;
+            /** Pool */
+            pool: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Role */
+            role: string;
+            /** Status */
+            status: string;
+            /** Token In */
+            token_in: number;
+            /** Token Out */
+            token_out: number;
+        };
+        /** QuantAiAuditView */
+        QuantAiAuditView: {
+            /** Items */
+            items?: components["schemas"]["QuantAiAuditRowView"][];
+            /** Note */
+            note?: string | null;
+        };
+        /** QuantAiBudgetView */
+        QuantAiBudgetView: {
+            /** Degrade Order */
+            degrade_order?: string[];
+            /**
+             * Note
+             * @default 副驾预算独立；流水线预算耗尽只降级解释层。
+             */
+            note: string;
+            /** Pools */
+            pools?: {
+                [key: string]: string;
+            };
+        };
+        /** QuantAiRoleBindingUpdate */
+        QuantAiRoleBindingUpdate: {
+            /** Config Id */
+            config_id?: number | null;
+            /** Role */
+            role: string;
+            /**
+             * Tier
+             * @default standard
+             */
+            tier: string;
+        };
+        /** QuantAiRoleBindingView */
+        QuantAiRoleBindingView: {
+            /** Config Id */
+            config_id?: number | null;
+            /** Role */
+            role: string;
+            /** Tier */
+            tier: string;
+        };
+        /** QuantBacktestView */
+        QuantBacktestView: {
+            /** Exploratory */
+            exploratory: boolean;
+            /** Id */
+            id: number;
+            /** Metrics */
+            metrics?: {
+                [key: string]: unknown;
+            };
+            /** Note */
+            note?: string | null;
+            /**
+             * Qualified
+             * @default false
+             */
+            qualified: boolean;
+            /** Status */
+            status: string;
+        };
+        /** QuantCopilotToolsView */
+        QuantCopilotToolsView: {
+            /**
+             * Note
+             * @default 全部只读，副驾不能下单或改策略。
+             */
+            note: string;
+            /** Tools */
+            tools?: string[];
+        };
         /** QuantDataStatusView */
         QuantDataStatusView: {
             /**
@@ -2873,6 +3248,13 @@ export interface components {
              */
             symbol_count: number;
         };
+        /** QuantDecisionLogView */
+        QuantDecisionLogView: {
+            /** Items */
+            items?: {
+                [key: string]: unknown;
+            }[];
+        };
         /** QuantFundFlowPointView */
         QuantFundFlowPointView: {
             /** Large Net */
@@ -2902,6 +3284,73 @@ export interface components {
             /** Symbol */
             symbol: string;
         };
+        /** QuantPaperAccountView */
+        QuantPaperAccountView: {
+            /** Cash */
+            cash: number;
+            /** Id */
+            id: number;
+            /** Initial Cash */
+            initial_cash: number;
+            /** Note */
+            note?: string | null;
+        };
+        /** QuantPaperOrderRequest */
+        QuantPaperOrderRequest: {
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed: boolean;
+            /**
+             * Quantity
+             * @default 100
+             */
+            quantity: number;
+            /**
+             * Side
+             * @default buy
+             */
+            side: string;
+            /** Symbol */
+            symbol: string;
+        };
+        /** QuantPaperOrderView */
+        QuantPaperOrderView: {
+            /**
+             * Filled
+             * @default false
+             */
+            filled: boolean;
+            /** Id */
+            id?: number | null;
+            /** Price */
+            price?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Status */
+            status: string;
+        };
+        /** QuantProposalItemView */
+        QuantProposalItemView: {
+            /** Reject Reason */
+            reject_reason?: string | null;
+            /** Sleeve */
+            sleeve: string;
+            /** Symbol */
+            symbol: string;
+            /** Weight */
+            weight: number;
+        };
+        /** QuantProposalView */
+        QuantProposalView: {
+            /** Cash Weight */
+            cash_weight: number;
+            /** Items */
+            items?: components["schemas"]["QuantProposalItemView"][];
+            /** Note */
+            note?: string | null;
+        };
         /** QuantRadarCandidateView */
         QuantRadarCandidateView: {
             /**
@@ -2909,9 +3358,18 @@ export interface components {
              * @default
              */
             display_name: string;
+            /** Event Type */
+            event_type?: string | null;
+            /** Evidence Grade */
+            evidence_grade?: string | null;
+            /** News Id */
+            news_id?: number | null;
             /** Reason Code */
             reason_code: string;
-            /** Sleeve */
+            /**
+             * Sleeve
+             * @default event_catalyst
+             */
             sleeve: string;
             /** State */
             state: string;
@@ -3021,6 +3479,59 @@ export interface components {
             /** Trigger */
             trigger: string;
         };
+        /** QuantReportCardView */
+        QuantReportCardView: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Sample Size
+             * @default 0
+             */
+            sample_size: number;
+            /** Sleeves */
+            sleeves?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Window */
+            window: string;
+        };
+        /** QuantResearchModuleView */
+        QuantResearchModuleView: {
+            /** Answer */
+            answer: string;
+            /** Evidence Ids */
+            evidence_ids?: string[];
+            /** Gap */
+            gap?: string | null;
+            /** Key */
+            key: string;
+            /** Question */
+            question: string;
+        };
+        /** QuantResearchPackView */
+        QuantResearchPackView: {
+            /**
+             * Ask Ai Context
+             * @default
+             */
+            ask_ai_context: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Modules */
+            modules?: components["schemas"]["QuantResearchModuleView"][];
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /** Symbol */
+            symbol: string;
+        };
         /** QuantRunRequest */
         QuantRunRequest: {
             /**
@@ -3068,6 +3579,58 @@ export interface components {
             label: string;
             /** Score */
             score?: number | null;
+        };
+        /** QuantStrategyUpsert */
+        QuantStrategyUpsert: {
+            /** Dsl */
+            dsl?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Is Active
+             * @default false
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** QuantStrategyView */
+        QuantStrategyView: {
+            /** Dsl */
+            dsl?: {
+                [key: string]: unknown;
+            };
+            /** Errors */
+            errors?: string[];
+            /**
+             * Exploratory
+             * @default true
+             */
+            exploratory: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Is Active
+             * @default false
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** QuantSymbolEventView */
+        QuantSymbolEventView: {
+            /** Event Type */
+            event_type: string;
+            /** Evidence Grade */
+            evidence_grade: string;
+            /** News Id */
+            news_id?: number | null;
+            /** Reason Code */
+            reason_code: string;
+            /** State */
+            state: string;
+            /** Title */
+            title: string;
         };
         /** QuoteDetailView */
         QuoteDetailView: {
@@ -5615,6 +6178,202 @@ export interface operations {
             };
         };
     };
+    get_ai_audit_api_quant_ai_audit_get: {
+        parameters: {
+            query?: {
+                role?: string | null;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantAiAuditView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_budget_api_quant_ai_budget_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantAiBudgetView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_role_bindings_api_quant_ai_role_bindings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantAiRoleBindingView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_role_binding_api_quant_ai_role_bindings_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuantAiRoleBindingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantAiRoleBindingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_backtest_api_quant_backtests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuantStrategyUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantBacktestView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_copilot_tools_api_quant_copilot_tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantCopilotToolsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_quant_data_status_api_quant_data_status_get: {
         parameters: {
             query?: never;
@@ -5633,6 +6392,134 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuantDataStatusView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_decision_log_api_quant_decision_log_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantDecisionLogView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_paper_account_api_quant_paper_account_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantPaperAccountView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_paper_order_api_quant_paper_orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuantPaperOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantPaperOrderView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_proposal_api_quant_portfolio_proposals_latest_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantProposalView"];
                 };
             };
             /** @description Validation Error */
@@ -5743,6 +6630,206 @@ export interface operations {
             };
         };
     };
+    list_recommendation_runs_api_quant_recommendations_runs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantRecommendationRunView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_report_card_api_quant_report_card_get: {
+        parameters: {
+            query?: {
+                window?: string;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantReportCardView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_strategies_api_quant_strategies_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantStrategyView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_strategy_api_quant_strategies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuantStrategyUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantStrategyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_strategy_api_quant_strategies_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuantStrategyUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_symbol_events_api_quant_symbols__symbol__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantSymbolEventView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_symbol_fund_flow_api_quant_symbols__symbol__fund_flow_get: {
         parameters: {
             query?: never;
@@ -5763,6 +6850,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuantFundFlowView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_symbol_research_api_quant_symbols__symbol__research_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantResearchPackView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_symbol_research_api_quant_symbols__symbol__research_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantResearchPackView"];
                 };
             };
             /** @description Validation Error */

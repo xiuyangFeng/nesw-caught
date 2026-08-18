@@ -35,6 +35,7 @@ const {
   deleteSession,
   renameSession,
   openNewsSession,
+  openDeskResearchSession,
   clearNewsContext,
 } = useChatSessions({
   getDefaultConfigId: () => defaultSelectedConfig.value?.id ?? null,
@@ -90,9 +91,13 @@ onMounted(async () => {
     const parsedId = parseInt(qNewsId as string, 10);
     if (!isNaN(parsedId)) {
       openNewsSession(parsedId);
-      // Replace URL query params
       void router.replace({ query: {} });
     }
+  }
+  const deskSymbol = route.query.desk_symbol;
+  if (typeof deskSymbol === 'string' && deskSymbol) {
+    openDeskResearchSession(deskSymbol.toUpperCase());
+    void router.replace({ query: {} });
   }
 });
 
@@ -130,6 +135,13 @@ onBeforeUnmount(() => {
             aria-hidden="true"
           >✦</span>
           <span class="text-sm font-bold text-text">AI 对话助手</span>
+          <span
+            v-if="currentSession?.deskSymbol"
+            class="rounded-full border border-[#8b7cff]/40 px-2 py-0.5 text-[10px] text-[#8b7cff]"
+            data-role="chat-desk-copilot"
+          >
+            研究副驾 {{ currentSession.deskSymbol }} · 只读工具，不改排名或仓位
+          </span>
           <div v-if="activeConfigs.length > 0" class="flex items-center gap-2">
             <span class="text-xs text-text-faint">使用模型</span>
             <select

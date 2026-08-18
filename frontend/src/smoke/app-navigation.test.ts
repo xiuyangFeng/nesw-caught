@@ -106,6 +106,15 @@ vi.mock('../api/client', async () => {
     getQuantDataStatus: () => ok(mock.mockQuantDataStatus),
     getQuantRadar: () => ok(mock.mockQuantRadar),
     getQuantFundFlow: (symbol) => ok({ ...mock.mockQuantFundFlow, symbol: String(symbol ?? mock.mockQuantFundFlow.symbol) }),
+    getQuantResearch: (symbol) => ok({ ...mock.mockQuantResearch, symbol: String(symbol ?? mock.mockQuantResearch.symbol) }),
+    getQuantAiAudit: () => ok(mock.mockQuantAiAudit),
+    getQuantRuns: () => ok(mock.mockQuantRuns),
+    getQuantProposal: () => ok(mock.mockQuantProposal),
+    getQuantReportCard: () => ok(mock.mockQuantReportCard),
+    getQuantStrategies: () => ok(mock.mockQuantStrategies),
+    getQuantPaperAccount: () => ok(mock.mockQuantPaperAccount),
+    getQuantDecisionLog: () => ok(mock.mockQuantDecisionLog),
+    getQuantCopilotTools: () => ok(mock.mockQuantCopilotTools),
     runQuantRecommendations: () => ok(mock.mockQuantLatest),
   };
 
@@ -135,6 +144,10 @@ interface SmokeRoute {
 const primaryModules: SmokeRoute[] = [
   { path: '/desk', label: 'Desk', anchor: { kind: 'role', value: 'desk-view' } },
   { path: '/desk/ops', label: 'DeskOps', anchor: { kind: 'role', value: 'desk-ops-view' } },
+  { path: '/desk/portfolio-proposal', label: 'DeskProposal', anchor: { kind: 'role', value: 'desk-proposal-view' } },
+  { path: '/desk/report-card', label: 'DeskReportCard', anchor: { kind: 'role', value: 'desk-report-card-view' } },
+  { path: '/desk/strategies', label: 'DeskStrategies', anchor: { kind: 'role', value: 'desk-strategies-view' } },
+  { path: '/desk/backtest', label: 'DeskBacktest', anchor: { kind: 'role', value: 'desk-backtest-view' } },
   { path: '/news', label: 'NewsFeed', anchor: { kind: 'text', value: 'Latest Events' } },
   { path: '/dashboard', label: 'Dashboard', anchor: { kind: 'text', value: 'Dashboard' } },
   { path: '/watchlist', label: 'Watchlist', anchor: { kind: 'role', value: 'watchlist-dashboard' } },
@@ -156,6 +169,7 @@ const parameterizedModules: SmokeRoute[] = [
   { path: '/news/101', label: 'NewsDetail', anchor: { kind: 'text', value: 'News Detail' } },
   { path: '/news/sentiment/positive', label: 'SentimentNews', anchor: { kind: 'text', value: '新闻' } },
   { path: '/watchlist/0700.HK', label: 'WatchlistDetail', anchor: { kind: 'role', value: 'watchlist-detail-main' } },
+  { path: '/desk/stocks/600519.SH', label: 'DeskStock', anchor: { kind: 'role', value: 'desk-stock-view' } },
   { path: '/topics/501', label: 'TopicDetail', anchor: { kind: 'text', value: 'Topic Detail' } },
 ];
 

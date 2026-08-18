@@ -107,13 +107,155 @@ class QuantFundFlowView(BaseModel):
 class QuantRadarCandidateView(BaseModel):
     symbol: str
     display_name: str = ""
-    sleeve: str
+    sleeve: str = "event_catalyst"
     state: str
     reason_code: str
     thesis_md: str | None = None
+    evidence_grade: str | None = None
+    event_type: str | None = None
+    news_id: int | None = None
 
 
 class QuantRadarView(BaseModel):
     as_of: UTCDateTime | None = None
     candidates: list[QuantRadarCandidateView] = Field(default_factory=list)
     note: str | None = None
+
+
+class QuantResearchModuleView(BaseModel):
+    key: str
+    question: str
+    answer: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    gap: str | None = None
+
+
+class QuantResearchPackView(BaseModel):
+    symbol: str
+    display_name: str = ""
+    modules: list[QuantResearchModuleView] = Field(default_factory=list)
+    ask_ai_context: str = ""
+    stale: bool = False
+
+
+class QuantSymbolEventView(BaseModel):
+    news_id: int | None = None
+    title: str
+    evidence_grade: str
+    event_type: str
+    state: str
+    reason_code: str
+
+
+class QuantAiRoleBindingView(BaseModel):
+    role: str
+    tier: str
+    config_id: int | None = None
+
+
+class QuantAiRoleBindingUpdate(BaseModel):
+    role: str
+    tier: str = "standard"
+    config_id: int | None = None
+
+
+class QuantAiAuditRowView(BaseModel):
+    id: int
+    role: str
+    model: str
+    prompt_version: str
+    cache_hit: bool
+    latency_ms: float
+    token_in: int
+    token_out: int
+    status: str
+    pool: str
+    created_at: UTCDateTime
+
+
+class QuantAiAuditView(BaseModel):
+    items: list[QuantAiAuditRowView] = Field(default_factory=list)
+    note: str | None = None
+
+
+class QuantAiBudgetView(BaseModel):
+    pools: dict[str, str] = Field(default_factory=dict)
+    degrade_order: list[str] = Field(default_factory=list)
+    note: str = "副驾预算独立；流水线预算耗尽只降级解释层。"
+
+
+class QuantProposalItemView(BaseModel):
+    symbol: str
+    sleeve: str
+    weight: float
+    reject_reason: str | None = None
+
+
+class QuantProposalView(BaseModel):
+    cash_weight: float
+    items: list[QuantProposalItemView] = Field(default_factory=list)
+    note: str | None = None
+
+
+class QuantReportCardView(BaseModel):
+    window: str
+    sleeves: dict[str, dict] = Field(default_factory=dict)
+    sample_size: int = 0
+    note: str | None = None
+
+
+class QuantStrategyView(BaseModel):
+    id: int
+    name: str
+    dsl: dict = Field(default_factory=dict)
+    is_active: bool = False
+    exploratory: bool = True
+    errors: list[str] = Field(default_factory=list)
+
+
+class QuantStrategyUpsert(BaseModel):
+    name: str
+    dsl: dict = Field(default_factory=dict)
+    is_active: bool = False
+
+
+class QuantBacktestView(BaseModel):
+    id: int
+    status: str
+    exploratory: bool
+    qualified: bool = False
+    metrics: dict = Field(default_factory=dict)
+    note: str | None = None
+
+
+class QuantPaperAccountView(BaseModel):
+    id: int
+    cash: float
+    initial_cash: float
+    note: str | None = None
+
+
+class QuantPaperOrderRequest(BaseModel):
+    symbol: str
+    side: str = "buy"
+    quantity: float = 100
+    confirmed: bool = False
+
+
+class QuantPaperOrderView(BaseModel):
+    id: int | None = None
+    status: str
+    filled: bool = False
+    reason: str | None = None
+    price: float | None = None
+
+
+class QuantDecisionLogView(BaseModel):
+    items: list[dict] = Field(default_factory=list)
+
+
+class QuantCopilotToolsView(BaseModel):
+    tools: list[str] = Field(default_factory=list)
+    note: str = "全部只读，副驾不能下单或改策略。"
+
+

@@ -5,6 +5,16 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-08-18 量化交易台 Phase 2～5：研究包、三 sleeve、DSL 回测与模拟盘
+
+- 修改人：Cursor Grok
+- 修改范围：量化交易台产品面与内核收口（Phase 2 个股研究/雷达/AI 审计，Phase 3 打分/提案/成绩单，Phase 4 DSL/回测实验室，Phase 5 模拟盘/决策日志/副驾只读工具）；未改现有 `GET /api/backtest`。
+- 变更内容：主库新增研究包/雷达/AI 审计、组合提案、策略、回测、模拟盘与决策日志表。新闻 mention 进入快循环雷达，D 级不得 qualified。研究包缺财务时显式 gap，不编造价格锚；「问 AI」经 `desk_symbol` 装载只读上下文。三 sleeve 规则打分 + 分配器（单票 ≤8%、现金 ≥10%），LLM 不改排名/仓位。DSL 只允许因子注册表，walk-forward 标记 exploratory 且 `qualified=false`。模拟盘需确认后撮合，停牌拒单。前端补齐 `/desk/stocks/:symbol`、`/desk/portfolio-proposal`、`/desk/report-card`、`/desk/strategies`、`/desk/backtest`，运行中心 Runs/AI 审计/决策日志 Tab，`/portfolio` 增加模拟盘条。
+- 影响文件：`backend/app/services/quant/`、`backend/app/services/quant_desk_service.py`、`backend/app/api/routes/quant.py`、`backend/app/models/quant.py`、`backend/alembic/versions/a8c4e1f6b902_*`、`backend/alembic/versions/b9d5f2a7c013_*`、`backend/tests/quant/`、`backend/tests/test_quant_api.py`、`frontend/src/views/Desk*.vue`、`frontend/src/views/PortfolioView.vue`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/openapi.json`、`docs/current-state.md`；计划与设计已归档到 `docs/archive/superpowers/`。
+- 接口/数据结构变化：新增 `/api/quant/symbols/{symbol}/research|events`、`/api/quant/ai/*`、`/api/quant/recommendations/runs`、`/api/quant/portfolio-proposals/latest`、`/api/quant/report-card`、`/api/quant/strategies*`、`/api/quant/backtests`、`/api/quant/paper/*`、`/api/quant/decision-log`、`/api/quant/copilot/tools`；`/api/llm/chat` 增加可选 `desk_symbol`。无旧接口破坏。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/news_caught_quant_p25b.db conda run -n news-caught pytest backend/tests/quant backend/tests/test_quant_api.py backend/tests/test_news_signal_pipeline.py backend/tests/test_migration_parity.py` 为 58 passed；`ruff check` 覆盖量化后端文件通过；前端 Desk/Ops/Proposal/ReportCard/Strategies/Backtest/Portfolio/router/AppShell/smoke/chat 共 85 passed；`npm --prefix frontend run build` 与 `check:api-drift` 通过。
+- 风险或后续事项：流水线仍可用合成夹具；真实东财回填与财务/一致预期未采购，成绩单只展示漏斗不计超额收益；探索性回测不得晋级。单测禁止打东财真网。
+
 ## 2026-08-18 量化交易台 Phase 1：独立行情库、mention 主链路、运行中心与资金流
 
 - 修改人：Cursor Grok

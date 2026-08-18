@@ -20,6 +20,31 @@ const router = createRouter({
       component: lazyView(() => import('../views/DeskOpsView.vue')),
     },
     {
+      path: '/desk/portfolio-proposal',
+      name: 'desk-proposal',
+      component: lazyView(() => import('../views/DeskProposalView.vue')),
+    },
+    {
+      path: '/desk/report-card',
+      name: 'desk-report-card',
+      component: lazyView(() => import('../views/DeskReportCardView.vue')),
+    },
+    {
+      path: '/desk/strategies',
+      name: 'desk-strategies',
+      component: lazyView(() => import('../views/DeskStrategiesView.vue')),
+    },
+    {
+      path: '/desk/backtest',
+      name: 'desk-backtest',
+      component: lazyView(() => import('../views/DeskBacktestView.vue')),
+    },
+    {
+      path: '/desk/stocks/:symbol',
+      name: 'desk-stock',
+      component: lazyView(() => import('../views/DeskStockView.vue')),
+    },
+    {
       path: '/dashboard',
       name: 'dashboard',
       component: lazyView(() => import('../views/DashboardView.vue')),

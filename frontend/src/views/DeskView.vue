@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { RouterLink } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
@@ -34,6 +35,8 @@ const runStatusLabel = computed(() => {
   if (status === 'running') return '运行中';
   return '正常';
 });
+
+const cashLabel = computed(() => `${Math.round((deskStore.proposal.cash_weight ?? 1) * 100)}% 现金`);
 
 const emptyTitle = computed(() => {
   if (deskStore.latest.empty_reason === 'no_run_yet') return '今日无正期望机会';
@@ -81,6 +84,7 @@ onMounted(() => {
         <span data-role="desk-regime">市场状态 {{ regimeLabel }}</span>
         <span data-role="desk-coverage">{{ coverageLabel }}</span>
         <span data-role="desk-run-status">最近运行 {{ runStatusLabel }}</span>
+        <span data-role="desk-cash-weight">{{ cashLabel }}</span>
       </div>
       <button
         type="button"
@@ -96,9 +100,15 @@ onMounted(() => {
     <p v-if="deskStore.error" class="text-sm text-danger" data-role="desk-error">{{ deskStore.error }}</p>
 
     <div class="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_240px]">
-      <SectionCard eyebrow="Sleeves" title="分层概览" subtitle="三 sleeve 独立计分，后续 Phase 补漏斗">
-        <ul class="grid gap-2 text-sm text-muted" data-role="desk-sleeve-overview">
-          <li v-for="(label, key) in sleeveLabels" :key="key">{{ label }} · 占位</li>
+      <SectionCard eyebrow="Sleeves" title="分层概览" subtitle="三 sleeve 独立计分，LLM 不改排名">
+        <ul class="grid gap-2 text-sm" data-role="desk-sleeve-overview">
+          <li v-for="(label, key) in sleeveLabels" :key="key">
+            <span class="text-text">{{ label }}</span>
+            <span class="text-muted">
+              · 合格 {{ deskStore.sleeveCounts[key]?.qualified ?? 0 }}
+              · 观察 {{ deskStore.sleeveCounts[key]?.watch ?? 0 }}
+            </span>
+          </li>
         </ul>
       </SectionCard>
 
@@ -123,27 +133,43 @@ onMounted(() => {
               class="rounded-md border border-border px-3 py-3"
             >
               <p class="text-xs text-muted">{{ sleeveLabels[item.sleeve] ?? item.sleeve }} · {{ item.state }}</p>
-              <p class="mt-1 font-medium text-text">{{ item.display_name || item.symbol }}</p>
+              <RouterLink class="mt-1 block font-medium text-accent" :to="`/desk/stocks/${item.symbol}`">
+                {{ item.display_name || item.symbol }}
+              </RouterLink>
               <p class="mt-1 text-sm text-muted">{{ item.thesis_md }}</p>
             </li>
           </ul>
         </LoadingBlock>
       </SectionCard>
 
-      <SectionCard eyebrow="Radar" title="事件雷达" subtitle="快循环将在后续 Phase 接入">
+      <SectionCard eyebrow="Radar" title="事件雷达" subtitle="快循环来自新闻 mention；点击进入研究页">
         <p class="text-sm text-muted" data-role="desk-radar-note">
           {{ deskStore.radar?.note ?? '暂无实时事件。' }}
         </p>
-        <ul v-if="deskStore.watchItems.length" class="mt-3 grid gap-2 text-sm" data-role="desk-watch-list">
-          <li v-for="item in deskStore.watchItems" :key="`watch-${item.symbol}`" class="text-muted">
-            {{ item.display_name || item.symbol }} · {{ item.reason_code }}
+        <ul v-if="(deskStore.radar?.candidates ?? []).length" class="mt-3 grid gap-2 text-sm" data-role="desk-radar-list">
+          <li v-for="item in deskStore.radar?.candidates" :key="`${item.symbol}-${item.news_id ?? item.reason_code}`">
+            <RouterLink class="text-accent" :to="`/desk/stocks/${item.symbol}`">
+              {{ item.display_name || item.symbol }}
+            </RouterLink>
+            <span class="text-muted"> · {{ item.evidence_grade ?? item.state }} · {{ item.reason_code }}</span>
+          </li>
+        </ul>
+        <ul v-else-if="deskStore.watchItems.length" class="mt-3 grid gap-2 text-sm" data-role="desk-watch-list">
+          <li v-for="item in deskStore.watchItems" :key="`watch-${item.symbol}`">
+            <RouterLink class="text-accent" :to="`/desk/stocks/${item.symbol}`">
+              {{ item.display_name || item.symbol }}
+            </RouterLink>
+            <span class="text-muted"> · {{ item.reason_code }}</span>
           </li>
         </ul>
       </SectionCard>
     </div>
 
-    <SectionCard eyebrow="Portfolio" title="组合提案摘要" subtitle="目标仓位与现金约束将在 Phase 3 接入">
-      <p class="text-sm text-muted">当前为骨架占位。合格机会为 0 时，建议保持现金。</p>
+    <SectionCard eyebrow="Portfolio" title="组合提案摘要" subtitle="单票 ≤8%、现金 ≥10%；LLM 不参与权重">
+      <p class="text-sm text-text" data-role="desk-proposal-summary">
+        {{ cashLabel }}。{{ deskStore.proposal.note ?? '合格机会为 0 时，建议保持现金。' }}
+      </p>
+      <RouterLink class="mt-2 inline-block text-sm text-accent" to="/desk/portfolio-proposal">查看完整提案</RouterLink>
     </SectionCard>
   </div>
 </template>

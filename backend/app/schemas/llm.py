@@ -94,6 +94,8 @@ class LLMChatRequest(BaseModel):
     message: str
     history: list[dict[str, str]] = []
     news_id: int | None = None
+    desk_symbol: str | None = None
+    desk_context: str | None = None
     config_id: int | None = None
     stream: bool = True
 

@@ -219,7 +219,18 @@ def _load_chat_context(
 
     # 角色设定与新闻上下文
     system_prompt = "你是一个资深的金融投资与分析助手，能给出深刻的新闻解读和分析。"
-    if payload.news_id is not None:
+    if payload.desk_symbol:
+        from app.services.quant.ai.guard import wrap_untrusted_evidence
+        from app.services.quant_desk_service import QuantDeskService
+
+        pack = QuantDeskService().get_research(session, payload.desk_symbol)
+        extra = payload.desk_context or pack.ask_ai_context
+        system_prompt = (
+            "你是交易台研究副驾。只能解读研究材料，禁止修改排名、分数或仓位，"
+            "禁止编造财务数字。回答必须引用 evidence_id。\n"
+            + wrap_untrusted_evidence(extra)
+        )
+    elif payload.news_id is not None:
         news_repo = NewsRepository(session)
         news = news_repo.get_by_id(payload.news_id)
         if news is not None:

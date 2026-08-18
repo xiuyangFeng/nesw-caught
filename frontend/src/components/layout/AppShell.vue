@@ -51,6 +51,10 @@ const navGroups: NavGroup[] = [
     title: '交易台',
     items: [
       { label: '机会雷达', en: 'Desk', to: '/desk' },
+      { label: '组合提案', en: 'Proposal', to: '/desk/portfolio-proposal' },
+      { label: '成绩单', en: 'Card', to: '/desk/report-card' },
+      { label: '策略', en: 'DSL', to: '/desk/strategies' },
+      { label: '回测实验室', en: 'Lab', to: '/desk/backtest' },
       { label: '运行中心', en: 'Ops', to: '/desk/ops' },
     ],
   },

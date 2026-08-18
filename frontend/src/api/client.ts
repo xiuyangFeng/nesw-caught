@@ -37,6 +37,18 @@ import type {
   QuantFundFlow,
   QuantRadar,
   QuantRecommendationLatest,
+  QuantRecommendationRun,
+  QuantResearchPack,
+  QuantAiAudit,
+  QuantProposal,
+  QuantReportCard,
+  QuantStrategy,
+  QuantStrategyUpsert,
+  QuantBacktest,
+  QuantPaperAccount,
+  QuantPaperOrder,
+  QuantDecisionLog,
+  QuantCopilotTools,
   WatchlistPositionUpdate,
   SentimentEvalResponse,
   SentimentTimelineResponse,
@@ -475,6 +487,72 @@ export const apiClient = {
     return withMockFallback<QuantFundFlow>(
       () => getJson(`/api/quant/symbols/${encodeURIComponent(symbol)}/fund-flow`),
       (mock) => ({ ...mock.mockQuantFundFlow, symbol }),
+    );
+  },
+  getQuantResearch(symbol: string) {
+    return withMockFallback<QuantResearchPack>(
+      () => getJson(`/api/quant/symbols/${encodeURIComponent(symbol)}/research`),
+      (mock) => ({ ...mock.mockQuantResearch, symbol }),
+    );
+  },
+  getQuantAiAudit() {
+    return withMockFallback<QuantAiAudit>(() => getJson('/api/quant/ai/audit'), (mock) => mock.mockQuantAiAudit);
+  },
+  getQuantRuns() {
+    return withMockFallback<QuantRecommendationRun[]>(
+      () => getJson('/api/quant/recommendations/runs'),
+      (mock) => mock.mockQuantRuns,
+    );
+  },
+  getQuantProposal() {
+    return withMockFallback<QuantProposal>(
+      () => getJson('/api/quant/portfolio-proposals/latest'),
+      (mock) => mock.mockQuantProposal,
+    );
+  },
+  getQuantReportCard(window = '30d') {
+    return withMockFallback<QuantReportCard>(
+      () => getJson(withQuery('/api/quant/report-card', { window })),
+      (mock) => ({ ...mock.mockQuantReportCard, window }),
+    );
+  },
+  getQuantStrategies() {
+    return withMockFallback<QuantStrategy[]>(
+      () => getJson('/api/quant/strategies'),
+      (mock) => mock.mockQuantStrategies,
+    );
+  },
+  createQuantStrategy(payload: QuantStrategyUpsert) {
+    return postJson<QuantStrategy>('/api/quant/strategies', payload).then((data) => ({ data, degraded: false }));
+  },
+  previewQuantStrategy(payload: QuantStrategyUpsert) {
+    return postJson<{ errors: string[]; hit: boolean }>('/api/quant/strategies/preview', payload).then((data) => ({
+      data,
+      degraded: false,
+    }));
+  },
+  runQuantBacktest(payload: QuantStrategyUpsert) {
+    return postJson<QuantBacktest>('/api/quant/backtests', payload).then((data) => ({ data, degraded: false }));
+  },
+  getQuantPaperAccount() {
+    return withMockFallback<QuantPaperAccount>(
+      () => getJson('/api/quant/paper/account'),
+      (mock) => mock.mockQuantPaperAccount,
+    );
+  },
+  placeQuantPaperOrder(payload: { symbol: string; side?: string; quantity?: number; confirmed?: boolean }) {
+    return postJson<QuantPaperOrder>('/api/quant/paper/orders', payload).then((data) => ({ data, degraded: false }));
+  },
+  getQuantDecisionLog() {
+    return withMockFallback<QuantDecisionLog>(
+      () => getJson('/api/quant/decision-log'),
+      (mock) => mock.mockQuantDecisionLog,
+    );
+  },
+  getQuantCopilotTools() {
+    return withMockFallback<QuantCopilotTools>(
+      () => getJson('/api/quant/copilot/tools'),
+      (mock) => mock.mockQuantCopilotTools,
     );
   },
 };

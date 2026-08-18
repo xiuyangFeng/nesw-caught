@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.article_content import ArticleContent
 from app.models.news_item import NewsItem
+from app.models.news_stock_mention import NewsStockMention
 from app.repositories.news_signal_repository import NewsSignalRepository
 from app.services.ingestion.article_crawler import (
     DEFAULT_PARSE_CONCURRENCY,
@@ -21,6 +22,7 @@ from app.services.ingestion.article_crawler import (
 )
 from app.services.news_signal_classifier import ClassificationResult, NewsSignalClassifier
 from app.services.quant.mention_backfill import match_a_share_mentions, persist_rule_mentions
+from app.services.quant.radar.ingest import ingest_news
 
 logger = logging.getLogger(__name__)
 
@@ -326,3 +328,7 @@ class NewsSignalPipelineService:
             item.id,
             match_a_share_mentions(item.title, item.summary, body),
         )
+        mentions = list(
+            self.session.scalars(select(NewsStockMention).where(NewsStockMention.news_id == item.id))
+        )
+        ingest_news(self.session, item, mentions)

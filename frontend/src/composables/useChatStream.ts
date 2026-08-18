@@ -105,6 +105,7 @@ export function useChatStream(options: UseChatStreamOptions) {
           message: text,
           history: history,
           news_id: session.newsId,
+          desk_symbol: session.deskSymbol,
           config_id: options.getConfigId(),
           stream: true,
         }),
