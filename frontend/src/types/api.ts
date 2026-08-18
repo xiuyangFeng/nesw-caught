@@ -510,3 +510,16 @@ export type SentimentTimelineResponse = Omit<
 export type ScoreBucketStats = Schemas['ScoreBucketStatsView'];
 export type CalibrationMappingEntry = Schemas['CalibrationMappingEntryView'];
 export type SentimentCalibration = Schemas['SentimentCalibrationView'];
+
+// ---------------------------------------------------------------------------
+// 量化交易台 Phase 0
+// ---------------------------------------------------------------------------
+export type QuantRecommendationItem = Schemas['QuantRecommendationItemView'];
+export type QuantRecommendationRun = Schemas['QuantRecommendationRunView'];
+export type QuantRecommendationLatest = Schemas['QuantRecommendationLatestView'];
+export type QuantRunRequest = Schemas['QuantRunRequest'];
+export type QuantDataStatus = Schemas['QuantDataStatusView'];
+export type QuantFundFlowPoint = Schemas['QuantFundFlowPointView'];
+export type QuantFundFlow = Schemas['QuantFundFlowView'];
+export type QuantRadarCandidate = Schemas['QuantRadarCandidateView'];
+export type QuantRadar = Schemas['QuantRadarView'];

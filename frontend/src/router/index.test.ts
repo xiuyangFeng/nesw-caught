@@ -16,13 +16,22 @@ describe('router', () => {
     await router.isReady();
   });
 
-  it('redirects root navigation to the news discovery route', async () => {
+  it('redirects root navigation to the desk homepage', async () => {
     const { default: router } = await import('./index');
 
     await router.push('/');
 
-    expect(router.currentRoute.value.path).toBe('/news');
-    expect(router.currentRoute.value.name).toBe('news-feed');
+    expect(router.currentRoute.value.path).toBe('/desk');
+    expect(router.currentRoute.value.name).toBe('desk');
+  });
+
+  it('resolves the desk ops route', async () => {
+    const { default: router } = await import('./index');
+
+    await router.push('/desk/ops');
+
+    expect(router.currentRoute.value.path).toBe('/desk/ops');
+    expect(router.currentRoute.value.name).toBe('desk-ops');
   });
 
   it('resolves event detail routes by event key', async () => {

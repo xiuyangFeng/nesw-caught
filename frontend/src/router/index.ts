@@ -7,7 +7,17 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/news',
+      redirect: '/desk',
+    },
+    {
+      path: '/desk',
+      name: 'desk',
+      component: lazyView(() => import('../views/DeskView.vue')),
+    },
+    {
+      path: '/desk/ops',
+      name: 'desk-ops',
+      component: lazyView(() => import('../views/DeskOpsView.vue')),
     },
     {
       path: '/dashboard',

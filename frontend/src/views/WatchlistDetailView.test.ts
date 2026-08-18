@@ -1,6 +1,6 @@
-import { mount, flushPromises } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { reactive } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 Object.defineProperty(globalThis, 'localStorage', {
   value: {
@@ -157,8 +157,8 @@ vi.mock('../components/watchlist/RelatedNewsSidebar.vue', () => ({
   },
 }));
 
-// SentimentTimelinePanel 自行经 apiClient 取数（不进 watchlistStore），本测试文件只关心
-// WatchlistDetailView 的接线（symbol prop 是否传对），数据加载行为由组件自身的单测覆盖。
+// SentimentTimelinePanel / FundFlowPanel 自行经 apiClient 取数（不进 watchlistStore），
+// 本测试文件只关心 WatchlistDetailView 的接线，数据加载行为由组件自身的单测覆盖。
 vi.mock('../components/watchlist/SentimentTimelinePanel.vue', () => ({
   default: {
     props: ['symbol'],
@@ -166,7 +166,16 @@ vi.mock('../components/watchlist/SentimentTimelinePanel.vue', () => ({
   },
 }));
 
+vi.mock('../components/watchlist/FundFlowPanel.vue', () => ({
+  default: {
+    props: ['symbol'],
+    template: '<section data-role="stock-fund-flow-stub">{{ symbol }}</section>',
+  },
+}));
+
 describe('WatchlistDetailView', () => {
+  enableAutoUnmount(afterEach);
+
   beforeEach(() => {
     push.mockClear();
     routeState.params.symbol = 'AAPL';
@@ -203,6 +212,17 @@ describe('WatchlistDetailView', () => {
     const panel = wrapper.find('[data-role="sentiment-timeline-panel-stub"]');
     expect(panel.exists()).toBe(true);
     expect(panel.text()).toBe('AAPL');
+    expect(wrapper.find('[data-role="stock-fund-flow-stub"]').exists()).toBe(false);
+  });
+
+  it('wires the fund-flow panel for A-share symbols only', async () => {
+    routeState.params.symbol = '600519.SH';
+    const wrapper = mount(WatchlistDetailView);
+    await flushPromises();
+
+    const panel = wrapper.find('[data-role="stock-fund-flow-stub"]');
+    expect(panel.exists()).toBe(true);
+    expect(panel.text()).toBe('600519.SH');
   });
 
   it('falls back to the watchlist list when the route symbol is missing', async () => {

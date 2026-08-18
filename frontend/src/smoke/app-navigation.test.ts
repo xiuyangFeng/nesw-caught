@@ -102,6 +102,11 @@ vi.mock('../api/client', async () => {
     getXSearchResults: () => ok([]),
     getFeishuConfig: () => ok(mock.mockFeishuConfig),
     getLatestDigest: () => ok({ available: false, digest: null }),
+    getQuantLatest: () => ok(mock.mockQuantLatest),
+    getQuantDataStatus: () => ok(mock.mockQuantDataStatus),
+    getQuantRadar: () => ok(mock.mockQuantRadar),
+    getQuantFundFlow: (symbol) => ok({ ...mock.mockQuantFundFlow, symbol: String(symbol ?? mock.mockQuantFundFlow.symbol) }),
+    runQuantRecommendations: () => ok(mock.mockQuantLatest),
   };
 
   const apiClient = new Proxy(explicit, {
@@ -128,6 +133,8 @@ interface SmokeRoute {
 
 // 全部无参主模块（导航侧栏可直达的模块）。
 const primaryModules: SmokeRoute[] = [
+  { path: '/desk', label: 'Desk', anchor: { kind: 'role', value: 'desk-view' } },
+  { path: '/desk/ops', label: 'DeskOps', anchor: { kind: 'role', value: 'desk-ops-view' } },
   { path: '/news', label: 'NewsFeed', anchor: { kind: 'text', value: 'Latest Events' } },
   { path: '/dashboard', label: 'Dashboard', anchor: { kind: 'text', value: 'Dashboard' } },
   { path: '/watchlist', label: 'Watchlist', anchor: { kind: 'role', value: 'watchlist-dashboard' } },

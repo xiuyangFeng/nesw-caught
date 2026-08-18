@@ -4725,6 +4725,626 @@
         "title": "PriceSnapshotView",
         "type": "object"
       },
+      "QuantDataStatusView": {
+        "properties": {
+          "backfill_progress_pct": {
+            "default": 0,
+            "title": "Backfill Progress Pct",
+            "type": "number"
+          },
+          "coverage_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Pct"
+          },
+          "daily_bar_count": {
+            "default": 0,
+            "title": "Daily Bar Count",
+            "type": "integer"
+          },
+          "dataset_version": {
+            "title": "Dataset Version",
+            "type": "string"
+          },
+          "factor_version": {
+            "title": "Factor Version",
+            "type": "string"
+          },
+          "fund_flow_count": {
+            "default": 0,
+            "title": "Fund Flow Count",
+            "type": "integer"
+          },
+          "last_run_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Status"
+          },
+          "last_trade_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Trade Date"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "pit_ready": {
+            "default": true,
+            "title": "Pit Ready",
+            "type": "boolean"
+          },
+          "regime": {
+            "default": "normal",
+            "title": "Regime",
+            "type": "string"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "string"
+          },
+          "source_cutoff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Cutoff"
+          },
+          "symbol_count": {
+            "default": 0,
+            "title": "Symbol Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dataset_version",
+          "factor_version",
+          "rule_version",
+          "note"
+        ],
+        "title": "QuantDataStatusView",
+        "type": "object"
+      },
+      "QuantFundFlowPointView": {
+        "properties": {
+          "large_net": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Large Net"
+          },
+          "main_net_inflow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main Net Inflow"
+          },
+          "main_net_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main Net Pct"
+          },
+          "medium_net": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medium Net"
+          },
+          "small_net": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Small Net"
+          },
+          "super_large_net": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Super Large Net"
+          },
+          "trade_date": {
+            "format": "date",
+            "title": "Trade Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trade_date"
+        ],
+        "title": "QuantFundFlowPointView",
+        "type": "object"
+      },
+      "QuantFundFlowView": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/QuantFundFlowPointView"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "QuantFundFlowView",
+        "type": "object"
+      },
+      "QuantRadarCandidateView": {
+        "properties": {
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "sleeve": {
+            "title": "Sleeve",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "thesis_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thesis Md"
+          }
+        },
+        "required": [
+          "symbol",
+          "sleeve",
+          "state",
+          "reason_code"
+        ],
+        "title": "QuantRadarCandidateView",
+        "type": "object"
+      },
+      "QuantRadarView": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/QuantRadarCandidateView"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "QuantRadarView",
+        "type": "object"
+      },
+      "QuantRecommendationItemView": {
+        "properties": {
+          "deterministic_score": {
+            "title": "Deterministic Score",
+            "type": "number"
+          },
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "factor_breakdown": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Factor Breakdown",
+            "type": "object"
+          },
+          "horizon": {
+            "title": "Horizon",
+            "type": "string"
+          },
+          "invalidation_condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalidation Condition"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "score_calibrated": {
+            "default": false,
+            "title": "Score Calibrated",
+            "type": "boolean"
+          },
+          "sleeve": {
+            "title": "Sleeve",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "thesis_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thesis Md"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "symbol",
+          "sleeve",
+          "horizon",
+          "state",
+          "deterministic_score",
+          "reason_code"
+        ],
+        "title": "QuantRecommendationItemView",
+        "type": "object"
+      },
+      "QuantRecommendationLatestView": {
+        "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "empty_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Reason"
+          },
+          "empty_reason_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Reason Detail"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QuantRecommendationItemView"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuantRecommendationRunView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "QuantRecommendationLatestView",
+        "type": "object"
+      },
+      "QuantRecommendationRunView": {
+        "properties": {
+          "code_commit": {
+            "title": "Code Commit",
+            "type": "string"
+          },
+          "dataset_version": {
+            "title": "Dataset Version",
+            "type": "string"
+          },
+          "empty_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Reason"
+          },
+          "empty_reason_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Reason Detail"
+          },
+          "factor_version": {
+            "title": "Factor Version",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "result_hash": {
+            "title": "Result Hash",
+            "type": "string"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "string"
+          },
+          "run_date": {
+            "format": "date",
+            "title": "Run Date",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "source_cutoff": {
+            "title": "Source Cutoff",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/QuantRunStageView"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "run_date",
+          "source_cutoff",
+          "trigger",
+          "status",
+          "scenario",
+          "dataset_version",
+          "factor_version",
+          "rule_version",
+          "code_commit",
+          "result_hash",
+          "started_at"
+        ],
+        "title": "QuantRecommendationRunView",
+        "type": "object"
+      },
+      "QuantRunRequest": {
+        "properties": {
+          "scenario": {
+            "default": "abstain",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "trigger": {
+            "default": "manual",
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "title": "QuantRunRequest",
+        "type": "object"
+      },
+      "QuantRunStageView": {
+        "properties": {
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "status"
+        ],
+        "title": "QuantRunStageView",
+        "type": "object"
+      },
       "QuantSentimentInputsView": {
         "properties": {
           "adv_ratio": {
@@ -10495,6 +11115,277 @@
         "summary": "Get Portfolio Summary",
         "tags": [
           "portfolio"
+        ]
+      }
+    },
+    "/api/quant/data/status": {
+      "get": {
+        "operationId": "get_quant_data_status_api_quant_data_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantDataStatusView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Quant Data Status",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/radar": {
+      "get": {
+        "operationId": "get_quant_radar_api_quant_radar_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantRadarView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Quant Radar",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/recommendations/latest": {
+      "get": {
+        "operationId": "get_latest_recommendations_api_quant_recommendations_latest_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantRecommendationLatestView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Latest Recommendations",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/recommendations/run": {
+      "post": {
+        "operationId": "run_recommendations_api_quant_recommendations_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/QuantRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantRecommendationLatestView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Recommendations",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/symbols/{symbol}/fund-flow": {
+      "get": {
+        "operationId": "get_symbol_fund_flow_api_quant_symbols__symbol__fund_flow_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantFundFlowView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Symbol Fund Flow",
+        "tags": [
+          "quant"
         ]
       }
     },

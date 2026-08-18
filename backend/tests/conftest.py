@@ -10,6 +10,8 @@ _default_test_db = Path(__file__).resolve().parents[1] / "data" / "app_test.db"
 test_db_path = Path(os.environ.get("NEWS_CAUGHT_TEST_DB", str(_default_test_db)))
 test_db_url = f"sqlite:///{test_db_path}"
 os.environ["DATABASE_URL"] = test_db_url
+market_test_db_path = test_db_path.with_name(f"{test_db_path.stem}_market.db")
+os.environ["MARKET_DATABASE_URL"] = f"sqlite:///{market_test_db_path}"
 
 # Test-suite defaults injected explicitly through Settings (must be set before
 # any app imports so import-time singletons pick them up):
@@ -27,11 +29,19 @@ from app.db.initializer import initialize_database  # noqa: E402 (after env setu
 
 
 def clean_test_db() -> None:
-    if test_db_path.exists():
-        try:
-            test_db_path.unlink()
-        except OSError:
-            pass
+    for path in (test_db_path, market_test_db_path):
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError:
+                pass
+        for suffix in ("-wal", "-shm"):
+            extra = Path(str(path) + suffix)
+            if extra.exists():
+                try:
+                    extra.unlink()
+                except OSError:
+                    pass
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )
+    market_database_url: str = Field(
+        default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'market_data.db'}"
+    )
     # ---------------------------------------------------------------------
     # 连接池与并发（2026-07-25 重构新增）
     # 此前 create_engine 未显式配置池，SQLAlchemy 对文件型 SQLite 默认

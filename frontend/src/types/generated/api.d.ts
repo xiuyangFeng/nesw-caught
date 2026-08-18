@@ -766,6 +766,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quant/data/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Quant Data Status */
+        get: operations["get_quant_data_status_api_quant_data_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/radar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Quant Radar */
+        get: operations["get_quant_radar_api_quant_radar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/recommendations/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Latest Recommendations */
+        get: operations["get_latest_recommendations_api_quant_recommendations_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/recommendations/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Recommendations */
+        post: operations["run_recommendations_api_quant_recommendations_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quant/symbols/{symbol}/fund-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Symbol Fund Flow */
+        get: operations["get_symbol_fund_flow_api_quant_symbols__symbol__fund_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/research/stock/{symbol}": {
         parameters: {
             query?: never;
@@ -2738,6 +2823,231 @@ export interface components {
             symbol: string;
             /** Volume */
             volume?: number | null;
+        };
+        /** QuantDataStatusView */
+        QuantDataStatusView: {
+            /**
+             * Backfill Progress Pct
+             * @default 0
+             */
+            backfill_progress_pct: number;
+            /** Coverage Pct */
+            coverage_pct?: number | null;
+            /**
+             * Daily Bar Count
+             * @default 0
+             */
+            daily_bar_count: number;
+            /** Dataset Version */
+            dataset_version: string;
+            /** Factor Version */
+            factor_version: string;
+            /**
+             * Fund Flow Count
+             * @default 0
+             */
+            fund_flow_count: number;
+            /** Last Run Status */
+            last_run_status?: string | null;
+            /** Last Trade Date */
+            last_trade_date?: string | null;
+            /** Note */
+            note: string;
+            /**
+             * Pit Ready
+             * @default true
+             */
+            pit_ready: boolean;
+            /**
+             * Regime
+             * @default normal
+             */
+            regime: string;
+            /** Rule Version */
+            rule_version: string;
+            /** Source Cutoff */
+            source_cutoff?: string | null;
+            /**
+             * Symbol Count
+             * @default 0
+             */
+            symbol_count: number;
+        };
+        /** QuantFundFlowPointView */
+        QuantFundFlowPointView: {
+            /** Large Net */
+            large_net?: number | null;
+            /** Main Net Inflow */
+            main_net_inflow?: number | null;
+            /** Main Net Pct */
+            main_net_pct?: number | null;
+            /** Medium Net */
+            medium_net?: number | null;
+            /** Small Net */
+            small_net?: number | null;
+            /** Super Large Net */
+            super_large_net?: number | null;
+            /**
+             * Trade Date
+             * Format: date
+             */
+            trade_date: string;
+        };
+        /** QuantFundFlowView */
+        QuantFundFlowView: {
+            /** Note */
+            note?: string | null;
+            /** Points */
+            points?: components["schemas"]["QuantFundFlowPointView"][];
+            /** Symbol */
+            symbol: string;
+        };
+        /** QuantRadarCandidateView */
+        QuantRadarCandidateView: {
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Reason Code */
+            reason_code: string;
+            /** Sleeve */
+            sleeve: string;
+            /** State */
+            state: string;
+            /** Symbol */
+            symbol: string;
+            /** Thesis Md */
+            thesis_md?: string | null;
+        };
+        /** QuantRadarView */
+        QuantRadarView: {
+            /** As Of */
+            as_of?: string | null;
+            /** Candidates */
+            candidates?: components["schemas"]["QuantRadarCandidateView"][];
+            /** Note */
+            note?: string | null;
+        };
+        /** QuantRecommendationItemView */
+        QuantRecommendationItemView: {
+            /** Deterministic Score */
+            deterministic_score: number;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Evidence Ids */
+            evidence_ids?: string[];
+            /** Factor Breakdown */
+            factor_breakdown?: {
+                [key: string]: number;
+            };
+            /** Horizon */
+            horizon: string;
+            /** Invalidation Condition */
+            invalidation_condition?: string | null;
+            /** Rank */
+            rank?: number | null;
+            /** Reason Code */
+            reason_code: string;
+            /**
+             * Score Calibrated
+             * @default false
+             */
+            score_calibrated: boolean;
+            /** Sleeve */
+            sleeve: string;
+            /** State */
+            state: string;
+            /** Symbol */
+            symbol: string;
+            /** Thesis Md */
+            thesis_md?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+        };
+        /** QuantRecommendationLatestView */
+        QuantRecommendationLatestView: {
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /** Empty Reason */
+            empty_reason?: string | null;
+            /** Empty Reason Detail */
+            empty_reason_detail?: string | null;
+            /** Items */
+            items?: components["schemas"]["QuantRecommendationItemView"][];
+            run?: components["schemas"]["QuantRecommendationRunView"] | null;
+        };
+        /** QuantRecommendationRunView */
+        QuantRecommendationRunView: {
+            /** Code Commit */
+            code_commit: string;
+            /** Dataset Version */
+            dataset_version: string;
+            /** Empty Reason */
+            empty_reason?: string | null;
+            /** Empty Reason Detail */
+            empty_reason_detail?: string | null;
+            /** Factor Version */
+            factor_version: string;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Id */
+            id: number;
+            /** Result Hash */
+            result_hash: string;
+            /** Rule Version */
+            rule_version: string;
+            /**
+             * Run Date
+             * Format: date
+             */
+            run_date: string;
+            /** Scenario */
+            scenario: string;
+            /** Source Cutoff */
+            source_cutoff: string;
+            /** Stages */
+            stages?: components["schemas"]["QuantRunStageView"][];
+            /** Started At */
+            started_at: string;
+            /** Status */
+            status: string;
+            /** Trigger */
+            trigger: string;
+        };
+        /** QuantRunRequest */
+        QuantRunRequest: {
+            /**
+             * Scenario
+             * @default abstain
+             */
+            scenario: string;
+            /**
+             * Trigger
+             * @default manual
+             */
+            trigger: string;
+        };
+        /** QuantRunStageView */
+        QuantRunStageView: {
+            /** Detail */
+            detail?: {
+                [key: string]: unknown;
+            };
+            /** Finished At */
+            finished_at?: string | null;
+            /** Stage */
+            stage: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
         };
         /** QuantSentimentInputsView */
         QuantSentimentInputsView: {
@@ -5292,6 +5602,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortfolioSummaryView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quant_data_status_api_quant_data_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantDataStatusView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_quant_radar_api_quant_radar_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantRadarView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_recommendations_api_quant_recommendations_latest_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantRecommendationLatestView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_recommendations_api_quant_recommendations_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["QuantRunRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantRecommendationLatestView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_symbol_fund_flow_api_quant_symbols__symbol__fund_flow_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantFundFlowView"];
                 };
             };
             /** @description Validation Error */

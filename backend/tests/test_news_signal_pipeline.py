@@ -7,6 +7,7 @@ from app.db.session import SessionLocal
 from app.models.article_content import ArticleContent
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.news_item import NewsItem
+from app.models.news_stock_mention import NewsStockMention
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
 from app.repositories.news_repository import NewsRepository
@@ -64,6 +65,7 @@ def _cleanup_news(url_hashes: list[str]) -> None:
         if news_ids:
             session.execute(delete(ArticleContent).where(ArticleContent.news_id.in_(news_ids)))
             session.execute(delete(TopicNewsLink).where(TopicNewsLink.news_id.in_(news_ids)))
+            session.execute(delete(NewsStockMention).where(NewsStockMention.news_id.in_(news_ids)))
             session.execute(delete(NewsItem).where(NewsItem.id.in_(news_ids)))
         if topic_ids:
             session.execute(delete(TopicCluster).where(TopicCluster.id.in_(topic_ids)))
@@ -491,6 +493,35 @@ def test_apply_result_writes_takeaway_without_overwrite() -> None:
             session.rollback()
             session.execute(sa.delete(TopicNewsLink).where(TopicNewsLink.news_id == item.id))
             session.execute(sa.delete(NewsSignalResult).where(NewsSignalResult.news_id == item.id))
+            session.execute(sa.delete(NewsStockMention).where(NewsStockMention.news_id == item.id))
             session.execute(sa.delete(TopicCluster).where(TopicCluster.topic_key == "takeaway-apply-topic"))
             session.execute(sa.delete(NewsItem).where(NewsItem.id == item.id))
             session.commit()
+
+
+def test_process_news_ids_writes_rule_stock_mentions_from_title() -> None:
+    url_hashes = ["pipeline-mention-moutai"]
+    _cleanup_news(url_hashes)
+    try:
+        with SessionLocal() as session:
+            session.add(
+                _make_news(
+                    title="贵州茅台发布年度报告，净利润增长",
+                    summary="公司披露年报。",
+                    url_hash="pipeline-mention-moutai",
+                )
+            )
+            session.commit()
+            news_ids = list(
+                session.scalars(select(NewsItem.id).where(NewsItem.url_hash.in_(url_hashes)))
+            )
+            NewsSignalPipelineService(session).process_news_ids(news_ids)
+            session.commit()
+            mentions = list(
+                session.scalars(
+                    select(NewsStockMention).where(NewsStockMention.news_id.in_(news_ids))
+                )
+            )
+        assert any(row.symbol == "600519.SH" and row.mention_type == "rule" for row in mentions)
+    finally:
+        _cleanup_news(url_hashes)

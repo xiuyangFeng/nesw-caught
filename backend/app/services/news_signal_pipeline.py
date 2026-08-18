@@ -20,6 +20,7 @@ from app.services.ingestion.article_crawler import (
     crawl_and_extract_article,
 )
 from app.services.news_signal_classifier import ClassificationResult, NewsSignalClassifier
+from app.services.quant.mention_backfill import match_a_share_mentions, persist_rule_mentions
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,9 @@ class NewsSignalPipelineService:
         processed_news_ids: list[int] = []
 
         for item in news_items:
-            self._apply_result(item, results[item.id], touched_topic_ids)
+            article = article_map.get(item.id)
+            body = article.content_text if article and article.content_text else None
+            self._apply_result(item, results[item.id], touched_topic_ids, body=body)
             processed_news_ids.append(item.id)
 
         self.repository.refresh_topic_stats(touched_topic_ids)
@@ -272,6 +275,7 @@ class NewsSignalPipelineService:
         item: NewsItem,
         result: ClassificationResult,
         touched_topic_ids: set[int],
+        body: str | None = None,
     ) -> None:
         """将分类结果落库(纯数据库写,无网络 I/O)。"""
         topic = self.repository.find_topic(topic_key=result.topic_key, keywords=result.keywords)
@@ -317,3 +321,8 @@ class NewsSignalPipelineService:
             },
         )
         touched_topic_ids.add(topic.id)
+        persist_rule_mentions(
+            self.session,
+            item.id,
+            match_a_share_mentions(item.title, item.summary, body),
+        )

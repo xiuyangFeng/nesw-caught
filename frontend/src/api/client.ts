@@ -33,6 +33,10 @@ import type {
   NewsRefreshAcceptedResult,
   OpsHealth,
   PortfolioSummary,
+  QuantDataStatus,
+  QuantFundFlow,
+  QuantRadar,
+  QuantRecommendationLatest,
   WatchlistPositionUpdate,
   SentimentEvalResponse,
   SentimentTimelineResponse,
@@ -446,5 +450,31 @@ export const apiClient = {
       data,
       degraded: false,
     }));
+  },
+  getQuantLatest() {
+    return withMockFallback<QuantRecommendationLatest>(
+      () => getJson('/api/quant/recommendations/latest'),
+      (mock) => mock.mockQuantLatest,
+    );
+  },
+  runQuantRecommendations(scenario: 'abstain' | 'mixed' = 'abstain') {
+    return postJson<QuantRecommendationLatest>('/api/quant/recommendations/run', { scenario, trigger: 'manual' }).then(
+      (data) => ({ data, degraded: false }),
+    );
+  },
+  getQuantDataStatus() {
+    return withMockFallback<QuantDataStatus>(
+      () => getJson('/api/quant/data/status'),
+      (mock) => mock.mockQuantDataStatus,
+    );
+  },
+  getQuantRadar() {
+    return withMockFallback<QuantRadar>(() => getJson('/api/quant/radar'), (mock) => mock.mockQuantRadar);
+  },
+  getQuantFundFlow(symbol: string) {
+    return withMockFallback<QuantFundFlow>(
+      () => getJson(`/api/quant/symbols/${encodeURIComponent(symbol)}/fund-flow`),
+      (mock) => ({ ...mock.mockQuantFundFlow, symbol }),
+    );
   },
 };

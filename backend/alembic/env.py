@@ -14,13 +14,18 @@ from app.db.base import Base
 # Import all models to register them with Base.metadata
 from app.models.article_content import ArticleContent
 from app.models.feishu_notify_config import FeishuNotifyConfig
+from app.models.llm_classification_cache import LLMClassificationCache
 from app.models.llm_provider_config import LLMProviderConfig
+from app.models.llm_token_usage import LLMTokenUsage
 from app.models.market_index_config import MarketIndexConfig
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
+from app.models.news_signal_result import NewsSignalResult
 from app.models.news_stock_mention import NewsStockMention
 from app.models.notification_job import NotificationJob
 from app.models.price_snapshot import PriceSnapshot
+from app.models.quant import QuantRunStageLog, RecommendationItem, RecommendationRun
+from app.models.sentiment_eval_run import SentimentEvalRun
 from app.models.source_health import SourceHealth
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink

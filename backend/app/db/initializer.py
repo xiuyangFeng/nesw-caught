@@ -40,9 +40,11 @@ from app.models.llm_token_usage import LLMTokenUsage  # noqa: F401
 from app.models.market_index_config import MarketIndexConfig  # noqa: F401
 from app.models.news_analysis_result import NewsAnalysisResult  # noqa: F401
 from app.models.news_item import NewsItem  # noqa: F401
+from app.models.news_signal_result import NewsSignalResult  # noqa: F401
 from app.models.news_stock_mention import NewsStockMention  # noqa: F401
 from app.models.notification_job import NotificationJob  # noqa: F401
 from app.models.price_snapshot import PriceSnapshot  # noqa: F401
+from app.models.quant import QuantRunStageLog, RecommendationItem, RecommendationRun  # noqa: F401
 from app.models.sentiment_eval_run import SentimentEvalRun  # noqa: F401
 from app.models.source_health import SourceHealth  # noqa: F401
 from app.models.topic_cluster import TopicCluster  # noqa: F401
@@ -111,6 +113,10 @@ def initialize_database() -> None:
     else:
         logger.info("Existing database detected: running Alembic upgrade to head.")
         command.upgrade(alembic_cfg, "head")
+
+    from app.db.market_initializer import initialize_market_database
+
+    initialize_market_database()
 
     if get_settings().seed_demo_data:
         _apply_demo_seeds()

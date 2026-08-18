@@ -216,6 +216,17 @@ describe('AppShell', () => {
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
 
+  it('lists desk ops in trading-desk nav without treating it as the radar route', () => {
+    routeState.path = '/desk/ops';
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.text()).toContain('运行中心');
+    const activeLink = wrapper.find('[data-route-active="true"]');
+    expect(activeLink.exists()).toBe(true);
+    expect(activeLink.text()).toContain('运行中心');
+    expect(activeLink.text()).not.toContain('机会雷达');
+  });
+
   it('keeps connection diagnostics in the sidebar when connection state is degraded', () => {
     connectionStore.state = 'degraded';
 
@@ -620,7 +631,7 @@ describe('AppShell', () => {
     vi.useRealTimers();
   });
 
-  it('redirects root navigation to the news discovery page', async () => {
+  it('redirects root navigation to the desk homepage', async () => {
     vi.resetModules();
     vi.doUnmock('vue-router');
 
@@ -628,7 +639,7 @@ describe('AppShell', () => {
 
     await router.push('/');
 
-    expect(router.currentRoute.value.path).toBe('/news');
-    expect(router.currentRoute.value.name).toBe('news-feed');
+    expect(router.currentRoute.value.path).toBe('/desk');
+    expect(router.currentRoute.value.name).toBe('desk');
   });
 });

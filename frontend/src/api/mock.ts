@@ -21,3 +21,4 @@ export * from './mock/ops';
 export * from './mock/marketOverview';
 export * from './mock/sentimentEval';
 export * from './mock/sentimentTimeline';
+export * from './mock/quant';

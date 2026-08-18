@@ -17,6 +17,7 @@ from app.api.routes import (
     notify,
     ops,
     portfolio,
+    quant,
     research,
     stream,
     topics,
@@ -42,6 +43,7 @@ api_router.include_router(research.router, prefix="/research", tags=["research"]
 api_router.include_router(x_monitor.router, prefix="/x", tags=["x-monitor"])
 api_router.include_router(stream.router, prefix="/stream", tags=["stream"])
 api_router.include_router(backtest.router, prefix="/backtest", tags=["backtest"])
+api_router.include_router(quant.router, prefix="/quant", tags=["quant"])
 api_router.include_router(ops.router, prefix="/ops", tags=["ops"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 

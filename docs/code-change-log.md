@@ -5,6 +5,56 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-08-18 量化交易台 Phase 1：独立行情库、mention 主链路、运行中心与资金流
+
+- 修改人：Cursor Grok
+- 修改范围：独立 `market_data.db`、东财日线/资金流解析与回填、新闻 rule mention、`/api/quant` 覆盖率与资金流、`/desk/ops` 与个股资金流面板；未改现有 `/api/backtest` 与 `/portfolio`。
+- 变更内容：新增与主库隔离的行情库 Alembic（`alembic_version_market`）及 `daily_bar` / `index_daily_bar` / `trade_calendar` / `fund_flow_daily`。东财历史 K 线与个股资金流解析走 fixture 测试，不在单测里打真实网；`make quant-backfill` 分批回填前 100 只 A 股、支持断点续传。新闻 pipeline 阶段 2 写入 `mention_type=rule` 的 A 股映射（名称≥3 字、短名停用词、6 位代码）。`GET /api/quant/data/status` 读取真实覆盖率；新增 `GET /api/quant/symbols/{symbol}/fund-flow`。前端交易台增加「运行中心」`/desk/ops`（数据健康 Tab），个股详情对 A 股展示资金流空态/表格；`/desk` 不再把 `/desk/ops` 当成机会雷达高亮。
+- 影响文件：`backend/app/db/market_*.py`、`backend/app/models/market_data.py`、`backend/alembic_market/`、`alembic_market.ini`、`backend/app/services/quant/market_data/`、`backend/app/services/quant/mention_backfill.py`、`backend/app/services/news_signal_pipeline.py`、`backend/app/services/quant_desk_service.py`、`backend/app/api/routes/quant.py`、`backend/app/schemas/quant.py`、`backend/tests/quant/`、`backend/tests/test_quant_api.py`、`backend/tests/test_news_signal_pipeline.py`、`Makefile`、`frontend/src/views/DeskOpsView.vue`、`frontend/src/components/watchlist/FundFlowPanel.vue`、`frontend/src/views/WatchlistDetailView.vue`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/openapi.json`、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 `GET /api/quant/symbols/{symbol}/fund-flow`；`GET /api/quant/data/status` 增加 `daily_bar_count` / `symbol_count` / `fund_flow_count` / `last_trade_date`。行情表只写 `market_data.db`，不进 `app.db`。无旧接口破坏。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/news_caught_quant_p1.db conda run -n news-caught pytest backend/tests/quant backend/tests/test_quant_api.py backend/tests/test_news_signal_pipeline.py backend/tests/test_migration_parity.py` 为 39 passed；另补 `test_quant_api.py` 覆盖率用例后该文件 7 passed；`ruff check` 覆盖新增后端文件通过；前端 Desk/DeskOps/FundFlow/WatchlistDetail/router/AppShell/smoke 共 61 passed；`npm --prefix frontend run build` 与 `check:api-drift` 通过。
+- 风险或后续事项：未执行真实东财回填（单测禁止打网）；覆盖率相对全量约 6141 只 A 股，默认 CLI 只回填前 100 只。公司行动/龙虎榜/两融、真实三 sleeve 打分与雷达 worker 仍属后续 Phase。Phase 0/1 计划已归档到 `docs/archive/superpowers/plans/`。
+
+## 2026-08-18 量化交易台 Phase 0：决策契约、合成流水线与 /desk 骨架首页
+
+- 修改人：Cursor Grok
+- 修改范围：量化域后端内核、主库三张业务表、`/api/quant` 骨架、默认首页与交易台导航；未改现有新闻主链路、`/api/backtest` 与 `/portfolio`。
+- 变更内容：落地 point-in-time 截点、财务修订、除权 total-return、分板块涨跌停/T+1/停牌拒单、U0/U2 历史股票池与候选状态机；用合成夹具贯通事件/趋势/基本面三 sleeve，资格未过线时返回 0 条 qualified（现金合法）且同版本 run hash 可复现。主库新增 `recommendation_run` / `recommendation_item` / `quant_run_stage_log`。新增 `GET/POST /api/quant/recommendations/*`、`GET /api/quant/data/status`、`GET /api/quant/radar`。前端默认首页改为 `/desk`（状态带 + 空态机会流 + 手动重跑），导航置顶「交易台」，原「信号回测」文案改为「信号统计」。`requirements.txt` 显式锁定 `pandas==3.0.1`、`numpy==2.4.3`，新增 `pyarrow==21.0.0`。
+- 影响文件：`backend/app/services/quant/`、`backend/app/services/quant_desk_service.py`、`backend/app/models/quant.py`、`backend/app/api/routes/quant.py`、`backend/alembic/versions/f7a1b8c2d4e0_add_quant_recommendation_tables.py`、`backend/tests/quant/`、`backend/tests/test_quant_api.py`、`frontend/src/views/DeskView.vue`、`frontend/src/stores/deskStore.ts`、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.vue`、`frontend/openapi.json`、`requirements.txt`、`docs/superpowers/plans/2026-08-18-quant-desk-phase0-plan.md`、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 `/api/quant/*` 四个端点与三张主库表；无旧接口破坏。LLM 不参与排名。独立 `market_data.db` 仍未创建。
+- 验证情况：`NEWS_CAUGHT_TEST_DB=/tmp/news_caught_quant_phase0.db conda run -n news-caught pytest backend/tests/quant backend/tests/test_quant_api.py backend/tests/test_migration_parity.py` 为 25 passed；`ruff check` 覆盖新增后端文件通过；前端 Desk/router/AppShell/smoke 共 49 passed；`npm --prefix frontend run build` 与 `check:api-drift` 通过。
+- 风险或后续事项：Phase 0 流水线仅合成数据，页面空态是预期产品行为而非故障。`pyarrow` 已写入依赖但本期未使用。下一步见 Phase 1 计划。
+
+## 2026-08-18 量化交易台 v2：盈利目标、个股情报与组合风控深化
+
+- 修改人：Codex
+- 修改范围：深化现有量化交易台设计；未改运行时代码。
+- 变更内容：从净超额收益、可成交性和回撤约束倒推系统目标，把原单一综合分拆为事件/催化、趋势/资金、基本面重估三个独立 sleeve；新增快慢双循环、候选状态机、可输出 0～N 个机会和现金结果，取消 LLM 直接 TopN 排名，限定其只做证据抽取、纵横分析与反方审查。补充 point-in-time 数据契约、历史证券池/规则版本、官方公告与财务事实、SQLite + Parquet 特征存储、因子准入实验、个股纵横研究包、产业链雷达、组合风险预算/退出规则、严格 walk-forward 回测与策略晋级门槛，并把实施顺序重排为 Phase 0～5。
+- 影响文件：`docs/superpowers/specs/2026-08-18-quant-trading-desk-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无运行时变化；设计草案新增/调整 `security_master_history`、`trading_rule_version`、`financial_fact`、`corporate_event`、`research_snapshot`、`portfolio_proposal`、`decision_log` 等数据结构，并扩充 `/api/quant/radar`、个股研究、组合提案、因子研究和模拟订单端点。
+- 验证情况：纯文档修改，未运行前后端测试；已阅读 `README.md`、`docs/current-state.md`、近期变更记录及现有 `stock_research_synthesis`、`watchlist_research_service`、新闻信号管线与依赖配置；已联网核验 2026 年沪深北交易规则、沪深港通披露调整、印花税/交易费用、巨潮公告入口和回测过拟合方法依据；完成章节/内部引用与 diff 检查。
+- 风险或后续事项：系统只能提高研究与风险控制质量，不能保证盈利；账户规模、最大回撤、数据源授权/采购、历史退市股覆盖和产业链关系维护仍需用户在开工前确定优先级。设计终审后再为 Phase 0 编写独立 TDD 实施计划。
+
+## 2026-08-18 量化交易台设计方案 v3：AI 接入层与前端/可观测性补全
+
+- 修改人：Claude
+- 修改范围：设计文档更新（v2→v3）；未改运行时代码。
+- 变更内容：在 Codex v2 深化版（第一性原理、三 sleeve、point-in-time 契约、候选状态机、组合风控、晋级治理）之上完成 v3 补全：（1）新增 §8「AI 接入层」——四角色×模型三档路由（新表 `llm_role_binding`）、研究副驾（复用 ChatView/`/api/llm/chat` 基座，新增 `toolset=desk_readonly` 只读工具调用循环）、prompt 治理与注入防护、成本分池与固定降级顺序、调用审计（新表 `ai_call_audit`）与抽取/Skeptic 质量评测；（2）重写 §13「前端设计」——机会雷达首页仪表盘五分区详设、机会卡收起/展开态、个股研究页、组合提案页、回测报告页布局、成绩单漏斗/归因/校准视图，以及新增 `/desk/ops` 运行中心（run 阶段时间线、数据健康、AI 审计、决策日志四 Tab，新表 `quant_run_stage_log`）；（3）分期计划每期补「产品可见增量」并把 AI/前端交付并入 Phase 0-5；（4）全文章节重排（原 §8-17 顺延为 §9-18），修正交叉引用；风险表新增提示注入与 AI 成本两行，开放问题新增 MCP 化与存量 prompt 治理两项。
+- 影响文件：`docs/superpowers/specs/2026-08-18-quant-trading-desk-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（`quant_run_stage_log`、`ai_call_audit`、`llm_role_binding` 三表与 `/quant/runs/{id}`、`/quant/ai/*`、`/quant/copilot/tools`、`/llm/chat` 扩展参数等端点均为设计草案，尚未实现）。
+- 验证情况：纯文档修订，未运行测试；v2 内容经逐节核对全部保留，仅编号顺延与少量衔接句调整（§6.3、§7 指向 §8 的路由说明）。
+- 风险或后续事项：AI 副驾会话保留 localStorage 形态（单机单用户权衡，文档已注明）；v2 §2.1 边界修正与 v3 补充均待用户终审后回填为正式边界；存量 9 处散落 prompt 的治理未纳入本方案主线，列为开放问题 7。
+
+## 2026-08-18 量化交易台重构设计方案
+
+- 修改人：Claude
+- 修改范围：新增设计文档；未改运行时代码。
+- 变更内容：经两轮边界讨论确认后（A 股为主、因子打分初筛+LLM 精选、自研轻量向量化回测、条件组合器 DSL、盘后自动+手动重跑、全量 A 股 2～3 年日线独立库、交易台设为新首页、纳入成绩单/模拟盘/龙虎榜两融），产出量化交易台整体重构设计：独立行情库 `market_data.db` 与采集器、`news_stock_mention` 主链路补齐、因子注册表与合成打分、每日推荐流水线（LLM 失败降级为规则版）、策略 DSL 与向量化回测引擎（T+1/涨跌停/费用模型）、推荐成绩单前向收益追踪、模拟盘 paper_* 体系、前端 `/desk` 系列页面与 API 草案，并给出四期实施计划与验收标准。
+- 影响文件：`docs/superpowers/specs/2026-08-18-quant-trading-desk-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（文档中的新表与 `/api/quant/*` 端点为设计草案，尚未实现）。
+- 验证情况：纯文档新增，未运行测试；文档中现状描述基于 2026-08-18 对代码库的实际探查（含 mention 写入点、资金流仅板块级、signal_backtest 为命中率统计等结论）。
+- 风险或后续事项：北向个股数据受披露政策限制已降级为大盘级因子；回测存在幸存者偏差（退市股不在池）；pandas/numpy 需在实现期提升为显式锁定依赖；开放问题现见 v2 设计文档 §16，待用户终审后按分期出 plan 文档。
+
 ## 2026-08-18 归档过期文档，隔离历史方案对后续开发的影响
 
 - 修改人：Cursor Grok
@@ -317,4 +367,3 @@
 - 接口/数据结构变化：无。
 - 验证情况：已检查 `AGENTS.md`，确认不再包含 Superpowers skills 安装或可用性要求；未运行代码测试（纯流程文档修改，无运行时行为变化）。
 - 风险或后续事项：历史设计和计划文件仍位于 `docs/superpowers/`，目录名可能产生语义歧义；如后续需要统一命名，可另行迁移并修正引用。
-

@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import StockDetailPanel from '../components/watchlist/StockDetailPanel.vue';
 import SentimentTimelinePanel from '../components/watchlist/SentimentTimelinePanel.vue';
+import FundFlowPanel from '../components/watchlist/FundFlowPanel.vue';
 import { HttpError } from '../api/http';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import { useWatchlistStore } from '../stores/watchlistStore';
@@ -178,6 +179,7 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
 
     <!-- 个股情绪时间线 + 情绪-价格背离提醒 -->
     <section v-if="symbol" class="grid gap-2" data-role="watchlist-detail-sentiment-timeline">
+      <FundFlowPanel v-if="/\.(SH|SZ|BJ)$/.test(symbol)" :symbol="symbol" />
       <SentimentTimelinePanel :symbol="symbol" />
     </section>
 
