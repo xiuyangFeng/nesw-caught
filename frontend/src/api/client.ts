@@ -42,10 +42,13 @@ import type {
   QuantResearchPack,
   QuantAiAudit,
   QuantProposal,
+  QuantProposalExecute,
   QuantReportCard,
   QuantStrategy,
   QuantStrategyUpsert,
+  QuantStrategyUpdate,
   QuantBacktest,
+  QuantBacktestRequest,
   QuantPaperAccount,
   QuantPaperOrder,
   QuantDecisionLog,
@@ -77,7 +80,6 @@ import type {
   XRefreshResult,
 } from '../types/api';
 import { HttpError, deleteJson, getJson, isAbortError, patchJson, postJson } from './http';
-
 type MockModule = typeof import('./mock');
 
 const withQuery = (base: string, query?: Record<string, string | number | boolean | undefined>) => {
@@ -517,6 +519,12 @@ export const apiClient = {
       (mock) => mock.mockQuantProposal,
     );
   },
+  executeQuantProposal() {
+    return postJson<QuantProposalExecute>('/api/quant/portfolio-proposals/latest/execute', {}).then((data) => ({
+      data,
+      degraded: false,
+    }));
+  },
   getQuantReportCard(window = '30d') {
     return withMockFallback<QuantReportCard>(
       () => getJson(withQuery('/api/quant/report-card', { window })),
@@ -532,13 +540,22 @@ export const apiClient = {
   createQuantStrategy(payload: QuantStrategyUpsert) {
     return postJson<QuantStrategy>('/api/quant/strategies', payload).then((data) => ({ data, degraded: false }));
   },
+  updateQuantStrategy(strategyId: number, payload: Partial<QuantStrategyUpdate>) {
+    return patchJson<QuantStrategy>(`/api/quant/strategies/${strategyId}`, payload).then((data) => ({
+      data,
+      degraded: false,
+    }));
+  },
+  deleteQuantStrategy(strategyId: number) {
+    return deleteJson(`/api/quant/strategies/${strategyId}`).then(() => ({ degraded: false }));
+  },
   previewQuantStrategy(payload: QuantStrategyUpsert) {
     return postJson<{ errors: string[]; hit: boolean }>('/api/quant/strategies/preview', payload).then((data) => ({
       data,
       degraded: false,
     }));
   },
-  runQuantBacktest(payload: QuantStrategyUpsert) {
+  runQuantBacktest(payload: QuantBacktestRequest) {
     return postJson<QuantBacktest>('/api/quant/backtests', payload).then((data) => ({ data, degraded: false }));
   },
   getQuantPaperAccount() {

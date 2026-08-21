@@ -51,3 +51,21 @@ class FundFlowDaily(MarketBase):
     medium_net: Mapped[float | None] = mapped_column(Float(), default=None)
     small_net: Mapped[float | None] = mapped_column(Float(), default=None)
     main_net_pct: Mapped[float | None] = mapped_column(Float(), default=None)
+
+
+class FinancialFact(MarketBase):
+    """财报事实点（PIT）：按 (symbol, period_end, metric_key) 幂等 upsert。
+
+    available_at 为披露日（东财报告期披露日期），打分/回测只允许引用
+    available_at <= 截点的期数，杜绝用未来财报做历史决策。
+    """
+
+    __tablename__ = "financial_fact"
+
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    period_end: Mapped[date] = mapped_column(Date(), primary_key=True)
+    metric_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    value: Mapped[float | None] = mapped_column(Float(), default=None)
+    available_at: Mapped[date | None] = mapped_column(Date(), default=None, index=True)
+    revision_no: Mapped[int] = mapped_column(Integer(), default=1)
+    document_id: Mapped[str] = mapped_column(String(64), default="")

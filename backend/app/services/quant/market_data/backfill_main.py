@@ -18,6 +18,29 @@ from app.services.a_share_search_service import get_all_a_shares
 from app.services.quant.market_data.backfill import backfill_symbols
 
 
+def _backfill_financials(symbols: list[str], *, sleep_seconds: float) -> dict:
+    """对给定标的抓东财主要财务指标并幂等落库；单标的失败不阻断整批。"""
+    import time
+
+    from app.db.market_session import MarketSessionLocal
+    from app.services.quant.market_data.backfill import upsert_financial_facts
+    from app.services.quant.market_data.eastmoney_financials import fetch_financials
+
+    count = 0
+    failures = 0
+    for symbol in symbols:
+        try:
+            rows = fetch_financials(symbol)
+            with MarketSessionLocal() as session:
+                count += upsert_financial_facts(session, rows)
+                session.commit()
+        except Exception:
+            failures += 1
+        if sleep_seconds:
+            time.sleep(sleep_seconds)
+    return {"financial_facts": count, "failures": failures, "symbols": len(symbols)}
+
+
 def main() -> None:
     initialize_market_database()
     settings = get_settings()
@@ -34,6 +57,10 @@ def main() -> None:
         symbols, start=start, end=end, checkpoint_path=checkpoint, sleep_seconds=sleep_seconds
     )
     print(summary)
+    # 可选：同时抓财务指标（东财 f10 接口，独立限流预算）。
+    if os.environ.get("QUANT_BACKFILL_FINANCIALS", "0") == "1":
+        financial_summary = _backfill_financials(symbols, sleep_seconds=sleep_seconds)
+        print(financial_summary)
 
 
 if __name__ == "__main__":

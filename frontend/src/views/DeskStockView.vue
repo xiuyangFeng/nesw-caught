@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 import SectionCard from '../components/common/SectionCard.vue';
 import KlineChart from '../components/watchlist/KlineChart.vue';
 import FundFlowPanel from '../components/watchlist/FundFlowPanel.vue';
+import { gapLabel } from '../constants/quantLabels';
 import { apiClient } from '../api/client';
 import type { QuantResearchPack, StockKlineResponse, WatchlistDashboardPeriod } from '../types/api';
 
@@ -115,8 +116,19 @@ watch(symbol, () => {
       :title="module.question"
     >
       <p class="text-sm text-text">{{ module.answer }}</p>
-      <p v-if="module.gap" class="mt-2 text-xs text-warning">缺口：{{ module.gap }}</p>
-      <p v-if="module.evidence_ids?.length" class="mt-2 text-xs text-muted">证据 {{ module.evidence_ids.join(', ') }}</p>
+      <p v-if="module.gap" class="mt-2 text-xs text-warning" data-role="desk-stock-gap">缺口：{{ gapLabel(module.gap) }}</p>
+      <p v-if="module.evidence_ids?.length" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted" data-role="desk-stock-evidence">
+        <template v-for="evidenceId in module.evidence_ids" :key="evidenceId">
+          <RouterLink
+            v-if="evidenceId.startsWith('news-')"
+            class="rounded border border-border px-1.5 py-0.5 text-accent"
+            :to="`/news/${evidenceId.slice('news-'.length)}`"
+          >
+            新闻 #{{ evidenceId.slice('news-'.length) }}
+          </RouterLink>
+          <span v-else class="rounded border border-border px-1.5 py-0.5 font-mono">{{ evidenceId }}</span>
+        </template>
+      </p>
     </SectionCard>
     <p class="text-xs text-muted">副驾工具白名单只读：资金流、研究包、新闻检索、策略预览、回测报告、成绩单。不能下单或改策略。</p>
   </div>

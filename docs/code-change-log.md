@@ -5,6 +5,81 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-08-21 量化工作台优化文档归档与状态快照更新
+
+- 修改人：ZCode（GLM-5.3）
+- 修改范围：文档（纯文档，无运行时代码）。
+- 变更内容：设计稿与实施计划（2026-08-20 quant-desk-optimization 两篇）按规范归档到 `docs/archive/superpowers/`；`docs/current-state.md` 更新为四期落地后的能力快照（回测真实化、策略管理、模拟盘真实价、成绩单真实窗口、每日盘后自动化、基本面数据与 WATCH 打分、研究包财务填充）。
+- 影响文件：`docs/archive/superpowers/specs/2026-08-20-quant-desk-optimization-design.md`、`docs/archive/superpowers/plans/2026-08-20-quant-desk-optimization-plan.md`（移动）、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；归档移动后路径确认存在。
+- 风险或后续事项：无。
+
+## 2026-08-21 量化工作台 Phase D：东财财务数据 + 基本面 sleeve 实装
+
+- 修改人：ZCode（GLM-5.3）
+- 修改范围：量化工作台基本面数据层（设计稿 §3.2 B7、计划 §D）。
+- 变更内容：
+  - 新增东财主要财务指标解析器 `eastmoney_financials.py`（datacenter `RPT_F10_FINANCE_MAINFINADATA`，字段 `DJD_DPNP_YOY`/`DJD_TOI_YOY`/`ROEJQ`/`XSMLL`；单测 fixture 化不打真网）。f10.eastmoney.com 旧端点实测 403 服务端屏蔽，改用 datacenter-web 端点（实测 200）。
+  - `market_data.db` 新增 `financial_fact` 表（(symbol, period_end, metric_key) 主键，`available_at` 披露日 PIT 索引）+ Alembic 迁移 `b2c3d4e5f6a7`；`upsert_financial_facts` 幂等落库。
+  - 基本面打分实装：`score_fundamental`（净利/营收单季同比 + ROE 加权，覆盖不足显式 gap；治理约定暂不晋级，只产 WATCH）；因子注册表新增 `net_profit_yoy`/`revenue_yoy`/`roe`。
+  - 流水线 `sleeve_fundamental_revalue` 阶段实装：PIT 截点（available_at ≤ cutoff）读取最新财报期打分；研究包 valuation 模块用真实财务填充（证据 `financial:<symbol>:<period_end>`），无覆盖维持 gap。
+  - 回填与调度挂接：`backfill_main.py` 支持 `QUANT_BACKFILL_FINANCIALS=1` 抓财务；调度器增量回填新增 `include_financials`（worker 默认开启）。
+- 影响文件：`backend/app/services/quant/market_data/eastmoney_financials.py`（新）、`backend/app/services/quant/market_data/backfill.py`、`backfill_main.py`、`backend/app/models/market_data.py`、`backend/alembic_market/versions/b2c3d4e5f6a7_add_financial_fact.py`（新）、`backend/alembic_market/env.py`、`backend/app/services/quant/factors.py`、`backend/app/services/quant/recommendation/market_pipeline.py`、`backend/app/services/quant/research/pack.py`、`backend/app/services/quant/scheduler.py`、`backend/app/workers/quant_scheduler_worker.py`、`backend/app/services/quant_desk_service.py`、`backend/tests/quant/test_eastmoney_financials.py`（新）、`backend/tests/quant/test_fundamental_pipeline.py`（新）、`backend/tests/quant/test_research_pack.py`、`backend/tests/quant/test_factors_allocator.py`、`backend/tests/quant/test_market_pipeline.py`、`backend/tests/test_quant_api.py`、`frontend/src/constants/quantLabels.{ts,test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：`market_data.db` 新增 `financial_fact` 表（不动主库）；`/api/quant/factors` 因子列表新增 3 个财务因子（向后兼容）；`QuantDataStatusView` 无变化。无旧接口删除。
+- 验证情况：后端 `pytest tests/quant tests/test_quant_api.py tests/test_kline_non_watchlist.py tests/test_migration_parity.py` 103 passed；ruff 通过。活服务实测（8001 验证实例）：真实抓取 600519.SH/000001.SZ 财务各 20 期（含 PIT 披露日）并落库，流水线跑出 000001.SZ 基本面 WATCH 候选（净利同比 +3.7%、ROE 5.22%，`fundamental_below_threshold` 诚实未过线），研究包 valuation 缺口消失并附财务证据。全量后端 1341 passed / 7 failed（news 基线顺序污染，与量化改动无关）；前端 vitest 568 passed、tsc 零错、build 通过、api-drift OK。
+- 风险或后续事项：东财 datacenter 接口无 SLA、可能改版/限流（解析器 fixture 化，失败显式 gap 不阻塞其他 sleeve）；单季同比（DJD_*_YOY）口径为季度动量而非全年累计，研究包已注明；基本面晋级阈值治理仍属后续（当前只产 WATCH）。
+
+## 2026-08-21 量化工作台 Phase B+C：闭环 + 每日自动化
+
+- 修改人：ZCode（GLM-5.3）
+- 修改范围：量化工作台功能闭环（Phase B）与每日盘后自动化（Phase C），对应设计稿 §3.2 B2～B6 与 B5。
+- 变更内容：
+  - 策略生命周期：新增 `PATCH/DELETE /api/quant/strategies/{id}`（`update_strategy`/`delete_strategy`，DSL 非法 422、不存在 404；exploratory 恒 true 不可提升）；前端策略列表行内编辑（回填构建器走 PATCH）、删除（confirm）、一键送回测（跳转 `/desk/backtest?strategy=<id>` 预载）。
+  - 模拟盘真实价撮合：`place_paper_order` 改为 `_resolve_fill_price`（实时快照 `price_snapshot` 优先 → 最新日线收盘兜底；买入侧一字涨停拒单 `limit_up_unfilled`；无行情拒单 `no_market_data`），成交创建 `PaperTrade` 并更新账户现金，删除 SYN 合成 bar。快照查询复用调用方 session 避免 SQLite 写锁互斥。
+  - 提案执行：新增 `POST /api/quant/portfolio-proposals/latest/execute`（无 qualified 404；同 result_hash 已执行 409；100 股整数倍换算，`below_min_lot` 拒单）；前端确认弹窗 + 下单结果列表。
+  - 成绩单真实窗口：`get_report_card` 按 run 时间窗（7d/30d/90d）聚合窗口内全部 run，窗口切换产生真实计数差异。
+  - 每日自动化：新增 `QuantScheduler`（`app/services/quant/scheduler.py`）——交易日（trade_calendar，缺省工作日）且本地时间 ≥ run_at（默认 16:30）且当日未跑过 scheduled run 才触发；增量回填只覆盖行情库已有标的（上限默认 50，防东财限流）；`run_daily_task` = 增量回填 + 流水线（trigger=scheduled）+ 发布 `quant.pipeline_scheduled` 事件。新增 `app/workers/quant_scheduler_worker.py`（BaseWorker 范式，随 lifespan 启停，独立入口可拆进程）；settings 新增 `quant_scheduler_enabled/run_at/tick_seconds/backfill_limit`。
+  - 手动兜底端点 `POST /api/quant/scheduler/run`（`backfill=false` 只跑流水线供测试）；数据状态新增 `last_scheduled_run_date`，运行中心数据健康 Tab 展示「最近自动运行」。
+- 影响文件：`backend/app/services/quant_desk_service.py`、`backend/app/schemas/quant.py`、`backend/app/api/routes/quant.py`、`backend/app/services/quant/scheduler.py`（新）、`backend/app/workers/quant_scheduler_worker.py`（新）、`backend/app/core/config.py`、`backend/app/main.py`、`backend/tests/quant/test_phase_b_closure.py`（新）、`backend/tests/quant/test_quant_scheduler.py`（新）、`backend/tests/test_quant_api.py`、`frontend/src/views/DeskStrategiesView.{vue,test.ts}`、`frontend/src/views/DeskProposalView.{vue,test.ts}`、`frontend/src/views/DeskOpsView.{vue,test.ts}`、`frontend/src/constants/quantLabels.{ts,test.ts}`、`frontend/src/api/client.ts`、`frontend/src/types/{api.ts,generated/api.d.ts}`、`frontend/openapi.json`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 `PATCH/DELETE /api/quant/strategies/{id}`、`POST /api/quant/portfolio-proposals/latest/execute`、`POST /api/quant/scheduler/run`；`QuantDataStatusView` 新增 `last_scheduled_run_date`；`/api/quant/paper/orders` 撮合行为从合成价改为真实价（修复性质）。无旧接口删除。
+- 验证情况：后端 `pytest tests/quant tests/test_quant_api.py` 88 passed（新增 Phase B 13 + scheduler 4 + API 3），ruff 通过；前端 vitest 全量 568 passed、`vue-tsc` 零错、`vite build` 通过、`check:api-drift` OK。活服务实测（8001 验证实例）：`POST /scheduler/run?backfill=false` 返回 trigger=scheduled 的 ok run（真实行情库 30 标的），`data/status.last_scheduled_run_date=2026-08-21`，Runs 列表出现 scheduled 记录。用户 8000 端口长驻实例在验证前已挂起（14h+、0 字节响应），与本次改动无关（干净实例启动正常）。
+- 风险或后续事项：用户 8000 实例需手动重启恢复；增量回填受东财限流约束（单日 50 标的上限、退避重试由 fetch 层负责）；调度与手动重跑并发由 run result_hash/trigger 区分；`QUANT_SCHEDULER_RUN_AT` 为本地时间 16:30 默认值。
+
+## 2026-08-21 量化工作台 Phase A：前端重构 + 回测真实化
+
+- 修改人：ZCode（GLM-5.3）
+- 修改范围：量化工作台前端信息架构重构与回测真实化（设计稿 Phase A，计划 §0/§A）。
+- 变更内容：
+  - 前端新增枚举翻译层 `frontend/src/constants/quantLabels.ts`：sleeve/state/grade/run_status/stage/reason/gap/trigger 等机器码统一翻译，`tQuant` 兜底回退；`DeskView`（机会卡展开态、雷达/观察翻译、hash 移除）、`DeskOpsView`（Runs/stages/决策日志翻译）、`DeskProposalView`、`DeskStockView`（证据 id → `/news/:id` 链接、缺口翻译）、`PortfolioView`（下单结果翻译）全部接入。
+  - 新增 DSL 结构化条件构建器 `StrategyBuilder.vue`（因子/运算符/阈值行、AND/OR、高级 JSON 模式折叠双向同步），策略工作台与回测实验室共用；`EquityCurveChart.vue` 自绘净值曲线（>500 点降采样）。
+  - `DeskBacktestView` 重写：标的/日期区间输入 + 指标卡片 + 净值曲线 + 交易明细表，删除 JSON `<pre>` 直出；`DeskStrategiesView` 改用构建器。
+  - 后端回测真实化：`run_backtest` 读 `market_data.db` 真实日线/资金流（`_load_backtest_inputs`，adv 滚动 20 日均、main_inflow_1d 当日值，无前视），删除 SYN 合成 bars；`walk_forward` 扩展 `equity_curve`/`trade_rows`，期末持仓按末 bar 收盘估值；bar 数 < 60 返回 `coverage_error`（`insufficient_data`）不降级合成。请求体改 `QuantBacktestRequest`（symbol/日期区间）。
+- 影响文件：`backend/app/services/quant_desk_service.py`、`backend/app/services/quant/backtest_engine.py`、`backend/app/schemas/quant.py`、`backend/app/api/routes/quant.py`、`backend/tests/quant/test_backtest_real.py`（新）、`backend/tests/test_quant_api.py`、`frontend/src/constants/quantLabels.{ts,test.ts}`（新）、`frontend/src/components/quant/{StrategyBuilder,EquityCurveChart}.{vue,test.ts}`（新）、`frontend/src/views/Desk{Backtest,Strategies,View,OpsView,ProposalView,StockView}.vue`、`frontend/src/views/PortfolioView.vue`、`frontend/src/views/Desk{Backtest,Strategies}View.test.ts`、`frontend/src/types/{api.ts,generated/api.d.ts}`、`frontend/src/api/client.ts`、`frontend/openapi.json`、`docs/code-change-log.md`。
+- 接口/数据结构变化：`POST /api/quant/backtests` 请求体从 `QuantStrategyUpsert` 改为 `QuantBacktestRequest`（新增必填 `symbol`、可选 `start_date/end_date`）；响应新增 `symbol`/`bars_used`/`equity_curve`/`trades`/`coverage_error`。`walk_forward` 返回新增 `equity_curve`/`trade_rows`。均向后兼容。
+- 验证情况：后端 `pytest backend/tests/quant backend/tests/test_quant_api.py backend/tests/test_kline_non_watchlist.py` 70 passed；前端 vitest 全量 561 passed（新增 20）、`vue-tsc` 零错、`vite build` 通过、`check:api-drift` OK。
+- 风险或后续事项：`quantLabels` 新增枚举需同步补映射（缺 key 回退原码并 console.warn）；本机 vitest 必须前台运行（后台 `&` 复合命令会触发 esbuild 服务握手挂起，属环境问题已规避）。
+
+## 2026-08-20 量化工作台优化全流程实施计划（Phase A～D）
+
+- 修改人：ZCode（GLM-5.3）
+- 修改范围：量化工作台优化实施计划（纯文档，未改运行时代码）。
+- 变更内容：设计经用户确认后，产出覆盖全流程的 TDD 实施计划：§0 接口契约冻结（策略 PATCH/DELETE、提案执行、回测 equity_curve/trades 扩展、模拟盘真实价撮合行为变更）；Phase A 前端重构（枚举翻译层、DSL 构建器、回测图形化）+ 回测真实化；Phase B 策略/提案/模拟盘闭环 + 成绩单真实窗口；Phase C 每日盘后 quant scheduler worker + 运行中心增强；Phase D 东财财务数据 + 基本面 sleeve 实装。含并行策略、每期验收 gate、全局端到端验收与风险回滚。设计稿状态更新为已确认。
+- 影响文件：`docs/superpowers/plans/2026-08-20-quant-desk-optimization-plan.md`（新）、`docs/superpowers/specs/2026-08-20-quant-desk-optimization-design.md`（状态行）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无运行时变化（均为计划草案，契约定稿见计划 §0）。
+- 验证情况：纯文档；计划中的文件路径与现状问题定位均基于实际代码核对（`quant_desk_service.py`、`backtest_engine.py`、`factors.py`、`market_data/backfill.py`、`Desk*.vue`、`workers/`）。
+- 风险或后续事项：下一步从 §0 契约冻结 + Phase A 开始 TDD 实施；东财财务源改版、调度与手动重跑并发、全量回填限流为主要风险。
+
+## 2026-08-20 量化工作台优化设计：前端重构 + 功能闭环 + 每日自动化 + 财务数据
+
+- 修改人：ZCode（GLM-5.3）
+- 修改范围：量化工作台优化设计文档（纯文档，未改运行时代码）。
+- 变更内容：与用户头脑风暴对齐范围后，产出设计稿：前端枚举翻译层、DSL 结构化条件构建器、回测报告图形化（净值曲线/指标卡片）、策略生命周期管理、提案一键转模拟盘；后端回测接真实 `market_data.db`、模拟盘真实价撮合、成绩单真实窗口；新增每日盘后 quant scheduler worker（增量回填 + 自动跑流水线）；补东财财务数据实装基本面 sleeve。分 A～D 四期交付。
+- 影响文件：`docs/superpowers/specs/2026-08-20-quant-desk-optimization-design.md`（新）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无运行时变化（设计稿含 `PATCH/DELETE /api/quant/strategies/{id}`、`POST /api/quant/portfolio-proposals/latest/execute`、回测报告 `equity_curve`/`trades` 扩展、market_data.db 财务新表等草案）。
+- 验证情况：纯文档；现状问题定位基于对 `Desk*.vue`、`quant_desk_service.py`、`factors.py`、`backtest_engine.py`、`contracts.py`、`market_data/` 的实际代码核对。
+- 风险或后续事项：设计已确认，实施计划见上方 2026-08-20 计划条目；东财财务源反爬、调度与手动重跑并发、全量回填限流为主要风险（设计稿 §7）。
+
 ## 2026-08-18 量化交易台补全：真实选票流水线、个股 K 线、首页仪表盘与默认策略
 
 - 修改人：Claude（三个 Sonnet 子智能体并行实施 + 协调者收尾）

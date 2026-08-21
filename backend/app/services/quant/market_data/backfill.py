@@ -12,7 +12,7 @@ from pathlib import Path
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.db.market_session import MarketSessionLocal
-from app.models.market_data import DailyBar, FundFlowDaily, TradeCalendar
+from app.models.market_data import DailyBar, FinancialFact, FundFlowDaily, TradeCalendar
 from app.services.quant.market_data.eastmoney_fund_flow import fetch_fund_flow
 from app.services.quant.market_data.eastmoney_history import fetch_daily_bars
 
@@ -83,6 +83,36 @@ def upsert_fund_flow(session, rows) -> int:
         )
         session.execute(stmt)
         count += 1
+    return count
+
+
+def upsert_financial_facts(session, rows) -> int:
+    """按 (symbol, period_end, metric_key) 幂等 upsert 财报事实点（PIT）。"""
+    count = 0
+    for row in rows:
+        for metric_key, value in row.metrics.items():
+            stmt = (
+                sqlite_insert(FinancialFact)
+                .values(
+                    symbol=row.symbol,
+                    period_end=row.period_end,
+                    metric_key=metric_key,
+                    value=value,
+                    available_at=row.available_at,
+                    revision_no=1,
+                    document_id=row.document_id,
+                )
+                .on_conflict_do_update(
+                    index_elements=["symbol", "period_end", "metric_key"],
+                    set_={
+                        "value": value,
+                        "available_at": row.available_at,
+                        "document_id": row.document_id,
+                    },
+                )
+            )
+            session.execute(stmt)
+            count += 1
     return count
 
 

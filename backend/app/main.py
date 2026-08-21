@@ -194,6 +194,7 @@ async def lifespan(_: FastAPI):
     redis_consumer = None
     market_quote_producer: MarketQuoteProducer | None = None
     market_overview_producer: MarketOverviewProducer | None = None
+    quant_scheduler_worker = None
     x_health_probe_worker = None
     event_bus = get_event_bus()
     redis_publisher = getattr(event_bus, "redis_publisher", None)
@@ -256,6 +257,14 @@ async def lifespan(_: FastAPI):
         # `app.workers.market_overview_producer`。
         market_overview_producer = build_market_overview_producer()
         market_overview_producer.start()
+    if settings.quant_scheduler_enabled:
+        # 量化盘后调度：交易日 run_at 后自动增量回填 + 跑真实选票流水线。
+        # 多进程部署关掉该开关，改用独立入口
+        # `app.workers.quant_scheduler_worker`。
+        from app.workers.quant_scheduler_worker import build_quant_scheduler_worker
+
+        quant_scheduler_worker = build_quant_scheduler_worker()
+        quant_scheduler_worker.start()
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
@@ -306,6 +315,8 @@ async def lifespan(_: FastAPI):
         market_quote_producer.stop()
     if market_overview_producer is not None:
         market_overview_producer.stop()
+    if quant_scheduler_worker is not None:
+        quant_scheduler_worker.stop()
     if queue_worker is not None:
         queue_worker.stop()
     if takeaway_worker is not None:

@@ -55,18 +55,85 @@ def peers_for(symbol: str) -> list[str]:
     return list(DEFAULT_PEERS.get(symbol.upper(), []))
 
 
+def latest_financials(symbol: str) -> dict | None:
+    """返回该标的最新财报期指标（当前视角，PIT 由 available_at 记录），无覆盖返回 None。"""
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.db.market_session import MarketSessionLocal
+    from app.models.market_data import FinancialFact
+
+    with MarketSessionLocal() as market_session:
+        rows = list(
+            market_session.scalars(
+                select(FinancialFact).where(FinancialFact.symbol == symbol.upper())
+            )
+        )
+    if not rows:
+        return None
+    by_period: dict[date, dict] = {}
+    for row in rows:
+        period = by_period.setdefault(row.period_end, {})
+        period[row.metric_key] = row.value
+        if row.available_at is not None:
+            period["_available_at"] = row.available_at
+    latest = max(by_period)
+    metrics = by_period[latest]
+    available = metrics.get("_available_at")
+    return {
+        "period_end": latest.isoformat(),
+        "available_at": available.isoformat() if available is not None else None,
+        "net_profit_yoy": metrics.get("net_profit_yoy"),
+        "revenue_yoy": metrics.get("revenue_yoy"),
+        "roe": metrics.get("roe"),
+        "gross_margin": metrics.get("gross_margin"),
+    }
+
+
+def _fmt_money(value: float | None) -> str:
+    if value is None:
+        return "—"
+    if abs(value) >= 1e8:
+        return f"{value / 1e8:.2f} 亿元"
+    return f"{value:,.0f} 元"
+
+
+def _fmt_pct(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value * 100:.1f}%"
+
+
 def build_research_pack(
     *,
     symbol: str,
     display_name: str = "",
     news: list[dict] | None = None,
     peers: list[str] | None = None,
+    financials: dict | None = None,
 ) -> ResearchPack:
     symbol = symbol.upper()
     news = news or []
     peer_symbols = peers if peers is not None else peers_for(symbol)
     event_ids = [f"news:{item['id']}" for item in news if item.get("id") is not None]
     event_titles = "；".join(str(item.get("title") or "") for item in news[:5]) or "暂无命中新闻"
+
+    if financials is not None:
+        valuation_answer = (
+            f"最新财报期 {financials.get('period_end', '—')}（披露 {financials.get('available_at') or '未记录'}）："
+            f"单季净利同比 {_fmt_pct(financials.get('net_profit_yoy'))}、"
+            f"单季营收同比 {_fmt_pct(financials.get('revenue_yoy'))}，"
+            f"ROE {financials.get('roe') if financials.get('roe') is not None else '—'}%，"
+            f"毛利率 {financials.get('gross_margin') if financials.get('gross_margin') is not None else '—'}%。"
+            "基本面 sleeve 只进观察池；无一致预期数据，仍不给出目标价。"
+        )
+        valuation_gap = None
+        financial_evidence = [f"financial:{symbol}:{financials.get('period_end', '')}"]
+    else:
+        valuation_answer = "无一致预期与规范财务字段时只展示假设缺口，不给出无依据价格锚或买卖点。"
+        valuation_gap = "no_financials_or_consensus"
+        financial_evidence = []
 
     modules = [
         ResearchModule(
@@ -97,8 +164,9 @@ def build_research_pack(
         ResearchModule(
             key="valuation",
             question=_QUESTIONS["valuation"],
-            answer="无一致预期与规范财务字段时只展示假设缺口，不给出无依据价格锚或买卖点。",
-            gap="no_financials_or_consensus",
+            answer=valuation_answer,
+            evidence_ids=financial_evidence,
+            gap=valuation_gap,
         ),
         ResearchModule(
             key="catalysts",

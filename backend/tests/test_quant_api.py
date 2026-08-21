@@ -242,10 +242,13 @@ def test_phase3_to_5_desk_endpoints() -> None:
     assert listed.status_code == 200
     assert len(listed.json()) >= 1
 
-    backtest = client.post("/api/quant/backtests", json={"name": "inflow", "dsl": dsl})
+    backtest = client.post("/api/quant/backtests", json={"name": "inflow", "dsl": dsl, "symbol": "600519.SH"})
     assert backtest.status_code == 200
     assert backtest.json()["qualified"] is False
     assert backtest.json()["exploratory"] is True
+    # 测试行情库为空：真实回测必须显式 coverage_error，而不是回落合成数据
+    assert backtest.json()["coverage_error"] is not None
+    assert backtest.json()["bars_used"] == 0
 
     paper = client.get("/api/quant/paper/account")
     assert paper.status_code == 200
@@ -267,6 +270,104 @@ def test_phase3_to_5_desk_endpoints() -> None:
     decisions = client.get("/api/quant/decision-log")
     assert decisions.status_code == 200
     assert any(item["action"] == "paper_buy" for item in decisions.json()["items"])
+
+
+def test_strategy_lifecycle_patch_delete_endpoints() -> None:
+    _cleanup()
+    client = TestClient(app)
+    dsl = {
+        "sleeve": "trend_flow",
+        "horizon": "20d",
+        "logic": "and",
+        "conditions": [{"factor": "main_inflow_1d", "op": ">", "value": 1}],
+    }
+    created = client.post("/api/quant/strategies", json={"name": "s", "dsl": dsl, "is_active": False})
+    strategy_id = created.json()["id"]
+
+    patched = client.patch(
+        f"/api/quant/strategies/{strategy_id}",
+        json={"name": "renamed", "is_active": True},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["name"] == "renamed"
+    assert patched.json()["is_active"] is True
+    assert patched.json()["exploratory"] is True
+
+    bad = client.patch(
+        f"/api/quant/strategies/{strategy_id}",
+        json={"dsl": {"conditions": [{"factor": "nope", "op": ">", "value": 1}]}},
+    )
+    assert bad.status_code == 422
+
+    missing = client.patch("/api/quant/strategies/99999", json={"name": "x"})
+    assert missing.status_code == 404
+
+    deleted = client.delete(f"/api/quant/strategies/{strategy_id}")
+    assert deleted.status_code == 204
+    assert client.delete(f"/api/quant/strategies/{strategy_id}").status_code == 404
+
+
+def test_paper_order_rejects_without_market_data_and_fills_real_price() -> None:
+    _cleanup()
+    client = TestClient(app)
+    # 无行情：confirmed 后拒单，不回落合成价格
+    rejected = client.post(
+        "/api/quant/paper/orders",
+        json={"symbol": "600519.SH", "side": "buy", "quantity": 100, "confirmed": True},
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["filled"] is False
+    assert rejected.json()["reason"] == "no_market_data"
+
+    # 有日线：按真实收盘价成交
+    from datetime import date as date_cls
+
+    today = date_cls.today()
+    with MarketSessionLocal() as market_session:
+        for i in range(5):
+            market_session.add(
+                DailyBar(
+                    symbol="600519.SH",
+                    trade_date=today - timedelta(days=4 - i),
+                    open=1500,
+                    high=1510,
+                    low=1490,
+                    close=1500,
+                    volume=1000,
+                    amount=1e9,
+                )
+            )
+        market_session.commit()
+
+    filled = client.post(
+        "/api/quant/paper/orders",
+        json={"symbol": "600519.SH", "side": "buy", "quantity": 100, "confirmed": True},
+    )
+    assert filled.status_code == 200
+    assert filled.json()["filled"] is True
+    assert filled.json()["price"] == 1500.0
+
+
+def test_proposal_execute_endpoint_without_qualified_returns_404() -> None:
+    _cleanup()
+    client = TestClient(app)
+    client.post("/api/quant/recommendations/run", json={"scenario": "abstain"})
+    response = client.post("/api/quant/portfolio-proposals/latest/execute")
+    assert response.status_code == 404
+
+
+def test_scheduler_manual_trigger_runs_scheduled_pipeline() -> None:
+    _cleanup()
+    client = TestClient(app)
+    # 空行情库：backfill=false 只跑流水线，返回 DEGRADED 但 trigger=scheduled
+    response = client.post("/api/quant/scheduler/run?backfill=false")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"]["trigger"] == "scheduled"
+    assert payload["empty_reason"] == "no_market_data"
+
+    runs = client.get("/api/quant/recommendations/runs")
+    assert runs.json()[0]["trigger"] == "scheduled"
 
 
 def _load_seed_module():
@@ -339,10 +440,12 @@ def test_factors_endpoint_lists_registry() -> None:
     assert resp.status_code == 200
     body = resp.json()
     keys = {row["key"] for row in body}
-    assert keys == {"main_inflow_1d", "news_novelty", "gap_unfilled"}
+    assert {"main_inflow_1d", "news_novelty", "gap_unfilled"} <= keys
+    assert {"net_profit_yoy", "revenue_yoy", "roe"} <= keys
     by_key = {row["key"]: row for row in body}
     assert by_key["main_inflow_1d"]["sleeve"] == "trend_flow"
     assert by_key["news_novelty"]["horizon"] == "5d"
+    assert by_key["net_profit_yoy"]["sleeve"] == "fundamental_revalue"
 
 
 def test_default_strategy_seed_is_idempotent_and_visible() -> None:

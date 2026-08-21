@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import statistics
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -13,12 +14,14 @@ from app.db.market_session import MarketSessionLocal
 from app.models.market_data import DailyBar, FundFlowDaily
 from app.models.news_item import NewsItem
 from app.models.news_stock_mention import NewsStockMention
+from app.models.price_snapshot import PriceSnapshot
 from app.models.quant import (
     AiCallAudit,
     DecisionLog,
     LlmRoleBinding,
     PaperAccount,
     PaperOrder,
+    PaperTrade,
     QuantBacktestRun,
     QuantRunStageLog,
     QuantStrategy,
@@ -42,6 +45,8 @@ from app.schemas.quant import (
     QuantFundFlowView,
     QuantPaperAccountView,
     QuantPaperOrderView,
+    QuantProposalExecuteItemView,
+    QuantProposalExecuteView,
     QuantProposalItemView,
     QuantProposalView,
     QuantRadarCandidateView,
@@ -61,7 +66,7 @@ from app.services.quant.contracts import PipelineResult, PipelineScenario, RunVe
 from app.services.quant.radar.ingest import list_recent
 from app.services.quant.recommendation.market_pipeline import run_market_pipeline
 from app.services.quant.recommendation.pipeline import run_synthetic_pipeline
-from app.services.quant.research.pack import build_research_pack
+from app.services.quant.research.pack import build_research_pack, latest_financials
 from app.services.quant.trading_rules import RULE_VERSION
 
 PHASE0_DATASET_VERSION = "synthetic-v0"
@@ -69,6 +74,53 @@ PHASE0_FACTOR_VERSION = "synthetic-v0"
 PHASE0_CODE_COMMIT = "phase0-skeleton"
 PHASE0_CONFIG = {"max_symbol_weight": 0.08, "min_cash": 0.10, "max_positions": 12}
 PHASE0_STATUS_NOTE = "量化数据地基已接入独立行情库；未回填时覆盖率为 0。"
+# 真实回测的最小日线数：低于该值无法构成有统计意义的 walk-forward 区间。
+MIN_BACKTEST_BARS = 60
+
+
+def _load_backtest_inputs(
+    symbol: str,
+    *,
+    start_date=None,
+    end_date=None,
+) -> tuple[list, dict]:
+    """读真实日线与资金流，组装 walk_forward 需要的 (bars, features_by_date)。
+
+    特征只用截至当根 bar 的数据：main_inflow_1d 取当日资金流行，adv 取含当日的
+    最近 ≤20 根 bar 的均成交额，无前视。
+    """
+    from app.services.quant.contracts import Bar
+
+    with MarketSessionLocal() as market_session:
+        stmt = select(DailyBar).where(DailyBar.symbol == symbol)
+        if start_date is not None:
+            stmt = stmt.where(DailyBar.trade_date >= start_date)
+        if end_date is not None:
+            stmt = stmt.where(DailyBar.trade_date <= end_date)
+        rows = list(market_session.scalars(stmt.order_by(DailyBar.trade_date.asc())))
+        flow_stmt = select(FundFlowDaily).where(FundFlowDaily.symbol == symbol)
+        if start_date is not None:
+            flow_stmt = flow_stmt.where(FundFlowDaily.trade_date >= start_date)
+        if end_date is not None:
+            flow_stmt = flow_stmt.where(FundFlowDaily.trade_date <= end_date)
+        flow_rows = list(market_session.scalars(flow_stmt))
+
+    bars = [
+        Bar(row.symbol, row.trade_date, row.open, row.high, row.low, row.close, row.volume, row.amount)
+        for row in rows
+    ]
+    inflow_by_date = {row.trade_date: row.main_net_inflow for row in flow_rows}
+    features_by_date: dict = {}
+    for index, bar in enumerate(bars):
+        window = bars[max(0, index - 19) : index + 1]
+        features: dict[str, float] = {
+            "adv": sum(item.amount for item in window) / len(window),
+        }
+        inflow = inflow_by_date.get(bar.trade_date)
+        if inflow is not None:
+            features["main_inflow_1d"] = inflow
+        features_by_date[bar.trade_date] = features
+    return bars, features_by_date
 
 
 class QuantDeskService:
@@ -143,6 +195,12 @@ class QuantDeskService:
         coverage = _market_coverage()
         universe = 6141
         coverage_pct = round(100.0 * coverage["symbol_count"] / universe, 2) if universe else 0.0
+        scheduled = session.scalar(
+            select(RecommendationRun)
+            .where(RecommendationRun.trigger == "scheduled")
+            .order_by(RecommendationRun.id.desc())
+            .limit(1)
+        )
         return QuantDataStatusView(
             regime="normal",
             coverage_pct=coverage_pct,
@@ -158,6 +216,7 @@ class QuantDeskService:
             symbol_count=coverage["symbol_count"],
             fund_flow_count=coverage["fund_flow_count"],
             last_trade_date=coverage["last_trade_date"],
+            last_scheduled_run_date=scheduled.run_date if scheduled is not None else None,
         )
 
     def get_fund_flow(self, symbol: str) -> QuantFundFlowView:
@@ -236,7 +295,8 @@ class QuantDeskService:
             {"id": row.id, "title": row.title, "source_name": row.source_name, "summary": row.summary}
             for row in news_rows
         ]
-        pack = build_research_pack(symbol=symbol, display_name=symbol, news=news)
+        financials = latest_financials(symbol)
+        pack = build_research_pack(symbol=symbol, display_name=symbol, news=news, financials=financials)
         return QuantResearchPackView(
             symbol=pack.symbol,
             display_name=pack.display_name,
@@ -383,19 +443,35 @@ class QuantDeskService:
         )
 
     def get_report_card(self, session: Session, window: str = "30d") -> QuantReportCardView:
-        latest = self.get_latest(session)
-        sleeves = {"event_catalyst": {"qualified": 0, "watch": 0}, "trend_flow": {"qualified": 0, "watch": 0}, "fundamental_revalue": {"qualified": 0, "watch": 0}}
-        for item in latest.items:
-            bucket = sleeves.setdefault(item.sleeve, {"qualified": 0, "watch": 0})
-            if item.state == "qualified":
-                bucket["qualified"] += 1
-            elif item.state == "watch":
-                bucket["watch"] += 1
+        """按 run 时间窗真实聚合：7d/30d/90d 窗口切换产生真实计数差异。"""
+        days = {"7d": 7, "30d": 30, "90d": 90}.get(window, 30)
+        cutoff = _as_naive_utc(datetime.now(UTC) - timedelta(days=days))
+        repo = QuantRecommendationRepository(session)
+        runs = [
+            run
+            for run in repo.list_recent(limit=200)
+            if (run.finished_at or run.started_at) is not None
+            and _as_naive_utc(run.finished_at or run.started_at) >= cutoff
+        ]
+        sleeves: dict[str, dict] = {
+            "event_catalyst": {"qualified": 0, "watch": 0},
+            "trend_flow": {"qualified": 0, "watch": 0},
+            "fundamental_revalue": {"qualified": 0, "watch": 0},
+        }
+        sample_size = 0
+        for run in runs:
+            for item in repo.list_items(run.id):
+                sample_size += 1
+                bucket = sleeves.setdefault(item.sleeve, {"qualified": 0, "watch": 0})
+                if item.state == "qualified":
+                    bucket["qualified"] += 1
+                elif item.state == "watch":
+                    bucket["watch"] += 1
         return QuantReportCardView(
             window=window,
             sleeves=sleeves,
-            sample_size=len(latest.items),
-            note="财务未覆盖前成绩单只展示漏斗计数，不宣称超额收益。",
+            sample_size=sample_size,
+            note="按窗口内全部 run 聚合漏斗计数；财务未覆盖前不宣称超额收益。",
         )
 
     def list_runs(self, session: Session) -> list[QuantRecommendationRunView]:
@@ -429,36 +505,93 @@ class QuantDeskService:
             for row in rows
         ]
 
+    def update_strategy(
+        self,
+        session: Session,
+        strategy_id: int,
+        *,
+        name: str | None = None,
+        dsl: dict | None = None,
+        is_active: bool | None = None,
+    ) -> QuantStrategyView:
+        from app.services.quant.dsl import validate_dsl
+
+        row = session.get(QuantStrategy, strategy_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="策略不存在")
+        if dsl is not None:
+            errors = validate_dsl(dsl)
+            if errors:
+                raise HTTPException(status_code=422, detail=f"DSL 校验失败：{', '.join(errors)}")
+            row.dsl = json.dumps(dsl, ensure_ascii=False)
+        if name is not None:
+            row.name = name
+        if is_active is not None:
+            row.is_active = 1 if is_active else 0
+        # exploratory 恒为 1：探索性策略不允许提升为正式（晋级治理后续再做）
+        session.commit()
+        return QuantStrategyView(
+            id=row.id,
+            name=row.name,
+            dsl=json.loads(row.dsl),
+            is_active=bool(row.is_active),
+            exploratory=bool(row.exploratory),
+        )
+
+    def delete_strategy(self, session: Session, strategy_id: int) -> None:
+        row = session.get(QuantStrategy, strategy_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="策略不存在")
+        session.delete(row)
+        session.commit()
+
     def preview_strategy(self, dsl: dict) -> dict:
         from app.services.quant.dsl import evaluate_dsl, validate_dsl
 
         errors = validate_dsl(dsl)
         return {"errors": errors, "hit": False if errors else evaluate_dsl(dsl, {"main_inflow_1d": 80_000_000, "news_novelty": 1, "gap_unfilled": 0})}
 
-    def run_backtest(self, session: Session, strategy_id: int | None, dsl: dict | None) -> QuantBacktestView:
-        from datetime import date as date_cls
-
+    def run_backtest(
+        self,
+        session: Session,
+        strategy_id: int | None,
+        dsl: dict | None,
+        *,
+        symbol: str,
+        start_date=None,
+        end_date=None,
+    ) -> QuantBacktestView:
+        """真实回测：只吃 market_data.db 的日线/资金流，数据不足显式 coverage_error，绝不回落合成数据。"""
         from app.services.quant.backtest_engine import walk_forward
-        from app.services.quant.contracts import Bar, Board
+        from app.services.quant.recommendation.market_pipeline import _infer_board
 
+        symbol = symbol.upper()
         payload = dsl or {"sleeve": "trend_flow", "horizon": "20d", "logic": "and", "conditions": [{"factor": "main_inflow_1d", "op": ">", "value": 1}]}
-        bars = [
-            Bar("SYN", date_cls(2026, 4, 8), 10, 10, 10, 10, 1, 1),
-            Bar("SYN", date_cls(2026, 4, 9), 11, 11, 11, 11, 1, 1),
-            Bar("SYN", date_cls(2026, 4, 10), 10.5, 10.5, 10.5, 10.5, 1, 1),
-        ]
-        metrics = walk_forward(
-            dsl=payload,
-            bars=bars,
-            board=Board.MAIN,
-            features_by_date={date_cls(2026, 4, 8): {"main_inflow_1d": 2}, date_cls(2026, 4, 9): {"main_inflow_1d": 0}},
-        )
+
+        bars, features_by_date = _load_backtest_inputs(symbol, start_date=start_date, end_date=end_date)
+        coverage_error: str | None = None
+        metrics: dict = {}
+        if len(bars) < MIN_BACKTEST_BARS:
+            coverage_error = (
+                f"{symbol} 在选定区间内仅有 {len(bars)} 根日线（需 ≥{MIN_BACKTEST_BARS}），"
+                "请先执行 `make quant-backfill` 回填或放宽日期区间。"
+            )
+            status = "insufficient_data"
+        else:
+            metrics = walk_forward(
+                dsl=payload,
+                bars=bars,
+                board=_infer_board(symbol),
+                features_by_date=features_by_date,
+            )
+            status = "completed"
+
         row = QuantBacktestRun(
             strategy_id=strategy_id,
-            status="completed",
+            status=status,
             exploratory=1,
             metrics=json.dumps(metrics),
-            note="探索性回测：退市股未补齐，不得显示 qualified。",
+            note="探索性回测：真实日线驱动；退市股未补齐，不得显示 qualified。",
         )
         session.add(row)
         session.commit()
@@ -467,6 +600,11 @@ class QuantDeskService:
             status=row.status,
             exploratory=True,
             qualified=False,
+            symbol=symbol,
+            bars_used=len(bars),
+            equity_curve=list(metrics.get("equity_curve", [])),
+            trades=list(metrics.get("trade_rows", [])),
+            coverage_error=coverage_error,
             metrics=metrics,
             note=row.note,
         )
@@ -480,43 +618,249 @@ class QuantDeskService:
         return QuantPaperAccountView(id=row.id, cash=row.cash, initial_cash=row.initial_cash, note="确认后才撮合，不能用生成前价格成交。")
 
     def place_paper_order(self, session: Session, symbol: str, side: str, quantity: float, confirmed: bool) -> QuantPaperOrderView:
-        from datetime import date as date_cls
-
-        from app.services.quant.contracts import Bar, Board
-        from app.services.quant.paper import place_order
-
+        """按真实行情撮合：实时快照价优先，最新日线收盘价兜底；无行情拒单。"""
+        symbol = symbol.upper()
         account = session.scalar(select(PaperAccount).order_by(PaperAccount.id.asc()))
         if account is None:
             account = PaperAccount()
             session.add(account)
             session.flush()
-        result = place_order(
-            confirmed=confirmed,
-            signal_date=date_cls(2026, 4, 9),
-            next_open_bar=Bar(symbol.upper(), date_cls(2026, 4, 10), 10, 10, 10, 10, 1, 1),
-            prev_close=9.5,
-            board=Board.MAIN,
-            halted=False,
-        )
+
+        if not confirmed:
+            order = PaperOrder(
+                account_id=account.id,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                status="pending_confirm",
+                reject_reason=None,
+                source="manual",
+            )
+            session.add(order)
+            session.add(
+                DecisionLog(
+                    symbol=symbol,
+                    action=f"paper_{side}",
+                    reason="needs_user_confirm",
+                    payload=json.dumps({"confirmed": False}),
+                )
+            )
+            session.commit()
+            return QuantPaperOrderView(
+                id=order.id,
+                status="pending_confirm",
+                filled=False,
+                reason="needs_user_confirm",
+                price=None,
+            )
+
+        price_info = self._resolve_fill_price(symbol, side, main_session=session)
+        if price_info["reject_reason"] is not None:
+            order = PaperOrder(
+                account_id=account.id,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                status="rejected",
+                reject_reason=price_info["reject_reason"],
+                source="manual",
+            )
+            session.add(order)
+            session.add(
+                DecisionLog(
+                    symbol=symbol,
+                    action=f"paper_{side}",
+                    reason=price_info["reject_reason"],
+                    payload=json.dumps({"quantity": quantity}),
+                )
+            )
+            session.commit()
+            return QuantPaperOrderView(
+                id=order.id,
+                status="rejected",
+                filled=False,
+                reason=price_info["reject_reason"],
+                price=None,
+            )
+
+        price = price_info["price"]
         order = PaperOrder(
             account_id=account.id,
-            symbol=symbol.upper(),
+            symbol=symbol,
             side=side,
             quantity=quantity,
-            status=result["status"],
-            reject_reason=None if result.get("filled") else result.get("reason"),
+            status="filled",
+            reject_reason=None,
             source="manual",
         )
         session.add(order)
-        session.add(DecisionLog(symbol=symbol.upper(), action=f"paper_{side}", reason=result.get("reason") or "", payload=json.dumps(result)))
+        session.flush()
+        session.add(PaperTrade(order_id=order.id, symbol=symbol, quantity=quantity, price=price))
+        if side == "buy":
+            account.cash -= price * quantity
+        else:
+            account.cash += price * quantity
+        session.add(
+            DecisionLog(
+                symbol=symbol,
+                action=f"paper_{side}",
+                reason="filled_at_market",
+                payload=json.dumps({"price": price, "quantity": quantity}),
+            )
+        )
         session.commit()
         return QuantPaperOrderView(
             id=order.id,
-            status=result["status"],
-            filled=bool(result.get("filled")),
-            reason=result.get("reason"),
-            price=result.get("price"),
+            status="filled",
+            filled=True,
+            reason="filled_at_market",
+            price=price,
         )
+
+    def execute_proposal(self, session: Session) -> QuantProposalExecuteView:
+        """把最新组合提案按 100 股整数倍换算并逐条下模拟买单；同 run 已执行则拒绝。"""
+        latest = self.get_latest(session)
+        qualified = [item for item in latest.items if item.state == "qualified"]
+        if not qualified:
+            raise HTTPException(status_code=404, detail="当前无合格机会，无提案可执行")
+        result_hash = latest.run.result_hash if latest.run is not None else None
+        existing = session.scalar(
+            select(DecisionLog)
+            .where(DecisionLog.action == "proposal_execute")
+            .order_by(DecisionLog.id.desc())
+        )
+        if existing is not None:
+            payload = json.loads(existing.payload or "{}")
+            if payload.get("result_hash") == result_hash:
+                raise HTTPException(status_code=409, detail="该提案已执行过")
+
+        proposal = self.get_proposal(session)
+        account = session.scalar(select(PaperAccount).order_by(PaperAccount.id.asc()))
+        if account is None:
+            account = PaperAccount()
+            session.add(account)
+            session.flush()
+
+        orders: list[QuantProposalExecuteItemView] = []
+        for item in proposal.items:
+            price_info = self._resolve_fill_price(item.symbol, "buy", main_session=session)
+            if price_info["reject_reason"] is not None:
+                orders.append(
+                    QuantProposalExecuteItemView(
+                        symbol=item.symbol,
+                        sleeve=item.sleeve,
+                        weight=item.weight,
+                        filled=False,
+                        reject_reason=price_info["reject_reason"],
+                    )
+                )
+                continue
+            price = price_info["price"]
+            if not price or price <= 0:
+                orders.append(
+                    QuantProposalExecuteItemView(
+                        symbol=item.symbol,
+                        sleeve=item.sleeve,
+                        weight=item.weight,
+                        filled=False,
+                        reject_reason="no_market_data",
+                    )
+                )
+                continue
+            shares = int(account.cash * item.weight / price // 100) * 100
+            if shares < 100:
+                orders.append(
+                    QuantProposalExecuteItemView(
+                        symbol=item.symbol,
+                        sleeve=item.sleeve,
+                        weight=item.weight,
+                        filled=False,
+                        reject_reason="below_min_lot",
+                    )
+                )
+                continue
+            order = PaperOrder(
+                account_id=account.id,
+                symbol=item.symbol,
+                side="buy",
+                quantity=shares,
+                status="filled",
+                reject_reason=None,
+                source="proposal_execute",
+            )
+            session.add(order)
+            session.flush()
+            session.add(PaperTrade(order_id=order.id, symbol=item.symbol, quantity=shares, price=price))
+            account.cash -= price * shares
+            orders.append(
+                QuantProposalExecuteItemView(
+                    symbol=item.symbol,
+                    sleeve=item.sleeve,
+                    weight=item.weight,
+                    shares=shares,
+                    filled=True,
+                    fill_price=price,
+                )
+            )
+
+        session.add(
+            DecisionLog(
+                symbol=None,
+                action="proposal_execute",
+                reason="按组合提案下单",
+                payload=json.dumps(
+                    {
+                        "result_hash": result_hash,
+                        "symbols": [order.symbol for order in orders if order.filled],
+                        "filled": sum(1 for order in orders if order.filled),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        session.commit()
+        return QuantProposalExecuteView(cash_weight=proposal.cash_weight, orders=orders)
+
+    def _resolve_fill_price(self, symbol: str, side: str, *, main_session: Session) -> dict:
+        """解析真实撮合价：实时快照（主库 price_snapshot）优先，最新日线收盘兜底。
+
+        买入侧若最新日线开盘即涨停且锁定（一字板）则拒单；无任何行情返回 no_market_data。
+        注意：快照查询复用调用方 main_session，避免在调用方已有未提交写事务时
+        再开第二个主库连接（SQLite 写锁互斥会 busy-timeout 报 database is locked）。
+        """
+        from app.services.quant.recommendation.market_pipeline import _infer_board
+        from app.services.quant.trading_rules import is_limit_up_open
+
+        price: float | None = None
+        snapshot = main_session.scalar(
+            select(PriceSnapshot)
+            .where(PriceSnapshot.symbol == symbol)
+            .order_by(PriceSnapshot.fetched_at.desc())
+            .limit(1)
+        )
+        if snapshot is not None and snapshot.price and snapshot.price > 0:
+            price = float(snapshot.price)
+
+        with MarketSessionLocal() as market_session:
+            bars = list(
+                market_session.scalars(
+                    select(DailyBar)
+                    .where(DailyBar.symbol == symbol)
+                    .order_by(DailyBar.trade_date.desc())
+                    .limit(2)
+                )
+            )
+        if price is None and bars and bars[0].close:
+            price = float(bars[0].close)
+            if side == "buy" and len(bars) >= 2:
+                board = _infer_board(symbol)
+                if is_limit_up_open(bars[0].open, bars[1].close, board):
+                    locked = bars[0].high == bars[0].low == bars[0].open or bars[0].volume == 0
+                    if locked:
+                        return {"price": None, "reject_reason": "limit_up_unfilled"}
+        if price is None:
+            return {"price": None, "reject_reason": "no_market_data"}
+        return {"price": price, "reject_reason": None}
 
     def list_decisions(self, session: Session) -> QuantDecisionLogView:
         rows = list(session.scalars(select(DecisionLog).order_by(DecisionLog.id.desc()).limit(50)))
@@ -666,6 +1010,11 @@ def _volatility_20d(symbols: list[str]) -> dict[str, float]:
             if len(returns) >= 2:
                 vols[symbol] = statistics.pstdev(returns) or 1.0
     return vols
+
+
+def _as_naive_utc(value: datetime) -> datetime:
+    """SQLite 的 DateTime(timezone=True) 不保真时区：读回可能是 naive，统一剥离 tzinfo 再比较。"""
+    return value.replace(tzinfo=None) if value.tzinfo is not None else value
 
 
 def _real_dataset_version() -> str:

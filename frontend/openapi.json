@@ -4917,8 +4917,84 @@
         "title": "QuantAiRoleBindingView",
         "type": "object"
       },
+      "QuantBacktestRequest": {
+        "properties": {
+          "dsl": {
+            "additionalProperties": true,
+            "title": "Dsl",
+            "type": "object"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "is_active": {
+            "default": false,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "QuantBacktestRequest",
+        "type": "object"
+      },
       "QuantBacktestView": {
         "properties": {
+          "bars_used": {
+            "default": 0,
+            "title": "Bars Used",
+            "type": "integer"
+          },
+          "coverage_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Error"
+          },
+          "equity_curve": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Equity Curve",
+            "type": "array"
+          },
           "exploratory": {
             "title": "Exploratory",
             "type": "boolean"
@@ -4951,6 +5027,19 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "symbol": {
+            "default": "",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "trades": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Trades",
+            "type": "array"
           }
         },
         "required": [
@@ -5025,6 +5114,18 @@
               }
             ],
             "title": "Last Run Status"
+          },
+          "last_scheduled_run_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Scheduled Run Date"
           },
           "last_trade_date": {
             "anyOf": [
@@ -5341,6 +5442,97 @@
           "status"
         ],
         "title": "QuantPaperOrderView",
+        "type": "object"
+      },
+      "QuantProposalExecuteItemView": {
+        "properties": {
+          "fill_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fill Price"
+          },
+          "filled": {
+            "default": false,
+            "title": "Filled",
+            "type": "boolean"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "shares": {
+            "default": 0,
+            "title": "Shares",
+            "type": "integer"
+          },
+          "sleeve": {
+            "title": "Sleeve",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "symbol",
+          "sleeve",
+          "weight"
+        ],
+        "title": "QuantProposalExecuteItemView",
+        "type": "object"
+      },
+      "QuantProposalExecuteView": {
+        "properties": {
+          "already_executed": {
+            "default": false,
+            "title": "Already Executed",
+            "type": "boolean"
+          },
+          "cash_weight": {
+            "title": "Cash Weight",
+            "type": "number"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/QuantProposalExecuteItemView"
+            },
+            "title": "Orders",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cash_weight"
+        ],
+        "title": "QuantProposalExecuteView",
         "type": "object"
       },
       "QuantProposalItemView": {
@@ -6025,6 +6217,46 @@
           "inputs"
         ],
         "title": "QuantSentimentView",
+        "type": "object"
+      },
+      "QuantStrategyUpdate": {
+        "properties": {
+          "dsl": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dsl"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "QuantStrategyUpdate",
         "type": "object"
       },
       "QuantStrategyUpsert": {
@@ -12089,7 +12321,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QuantStrategyUpsert"
+                "$ref": "#/components/schemas/QuantBacktestRequest"
               }
             }
           },
@@ -12480,6 +12712,55 @@
         ]
       }
     },
+    "/api/quant/portfolio-proposals/latest/execute": {
+      "post": {
+        "operationId": "execute_latest_proposal_api_quant_portfolio_proposals_latest_execute_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantProposalExecuteView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Execute Latest Proposal",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
     "/api/quant/radar": {
       "get": {
         "operationId": "get_quant_radar_api_quant_radar_get",
@@ -12756,6 +13037,66 @@
         ]
       }
     },
+    "/api/quant/scheduler/run": {
+      "post": {
+        "description": "手动触发一次当日盘后任务（增量回填 + 跑流水线），供验收与兜底。",
+        "operationId": "run_quant_scheduler_manual_api_quant_scheduler_run_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "backfill",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Backfill",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantRecommendationLatestView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Quant Scheduler Manual",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
     "/api/quant/strategies": {
       "get": {
         "operationId": "list_strategies_api_quant_strategies_get",
@@ -12922,6 +13263,123 @@
           }
         },
         "summary": "Preview Strategy",
+        "tags": [
+          "quant"
+        ]
+      }
+    },
+    "/api/quant/strategies/{strategy_id}": {
+      "delete": {
+        "operationId": "delete_strategy_api_quant_strategies__strategy_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "title": "Strategy Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Strategy",
+        "tags": [
+          "quant"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_strategy_api_quant_strategies__strategy_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "title": "Strategy Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuantStrategyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuantStrategyView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Strategy",
         "tags": [
           "quant"
         ]

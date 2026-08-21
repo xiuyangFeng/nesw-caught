@@ -41,6 +41,7 @@ describe('DeskOpsView', () => {
         symbol_count: 0,
         fund_flow_count: 0,
         last_trade_date: null,
+        last_scheduled_run_date: null,
       },
       degraded: false,
     });
@@ -54,6 +55,7 @@ describe('DeskOpsView', () => {
     expect(wrapper.find('[data-role="desk-ops-data-health"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('日线条数');
     expect(wrapper.text()).toContain('独立行情库');
+    expect(wrapper.get('[data-role="desk-ops-last-scheduled"]').text()).toContain('尚未自动运行');
   });
 
   it('renders the AI audit tab', async () => {

@@ -954,6 +954,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quant/portfolio-proposals/latest/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Execute Latest Proposal */
+        post: operations["execute_latest_proposal_api_quant_portfolio_proposals_latest_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quant/radar": {
         parameters: {
             query?: never;
@@ -1039,6 +1056,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/quant/scheduler/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Quant Scheduler Manual
+         * @description 手动触发一次当日盘后任务（增量回填 + 跑流水线），供验收与兜底。
+         */
+        post: operations["run_quant_scheduler_manual_api_quant_scheduler_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quant/strategies": {
         parameters: {
             query?: never;
@@ -1072,6 +1109,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/quant/strategies/{strategy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Strategy */
+        delete: operations["delete_strategy_api_quant_strategies__strategy_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Strategy */
+        patch: operations["patch_strategy_api_quant_strategies__strategy_id__patch"];
         trace?: never;
     };
     "/api/quant/symbols/{symbol}/events": {
@@ -3186,8 +3241,42 @@ export interface components {
             /** Tier */
             tier: string;
         };
+        /** QuantBacktestRequest */
+        QuantBacktestRequest: {
+            /** Dsl */
+            dsl?: {
+                [key: string]: unknown;
+            };
+            /** End Date */
+            end_date?: string | null;
+            /**
+             * Is Active
+             * @default false
+             */
+            is_active: boolean;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Start Date */
+            start_date?: string | null;
+            /** Symbol */
+            symbol: string;
+        };
         /** QuantBacktestView */
         QuantBacktestView: {
+            /**
+             * Bars Used
+             * @default 0
+             */
+            bars_used: number;
+            /** Coverage Error */
+            coverage_error?: string | null;
+            /** Equity Curve */
+            equity_curve?: {
+                [key: string]: unknown;
+            }[];
             /** Exploratory */
             exploratory: boolean;
             /** Id */
@@ -3205,6 +3294,15 @@ export interface components {
             qualified: boolean;
             /** Status */
             status: string;
+            /**
+             * Symbol
+             * @default
+             */
+            symbol: string;
+            /** Trades */
+            trades?: {
+                [key: string]: unknown;
+            }[];
         };
         /** QuantCopilotToolsView */
         QuantCopilotToolsView: {
@@ -3241,6 +3339,8 @@ export interface components {
             fund_flow_count: number;
             /** Last Run Status */
             last_run_status?: string | null;
+            /** Last Scheduled Run Date */
+            last_scheduled_run_date?: string | null;
             /** Last Trade Date */
             last_trade_date?: string | null;
             /** Note */
@@ -3356,6 +3456,43 @@ export interface components {
             reason?: string | null;
             /** Status */
             status: string;
+        };
+        /** QuantProposalExecuteItemView */
+        QuantProposalExecuteItemView: {
+            /** Fill Price */
+            fill_price?: number | null;
+            /**
+             * Filled
+             * @default false
+             */
+            filled: boolean;
+            /** Reject Reason */
+            reject_reason?: string | null;
+            /**
+             * Shares
+             * @default 0
+             */
+            shares: number;
+            /** Sleeve */
+            sleeve: string;
+            /** Symbol */
+            symbol: string;
+            /** Weight */
+            weight: number;
+        };
+        /** QuantProposalExecuteView */
+        QuantProposalExecuteView: {
+            /**
+             * Already Executed
+             * @default false
+             */
+            already_executed: boolean;
+            /** Cash Weight */
+            cash_weight: number;
+            /** Note */
+            note?: string | null;
+            /** Orders */
+            orders?: components["schemas"]["QuantProposalExecuteItemView"][];
         };
         /** QuantProposalItemView */
         QuantProposalItemView: {
@@ -3605,6 +3742,17 @@ export interface components {
             label: string;
             /** Score */
             score?: number | null;
+        };
+        /** QuantStrategyUpdate */
+        QuantStrategyUpdate: {
+            /** Dsl */
+            dsl?: {
+                [key: string]: unknown;
+            } | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
         };
         /** QuantStrategyUpsert */
         QuantStrategyUpsert: {
@@ -6345,7 +6493,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuantStrategyUpsert"];
+                "application/json": components["schemas"]["QuantBacktestRequest"];
             };
         };
         responses: {
@@ -6590,6 +6738,37 @@ export interface operations {
             };
         };
     };
+    execute_latest_proposal_api_quant_portfolio_proposals_latest_execute_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantProposalExecuteView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_quant_radar_api_quant_radar_get: {
         parameters: {
             query?: never;
@@ -6751,6 +6930,39 @@ export interface operations {
             };
         };
     };
+    run_quant_scheduler_manual_api_quant_scheduler_run_post: {
+        parameters: {
+            query?: {
+                backfill?: boolean;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantRecommendationLatestView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_strategies_api_quant_strategies_get: {
         parameters: {
             query?: never;
@@ -6841,6 +7053,74 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_strategy_api_quant_strategies__strategy_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                strategy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_strategy_api_quant_strategies__strategy_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                strategy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuantStrategyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuantStrategyView"];
                 };
             };
             /** @description Validation Error */

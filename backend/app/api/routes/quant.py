@@ -7,6 +7,7 @@ from app.schemas.quant import (
     QuantAiBudgetView,
     QuantAiRoleBindingUpdate,
     QuantAiRoleBindingView,
+    QuantBacktestRequest,
     QuantBacktestView,
     QuantCopilotToolsView,
     QuantDataStatusView,
@@ -16,6 +17,7 @@ from app.schemas.quant import (
     QuantPaperAccountView,
     QuantPaperOrderRequest,
     QuantPaperOrderView,
+    QuantProposalExecuteView,
     QuantProposalView,
     QuantRadarView,
     QuantRecommendationLatestView,
@@ -23,6 +25,7 @@ from app.schemas.quant import (
     QuantReportCardView,
     QuantResearchPackView,
     QuantRunRequest,
+    QuantStrategyUpdate,
     QuantStrategyUpsert,
     QuantStrategyView,
     QuantSymbolEventView,
@@ -46,6 +49,23 @@ def run_recommendations(
 ) -> QuantRecommendationLatestView:
     body = payload or QuantRunRequest()
     return QuantDeskService().run(session, scenario=body.scenario, trigger=body.trigger)
+
+
+@router.post("/scheduler/run", response_model=QuantRecommendationLatestView)
+def run_quant_scheduler_manual(
+    backfill: bool = True,
+    session: Session = Depends(get_db_session),
+) -> QuantRecommendationLatestView:
+    """手动触发一次当日盘后任务（增量回填 + 跑流水线），供验收与兜底。"""
+    from app.db.session import SessionLocal
+    from app.services.quant.scheduler import QuantScheduler
+
+    scheduler = QuantScheduler(session_factory=SessionLocal)
+    if backfill:
+        scheduler.run_daily_task()
+    else:
+        QuantDeskService().run(session, scenario="real", trigger="scheduled")
+    return QuantDeskService().get_latest(session)
 
 
 @router.get("/data/status", response_model=QuantDataStatusView)
@@ -116,6 +136,11 @@ def get_latest_proposal(session: Session = Depends(get_db_session)) -> QuantProp
     return QuantDeskService().get_proposal(session)
 
 
+@router.post("/portfolio-proposals/latest/execute", response_model=QuantProposalExecuteView)
+def execute_latest_proposal(session: Session = Depends(get_db_session)) -> QuantProposalExecuteView:
+    return QuantDeskService().execute_proposal(session)
+
+
 @router.get("/report-card", response_model=QuantReportCardView)
 def get_report_card(window: str = "30d", session: Session = Depends(get_db_session)) -> QuantReportCardView:
     return QuantDeskService().get_report_card(session, window)
@@ -131,14 +156,41 @@ def create_strategy(payload: QuantStrategyUpsert, session: Session = Depends(get
     return QuantDeskService().upsert_strategy(session, payload.name, payload.dsl, payload.is_active)
 
 
+@router.patch("/strategies/{strategy_id}", response_model=QuantStrategyView)
+def patch_strategy(
+    strategy_id: int,
+    payload: QuantStrategyUpdate,
+    session: Session = Depends(get_db_session),
+) -> QuantStrategyView:
+    return QuantDeskService().update_strategy(
+        session,
+        strategy_id,
+        name=payload.name,
+        dsl=payload.dsl,
+        is_active=payload.is_active,
+    )
+
+
+@router.delete("/strategies/{strategy_id}", status_code=204)
+def delete_strategy(strategy_id: int, session: Session = Depends(get_db_session)) -> None:
+    QuantDeskService().delete_strategy(session, strategy_id)
+
+
 @router.post("/strategies/preview")
 def preview_strategy(payload: QuantStrategyUpsert) -> dict:
     return QuantDeskService().preview_strategy(payload.dsl)
 
 
 @router.post("/backtests", response_model=QuantBacktestView)
-def create_backtest(payload: QuantStrategyUpsert, session: Session = Depends(get_db_session)) -> QuantBacktestView:
-    return QuantDeskService().run_backtest(session, None, payload.dsl)
+def create_backtest(payload: QuantBacktestRequest, session: Session = Depends(get_db_session)) -> QuantBacktestView:
+    return QuantDeskService().run_backtest(
+        session,
+        None,
+        payload.dsl,
+        symbol=payload.symbol,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+    )
 
 
 @router.get("/paper/account", response_model=QuantPaperAccountView)

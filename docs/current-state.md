@@ -19,11 +19,13 @@
 |------|-----------------|
 | 交易台首页 | `/desk`：状态带、图形化仪表盘（覆盖率/漏斗/最近运行/提案权重）、机会卡/空态、事件雷达列；手动重跑默认走真实行情流水线（`scenario=real`），合成夹具保留用于测试 |
 | 个股研究 | `/desk/stocks/:symbol`：K 线（日/周，复用 KlineChart）、A 股资金流面板、纵横研究包、显式缺口、「问 AI」装载研究上下文；K 线接口不再要求标的在自选股内 |
-| 组合提案 | `/desk/portfolio-proposal`：现金底仓与分配器权重，LLM 不参与 |
-| 成绩单 | `/desk/report-card`：按 sleeve 漏斗计数；财务未覆盖前不宣称超额收益 |
-| 策略工作台 | `/desk/strategies`：因子注册表表格、示例 DSL 一键填入、DSL 预览/保存；空库启动种子 3 条探索性默认策略（每 sleeve 一条，`is_active=0`） |
-| 回测实验室 | `/desk/backtest`：walk-forward，exploratory 且不得 qualified |
-| 运行中心 | `/desk/ops`：流水线 Runs、数据健康、AI 审计、决策日志 |
+| 组合提案 | `/desk/portfolio-proposal`：现金底仓与分配器权重，LLM 不参与；支持「按提案下单到模拟盘」（100 股整数倍换算，无行情/不足 1 手自动拒单，同 run 防重复执行） |
+| 成绩单 | `/desk/report-card`：按 sleeve 漏斗计数；7d/30d/90d 窗口真实聚合窗口内全部 run；财务未覆盖前不宣称超额收益 |
+| 策略工作台 | `/desk/strategies`：因子注册表表格（含财务因子）、DSL 结构化条件构建器（因子/运算符/阈值行 + 高级 JSON 模式）、策略编辑/删除/一键送回测；空库启动种子 3 条探索性默认策略（每 sleeve 一条，`is_active=0`） |
+| 回测实验室 | `/desk/backtest`：walk-forward 接真实 `market_data.db` 日线/资金流（bar 数不足显式报错不降级合成），报告含净值曲线/指标卡片/交易明细；探索性且不得 qualified |
+| 运行中心 | `/desk/ops`：流水线 Runs（trigger 区分手动/每日自动）、数据健康（含最近自动运行日）、AI 审计、决策日志 |
+| 每日自动化 | 交易日盘后（默认 16:30）`quant_scheduler` worker 自动增量回填 + 跑真实选票流水线 + 发布事件；`QUANT_SCHEDULER_RUN_AT` 可配；手动兜底 `POST /api/quant/scheduler/run` |
+| 基本面数据 | 东财主要财务指标（`financial_fact` 表，PIT 披露日）；基本面 sleeve 用真实单季同比/ROE 打分，只产 WATCH 暂不晋级；研究包 valuation 用真实财务填充 |
 | 模拟盘 | `/portfolio` 增加确认后撮合的 paper account；停牌/未确认不成交 |
 | 新闻流 | `/news`，多源抓取、去重、主题聚合、事件详情、手动刷新；pipeline 阶段 2 写入 A 股 rule mention 并进入快循环雷达 |
 | 仪表盘 | `/dashboard`，市场总览、情绪/恐慌可视化、动态行情条 |
@@ -39,9 +41,9 @@
 | 情绪评测 | `/eval/sentiment` |
 | 信号统计 | `/analytics/backtest`，新闻情绪信号命中率（不是策略回测引擎） |
 
-选票流水线：`POST /api/quant/recommendations/run` 默认 `scenario=real`，基于 `market_data.db` 真实日线/资金流跑三 sleeve 规则打分（trend 可 qualify；event 由新闻 rule mention 驱动、grade C 只进 WATCH；fundamental 财务未采购显式 gap 不产候选），涨跌停开盘不可成交降级，组合提案由 allocator 从 qualified 派生（vol 用 20 日日收益标准差）。行情覆盖率以 `GET /api/quant/data/status` 真实计数为准；`make quant-backfill` 支持 `QUANT_BACKFILL_LIMIT/SLEEP/DAYS` 环境变量与失败退避重试，仍无每日自动增量 worker。
+选票流水线：`POST /api/quant/recommendations/run` 默认 `scenario=real`，基于 `market_data.db` 真实日线/资金流跑三 sleeve 规则打分（trend 可 qualify；event 由新闻 rule mention 驱动、grade C 只进 WATCH；fundamental 由东财财务单季同比/ROE 打分、只产 WATCH 暂不晋级），涨跌停开盘不可成交降级，组合提案由 allocator 从 qualified 派生（vol 用 20 日日收益标准差）。行情覆盖率以 `GET /api/quant/data/status` 真实计数为准；`make quant-backfill` 支持 `QUANT_BACKFILL_LIMIT/SLEEP/DAYS/FINANCIALS` 环境变量与失败退避重试；每日盘后由 `quant_scheduler` worker 自动增量回填 + 跑流水线（`QUANT_SCHEDULER_RUN_AT` 默认 16:30，`QUANT_SCHEDULER_ENABLED` 默认 true 随后端启停）。
 
-后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送。量化内核含 PIT/除权/涨跌停/T+1、三 sleeve 规则打分、组合分配器、DSL、walk-forward 与模拟撮合。
+后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送。量化内核含 PIT/除权/涨跌停/T+1、三 sleeve 规则打分、组合分配器、DSL、真实数据 walk-forward 回测、模拟盘真实价撮合与每日盘后调度。
 
 ## 权威来源（按优先级）
 

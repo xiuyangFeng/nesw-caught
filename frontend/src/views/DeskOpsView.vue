@@ -2,6 +2,15 @@
 import { computed, onMounted, ref } from 'vue';
 
 import SectionCard from '../components/common/SectionCard.vue';
+import {
+  DECISION_ACTION_LABELS,
+  EMPTY_REASON_LABELS,
+  TRIGGER_LABELS,
+  reasonLabel,
+  runStatusLabel,
+  stageLabel,
+  tQuant,
+} from '../constants/quantLabels';
 import { apiClient } from '../api/client';
 import type { QuantAiAudit, QuantDataStatus, QuantDecisionLog, QuantRecommendationRun } from '../types/api';
 
@@ -73,6 +82,10 @@ onMounted(async () => {
           <dt class="text-muted">最近交易日</dt>
           <dd class="mt-1 font-medium tabular-nums text-text">{{ status?.last_trade_date ?? '—' }}</dd>
         </div>
+        <div>
+          <dt class="text-muted">最近自动运行</dt>
+          <dd class="mt-1 font-medium tabular-nums text-text" data-role="desk-ops-last-scheduled">{{ status?.last_scheduled_run_date ?? '尚未自动运行' }}</dd>
+        </div>
         <div class="sm:col-span-2">
           <dt class="text-muted">说明</dt>
           <dd class="mt-1 text-text">{{ status?.note ?? '加载中' }}</dd>
@@ -105,10 +118,15 @@ onMounted(async () => {
       <p v-if="!runs.length" class="text-sm text-muted" data-role="desk-ops-runs">尚无运行记录。可在机会雷达手动重跑。</p>
       <ul v-else class="grid gap-3" data-role="desk-ops-runs">
         <li v-for="run in runs" :key="run.id" class="rounded-md border border-border px-3 py-3 text-sm">
-          <p class="font-medium text-text">{{ run.run_date }} · {{ run.status }} · {{ run.trigger }}</p>
-          <p class="mt-1 text-muted">hash {{ run.result_hash }} · {{ run.empty_reason ?? '有合格机会或观察池' }}</p>
+          <p class="font-medium text-text">
+            {{ run.run_date }} · {{ runStatusLabel(run.status) }} · {{ tQuant(TRIGGER_LABELS, run.trigger) }}
+            <span class="ml-2 font-mono text-xs text-faint">hash {{ run.result_hash }}</span>
+          </p>
+          <p class="mt-1 text-muted">{{ tQuant(EMPTY_REASON_LABELS, run.empty_reason) }}</p>
           <ul v-if="run.stages?.length" class="mt-2 grid gap-1 text-xs text-muted">
-            <li v-for="stage in run.stages" :key="stage.stage">{{ stage.stage }} · {{ stage.status }}</li>
+            <li v-for="stage in run.stages" :key="stage.stage">
+              {{ stageLabel(stage.stage) }} · {{ stage.status === 'ok' ? '完成' : stage.status }}
+            </li>
           </ul>
         </li>
       </ul>
@@ -119,7 +137,7 @@ onMounted(async () => {
       <ul v-else class="grid gap-2 text-sm" data-role="desk-ops-decisions">
         <li v-for="(item, index) in decisions?.items" :key="String(item.id ?? index)">
           <span class="text-text">{{ item.symbol ?? '—' }}</span>
-          <span class="text-muted"> · {{ item.action }} · {{ item.reason }}</span>
+          <span class="text-muted"> · {{ tQuant(DECISION_ACTION_LABELS, typeof item.action === 'string' ? item.action : null) }} · {{ reasonLabel(typeof item.reason === 'string' ? item.reason : null) }}</span>
         </li>
       </ul>
     </SectionCard>

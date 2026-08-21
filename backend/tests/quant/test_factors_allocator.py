@@ -14,8 +14,16 @@ def test_a_grade_material_event_can_qualify() -> None:
 
 
 def test_fundamental_without_financials_does_not_qualify() -> None:
-    score = score_fundamental(gap="no_financials")
+    score = score_fundamental(net_profit_yoy=None, revenue_yoy=None, roe=None, covered=False)
     assert score.qualify is False
+    assert score.reason_code == "fundamental_gap_no_financials"
+
+
+def test_fundamental_with_data_is_watch_not_qualified() -> None:
+    score = score_fundamental(net_profit_yoy=0.5, revenue_yoy=0.3, roe=15.0, covered=True)
+    assert score.qualify is False
+    assert score.reason_code == "fundamental_watch_above_threshold"
+    assert score.breakdown["financial_coverage"] == 1.0
 
 
 def test_trend_without_inflow_does_not_qualify() -> None:

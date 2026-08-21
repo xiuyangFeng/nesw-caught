@@ -92,6 +92,7 @@ class QuantDataStatusView(BaseModel):
     symbol_count: int = 0
     fund_flow_count: int = 0
     last_trade_date: date | None = None
+    last_scheduled_run_date: date | None = None
 
 
 class QuantFundFlowPointView(BaseModel):
@@ -225,13 +226,50 @@ class QuantStrategyUpsert(BaseModel):
     is_active: bool = False
 
 
+class QuantStrategyUpdate(BaseModel):
+    name: str | None = None
+    dsl: dict | None = None
+    is_active: bool | None = None
+
+
+class QuantProposalExecuteItemView(BaseModel):
+    symbol: str
+    sleeve: str
+    weight: float
+    shares: int = 0
+    filled: bool = False
+    fill_price: float | None = None
+    reject_reason: str | None = None
+
+
+class QuantProposalExecuteView(BaseModel):
+    cash_weight: float
+    orders: list[QuantProposalExecuteItemView] = Field(default_factory=list)
+    already_executed: bool = False
+    note: str | None = None
+
+
 class QuantBacktestView(BaseModel):
     id: int
     status: str
     exploratory: bool
     qualified: bool = False
+    symbol: str = ""
+    bars_used: int = 0
+    equity_curve: list[dict] = Field(default_factory=list)
+    trades: list[dict] = Field(default_factory=list)
+    coverage_error: str | None = None
     metrics: dict = Field(default_factory=dict)
     note: str | None = None
+
+
+class QuantBacktestRequest(BaseModel):
+    name: str = ""
+    dsl: dict = Field(default_factory=dict)
+    is_active: bool = False
+    symbol: str
+    start_date: date | None = None
+    end_date: date | None = None
 
 
 class QuantPaperAccountView(BaseModel):

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import SectionCard from '../components/common/SectionCard.vue';
+import { PAPER_ORDER_STATUS_LABELS, reasonLabel, tQuant } from '../constants/quantLabels';
 import { apiClient } from '../api/client';
 import type { PortfolioSummary, QuantPaperAccount, QuantPaperOrder } from '../types/api';
 import { formatNumber, formatPercent, sentimentText } from '../utils/format';
@@ -161,7 +162,7 @@ onMounted(() => {
         </button>
       </div>
       <p v-if="lastOrder" class="mt-2 text-sm text-muted" data-role="portfolio-paper-result">
-        {{ lastOrder.status }} · {{ lastOrder.filled ? '已成交' : lastOrder.reason }}
+        {{ tQuant(PAPER_ORDER_STATUS_LABELS, lastOrder.status) }} · {{ lastOrder.filled ? '已成交' : reasonLabel(lastOrder.reason) }}
       </p>
     </SectionCard>
 

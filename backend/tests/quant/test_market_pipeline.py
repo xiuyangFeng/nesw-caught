@@ -221,5 +221,5 @@ def test_fundamental_sleeve_produces_no_fabricated_candidates() -> None:
     fundamental_items = [item for item in result.items if item.sleeve is Sleeve.FUNDAMENTAL_REVALUE]
     assert fundamental_items == []
     stage = next(s for s in result.stages if s.stage == "sleeve_fundamental_revalue")
-    assert stage.detail["produced"] == 0
-    assert stage.detail["gap"] == "no_financials"
+    assert stage.detail["scored"] == 0
+    assert stage.detail["gap_symbols"] >= 1

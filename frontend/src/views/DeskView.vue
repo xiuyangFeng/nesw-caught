@@ -1,19 +1,31 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StatusBanner from '../components/common/StatusBanner.vue';
+import {
+  RUN_STATUS_LABELS,
+  SLEEVE_LABELS,
+  TRIGGER_LABELS,
+  gradeLabel,
+  reasonLabel,
+  stateLabel,
+  tQuant,
+} from '../constants/quantLabels';
 import { useDeskStore } from '../stores/deskStore';
 
 const deskStore = useDeskStore();
 
-const sleeveLabels: Record<string, string> = {
-  event_catalyst: '事件/催化',
-  trend_flow: '趋势/资金',
-  fundamental_revalue: '基本面重估',
-};
+const sleeveLabels = SLEEVE_LABELS;
+
+// 机会卡展开态：默认收起，点击展开因子分解（翻译后的结构化展示）。
+const expanded = ref<Record<string, boolean>>({});
+
+function toggleExpand(key: string) {
+  expanded.value[key] = !expanded.value[key];
+}
 
 const regimeLabel = computed(() => {
   const regime = deskStore.dataStatus?.regime ?? 'normal';
@@ -30,10 +42,7 @@ const coverageLabel = computed(() => {
 const runStatusLabel = computed(() => {
   const status = deskStore.latest.run?.status ?? deskStore.dataStatus?.last_run_status;
   if (!status) return '尚未运行';
-  if (status === 'degraded') return '降级';
-  if (status === 'failed') return '失败';
-  if (status === 'running') return '运行中';
-  return '正常';
+  return tQuant(RUN_STATUS_LABELS, status);
 });
 
 const cashLabel = computed(() => `${Math.round((deskStore.proposal.cash_weight ?? 1) * 100)}% 现金`);
@@ -67,11 +76,6 @@ function formatRunTime(iso: string | null | undefined): string {
   const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false });
-}
-
-function truncateHash(hash: string | null | undefined): string {
-  if (!hash) return '—';
-  return hash.length > 10 ? `${hash.slice(0, 10)}…` : hash;
 }
 
 const cashWidth = computed(() =>
@@ -209,8 +213,8 @@ onMounted(() => {
               <dd class="num text-text">{{ formatRunTime(deskStore.latest.run?.finished_at) }}</dd>
             </div>
             <div class="flex items-center justify-between">
-              <dt class="text-muted">Hash</dt>
-              <dd class="num text-text">{{ truncateHash(deskStore.latest.run?.result_hash) }}</dd>
+              <dt class="text-muted">触发方式</dt>
+              <dd class="num text-text">{{ tQuant(TRIGGER_LABELS, deskStore.latest.run?.trigger) }}</dd>
             </div>
           </dl>
         </div>
@@ -282,12 +286,29 @@ onMounted(() => {
               v-for="item in deskStore.qualifiedItems"
               :key="`${item.sleeve}-${item.symbol}`"
               class="rounded-md border border-border px-3 py-3"
+              data-role="desk-opportunity-item"
             >
-              <p class="text-xs text-muted">{{ sleeveLabels[item.sleeve] ?? item.sleeve }} · {{ item.state }}</p>
+              <p class="text-xs text-muted">
+                {{ sleeveLabels[item.sleeve] ?? item.sleeve }} · {{ stateLabel(item.state) }} · {{ reasonLabel(item.reason_code) }}
+              </p>
               <RouterLink class="mt-1 block font-medium text-accent" :to="`/desk/stocks/${item.symbol}`">
                 {{ item.display_name || item.symbol }}
               </RouterLink>
               <p class="mt-1 text-sm text-muted">{{ item.thesis_md }}</p>
+              <button
+                type="button"
+                class="mt-2 text-xs text-accent"
+                data-role="desk-opportunity-toggle"
+                @click="toggleExpand(`${item.sleeve}-${item.symbol}`)"
+              >
+                {{ expanded[`${item.sleeve}-${item.symbol}`] ? '收起因子分解' : '展开因子分解' }}
+              </button>
+              <dl v-if="expanded[`${item.sleeve}-${item.symbol}`]" class="mt-2 grid gap-1 rounded-md bg-panel-soft p-2 text-xs" data-role="desk-opportunity-breakdown">
+                <div v-for="(value, key) in item.factor_breakdown" :key="String(key)" class="flex items-center justify-between">
+                  <dt class="font-mono text-muted">{{ key }}</dt>
+                  <dd class="num tabular-nums text-text">{{ typeof value === 'number' ? value.toLocaleString('zh-CN', { maximumFractionDigits: 4 }) : value }}</dd>
+                </div>
+              </dl>
             </li>
           </ul>
         </LoadingBlock>
@@ -302,7 +323,7 @@ onMounted(() => {
             <RouterLink class="text-accent" :to="`/desk/stocks/${item.symbol}`">
               {{ item.display_name || item.symbol }}
             </RouterLink>
-            <span class="text-muted"> · {{ item.evidence_grade ?? item.state }} · {{ item.reason_code }}</span>
+            <span class="text-muted"> · {{ gradeLabel(item.evidence_grade) }} · {{ reasonLabel(item.reason_code) }}</span>
           </li>
         </ul>
         <ul v-else-if="deskStore.watchItems.length" class="mt-3 grid gap-2 text-sm" data-role="desk-watch-list">
@@ -310,7 +331,7 @@ onMounted(() => {
             <RouterLink class="text-accent" :to="`/desk/stocks/${item.symbol}`">
               {{ item.display_name || item.symbol }}
             </RouterLink>
-            <span class="text-muted"> · {{ item.reason_code }}</span>
+            <span class="text-muted"> · {{ reasonLabel(item.reason_code) }}</span>
           </li>
         </ul>
       </SectionCard>

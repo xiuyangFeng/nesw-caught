@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 
 from app.db.market_session import MarketSessionLocal
 from app.db.session import SessionLocal
-from app.models.market_data import DailyBar, FundFlowDaily
+from app.models.market_data import DailyBar, FinancialFact, FundFlowDaily
 from app.models.news_item import NewsItem
 from app.models.news_stock_mention import NewsStockMention
 from app.services.a_share_search_service import get_all_a_shares
@@ -31,7 +31,7 @@ from app.services.quant.contracts import (
     Sleeve,
     StageLog,
 )
-from app.services.quant.factors import score_event, score_trend
+from app.services.quant.factors import score_event, score_fundamental, score_trend
 from app.services.quant.recommendation.pipeline import compute_result_hash
 from app.services.quant.trading_rules import is_limit_up_open
 from app.services.quant.universe import DEFAULT_MIN_LIST_DAYS, DEFAULT_MIN_MEDIAN_AMOUNT_20D
@@ -298,6 +298,92 @@ def _build_event_candidates(
     return items
 
 
+def _load_latest_financials(
+    universe: list[str],
+    cutoff_date: date,
+) -> tuple[dict[str, dict[date, dict[str, float | None]]], dict[str, date]]:
+    """读 financial_fact（PIT：仅 available_at <= 截点），返回 (by_symbol, latest_period)。"""
+    if not universe:
+        return {}, {}
+    with MarketSessionLocal() as market_session:
+        rows = list(
+            market_session.scalars(
+                select(FinancialFact)
+                .where(FinancialFact.symbol.in_(universe))
+                .order_by(FinancialFact.symbol, FinancialFact.period_end.desc())
+            )
+        )
+    by_symbol: dict[str, dict[date, dict[str, float | None]]] = {}
+    for row in rows:
+        if row.available_at is not None and row.available_at > cutoff_date:
+            continue  # 披露日晚于截点：不可用于该截点决策
+        period_metrics = by_symbol.setdefault(row.symbol, {}).setdefault(row.period_end, {})
+        period_metrics[row.metric_key] = row.value
+        if row.available_at is not None:
+            period_metrics["_available_at"] = row.available_at.isoformat()
+    latest_period: dict[str, date] = {symbol: max(periods) for symbol, periods in by_symbol.items() if periods}
+    return by_symbol, latest_period
+
+
+def _build_fundamental_candidates(
+    universe: list[str],
+    name_index: dict[str, str],
+    versions: RunVersions,
+) -> tuple[list[Candidate], list[str], list[str]]:
+    """基本面重估：有财务覆盖的标的按单季净利/营收同比 + ROE 给分，只产 WATCH（不晋级）。
+
+    指标来自东财主要财务指标报告（DJD_*_YOY 单季同比、ROEJQ 加权 ROE），
+    均为百分数转比值，无需跨期查找。
+    """
+    cutoff_date = _as_naive_utc(versions.source_cutoff).date()
+    by_symbol, latest_period = _load_latest_financials(universe, cutoff_date)
+    items: list[Candidate] = []
+    covered: list[str] = []
+    for symbol in universe:
+        period_end = latest_period.get(symbol)
+        if period_end is None:
+            continue
+        covered.append(symbol)
+        metrics = by_symbol[symbol][period_end]
+        score = score_fundamental(
+            net_profit_yoy=metrics.get("net_profit_yoy"),
+            revenue_yoy=metrics.get("revenue_yoy"),
+            roe=metrics.get("roe"),
+            covered=True,
+        )
+        thesis = (
+            f"最新财报期 {period_end.isoformat()}（披露 {metrics.get('_available_at') or '见详情'}）："
+            f"单季净利同比 {_fmt_pct(metrics.get('net_profit_yoy'))}，"
+            f"单季营收同比 {_fmt_pct(metrics.get('revenue_yoy'))}，ROE {metrics.get('roe') if metrics.get('roe') is not None else '—'}%。"
+            "基本面 sleeve 只进观察池，暂不晋级。"
+        )
+        candidate = Candidate(
+            symbol=symbol,
+            display_name=name_index.get(symbol, symbol),
+            sleeve=Sleeve.FUNDAMENTAL_REVALUE,
+            horizon=Horizon.D60,
+            state=CandidateState.WATCH,
+            reason_code=score.reason_code,
+            deterministic_score=round(score.score, 6),
+            factor_breakdown=dict(score.breakdown),
+            evidence_ids=[f"financial-{symbol}-{period_end.isoformat()}"],
+            thesis_md=thesis,
+            invalidation_condition="财报期更新或同比转负",
+            valid_until=versions.source_cutoff.date() + timedelta(days=60),
+        )
+        _walk_to_target(candidate)
+        items.append(candidate)
+
+    gap_symbols = [symbol for symbol in universe if symbol not in set(covered)]
+    return items, covered, gap_symbols
+
+
+def _fmt_pct(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value * 100:.1f}%"
+
+
 def run_market_pipeline(*, versions: RunVersions) -> PipelineResult:
     """真实选票流水线主入口：data_gate → universe_u2 → 三 sleeve 打分 → 涨跌停闸门 → 排名/哈希。"""
     universe, window_by_symbol, flow_by_symbol, last_trade_date, stale = _build_universe(versions)
@@ -309,7 +395,10 @@ def run_market_pipeline(*, versions: RunVersions) -> PipelineResult:
 
     trend_items = _build_trend_candidates(universe, window_by_symbol, flow_by_symbol, name_index, versions)
     event_items = _build_event_candidates(universe, mentions_by_symbol, window_by_symbol, name_index, versions)
-    all_items = trend_items + event_items
+    fundamental_items, fundamental_covered, fundamental_gap = _build_fundamental_candidates(
+        universe, name_index, versions
+    )
+    all_items = trend_items + event_items + fundamental_items
 
     qualified = [item for item in all_items if item.state is CandidateState.QUALIFIED]
     qualified.sort(key=lambda item: (-item.deterministic_score, item.symbol))
@@ -358,9 +447,12 @@ def run_market_pipeline(*, versions: RunVersions) -> PipelineResult:
         _stage(
             "sleeve_fundamental_revalue",
             "ok",
-            produced=0,
-            gap="no_financials",
-            note="财务/一致预期数据未采购，显式 gap，不编造聚合候选：诚实优先于覆盖率。",
+            scored=len(fundamental_items),
+            covered=len(fundamental_covered),
+            watch=sum(1 for item in fundamental_items if item.state is CandidateState.WATCH),
+            qualified=0,
+            gap_symbols=len(fundamental_gap),
+            note="财务未覆盖的标的显式 gap，不编造聚合候选；基本面 sleeve 暂不晋级。",
         ),
         _stage("limit_up_gate", "ok", downgraded=downgraded),
         _stage("qualify", "ok", qualified_count=len(qualified), empty_reason=empty_reason),
