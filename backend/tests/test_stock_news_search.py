@@ -263,8 +263,6 @@ def test_watchlist_create_triggers_sync_match():
                 "symbol": "NVDA",
                 "market": "us",
                 "display_name": "NVIDIA",
-                "alert_threshold": 5.0,
-                "alert_mode": "fixed",
             },
         )
 
@@ -327,8 +325,6 @@ def test_watchlist_create_canonicalizes_a_share_alias_before_persistence():
                 "symbol": "SH600519",
                 "market": "cn",
                 "display_name": "贵州茅台",
-                "alert_threshold": None,
-                "alert_mode": "fixed",
             },
         )
 
@@ -359,8 +355,6 @@ def test_watchlist_create_rejects_when_legacy_a_share_alias_already_exists():
                     market="cn",
                     display_name="贵州茅台",
                     is_active=True,
-                    alert_threshold=None,
-                    alert_mode="fixed",
                 )
             )
             session.commit()
@@ -375,8 +369,6 @@ def test_watchlist_create_rejects_when_legacy_a_share_alias_already_exists():
                 "symbol": "600519.SH",
                 "market": "cn",
                 "display_name": "贵州茅台",
-                "alert_threshold": None,
-                "alert_mode": "fixed",
             },
         )
 
@@ -415,8 +407,6 @@ def test_watchlist_delete_removes_existing_symbol():
                 "symbol": "TME",
                 "market": "us",
                 "display_name": "Tencent Music",
-                "alert_threshold": None,
-                "alert_mode": "fixed",
             },
         )
 
@@ -446,8 +436,6 @@ def test_watchlist_delete_accepts_a_share_alias() -> None:
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
             session.add(item)
             session.commit()
@@ -484,8 +472,6 @@ def test_watchlist_related_news_accepts_a_share_alias() -> None:
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
             session.add(watchlist_item)
             session.flush()

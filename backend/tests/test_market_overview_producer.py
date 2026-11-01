@@ -155,20 +155,12 @@ def test_app_lifespan_starts_market_overview_producer_when_enabled(monkeypatch) 
         def stop(self, timeout: float | None = None) -> None:
             lifecycle.append("overview-stop")
 
-    class FakeNotificationService:
-        def start(self) -> None:
-            lifecycle.append("notify-start")
-
-        def stop(self) -> None:
-            lifecycle.append("notify-stop")
-
     settings = Settings(
         market_quote_producer_enabled=False,
         market_overview_producer_enabled=True,
     )
     monkeypatch.setattr("app.main.initialize_database", lambda: None)
     monkeypatch.setattr("app.main._register_event_handlers", lambda: None)
-    monkeypatch.setattr("app.main.get_notification_service", lambda: FakeNotificationService())
     monkeypatch.setattr("app.main.get_settings", lambda: settings)
     monkeypatch.setattr(
         "app.main.build_market_overview_producer",
@@ -176,21 +168,14 @@ def test_app_lifespan_starts_market_overview_producer_when_enabled(monkeypatch) 
     )
 
     with TestClient(app):
-        assert lifecycle == ["notify-start", "overview-build", "overview-start"]
+        assert lifecycle == ["overview-build", "overview-start"]
 
-    assert lifecycle == ["notify-start", "overview-build", "overview-start", "overview-stop", "notify-stop"]
+    assert lifecycle == ["overview-build", "overview-start", "overview-stop"]
 
 
 def test_app_lifespan_skips_market_overview_producer_when_disabled(monkeypatch) -> None:
     lifecycle: list[str] = []
     build_calls: list[object] = []
-
-    class FakeNotificationService:
-        def start(self) -> None:
-            lifecycle.append("notify-start")
-
-        def stop(self) -> None:
-            lifecycle.append("notify-stop")
 
     settings = Settings(
         market_quote_producer_enabled=False,
@@ -198,7 +183,6 @@ def test_app_lifespan_skips_market_overview_producer_when_disabled(monkeypatch) 
     )
     monkeypatch.setattr("app.main.initialize_database", lambda: None)
     monkeypatch.setattr("app.main._register_event_handlers", lambda: None)
-    monkeypatch.setattr("app.main.get_notification_service", lambda: FakeNotificationService())
     monkeypatch.setattr("app.main.get_settings", lambda: settings)
     monkeypatch.setattr(
         "app.main.build_market_overview_producer",
@@ -206,9 +190,9 @@ def test_app_lifespan_skips_market_overview_producer_when_disabled(monkeypatch) 
     )
 
     with TestClient(app):
-        assert lifecycle == ["notify-start"]
+        assert lifecycle == []
 
-    assert lifecycle == ["notify-start", "notify-stop"]
+    assert lifecycle == []
     assert build_calls == []
 
 

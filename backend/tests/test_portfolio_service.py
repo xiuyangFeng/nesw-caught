@@ -76,8 +76,6 @@ def _ensure_holding(
             market=market,
             display_name=display_name,
             is_active=True,
-            alert_threshold=None,
-            alert_mode="fixed",
         )
         session.add(item)
     item.position_size = position_size

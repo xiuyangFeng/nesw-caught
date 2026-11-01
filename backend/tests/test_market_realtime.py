@@ -44,8 +44,6 @@ def _seed(session, *, fetched_age_seconds: float) -> None:
             market="us",
             display_name="Apple",
             is_active=True,
-            alert_threshold=None,
-            alert_mode="fixed",
         )
     )
     session.add(

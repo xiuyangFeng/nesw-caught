@@ -26,6 +26,7 @@ EXISTS / IF EXISTS），而非 batch_alter_table 整表重建：notification_job
 """
 from collections.abc import Sequence
 
+import sqlalchemy as sa
 from sqlalchemy import text
 
 from alembic import op
@@ -44,6 +45,11 @@ def upgrade() -> None:
     IF NOT EXISTS / IF EXISTS，重复执行（如 initialize_database 的 legacy
     库修复路径）不会报错。
     """
+    # notification_job 已在 c6d2f8a4e9b1（聚焦改造 P2）随飞书推送下线；按当前模型
+    # create_all 的库没有这张表，此迁移对其无事可做。
+    if "notification_job" not in sa.inspect(op.get_bind()).get_table_names():
+        return
+
     # 1) 历史重复 dedupe_key：每组只留 id 最大的一条，其余置 NULL。
     op.execute(
         text(

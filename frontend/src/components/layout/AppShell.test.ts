@@ -45,6 +45,16 @@ const watchlistStore = {
   refreshQuotes: vi.fn(async () => undefined),
 };
 
+const alertStore = {
+  unread: 0,
+  refreshUnread: vi.fn(async () => undefined),
+  receiveAlert: vi.fn(),
+};
+
+const toastStore = {
+  showWarning: vi.fn(),
+};
+
 const runtimeStatusStore = {
   loadRuntimeStatus: vi.fn(async (): Promise<void> => undefined),
   loadRuntimeStatusIfStale: vi.fn(async (): Promise<void> => undefined),
@@ -106,6 +116,14 @@ vi.mock('../../stores/watchlistStore', () => ({
 
 vi.mock('../../stores/runtimeStatusStore', () => ({
   useRuntimeStatusStore: () => runtimeStatusStore,
+}));
+
+vi.mock('../../stores/alertStore', () => ({
+  useAlertStore: () => alertStore,
+}));
+
+vi.mock('../../stores/toastStore', () => ({
+  useToastStore: () => toastStore,
 }));
 
 describe('AppShell', () => {
@@ -197,9 +215,9 @@ describe('AppShell', () => {
 
     const hrefs = wrapper.findAll('a[href]').map((link) => link.attributes('href'));
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/dashboard', '/news', '/digest', '/calendar', '/watchlist', '/portfolio', '/settings/llm', '/settings/notify', '/ops']),
+      expect.arrayContaining(['/dashboard', '/news', '/digest', '/calendar', '/watchlist', '/settings/llm', '/alerts', '/ops']),
     );
-    for (const removed of ['/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment']) {
+    for (const removed of ['/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment', '/settings/notify', '/portfolio']) {
       expect(hrefs).not.toContain(removed);
     }
     expect(wrapper.text()).toContain('盯盘');
@@ -263,6 +281,42 @@ describe('AppShell', () => {
     });
 
     expect(runtimeStatusStore.loadRuntimeStatusIfStale).toHaveBeenCalledTimes(2);
+  });
+
+  it('pushes alert.created events into the alert store and shows a toast', async () => {
+    alertStore.receiveAlert.mockClear();
+    toastStore.showWarning.mockClear();
+    mount(AppShell);
+    await flushPromises();
+
+    const handleEvent = connectionStore.connect.mock.calls.at(-1)?.[0];
+    const alert = {
+      id: 11,
+      kind: 'holding_price_move',
+      severity: 'immediate',
+      symbol: '688256.SH',
+      title: '寒武纪 涨 6.10%',
+      body: '',
+      payload: {},
+      overnight: false,
+      created_at: '2026-11-02T02:00:00Z',
+      visible_at: '2026-11-02T02:00:00Z',
+      read_at: null,
+    };
+    handleEvent({ type: 'alert.created', occurred_at: '2026-11-02T02:00:00Z', payload: alert });
+
+    expect(alertStore.receiveAlert).toHaveBeenCalledWith(alert);
+    expect(toastStore.showWarning).toHaveBeenCalledWith('寒武纪 涨 6.10%', 8000);
+    expect(alertStore.refreshUnread).toHaveBeenCalled();
+  });
+
+  it('shows the unread alert badge on the alerts nav item', async () => {
+    alertStore.unread = 3;
+    const wrapper = mount(AppShell);
+    await flushPromises();
+
+    expect(wrapper.find('[data-role="nav-alert-badge"]').text()).toBe('3');
+    alertStore.unread = 0;
   });
 
   it('routes news.updated events into the news store', async () => {

@@ -158,8 +158,6 @@ export const mockWatchlist: WatchlistItem[] = [
     market: 'hk',
     display_name: 'Tencent',
     is_active: true,
-    alert_threshold: 3,
-    alert_mode: 'fixed',
   },
   {
     id: 2,
@@ -167,8 +165,6 @@ export const mockWatchlist: WatchlistItem[] = [
     market: 'hk',
     display_name: 'Alibaba',
     is_active: true,
-    alert_threshold: 3,
-    alert_mode: 'fixed',
   },
   {
     id: 3,
@@ -176,8 +172,6 @@ export const mockWatchlist: WatchlistItem[] = [
     market: 'us',
     display_name: 'Apple',
     is_active: true,
-    alert_threshold: 2,
-    alert_mode: 'fixed',
   },
   {
     id: 4,
@@ -185,8 +179,6 @@ export const mockWatchlist: WatchlistItem[] = [
     market: 'us',
     display_name: 'NVIDIA',
     is_active: true,
-    alert_threshold: 4,
-    alert_mode: 'fixed',
   },
   {
     id: 5,
@@ -194,8 +186,6 @@ export const mockWatchlist: WatchlistItem[] = [
     market: 'cn',
     display_name: '贵州茅台',
     is_active: true,
-    alert_threshold: 3,
-    alert_mode: 'fixed',
   },
 ];
 

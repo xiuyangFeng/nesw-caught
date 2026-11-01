@@ -277,6 +277,8 @@ def _build_stream_map(settings: Settings) -> dict[str, str]:
         "news.signals_processed": settings.redis_stream_news_processed,
         "news.analysis_completed": settings.redis_stream_news_processed,
         "market.watchlist_refreshed": settings.redis_stream_market_watchlist,
+        # 站内提醒：新闻提醒在 pipeline worker 进程产生（多进程形态），经 Redis 转发到 web 进程 SSE。
+        "alert.created": settings.redis_stream_alerts,
     }
 
 

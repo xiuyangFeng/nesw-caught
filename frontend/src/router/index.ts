@@ -46,11 +46,6 @@ const router = createRouter({
       component: lazyView(() => import('../views/WatchlistDetailView.vue')),
     },
     {
-      path: '/portfolio',
-      name: 'portfolio',
-      component: lazyView(() => import('../views/PortfolioView.vue')),
-    },
-    {
       path: '/calendar',
       name: 'event-calendar',
       component: lazyView(() => import('../views/CalendarView.vue')),
@@ -61,9 +56,9 @@ const router = createRouter({
       component: lazyView(() => import('../views/LlmSettingsView.vue')),
     },
     {
-      path: '/settings/notify',
-      name: 'notify-settings',
-      component: lazyView(() => import('../views/NotifySettingsView.vue')),
+      path: '/alerts',
+      name: 'alerts',
+      component: lazyView(() => import('../views/AlertsView.vue')),
     },
     {
       path: '/digest',

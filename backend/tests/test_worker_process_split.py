@@ -328,8 +328,8 @@ def test_queue_worker_fallback_scan_still_finds_pending_without_any_event(
     )
     monkeypatch.setattr(
         queue_worker_module,
-        "get_notification_service",
-        lambda: SimpleNamespace(on_news_created_batch=lambda payloads: None),
+        "get_alert_service",
+        lambda: SimpleNamespace(on_news_batch=lambda payloads: 0),
     )
 
     worker = queue_worker_module.BackgroundQueueWorker(

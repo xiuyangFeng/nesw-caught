@@ -5,6 +5,136 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2 计划归档与文档同步
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：文档（纯文档）。
+- 变更内容：P2 计划补充完成记录与相对计划的调整后移入 `docs/archive/superpowers/plans/`；设计文档状态行指向两份归档计划；README 与 `docs/current-state.md` 中价格提醒规则描述同步为"当天行情在动 + 每天一次"，README 补充两字母美股代码需 `$` 前缀的说明。
+- 影响文件：`docs/archive/superpowers/plans/2026-11-01-focus-p2-holdings-alerts-plan.md`（移动）、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`README.md`、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）。
+- 风险或后续事项：无。
+
+## 2026-11-01 聚焦改造 P2-T7：评审修复（价格提醒判定、合并窗口可靠性、短代码误报）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端提醒规则服务、新闻队列 worker、前端提醒页与重连。
+- 变更内容（独立子任务评审发现，逐条复现后修复）：
+  - **价格提醒漏报**：原去重键只用昨收价，前一天平收（收盘价 = 昨收）时第二天的真实异动会被当成重复而漏掉。改为"当天观察到价格变动才认为行情在动"，按**市场本地日期**去重（A 股 / 港股北京时间，美股纽约时间）。节假日行情整天不变，因此仍不会重复提醒；代价是当天第一次看到报价时不提醒，要等价格动一次（行情约 15 秒刷新一次）。
+  - **关注股新闻丢失**：命中写入合并窗口时改为在锁内读时钟（flush 也在锁内读时钟），避免并发 flush 后命中落进已落库的旧窗口、被去重键吞掉。
+  - **落库失败**：合并窗口写库失败时放回缓冲下次重试，不再丢失，也不再中断同批的持仓新闻提醒。
+  - **多进程下合并延迟**：`BackgroundQueueWorker.do_cycle` 每个周期调用一次 `flush_watch_digest()`，合并窗口在哪个进程就在哪个进程按时落库，不依赖下一批新闻到来。
+  - **短代码误报**：1～2 个字母的美股代码（如 `AI`）不再裸匹配，只认 `$AI` 写法；3 个字母及以上仍按整词匹配。
+  - 前端：SSE 重连后补拉未读数；"今日提醒"分组改名"近期提醒"（实际包含所有非隔夜提醒）。删除 `test_market.py` 中替换已不存在函数的残留代码。
+  - 测试：价格用例改为两轮报价，新增"节假日行情不变不提醒""平收不挡第二天"；新增并发 flush 不丢命中、落库失败重试且不影响持仓提醒、短代码需 `$` 前缀、worker 周期推进 flush，共 5 个。均先确认失败再修复。
+- 影响文件：`backend/app/services/alert_service.py`、`backend/app/workers/queue_worker.py`、`backend/tests/test_alert_service.py`、`backend/tests/test_market.py`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/views/AlertsView.vue`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无；价格提醒 `dedupe_key` 格式由 `price:{symbol}:{昨收}` 改为 `price:{symbol}:{市场本地日期}`（此前尚无真实价格提醒数据）。
+- 验证情况：`pytest backend/tests` 1024 passed / 7 failed（已知测试污染）；`ruff check backend scripts` 通过；前端 `vue-tsc` 零错误、`vitest run` 80 个文件 467 passed、`npm run build` 通过、`check:api-drift` OK。
+- 风险或后续事项（评审中判定为低风险、暂不处理）：`000001.SZ` 等代码可能撞上"上证指数(000001)"标题；`primary` / `manual` 类型的股票关联也会触发持仓新闻提醒（与"新闻与该股相关"的语义一致）；行情备用源切换可能导致昨收略有差异（已不影响去重）；集合竞价 9:15～9:25 的指示价可能触发当天唯一一次提醒。这些在 P3 由 AI 判断时一并处理。`docs/technical-architecture.md`、`docs/stability-and-evolution.md`、`docs/api-contract.md` 仍有飞书 / 单股阈值的旧描述（前两者为第一阶段草稿或原则文档，未改）。
+
+## 2026-11-01 聚焦改造 P2-T6：多进程提醒推送修复、文档与端到端验证
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：事件总线 Redis 转发、README、现状快照、`.env.example`。
+- 变更内容：
+  - **修复**：多进程形态（`make dev-split`）下新闻提醒在 pipeline worker 进程产生，但 `alert.created` 不在 Redis 转发表里，web 进程的 SSE 收不到（提醒仍会写库，只是页面不实时弹出）。`_build_stream_map` 新增 `alert.created → redis_stream_alerts`（新配置，默认 `stream:alerts`）；`test_redis_stream_consumer.py` 先加断言确认失败再修复。
+  - README 新增"站内提醒"一节（规则表、持仓填写位置与高亮说明、可选配置、关键词规则的局限）；顶部改造说明补充 P2；Redis 事件层与安全加固两节去掉飞书/通知旧描述。
+  - `docs/current-state.md` 更新为 P2 之后：新增提醒中心、自选股持仓高亮与组合标签，删除独立组合页与通知设置，补充 P3 要替换的规则与新增的提醒类型。
+  - `.env.example` 新增 `ALERT_*` 配置样例。
+- 影响文件：`backend/app/services/event_bus.py`、`backend/app/core/config.py`、`backend/tests/test_redis_stream_consumer.py`、`README.md`、`docs/current-state.md`、`.env.example`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增配置 `redis_stream_alerts`；无接口变化。
+- 验证情况：
+  - 后端 `pytest backend/tests` 1019 passed / 7 failed（已知测试污染）；`ruff check backend scripts` 通过；前端 `vitest run` 80 个文件、467 passed，`npm run build` 通过，`check:api-drift` OK。
+  - **真实库**：`make dev` 启动时自动从 `c4e1d7a9b2f8` 升级到 `c6d2f8a4e9b1`；`notification_job`、`feishu_notify_config` 已删除；4 只自选股的名称、持仓数量、成本完好；`/api/watchlist` 响应已不含 `alert_threshold` / `alert_mode`。
+  - **接口实测**（带 App Token）：`/api/alerts`、`/api/alerts/unread-count`、自选股、组合、行情、新闻、复盘、日历、系统健康、LLM 配置、SSE 状态均 200；`/api/notify/feishu/config` 为 404。
+  - **端到端实测**：在独立进程中用一条真实新闻 id 构造标题含"寒武纪"（持仓）的新闻，`AlertService` 写入一条 `holding_news` 提醒并经 Redis 转发，服务端 `/api/stream/events` 推出了 `alert.created`；`/api/alerts` 可见、未读数为 1，`POST /api/alerts/{id}/read` 后未读数为 0。测试提醒与 Redis 中的测试事件已清理。
+  - 未实测：真实盘中的 ±5% 价格提醒（验证时为周日休市），由单元测试覆盖交易时段、阈值、去重规则。
+- 风险或后续事项：无新增。
+
+## 2026-11-01 聚焦改造 P2-T5：自选股持仓高亮，删除重复的组合页
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端自选股列表、路由与导航。
+- 变更内容：
+  - `StockCard` 新增可选属性 `holding`：持仓股显示左侧警示色条、浅警示色底与边框，名称旁加"持仓"标签（`data-holding` 便于测试与样式定位）；选中态样式优先。`WatchlistSidebar` 按 `position_size > 0` 判断持仓（为空或 0 视为仅关注），列表排序不变。
+  - 删除独立的 `/portfolio` 页面（`PortfolioView` 及测试）、路由与导航项；自选股页内"组合"标签保留（同样调用 `GET /api/portfolio`）。导航"持仓"组只剩"自选股"。旧书签由兜底路由带回仪表盘。
+  - 测试：新增 `StockCard.test.ts`（持仓/非持仓渲染差异、侧栏按持仓数量判断，共 3 个，先确认失败再实现）；AppShell 与路由测试把 `/portfolio`、`/settings/notify` 加入"已删除页面"断言。
+- 影响文件：`frontend/src/components/watchlist/{StockCard.vue,WatchlistSidebar.vue,StockCard.test.ts}`、`frontend/src/views/PortfolioView.{vue,test.ts}`（删）、`frontend/src/{router/index.ts,router/index.test.ts,components/layout/AppShell.vue,components/layout/AppShell.test.ts,smoke/app-navigation.test.ts}`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（`GET /api/portfolio` 保留）。
+- 验证情况：`vue-tsc` 零错误；`vitest run` 80 个文件、467 passed；`npm run build` 通过，并确认 `bg-warning/[0.07]`、`border-warning/45` 已编译进 CSS。
+- 风险或后续事项：无。
+
+## 2026-11-01 聚焦改造 P2-T4：前端提醒中心（替换飞书通知设置）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端路由、导航、实时推送处理、新页面与 store；添加自选弹窗。
+- 变更内容：
+  - 新增 `/alerts` 提醒中心（`AlertsView`）：按"今日提醒 / 隔夜汇总"分组；类型标签（持仓异动、持仓新闻、关注股新闻、情绪背离）；未读圆点；点击标题跳转对应新闻或自选股详情并标记已读；关注股合并提醒逐条列出新闻链接；"全部已读"、"刷新"。
+  - 新增 `alertStore`（列表、未读数、增量接收推送并按 id 去重、单条/全部已读）。
+  - `AppShell`：导航"盯盘"组加入"提醒"并显示未读角标；SSE `alert.created` 推入 store 并弹出 8 秒 toast；启动时拉一次未读数，此后每 5 分钟兜底刷新（隔夜提醒早上才可见，没有推送）。
+  - 删除飞书通知设置页 `NotifySettingsView`、`notifyStore`、`client.ts` 中 3 个飞书方法、飞书类型与 mock；`/settings/notify` 路由改为 `/alerts`（旧书签由兜底路由带回仪表盘）。
+  - 添加自选弹窗删除"高级设置 / 异动阈值"（后端已删除单股阈值）；mock 与测试夹具去掉 `alert_threshold`、`alert_mode`。
+  - 新增 `api/client.ts`：`getAlerts`、`getAlertUnreadCount`、`markAlertRead`、`markAllAlertsRead`；`StreamEventMap` 新增 `alert.created`；重新生成 `openapi.json` 与生成类型。
+  - 测试：`alertStore.test.ts`（5 个）、`AlertsView.test.ts`（3 个，先确认页面不存在时失败再实现）、`AppShell.test.ts` 新增推送与角标 2 个用例并补充 store 替身；冒烟测试加入 `/alerts`；删除"高级阈值"用例。
+- 影响文件：`frontend/src/views/AlertsView.{vue,test.ts}`（新）、`frontend/src/stores/alertStore.{ts,test.ts}`（新）、`frontend/src/views/NotifySettingsView.{vue,test.ts}`（删）、`frontend/src/stores/notifyStore.ts`（删）、`frontend/src/{router/index.ts,components/layout/AppShell.vue,components/layout/AppShell.test.ts,components/watchlist/WatchlistAddModal.vue,views/WatchlistView.vue,views/WatchlistView.test.ts,stores/watchlistStore.test.ts,api/client.ts,api/client.test.ts,api/mock/ops.ts,api/mock/market.ts,types/api.ts,smoke/app-navigation.test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：前端改用 `/api/alerts*`，不再调用 `/api/notify/*`；创建自选不再发送 `alert_threshold`、`alert_mode`。
+- 验证情况：`vue-tsc` 零错误；`vitest run` 80 个文件、469 passed；`npm run build` 通过；`check:api-drift` OK。
+- 风险或后续事项：toast 只在页面打开时出现（用户确认只做站内提醒）。
+
+## 2026-11-01 聚焦改造 P2-T3：删除飞书推送与旧通知体系、单股阈值
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端通知模块、飞书客户端、自选股字段、数据库迁移、测试。
+- 变更内容：
+  - 删除 `notification_service.py`、`feishu_client.py`、`notification_delivery_worker.py`、`/api/notify/*` 路由与 `schemas/feishu_notify.py`、`feishu_notify_config` / `notification_job` 模型与 repository；`http_pool` 去掉飞书 client；删除 `notify_*` 配置项。
+  - `main.py`：去掉通知服务启停、"分析完成"推送（`news.analysis_completed` 订阅）、每日复盘生成后的推送（复盘照常生成）；情绪背离 worker（默认关闭）改由 lifespan 在开关打开时直接启动，命中写入站内提醒。
+  - 删除自选股单股阈值：`watchlist_item.alert_threshold`、`alert_mode` 从模型、schema（创建请求与响应）、repository、路由中移除。
+  - 新增迁移 `c6d2f8a4e9b1`：删除 `notification_job`、`feishu_notify_config` 两表与 `watchlist_item` 两列（batch 重建，股票代码唯一索引保留）；downgrade 回放原始 DDL 并把两列加回。历史迁移 `0a513ac0e869` 增加"`notification_job` 不存在则跳过"的前置判断（已执行过的库不受影响），使按当前模型建表的库能走完迁移链。
+  - `queue_worker` 中的错误计数 `notification_error` 保留原名（系统健康页按该子 worker 名展示），注释改为"新闻站内提醒评估失败"。
+  - 测试：删除 `test_alert_governance`、`test_feishu_notify`、`test_feishu_sender`、`test_notification_dedupe`、`test_notification_jobs`、`test_http_pool`（仅测飞书 client）；`test_sentiment_divergence_alert.py` 改写为 worker 写入站内提醒并同日去重；生命周期、连接池、流水线等测试去掉通知替身；10 个测试文件与 `seed_demo_data.py` 去掉 `alert_threshold` / `alert_mode` 参数。
+- 影响文件：上述删除文件，以及 `backend/alembic/versions/c6d2f8a4e9b1_drop_feishu_and_per_stock_alerts.py`（新）、`backend/alembic/versions/0a513ac0e869_notification_job_dedupe_key_unique_index.py`、`backend/app/{main.py,core/config.py,api/router.py,api/routes/watchlist.py,schemas/watchlist.py,models/watchlist_item.py,models/__init__.py,repositories/watchlist_repository.py,services/http_pool.py,services/ops_health.py,workers/queue_worker.py,db/initializer.py}`、`backend/alembic/env.py`、多个测试文件、`scripts/seed_demo_data.py`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `/api/notify/*`；`POST /api/watchlist` 请求体与自选股响应移除 `alert_threshold`、`alert_mode`（请求中多传会被忽略）；主库删除两表两列（迁移可回退）。前端在 T4、T5 同步。
+- 验证情况：`pytest backend/tests` 1019 passed / 7 failed（与基线相同的已知测试污染）；`ruff check backend scripts` 通过。P2 前备份副本上 `upgrade head` → `downgrade -2` → `upgrade head` 往返正常：4 只自选股的名称、持仓数量、成本前后一致，`ix_watchlist_item_symbol` 仍为唯一索引，回退后两表两列恢复。
+- 风险或后续事项：前端仍引用 `/api/notify/*` 与飞书类型，T4 删除；`openapi.json` 在 T4 重新生成。
+
+## 2026-11-01 聚焦改造 P2-T2：站内提醒规则服务并接入行情与新闻流程
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端提醒规则、行情刷新回调、新闻队列挂载点、SSE 事件。
+- 变更内容：
+  - 新增 `AlertService`（可注入时钟与事件总线）：
+    - **持仓价格**：仅 `position_size > 0`；`|涨跌幅| ≥ 5%`（`ALERT_PRICE_MOVE_PERCENT`）；只在该市场交易时段内触发。去重键用**昨收价**区分交易日（`price:{symbol}:{previous_close}`），节假日行情不更新、昨收不变，不会重复提醒上一个交易日的涨跌；缺昨收时按北京时间日期去重。
+    - **新闻**：标题出现简称（中文子串；英文按整词、忽略大小写）或代码（A 股 6 位、港股 5 位补零或 `xxxx.HK`、美股代码整词），或 A 股 `news_stock_mention` 置信度 ≥ 0.9。持仓股立即提醒（`news:{news_id}:{symbol}` 去重）；仅关注的股票进入内存合并窗口，每 30 分钟合并为一条 `watch_news_digest`。
+    - **静默时段**（默认北京时间 22:00～08:00，可配）：照常写库，`overnight=True`，`visible_at` 推迟到静默结束，不推 SSE。
+    - 非静默期提醒发布 `alert.created` 事件；SSE `/api/stream` 新增转发该事件。
+  - `main.py` 行情刷新回调改为调用 `AlertService.on_quotes`（去掉按单股阈值、内存"越线"状态、依赖飞书的旧逻辑）；`queue_worker` 新闻挂载点改为 `AlertService.on_news_batch`，并在 payload 中补 `id`。
+  - 新增配置：`alert_price_move_percent`、`alert_quiet_hours_start/end`、`alert_tz`、`alert_watch_digest_minutes`。
+  - 测试：新增 `tests/test_alert_service.py`（10 个，覆盖阈值方向、仅持仓、交易时段外不触发、节假日昨收不变不重复、新交易日再触发、中英文名称与代码匹配、整词边界、规则关联、合并窗口、静默跨午夜与凌晨）；先确认在模块缺失时失败再实现。`test_market.py` 原"越线才触发"用例改写为"行情刷新把报价交给提醒服务"的集成测试；`test_news_ingestion.py`、`test_scheduler_timeliness.py`、`test_worker_process_split.py` 中的通知替身改为提醒服务替身。
+- 影响文件：`backend/app/services/alert_service.py`（新）、`backend/app/api/routes/alerts.py`、`backend/app/api/routes/stream.py`、`backend/app/main.py`、`backend/app/workers/queue_worker.py`、`backend/app/core/config.py`、`backend/tests/test_alert_service.py`（新）、`backend/tests/{test_market.py,test_news_ingestion.py,test_scheduler_timeliness.py,test_worker_process_split.py}`、`docs/code-change-log.md`。
+- 接口/数据结构变化：SSE 新增 `alert.created` 事件；无接口删除。旧 `NotificationService` 仍在但已不再接收价格与新闻事件，T3 删除。
+- 验证情况：`pytest backend/tests` 1066 passed / 7 failed（与基线相同的已知测试污染）；`ruff check backend` 通过。
+- 风险或后续事项：标题关键词匹配会有误报（如"阿里云"命中名称"阿里"类简称）；英文简称（如 Alibaba）无法匹配中文新闻"阿里巴巴"，P3 由 AI 判断替换。关注股合并窗口在内存中，进程重启最多丢失一个窗口的关注股命中。
+
+## 2026-11-01 聚焦改造 P2-T1：站内提醒存储与接口
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端新表、repository、接口。
+- 变更内容：新增 `alert` 表（`kind`、`severity`、`symbol`、`title`、`body`、`payload_json`、唯一 `dedupe_key`、`overnight`、`visible_at`、`read_at`、`created_at`）与迁移 `c5a9b3e7d1f2`（建表前判断已存在，downgrade 删表）；`AlertRepository`：按 `dedupe_key` 幂等写入（先查后插 + savepoint 内唯一约束兜底）、按 `visible_at <= now` 过滤可见、未读数、单条/全部已读；新增 `GET /api/alerts`、`GET /api/alerts/unread-count`、`POST /api/alerts/{id}/read`、`POST /api/alerts/read-all`。
+- 影响文件：`backend/app/models/alert.py`（新）、`backend/app/repositories/alert_repository.py`（新）、`backend/app/schemas/alert.py`（新）、`backend/app/api/routes/alerts.py`（新）、`backend/alembic/versions/c5a9b3e7d1f2_add_alert_table.py`（新）、`backend/app/api/router.py`、`backend/app/models/__init__.py`、`backend/app/db/initializer.py`、`backend/alembic/env.py`、`backend/tests/test_alerts_api.py`（新）、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 4 个 `/api/alerts` 接口与 `alert` 表；无删除。
+- 验证情况：`pytest backend/tests/test_alerts_api.py`（5 个）、`test_migration_parity.py`、`test_focus_p1_migrations.py` 通过；`ruff check backend` 通过。
+- 风险或后续事项：规则服务与前端在 T2、T4 接入。
+
+## 2026-11-01 聚焦改造 P2 实施计划（草案）
+
+- 修改人：Claude Code（Opus 5.5），与用户 xiuyang 讨论产出
+- 修改范围：文档（纯文档，无运行时代码）。
+- 变更内容：新增 `docs/superpowers/plans/2026-11-01-focus-p2-holdings-alerts-plan.md`：基于代码实测（持仓字段已存在、自选股页已有组合标签、现有提醒全部依赖飞书且当前无飞书配置、港股不在 A 股关联索引内）给出 P2 设计决定、`alert` 表与接口、T0～T6 任务。用户已确认：持仓在自选股内管理并高亮、统一 ±5% 每股每天一次、只做站内提醒、夜间不打扰。
+- 影响文件：`docs/superpowers/plans/2026-11-01-focus-p2-holdings-alerts-plan.md`（新）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（计划中的变化在执行时记录）。
+- 验证情况：未运行测试（纯文档）。
+- 风险或后续事项：计划 §2 的 5 项取舍用户已全部确认，进入执行。
+
 ## 2026-11-01 协作文档路径修正与审计文档入库
 
 - 修改人：Claude Code（Opus 5.5），按用户要求

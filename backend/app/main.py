@@ -12,7 +12,7 @@ from app.core.request_logging import RequestLoggingMiddleware
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.repositories.news_repository import NewsRepository  # noqa: F401 -- monkeypatched by tests
-from app.repositories.watchlist_repository import WatchlistRepository
+from app.services.alert_service import get_alert_service
 from app.services.backup import build_backup_worker
 from app.services.cleanup import build_data_cleanup_worker
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
@@ -23,7 +23,6 @@ from app.services.news_ingest_scheduler import NewsIngestScheduler
 from app.services.news_signal_pipeline import (  # noqa: F401 -- monkeypatched by tests
     NewsSignalPipelineService,
 )
-from app.services.notification_service import get_notification_service
 from app.services.quote_service import QuoteService
 from app.workers.queue_worker import (
     BackgroundQueueWorker,
@@ -51,16 +50,12 @@ def _register_event_handlers() -> None:
             return
         analysis_queue.put(news_ids)
 
-    def handle_news_analysis_completed(payload: dict[str, object]) -> None:
-        get_notification_service().on_analysis_completed(payload)
-
     if get_settings().pipeline_workers_enabled:
         # 多进程形态（pipeline_workers_enabled=false）下本进程没有 analysis_queue
         # 的消费者，注册这个 handler 只会往一个没人读的队列里堆数据。真正的消费
         # 在独立 pipeline worker 进程里：那边有自己的 RedisStreamConsumer + 同名
         # handler，加上 queue worker 每 30s 的 DB 兜底扫描双保险。
         event_bus.subscribe("news.created_batch", handle_news_created_batch)
-    event_bus.subscribe("news.analysis_completed", handle_news_analysis_completed)
     set_event_bus(event_bus)
 
     # Register route-level cache invalidation on the finalized bus instance.
@@ -76,27 +71,11 @@ def register_market_watchlist_handlers(event_bus: Any) -> None:
         raw_quotes = payload.get("quotes") if isinstance(payload, dict) else None
         if not isinstance(raw_quotes, list):
             return
-        with SessionLocal() as session:
-            watchlist_items = {item.symbol: item for item in WatchlistRepository(session).list_all()}
-        notification_service = get_notification_service()
-        for quote in raw_quotes:
-            if not isinstance(quote, dict):
-                continue
-            symbol = quote.get("symbol")
-            if not symbol:
-                continue
-            watchlist_item = watchlist_items.get(str(symbol))
-            if watchlist_item is None or not watchlist_item.alert_threshold:
-                continue
-            notification_service.on_watchlist_alert(
-                {
-                    "symbol": symbol,
-                    "display_name": quote.get("display_name") or watchlist_item.display_name,
-                    "price": quote.get("price"),
-                    "change_percent": quote.get("change_percent"),
-                    "alert_threshold": watchlist_item.alert_threshold,
-                }
-            )
+        # 站内提醒：持仓股 |涨跌幅| 超阈值（默认 5%）每个交易日提醒一次；顺带推进关注股新闻合并窗口。
+        try:
+            get_alert_service().on_quotes([quote for quote in raw_quotes if isinstance(quote, dict)])
+        except Exception:
+            logger.exception("price alert evaluation failed")
 
     event_bus.subscribe("market.watchlist_refreshed", handle_market_watchlist_refreshed)
 
@@ -168,8 +147,16 @@ async def lifespan(_: FastAPI):
     initialize_database()
     configure_secondary_judge_from_settings()
     _register_event_handlers()
-    notification_service = get_notification_service()
-    notification_service.start()
+    # 情绪-价格背离周期检查（默认关闭）：命中写入站内提醒。
+    divergence_worker = None
+    if settings.sentiment_divergence_alert_enabled:
+        from app.workers.queue_worker import SentimentDivergenceAlertWorker
+
+        divergence_worker = SentimentDivergenceAlertWorker(
+            session_factory=SessionLocal,
+            alert_service=get_alert_service(),
+        )
+        divergence_worker.start()
 
     queue_worker: BackgroundQueueWorker | None = None
     takeaway_worker: TakeawayWorker | None = None
@@ -224,8 +211,7 @@ async def lifespan(_: FastAPI):
             from app.services.digest_service import generate_digest
 
             with SessionLocal() as session:
-                digest = generate_digest(market_scope, session)
-            get_notification_service().on_digest_ready(digest.to_payload())
+                generate_digest(market_scope, session)
 
         digest_worker = DigestWorker(
             session_factory=SessionLocal,
@@ -299,7 +285,8 @@ async def lifespan(_: FastAPI):
         takeaway_worker.stop()
     if orphan_queue_drainer is not None:
         orphan_queue_drainer.stop()
-    notification_service.stop()
+    if divergence_worker is not None:
+        divergence_worker.stop()
     # 这里刻意用 close_llm_client()（关闭 + 允许惰性重建）而不是 shutdown_http_pools()
     # 的终态语义。终态是进程级且不可逆的，而 lifespan 在同一进程里会跑多次：
     # 测试用 `with TestClient(app)` 反复起停，且大量测试用不带 context manager 的

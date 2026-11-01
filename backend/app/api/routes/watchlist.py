@@ -105,8 +105,6 @@ def create_watchlist_item(
         symbol=symbol,
         market=market,
         display_name=payload.display_name.strip(),
-        alert_threshold=payload.alert_threshold,
-        alert_mode=payload.alert_mode,
     )
 
     search_service = StockNewsSearchService(session)

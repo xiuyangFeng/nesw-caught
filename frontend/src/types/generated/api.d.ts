@@ -6,6 +6,77 @@
  */
 
 export interface paths {
+    "/api/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Alerts
+         * @description 当前可见的站内提醒（隔夜提醒在次日早上之前不出现），新的在前。
+         */
+        get: operations["list_alerts_api_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/alerts/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark All Read */
+        post: operations["mark_all_read_api_alerts_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/alerts/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Unread Count */
+        get: operations["get_unread_count_api_alerts_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/alerts/{alert_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Read */
+        post: operations["mark_read_api_alerts__alert_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/calendar": {
         parameters: {
             query?: never;
@@ -619,41 +690,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/notify/feishu/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Feishu Config */
-        get: operations["get_feishu_config_api_notify_feishu_config_get"];
-        put?: never;
-        /** Upsert Feishu Config */
-        post: operations["upsert_feishu_config_api_notify_feishu_config_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/notify/feishu/test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Test Feishu Notification */
-        post: operations["test_feishu_notification_api_notify_feishu_test_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/ops/health": {
         parameters: {
             query?: never;
@@ -935,60 +971,42 @@ export interface components {
             /** Last Call At */
             last_call_at?: string | null;
         };
-        /**
-         * AlertGovernanceUpdate
-         * @description 告警治理运行期覆盖（保存在 NotificationService 内存，不落库）。全部可选。
-         */
-        AlertGovernanceUpdate: {
-            /** Critical Change Percent */
-            critical_change_percent?: number | null;
-            /** Dedupe Window Minutes */
-            dedupe_window_minutes?: number | null;
-            /** Digest Threshold */
-            digest_threshold?: number | null;
-            /** Digest Window Minutes */
-            digest_window_minutes?: number | null;
-            /** Quiet Hours End */
-            quiet_hours_end?: string | null;
-            /** Quiet Hours Start */
-            quiet_hours_start?: string | null;
-            /** Quiet Hours Tz */
-            quiet_hours_tz?: string | null;
+        /** AlertReadAllView */
+        AlertReadAllView: {
+            /** Updated */
+            updated: number;
         };
-        /**
-         * AlertGovernanceView
-         * @description 治理当前生效值（settings 默认叠加内存覆盖后的结果），供前端回显。
-         */
-        AlertGovernanceView: {
-            /**
-             * Critical Change Percent
-             * @default 8
-             */
-            critical_change_percent: number;
-            /**
-             * Dedupe Window Minutes
-             * @default 0
-             */
-            dedupe_window_minutes: number;
-            /**
-             * Digest Threshold
-             * @default 3
-             */
-            digest_threshold: number;
-            /**
-             * Digest Window Minutes
-             * @default 0
-             */
-            digest_window_minutes: number;
-            /** Quiet Hours End */
-            quiet_hours_end?: string | null;
-            /** Quiet Hours Start */
-            quiet_hours_start?: string | null;
-            /**
-             * Quiet Hours Tz
-             * @default Asia/Shanghai
-             */
-            quiet_hours_tz: string;
+        /** AlertUnreadCountView */
+        AlertUnreadCountView: {
+            /** Unread */
+            unread: number;
+        };
+        /** AlertView */
+        AlertView: {
+            /** Body */
+            body: string;
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Overnight */
+            overnight: boolean;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Read At */
+            read_at?: string | null;
+            /** Severity */
+            severity: string;
+            /** Symbol */
+            symbol?: string | null;
+            /** Title */
+            title: string;
+            /** Visible At */
+            visible_at: string;
         };
         /** BoardItemView */
         BoardItemView: {
@@ -1141,101 +1159,6 @@ export interface components {
             sections: components["schemas"]["DigestSectionView"][];
             /** Title */
             title: string;
-        };
-        /** FeishuConfigUpsertRequest */
-        FeishuConfigUpsertRequest: {
-            /**
-             * Alert Enabled
-             * @default true
-             */
-            alert_enabled: boolean;
-            /**
-             * Analysis Enabled
-             * @default true
-             */
-            analysis_enabled: boolean;
-            /** App Id */
-            app_id: string;
-            /** App Secret */
-            app_secret?: string | null;
-            governance?: components["schemas"]["AlertGovernanceUpdate"] | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /**
-             * News Batch Interval Minutes
-             * @default 60
-             */
-            news_batch_interval_minutes: number;
-            /**
-             * News Enabled
-             * @default true
-             */
-            news_enabled: boolean;
-            /** News Keywords */
-            news_keywords?: string | null;
-            /** Target Id */
-            target_id: string;
-            /**
-             * Target Type
-             * @default chat
-             */
-            target_type: string;
-        };
-        /** FeishuConfigView */
-        FeishuConfigView: {
-            /**
-             * Alert Enabled
-             * @default true
-             */
-            alert_enabled: boolean;
-            /**
-             * Analysis Enabled
-             * @default true
-             */
-            analysis_enabled: boolean;
-            /** App Id */
-            app_id?: string | null;
-            /**
-             * App Secret Set
-             * @default false
-             */
-            app_secret_set: boolean;
-            /** Configured */
-            configured: boolean;
-            governance?: components["schemas"]["AlertGovernanceView"] | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active: boolean;
-            /**
-             * News Batch Interval Minutes
-             * @default 60
-             */
-            news_batch_interval_minutes: number;
-            /**
-             * News Enabled
-             * @default true
-             */
-            news_enabled: boolean;
-            /** News Keywords */
-            news_keywords?: string | null;
-            /** Target Id */
-            target_id?: string | null;
-            /** Target Type */
-            target_type?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
-        /** FeishuTestResult */
-        FeishuTestResult: {
-            /** Message */
-            message: string;
-            /** Success */
-            success: boolean;
         };
         /** FrontendLogBatch */
         FrontendLogBatch: {
@@ -2911,13 +2834,6 @@ export interface components {
         };
         /** WatchlistItemCreate */
         WatchlistItemCreate: {
-            /**
-             * Alert Mode
-             * @default fixed
-             */
-            alert_mode: string;
-            /** Alert Threshold */
-            alert_threshold?: number | null;
             /** Display Name */
             display_name: string;
             /** Market */
@@ -2940,10 +2856,6 @@ export interface components {
         };
         /** WatchlistItemView */
         WatchlistItemView: {
-            /** Alert Mode */
-            alert_mode: string;
-            /** Alert Threshold */
-            alert_threshold?: number | null;
             /** Average Cost */
             average_cost?: number | null;
             /** Display Name */
@@ -3010,6 +2922,135 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_alerts_api_alerts_get: {
+        parameters: {
+            query?: {
+                unread_only?: boolean;
+                limit?: number;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_all_read_api_alerts_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertReadAllView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_unread_count_api_alerts_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertUnreadCountView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_read_api_alerts__alert_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                alert_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_upcoming_calendar_api_calendar_get: {
         parameters: {
             query?: {
@@ -4256,103 +4297,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NewsAnalysisView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_feishu_config_api_notify_feishu_config_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-App-Token"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FeishuConfigView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    upsert_feishu_config_api_notify_feishu_config_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-App-Token"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeishuConfigUpsertRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FeishuConfigView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    test_feishu_notification_api_notify_feishu_test_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-App-Token"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FeishuTestResult"];
                 };
             };
             /** @description Validation Error */

@@ -21,7 +21,7 @@ router = APIRouter()
 # market.watchlist_refreshed 由 MarketQuoteProducer 每轮刷新后发布。此前它不在
 # 这个名单里，行情事件只在进程内被告警 handler 消费掉，前端永远收不到推送，自选
 # 股价格只能靠用户手动点刷新——这是"行情看起来不更新"的推送侧根因。
-STREAM_EVENT_NAMES = ("news.created", "news.updated", "market.watchlist_refreshed")
+STREAM_EVENT_NAMES = ("news.created", "news.updated", "market.watchlist_refreshed", "alert.created")
 STREAM_KEEPALIVE_SECONDS = 15
 
 # 只读的 SSE 活跃连接计数器，供 /health 汇报"推送连接数"使用；仅在本模块内自增/自减，

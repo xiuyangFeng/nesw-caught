@@ -29,7 +29,7 @@ describe('router', () => {
   it('sends bookmarks of removed pages back to the dashboard', async () => {
     const { default: router } = await import('./index');
 
-    for (const removed of ['/desk', '/desk/stocks/600519.SH', '/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment']) {
+    for (const removed of ['/desk', '/desk/stocks/600519.SH', '/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment', '/portfolio', '/settings/notify']) {
       await router.push('/news');
       await router.push(removed);
       expect(router.currentRoute.value.path).toBe('/dashboard');

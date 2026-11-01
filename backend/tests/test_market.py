@@ -70,8 +70,6 @@ def test_quote_service_keeps_display_name_for_a_share_alias_lookup() -> None:
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -124,8 +122,6 @@ def test_quote_service_reads_cached_watchlist_quote_for_legacy_a_share_alias_row
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -179,8 +175,6 @@ def test_quote_service_refresh_uses_canonical_cached_snapshot_for_legacy_a_share
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -235,8 +229,6 @@ def test_quote_service_resolves_canonical_a_share_input_against_legacy_watchlist
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -288,8 +280,6 @@ def test_market_chart_service_resolves_canonical_a_share_input_against_legacy_wa
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.commit()
@@ -462,119 +452,36 @@ def test_market_watchlist_quotes_keep_partial_failures_visible(monkeypatch) -> N
     assert failed["message"] == "upstream timeout"
 
 
-def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> None:
-    from app.db.session import SessionLocal
-    from app.models.notification_job import NotificationJob
+def test_market_watchlist_refresh_hands_quotes_to_alert_service(monkeypatch) -> None:
+    """行情 producer 每轮发布 market.watchlist_refreshed 后，报价交给站内提醒服务评估。
+
+    阈值、持仓过滤、每日去重等规则由 tests/test_alert_service.py 覆盖。"""
+    quote = {
+        "symbol": "0700.HK",
+        "market": "hk",
+        "display_name": "Tencent",
+        "provider_symbol": "0700.HK",
+        "price": 340.0,
+        "change_amount": 18.3,
+        "change_percent": 5.69,
+        "previous_close": 321.7,
+        "status": "ok",
+        "source": "yahoo_finance",
+        "fetched_at": "2026-03-16T12:00:00Z",
+    }
 
     class FakeQuoteService:
-        def __init__(self) -> None:
-            self.responses = [
-                [
-                    {
-                        "symbol": "0700.HK",
-                        "market": "hk",
-                        "display_name": "Tencent",
-                        "provider_symbol": "0700.HK",
-                        "price": 332.4,
-                        "change_amount": 10.7,
-                        "change_percent": 3.33,
-                        "open_price": 325.0,
-                        "previous_close": 321.7,
-                        "day_high": 334.8,
-                        "day_low": 323.2,
-                        "volume": 18233000,
-                        "status": "ok",
-                        "source": "yahoo_finance",
-                        "message": None,
-                        "fetched_at": "2026-03-16T12:00:00Z",
-                    }
-                ],
-                [
-                    {
-                        "symbol": "0700.HK",
-                        "market": "hk",
-                        "display_name": "Tencent",
-                        "provider_symbol": "0700.HK",
-                        "price": 333.1,
-                        "change_amount": 11.4,
-                        "change_percent": 3.55,
-                        "open_price": 325.0,
-                        "previous_close": 321.7,
-                        "day_high": 334.8,
-                        "day_low": 323.2,
-                        "volume": 18233000,
-                        "status": "ok",
-                        "source": "yahoo_finance",
-                        "message": None,
-                        "fetched_at": "2026-03-16T12:01:00Z",
-                    }
-                ],
-                [
-                    {
-                        "symbol": "0700.HK",
-                        "market": "hk",
-                        "display_name": "Tencent",
-                        "provider_symbol": "0700.HK",
-                        "price": 325.0,
-                        "change_amount": 1.0,
-                        "change_percent": 0.31,
-                        "open_price": 325.0,
-                        "previous_close": 321.7,
-                        "day_high": 334.8,
-                        "day_low": 323.2,
-                        "volume": 18233000,
-                        "status": "ok",
-                        "source": "yahoo_finance",
-                        "message": None,
-                        "fetched_at": "2026-03-16T12:02:00Z",
-                    }
-                ],
-                [
-                    {
-                        "symbol": "0700.HK",
-                        "market": "hk",
-                        "display_name": "Tencent",
-                        "provider_symbol": "0700.HK",
-                        "price": 334.2,
-                        "change_amount": 12.5,
-                        "change_percent": 3.88,
-                        "open_price": 325.0,
-                        "previous_close": 321.7,
-                        "day_high": 334.8,
-                        "day_low": 323.2,
-                        "volume": 18233000,
-                        "status": "ok",
-                        "source": "yahoo_finance",
-                        "message": None,
-                        "fetched_at": "2026-03-16T12:03:00Z",
-                    }
-                ],
-            ]
-
         def refresh_watchlist_quotes(self, session, *, force=False):  # pragma: no cover - exercised through producer
-            return self.responses.pop(0)
+            return [dict(quote)]
 
-    class FakeWatchlistRepository:
-        def __init__(self, session) -> None:
-            self.session = session
+    class FakeAlertService:
+        def __init__(self) -> None:
+            self.calls: list[list[dict]] = []
 
-        def list_all(self):  # pragma: no cover - exercised through route
-            item = MagicMock()
-            item.symbol = "0700.HK"
-            item.display_name = "Tencent"
-            item.alert_threshold = 3.0
-            return [item]
+        def on_quotes(self, quotes):
+            self.calls.append(list(quotes))
+            return 0
 
-    from app.services.notification_service import NotificationService
-
-    with SessionLocal() as session:
-        session.query(NotificationJob).delete()
-        session.commit()
-
-    notification_service = NotificationService()
-    config = MagicMock()
-    config.alert_enabled = True
-    fake_service = FakeQuoteService()
     class FakeBus:
         def __init__(self) -> None:
             self.handlers: dict[str, list] = {}
@@ -587,36 +494,26 @@ def test_market_watchlist_quotes_only_alert_on_threshold_entry(monkeypatch) -> N
                 handler(payload)
 
     from app import main as main_module
-
-    fake_bus = FakeBus()
-    monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
-    monkeypatch.setattr(main_module, "WatchlistRepository", FakeWatchlistRepository)
-    monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
-    monkeypatch.setattr(main_module, "get_quote_service", lambda: fake_service)
-    # _register_event_handlers() 会调 set_event_bus() 改写**全局单例**，而 monkeypatch
-    # 只还原 main_module.build_event_bus 这个模块属性，还不回单例本身。不显式恢复的话，
-    # 本用例结束后全局 bus 会一直是 FakeBus，导致后续任何走 /news/runtime 的用例
-    # 报 AttributeError: 'FakeBus' object has no attribute 'get_status'（跨文件污染，
-    # 按字母序排在 test_market 之后的用例才会中招，很难定位）。
     from app.services.event_bus import get_event_bus, set_event_bus
 
+    fake_bus = FakeBus()
+    fake_alerts = FakeAlertService()
+    monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
+    monkeypatch.setattr(main_module, "get_alert_service", lambda: fake_alerts)
+    monkeypatch.setattr(main_module, "get_quote_service", lambda: FakeQuoteService())
+    # _register_event_handlers() 会改写全局事件总线单例，结束后必须还原，避免跨文件污染。
     original_event_bus = get_event_bus()
     try:
         main_module._register_event_handlers()
         main_module.register_market_watchlist_handlers(fake_bus)
 
-        with patch.object(notification_service, "_load_config", return_value=config):
-            producer = main_module.build_market_quote_producer()
-            producer.run_cycle()
-            producer.run_cycle()
-            producer.run_cycle()
-            producer.run_cycle()
+        producer = main_module.build_market_quote_producer(event_bus=fake_bus)
+        producer.run_cycle()
+        producer.run_cycle()
 
-        with SessionLocal() as session:
-            jobs = session.query(NotificationJob).filter(
-                NotificationJob.event_type == "watchlist_alert"
-            ).all()
-            assert len(jobs) == 2
+        assert len(fake_alerts.calls) == 2
+        assert fake_alerts.calls[0][0]["symbol"] == "0700.HK"
+        assert fake_alerts.calls[0][0]["change_percent"] == 5.69
     finally:
         set_event_bus(original_event_bus)
 
@@ -654,14 +551,9 @@ def test_market_watchlist_quotes_read_cached_payload_without_publishing_refresh_
         def publish(self, event_name: str, payload: dict[str, object]) -> None:
             self.published.append((event_name, payload))
 
-    class ExplodingNotificationService:
-        def on_watchlist_alert(self, payload):  # pragma: no cover - should not be called
-            raise AssertionError("route should not call notification service directly")
-
     fake_bus = FakeBus()
     monkeypatch.setattr(market_routes, "get_quote_service", lambda: FakeQuoteService(), raising=False)
     monkeypatch.setattr(market_routes, "get_event_bus", lambda: fake_bus, raising=False)
-    monkeypatch.setattr(market_routes, "get_notification_service", lambda: ExplodingNotificationService(), raising=False)
     client = TestClient(app)
 
     response = client.get("/api/market/watchlist")
@@ -1119,8 +1011,6 @@ def _seed_watchlist_symbol(symbol: str, market: str) -> None:
                 market=market,
                 display_name=f"{symbol} 测试标的",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.commit()

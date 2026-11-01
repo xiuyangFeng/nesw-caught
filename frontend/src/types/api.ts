@@ -368,6 +368,8 @@ export interface StreamEventMap {
   // （比 QuoteSummaryView 多 is_abnormal / abnormal_reason），因此用 MarketSnapshot。
   'market.watchlist_refreshed': { symbols: string[]; quotes: MarketSnapshot[] };
   'stream.keepalive': { status: 'ok' };
+  // 站内提醒：非静默时段新产生的提醒（AlertService 发布）。
+  'alert.created': Alert;
 }
 
 export type StreamEventType = keyof StreamEventMap;
@@ -398,27 +400,10 @@ export type NewsQuery = {
 };
 
 // ---------------------------------------------------------------------------
-// 飞书通知
+// 站内提醒（聚焦改造 P2）
 // ---------------------------------------------------------------------------
-// 告警治理配置。后端以 settings 默认 + NotificationService 内存覆盖实现（不落库），
-// 通过既有飞书配置接口回显 / 保存。generated/api.d.ts 暂未含该字段，这里 additive 扩展。
-export type AlertGovernanceConfig = {
-  quiet_hours_start: string | null;
-  quiet_hours_end: string | null;
-  quiet_hours_tz: string;
-  dedupe_window_minutes: number;
-  digest_window_minutes: number;
-  digest_threshold: number;
-  critical_change_percent: number;
-};
-
-export type FeishuNotifyConfig = Schemas['FeishuConfigView'] & {
-  governance?: AlertGovernanceConfig | null;
-};
-export type FeishuNotifyConfigUpdate = Schemas['FeishuConfigUpsertRequest'] & {
-  governance?: Partial<AlertGovernanceConfig> | null;
-};
-export type FeishuTestResult = Schemas['FeishuTestResult'];
+export type Alert = Schemas['AlertView'];
+export type AlertKind = 'holding_price_move' | 'holding_news' | 'watch_news_digest' | 'sentiment_divergence';
 
 // ---------------------------------------------------------------------------
 // 每日盘前/盘后 AI 简报（Daily Digest）

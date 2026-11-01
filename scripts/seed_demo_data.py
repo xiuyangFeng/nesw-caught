@@ -71,16 +71,12 @@ def seed_demo_data(session_factory=None) -> None:
                         market="hk",
                         display_name="Tencent",
                         is_active=True,
-                        alert_threshold=3.0,
-                        alert_mode="fixed",
                     ),
                     WatchlistItem(
                         symbol="AAPL",
                         market="us",
                         display_name="Apple",
                         is_active=True,
-                        alert_threshold=2.0,
-                        alert_mode="fixed",
                     ),
                 ]
             )
