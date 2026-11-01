@@ -303,18 +303,17 @@ def test_news_created_batch_handler_publishes_news_updated_after_processing(
         def get_by_ids(self, requested_ids: list[int]) -> list[NewsItem]:
             return [self.get_by_id(rid) for rid in requested_ids]
 
-    class FakeNotificationService:
-        def on_news_created_batch(self, payloads: list[dict[str, object]]) -> None:
+    class NoopAlertService:
+        def on_news_batch(self, payloads):
             del payloads
+            return 0
 
-        def on_analysis_completed(self, payload: dict[str, object]) -> None:
-            del payload
 
     fake_bus = FakeBus()
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
     monkeypatch.setattr(main_module, "NewsSignalPipelineService", FakePipelineService)
     monkeypatch.setattr(main_module, "NewsRepository", FakeNewsRepository)
-    monkeypatch.setattr(main_module, "get_notification_service", lambda: FakeNotificationService())
+    monkeypatch.setattr("app.workers.queue_worker.get_alert_service", lambda: NoopAlertService())
 
     main_module._register_event_handlers()
     fake_bus.publish("news.created_batch", {"news_ids": [news_id]})

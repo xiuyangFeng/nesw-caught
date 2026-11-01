@@ -65,8 +65,6 @@ def _seed(session, symbol: str, market: str) -> None:
             market=market,
             display_name=symbol,
             is_active=True,
-            alert_threshold=None,
-            alert_mode="fixed",
         )
     )
     session.commit()

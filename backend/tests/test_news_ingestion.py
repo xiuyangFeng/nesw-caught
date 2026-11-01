@@ -1680,15 +1680,18 @@ def test_news_created_batch_subscriber_publishes_news_signals_processed(monkeypa
         def get_by_ids(self, news_ids: list[int]) -> list[Any]:
             return [FakeNewsItem(nid) for nid in news_ids]
 
-    class FakeNotificationService:
-        def on_news_created_batch(self, payloads: list[dict]) -> None: pass
+    class NoopAlertService:
+        def on_news_batch(self, payloads):
+            del payloads
+            return 0
+
 
     fake_bus = FakeBus()
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
     monkeypatch.setattr(main_module, "NewsSignalPipelineService", FakePipelineService)
     monkeypatch.setattr("app.workers.queue_worker.NewsSignalPipelineService", FakePipelineService)
     monkeypatch.setattr("app.workers.queue_worker.NewsRepository", FakeNewsRepositoryForProcessed)
-    monkeypatch.setattr(main_module, "get_notification_service", lambda: FakeNotificationService())
+    monkeypatch.setattr("app.workers.queue_worker.get_alert_service", lambda: NoopAlertService())
 
     class DummySession:
         def __enter__(self): return self

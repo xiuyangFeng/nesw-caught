@@ -5,6 +5,22 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T3：删除飞书推送与旧通知体系、单股阈值
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端通知模块、飞书客户端、自选股字段、数据库迁移、测试。
+- 变更内容：
+  - 删除 `notification_service.py`、`feishu_client.py`、`notification_delivery_worker.py`、`/api/notify/*` 路由与 `schemas/feishu_notify.py`、`feishu_notify_config` / `notification_job` 模型与 repository；`http_pool` 去掉飞书 client；删除 `notify_*` 配置项。
+  - `main.py`：去掉通知服务启停、"分析完成"推送（`news.analysis_completed` 订阅）、每日复盘生成后的推送（复盘照常生成）；情绪背离 worker（默认关闭）改由 lifespan 在开关打开时直接启动，命中写入站内提醒。
+  - 删除自选股单股阈值：`watchlist_item.alert_threshold`、`alert_mode` 从模型、schema（创建请求与响应）、repository、路由中移除。
+  - 新增迁移 `c6d2f8a4e9b1`：删除 `notification_job`、`feishu_notify_config` 两表与 `watchlist_item` 两列（batch 重建，股票代码唯一索引保留）；downgrade 回放原始 DDL 并把两列加回。历史迁移 `0a513ac0e869` 增加"`notification_job` 不存在则跳过"的前置判断（已执行过的库不受影响），使按当前模型建表的库能走完迁移链。
+  - `queue_worker` 中的错误计数 `notification_error` 保留原名（系统健康页按该子 worker 名展示），注释改为"新闻站内提醒评估失败"。
+  - 测试：删除 `test_alert_governance`、`test_feishu_notify`、`test_feishu_sender`、`test_notification_dedupe`、`test_notification_jobs`、`test_http_pool`（仅测飞书 client）；`test_sentiment_divergence_alert.py` 改写为 worker 写入站内提醒并同日去重；生命周期、连接池、流水线等测试去掉通知替身；10 个测试文件与 `seed_demo_data.py` 去掉 `alert_threshold` / `alert_mode` 参数。
+- 影响文件：上述删除文件，以及 `backend/alembic/versions/c6d2f8a4e9b1_drop_feishu_and_per_stock_alerts.py`（新）、`backend/alembic/versions/0a513ac0e869_notification_job_dedupe_key_unique_index.py`、`backend/app/{main.py,core/config.py,api/router.py,api/routes/watchlist.py,schemas/watchlist.py,models/watchlist_item.py,models/__init__.py,repositories/watchlist_repository.py,services/http_pool.py,services/ops_health.py,workers/queue_worker.py,db/initializer.py}`、`backend/alembic/env.py`、多个测试文件、`scripts/seed_demo_data.py`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `/api/notify/*`；`POST /api/watchlist` 请求体与自选股响应移除 `alert_threshold`、`alert_mode`（请求中多传会被忽略）；主库删除两表两列（迁移可回退）。前端在 T4、T5 同步。
+- 验证情况：`pytest backend/tests` 1019 passed / 7 failed（与基线相同的已知测试污染）；`ruff check backend scripts` 通过。P2 前备份副本上 `upgrade head` → `downgrade -2` → `upgrade head` 往返正常：4 只自选股的名称、持仓数量、成本前后一致，`ix_watchlist_item_symbol` 仍为唯一索引，回退后两表两列恢复。
+- 风险或后续事项：前端仍引用 `/api/notify/*` 与飞书类型，T4 删除；`openapi.json` 在 T4 重新生成。
+
 ## 2026-11-01 聚焦改造 P2-T2：站内提醒规则服务并接入行情与新闻流程
 
 - 修改人：Claude Code（Opus 5.5）

@@ -496,7 +496,6 @@ def test_pools_do_not_silently_revive_after_shutdown(_restore_http_pool) -> None
         http_pool.get_llm_client,
         http_pool.get_crawl_client,
         http_pool.get_feed_client,
-        http_pool.get_feishu_client,
     ):
         with pytest.raises(http_pool.HttpPoolShutdownError):
             getter()

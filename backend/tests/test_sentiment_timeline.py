@@ -68,8 +68,6 @@ def _ensure_watchlist_item(session, *, symbol: str, market: str, display_name: s
                 market=market,
                 display_name=display_name,
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.flush()

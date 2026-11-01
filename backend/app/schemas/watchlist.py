@@ -10,8 +10,6 @@ class WatchlistItemCreate(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     market: str
     display_name: str = Field(min_length=1, max_length=120)
-    alert_threshold: float | None = None
-    alert_mode: str = "fixed"
 
 
 class WatchlistItemUpdate(BaseModel):
@@ -31,8 +29,6 @@ class WatchlistItemView(BaseModel):
     market: str
     display_name: str
     is_active: bool
-    alert_threshold: float | None = None
-    alert_mode: str
     position_size: float | None = None
     average_cost: float | None = None
 

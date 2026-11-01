@@ -13,7 +13,6 @@ from app.api.routes import (
     logs,
     market,
     news,
-    notify,
     ops,
     portfolio,
     research,
@@ -31,7 +30,6 @@ api_router.include_router(digest.router, prefix="/digest", tags=["digest"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
 api_router.include_router(logs.router, prefix="/logs", tags=["logs"])
 api_router.include_router(news.router, prefix="/news", tags=["news"])
-api_router.include_router(notify.router, prefix="/notify", tags=["notify"])
 api_router.include_router(topics.router, prefix="/topics", tags=["topics"])
 api_router.include_router(market.router, prefix="/market", tags=["market"])
 api_router.include_router(watchlist.router, prefix="/watchlist", tags=["watchlist"])

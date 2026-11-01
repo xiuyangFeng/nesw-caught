@@ -70,8 +70,6 @@ def test_quote_service_keeps_display_name_for_a_share_alias_lookup() -> None:
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -124,8 +122,6 @@ def test_quote_service_reads_cached_watchlist_quote_for_legacy_a_share_alias_row
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -179,8 +175,6 @@ def test_quote_service_refresh_uses_canonical_cached_snapshot_for_legacy_a_share
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -235,8 +229,6 @@ def test_quote_service_resolves_canonical_a_share_input_against_legacy_watchlist
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.add(
@@ -288,8 +280,6 @@ def test_market_chart_service_resolves_canonical_a_share_input_against_legacy_wa
                 market="cn",
                 display_name="贵州茅台",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.commit()
@@ -1026,8 +1016,6 @@ def _seed_watchlist_symbol(symbol: str, market: str) -> None:
                 market=market,
                 display_name=f"{symbol} 测试标的",
                 is_active=True,
-                alert_threshold=None,
-                alert_mode="fixed",
             )
         )
         session.commit()
