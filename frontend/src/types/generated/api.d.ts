@@ -186,23 +186,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/llm/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Chat With Llm */
-        post: operations["chat_with_llm_api_llm_chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/llm/config": {
         parameters: {
             query?: never;
@@ -1726,27 +1709,6 @@ export interface components {
             over_budget: boolean;
             /** Usage Ratio */
             usage_ratio?: number | null;
-        };
-        /** LLMChatRequest */
-        LLMChatRequest: {
-            /** Config Id */
-            config_id?: number | null;
-            /**
-             * History
-             * @default []
-             */
-            history: {
-                [key: string]: string;
-            }[];
-            /** Message */
-            message: string;
-            /** News Id */
-            news_id?: number | null;
-            /**
-             * Stream
-             * @default true
-             */
-            stream: boolean;
         };
         /** LLMConfigUpsertRequest */
         LLMConfigUpsertRequest: {
@@ -4117,41 +4079,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["XHealthResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chat_with_llm_api_llm_chat_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-App-Token"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LLMChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

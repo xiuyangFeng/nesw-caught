@@ -71,11 +71,6 @@ const router = createRouter({
       component: lazyView(() => import('../views/NotifySettingsView.vue')),
     },
     {
-      path: '/chat',
-      name: 'ai-chat',
-      component: lazyView(() => import('../views/ChatView.vue')),
-    },
-    {
       path: '/digest',
       name: 'daily-digest',
       component: lazyView(() => import('../views/DigestView.vue')),

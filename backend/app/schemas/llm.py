@@ -90,14 +90,6 @@ class LLMStatsView(BaseModel):
     budget: LLMBudgetView
 
 
-class LLMChatRequest(BaseModel):
-    message: str
-    history: list[dict[str, str]] = []
-    news_id: int | None = None
-    config_id: int | None = None
-    stream: bool = True
-
-
 class LLMTranslateRequest(BaseModel):
     text: str
 

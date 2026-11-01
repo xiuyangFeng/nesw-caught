@@ -5,6 +5,18 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T4：删除 AI 对话
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端 LLM 路由、前端对话页与布局。
+- 变更内容：
+  - 后端：删除 `POST /api/llm/chat` 及只为其服务的 `_load_chat_context`；删除 `LLMChatRequest`；删除 `tests/test_llm_chat.py` 与 `test_llm_stats.py` 中的 `test_llm_chat_failover_sse`。保留 LLM 配置、`translate`、`test`、`stats`、`ping` 接口；`llm_providers` 的流式/降级能力保留，供 P3 的 AI 分层处理复用。
+  - 前端：删除 `ChatView`、`components/chat/`、`composables/useChatStream`、`composables/useChatSessions`（含"交易台研究会话"入口）及其测试；移除 `/chat` 路由与导航项；`AppShell.vue` 去掉只为对话页做的整屏锁定布局分支（`isChatRoute`），改为固定样式，并删除对应测试。
+- 影响文件：`backend/app/api/routes/llm.py`、`backend/app/schemas/llm.py`、`backend/tests/test_llm_chat.py`（删）、`backend/tests/test_llm_stats.py`、`frontend/src/views/ChatView.{vue,test.ts}`（删）、`frontend/src/components/chat/`（删）、`frontend/src/composables/useChatStream.{ts,test.ts}`、`useChatSessions.{ts,test.ts}`（删）、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.{vue,test.ts}`、`frontend/src/smoke/app-navigation.test.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `POST /api/llm/chat`。无数据表变化（对话从未落库）。
+- 验证情况：`pytest backend/tests` 1243 passed / 9 failed（与基线相同的 9 个）；`ruff check backend` 通过；`vue-tsc` 零错误；`vitest run` 84 个文件、488 passed；`npm run build` 通过；`openapi.json` 中已无 `/api/llm/chat`。
+- 风险或后续事项：`utils/markdown.ts` 仍被每日复盘页和个股详情使用，保留。
+
 ## 2026-11-01 聚焦改造 P1-T3：删除量化台前端
 
 - 修改人：Claude Code（Opus 5.5）

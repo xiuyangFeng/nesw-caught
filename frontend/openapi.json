@@ -1528,57 +1528,6 @@
         "title": "LLMBudgetView",
         "type": "object"
       },
-      "LLMChatRequest": {
-        "properties": {
-          "config_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Config Id"
-          },
-          "history": {
-            "default": [],
-            "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "title": "History",
-            "type": "array"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "news_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "News Id"
-          },
-          "stream": {
-            "default": true,
-            "title": "Stream",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "message"
-        ],
-        "title": "LLMChatRequest",
-        "type": "object"
-      },
       "LLMConfigUpsertRequest": {
         "properties": {
           "api_key": {
@@ -8397,63 +8346,6 @@
         "summary": "X Health Check",
         "tags": [
           "health"
-        ]
-      }
-    },
-    "/api/llm/chat": {
-      "post": {
-        "operationId": "chat_with_llm_api_llm_chat_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-App-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-App-Token"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LLMChatRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Chat With Llm",
-        "tags": [
-          "llm"
         ]
       }
     },

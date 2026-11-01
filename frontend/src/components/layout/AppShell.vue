@@ -68,7 +68,6 @@ const navGroups: NavGroup[] = [
     title: '智能',
     ai: true,
     items: [
-      { label: 'AI 对话', en: 'AI Chat', to: '/chat' },
       { label: 'X 监控', en: 'X Monitor', to: '/x-monitor' },
     ],
   },
@@ -100,7 +99,6 @@ const connectionSummary = computed(() => {
 });
 
 const isLiveConnection = computed(() => connectionStore.state === 'live');
-const isChatRoute = computed(() => route.path === '/chat');
 
 const marketWorkerSummary = computed(() => {
   const status = runtimeStatusStore.marketWorkerStatus;
@@ -404,17 +402,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="grid gap-[18px] p-[18px] shell:grid-cols-[272px_minmax(0,1fr)]"
-    :class="isChatRoute
-      ? 'min-h-screen shell:h-[100dvh] shell:min-h-0 shell:overflow-hidden'
-      : 'min-h-screen'"
+    class="grid min-h-screen gap-[18px] p-[18px] shell:grid-cols-[272px_minmax(0,1fr)]"
     data-role="app-shell-root"
   >
     <aside
-      class="surface top-[18px] flex flex-col gap-[18px] rounded-lg px-4 pb-4 pt-5"
-      :class="isChatRoute
-        ? 'min-h-[calc(100vh-36px)] shell:h-[calc(100dvh-36px)] shell:min-h-0 shell:overflow-y-auto shell:sticky'
-        : 'min-h-[calc(100vh-36px)] shell:sticky'"
+      class="surface top-[18px] flex min-h-[calc(100vh-36px)] flex-col gap-[18px] rounded-lg px-4 pb-4 pt-5 shell:sticky"
       data-role="app-shell-sidebar"
     >
       <div class="grid gap-4 border-b border-border pb-4" data-role="system-header">
@@ -532,10 +524,7 @@ onBeforeUnmount(() => {
     </aside>
 
     <main
-      class="grid min-w-0 gap-3"
-      :class="isChatRoute
-        ? 'content-start shell:h-[calc(100dvh-36px)] shell:min-h-0 shell:grid-rows-[minmax(0,1fr)] shell:overflow-hidden'
-        : 'content-start'"
+      class="grid min-w-0 content-start gap-3"
       data-role="app-shell-main"
     >
       <RouteErrorBoundary>

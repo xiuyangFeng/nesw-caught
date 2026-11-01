@@ -136,7 +136,6 @@ const primaryModules: SmokeRoute[] = [
   { path: '/calendar', label: 'Calendar', anchor: { kind: 'role', value: 'calendar-view' } },
   { path: '/settings/llm', label: 'LlmSettings', anchor: { kind: 'text', value: 'LLM Settings' } },
   { path: '/settings/notify', label: 'NotifySettings', anchor: { kind: 'text', value: '通知推送设置' } },
-  { path: '/chat', label: 'Chat', anchor: { kind: 'text', value: 'AI 对话助手' } },
   { path: '/digest', label: 'Digest', anchor: { kind: 'text', value: '每日盘前/盘后 AI 简报' } },
   { path: '/analytics/backtest', label: 'SignalBacktest', anchor: { kind: 'text', value: 'Signal Backtest' } },
   { path: '/ops', label: 'OpsHealth', anchor: { kind: 'role', value: 'ops-health-view' } },
