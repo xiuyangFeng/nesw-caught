@@ -5,6 +5,28 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T8：全量验证与评审修复
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：数据库迁移、资金流服务与面板、前端路由、测试与配置清理。
+- 变更内容：
+  - **已下线 worker 的心跳残留**：真实库实测发现 `worker_runtime_status` 中仍有 `quant_scheduler`、`x_health_probe` 两行，系统健康页会因心跳不再更新而永久报 `worker.heartbeat_timeout`。新增迁移 `c4e1d7a9b2f8` 删除这两行（downgrade 无需恢复，心跳为运行时状态），并新增 `tests/test_focus_p1_migrations.py`（先确认去掉迁移时测试失败，再确认加上后通过；不误删其他 worker）。
+  - **资金流限流保护**：实测东财对连续请求会直接断开连接。`FundFlowService` 改为失败结果也短暂缓存（默认 60 秒，成功仍为 600 秒），避免限流期间反复请求上游；增加可注入时钟便于测试。新增 2 个测试（失败短缓存后重试、成功缓存过期）。
+  - **资金流面板**：接口改为返回约 60 个交易日后，面板只展示最近 10 个交易日、最新在上，金额格式化为"亿 / 万"，占比带正负号；新增测试。
+  - **旧书签兜底**：前端新增 `/:pathMatch(.*)*` 重定向到 `/dashboard`，`/desk*`、`/chat`、`/x-monitor`、`/analytics/backtest`、`/eval/sentiment` 等旧书签不再显示空白页；新增路由测试。
+  - 清理遗留：`pyproject.toml` 删除已不存在的 `x_monitor/__init__.py` 的 ruff 例外；`tests/conftest.py` 删除行情测试库 `MARKET_DATABASE_URL` 设置；`backend/scripts/README-bench.md`、`bench_readpath.py` 删除 `X_MONITOR_ENABLED=false`；资金流面板测试中的"make quant-backfill"文案。
+  - 代码评审：由独立子任务对整个分支做只读评审，确认无遗留引用、保留功能无回归、迁移逐级 downgrade/upgrade 正确；其指出的问题均已在本条处理（未提交的心跳迁移现已提交）。
+- 影响文件：`backend/alembic/versions/c4e1d7a9b2f8_purge_removed_worker_heartbeats.py`（新）、`backend/tests/test_focus_p1_migrations.py`（新）、`backend/app/services/fund_flow_service.py`、`backend/tests/test_fund_flow_service.py`、`backend/tests/conftest.py`、`backend/pyproject.toml`、`backend/scripts/README-bench.md`、`backend/scripts/bench_readpath.py`、`frontend/src/components/watchlist/FundFlowPanel.{vue,test.ts}`、`frontend/src/router/index.{ts,test.ts}`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无接口变化；删除 `worker_runtime_status` 中两条已下线 worker 的心跳行。
+- 验证情况：
+  - 后端 `pytest backend/tests` 1051 passed / 7 failed（均为审计文档已知的测试种子污染）；`ruff check backend scripts` 通过。
+  - 前端 `vitest run` 79 个文件、462 passed；`npm run build` 通过；`check:api-drift` OK。
+  - **真实库**：`make dev` 启动时自动将 `app.db` 从 `b9d5f2a7c013` 升级到 `c4e1d7a9b2f8`；量化、X、评测相关表已删除；`news_item` 21,412 条、`watchlist_item` 4 条完好；`news_stock_mention` 从 2,307 增长到 2,348，说明主流程仍在写入新闻与股票的关联。
+  - **接口实测**（带 App Token）：保留页面依赖的 28 个接口全部 200；已删除接口均为 404。
+  - **资金流实测**：接口在东财限流时返回 200 + 提示文案（符合设计）；未能在本次验证窗口内拿到实时数据（东财持续限流，curl 同样被断开），字段顺序已用此前成功拉取的真实数据锁定在测试中。
+  - 中途出现过 1 个 `test_market.py` K 线测试失败：原因是测试与开发服务器共用本机 Redis 缓存，我的冒烟测试刚好请求了同一只股的 K 线；Redis key 过期后重跑全部通过。这是原有的测试隔离问题，不是本次改动引入。
+- 风险或后续事项：`orphan_queue_drainer` 心跳自 2026-08-21 未更新、`background_queue_worker:crawl_error` 处于降级，这两个系统健康告警在本次改动前就存在。测试未隔离 Redis，开发服务器运行时可能干扰 K 线相关测试。`docs/api-contract.md`（第一阶段草稿）仍记载 `/api/x/*`，未改。
+
 ## 2026-11-01 聚焦改造 P1-T7：导航收敛、遗漏入口清理与文档更新
 
 - 修改人：Claude Code（Opus 5.5）

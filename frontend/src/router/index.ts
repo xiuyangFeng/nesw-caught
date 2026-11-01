@@ -80,6 +80,12 @@ const router = createRouter({
       name: 'ops-health',
       component: lazyView(() => import('../views/OpsHealthView.vue')),
     },
+    {
+      // 兜底：已下线页面（/desk*、/chat、/x-monitor、/analytics/backtest、/eval/sentiment）
+      // 的旧书签及任何未知路径都回到仪表盘，避免空白页。
+      path: '/:pathMatch(.*)*',
+      redirect: '/dashboard',
+    },
   ],
 });
 

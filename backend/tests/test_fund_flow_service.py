@@ -120,15 +120,45 @@ def test_ttl_cache_hits_upstream_once() -> None:
     assert len(client.calls) == 1
 
 
-def test_failures_are_not_cached() -> None:
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_failures_are_cached_briefly_then_retried() -> None:
+    """东财限流时短时间内不重复打上游；失败缓存远短于成功缓存，过期后重试。"""
+    clock = _Clock()
     client = _FakeClient(error=RuntimeError("boom"))
-    service = FundFlowService(client=client, ttl_seconds=600)
+    service = FundFlowService(client=client, ttl_seconds=600, failure_ttl_seconds=60, clock=clock)
+
+    first = service.get_fund_flow("002384.SZ")
+    clock.now += 30
+    second = service.get_fund_flow("002384.SZ")
+
+    assert first.points == [] and second.points == []
+    assert second.note
+    assert len(client.calls) == 1
+
+    client.error = None
+    clock.now += 31
+    recovered = service.get_fund_flow("002384.SZ")
+
+    assert len(recovered.points) == 1
+    assert len(client.calls) == 2
+
+
+def test_success_cache_expires_after_ttl() -> None:
+    clock = _Clock()
+    client = _FakeClient()
+    service = FundFlowService(client=client, ttl_seconds=600, clock=clock)
 
     service.get_fund_flow("002384.SZ")
-    client.error = None
-    view = service.get_fund_flow("002384.SZ")
+    clock.now += 601
+    service.get_fund_flow("002384.SZ")
 
-    assert len(view.points) == 1
     assert len(client.calls) == 2
 
 

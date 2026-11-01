@@ -1,8 +1,9 @@
 """A 股个股资金流：按需拉取东财日线资金流 + 进程内 TTL 缓存。
 
 替代原量化模块的「回填进 market_data.db 再读库」链路：打开个股详情时现拉，
-同一标的在 TTL 内只请求上游一次；上游失败返回空数据 + 说明，不抛 500，也不缓存失败结果。
-东财对连续请求有限流（实测会返回空响应），TTL 缓存同时起到限流保护作用。
+同一标的在 TTL 内只请求上游一次；上游失败返回空数据 + 说明，不抛 500。
+东财对连续请求有限流（实测会直接断开连接），因此失败结果也会短暂缓存（默认 60 秒），
+避免限流期间每次打开详情页都再去撞上游、把限流时间越拉越长。
 
 东财 ``fflow/daykline`` 每行字段顺序（实测确认：主力净流入 = 大单 + 超大单）::
 
@@ -14,6 +15,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -29,6 +31,7 @@ FFLOW_HEADERS = {"Referer": "https://quote.eastmoney.com/"}
 FFLOW_TIMEOUT_SECONDS = 15.0
 A_SHARE_EXCHANGES = frozenset({"SH", "SZ", "BJ"})
 DEFAULT_MAX_POINTS = 60
+DEFAULT_FAILURE_TTL_SECONDS = 60.0
 
 NOTE_NOT_A_SHARE = "资金流仅支持 A 股（沪深北）。"
 NOTE_UPSTREAM_FAILED = "东财资金流暂时不可用，请稍后重试。"
@@ -129,13 +132,18 @@ class FundFlowService:
         *,
         client=None,
         ttl_seconds: float | None = None,
+        failure_ttl_seconds: float = DEFAULT_FAILURE_TTL_SECONDS,
         max_points: int = DEFAULT_MAX_POINTS,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._client = client
         self._ttl_seconds = (
             float(get_settings().fund_flow_cache_ttl_seconds) if ttl_seconds is None else float(ttl_seconds)
         )
+        self._failure_ttl_seconds = float(failure_ttl_seconds)
         self._max_points = max_points
+        self._clock = clock
+        # symbol -> (过期时刻, 结果)；成功与失败共用，只是过期时长不同。
         self._cache: dict[str, tuple[float, FundFlowView]] = {}
         self._lock = threading.Lock()
 
@@ -144,17 +152,20 @@ class FundFlowService:
         if not is_a_share(normalized):
             return FundFlowView(symbol=normalized, points=[], note=NOTE_NOT_A_SHARE)
 
-        now = time.monotonic()
+        now = self._clock()
         with self._lock:
             cached = self._cache.get(normalized)
-            if cached is not None and now - cached[0] < self._ttl_seconds:
+            if cached is not None and now < cached[0]:
                 return cached[1]
 
         try:
             rows = fetch_fund_flow(normalized, client=self._client)
         except Exception as exc:
             logger.warning("fund flow fetch failed for %s: %s", normalized, exc)
-            return FundFlowView(symbol=normalized, points=[], note=NOTE_UPSTREAM_FAILED)
+            failed = FundFlowView(symbol=normalized, points=[], note=NOTE_UPSTREAM_FAILED)
+            with self._lock:
+                self._cache[normalized] = (now + self._failure_ttl_seconds, failed)
+            return failed
 
         rows.sort(key=lambda row: row.trade_date)
         points = [
@@ -171,7 +182,7 @@ class FundFlowService:
         ]
         view = FundFlowView(symbol=normalized, points=points, note=None if points else NOTE_EMPTY)
         with self._lock:
-            self._cache[normalized] = (now, view)
+            self._cache[normalized] = (now + self._ttl_seconds, view)
         return view
 
 

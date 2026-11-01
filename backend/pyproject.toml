@@ -52,16 +52,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Facade package re-exports private helpers (`_normalize_*`, `_record_fetch_*`, ...) so
-# that existing callers/tests can keep doing `from app.services.x_monitor import <name>`.
-# They're intentionally not all listed in `__all__` (only the public surface is), so ruff
-# can't see the cross-module usage. See the module docstring for details.
-"app/services/x_monitor/__init__.py" = ["F401"]
 # Alembic autogenerate needs every model imported here purely for its side effect of
 # registering the table with Base.metadata; the names themselves are never referenced.
 "alembic/env.py" = ["F401"]
-# Same backward-compatible re-export facade pattern as x_monitor/__init__.py above: the
-# ingestion package was split into app/services/ingestion/*, and this module re-exports
+# Backward-compatible re-export facade: the ingestion package was split into
+# app/services/ingestion/*, and this module re-exports
 # both the public API (listed in `__all__`) and private helpers/parsers that other
 # modules (e.g. google_news_search.py) and tests still import directly from here.
 "app/services/news_ingestion.py" = ["F401"]

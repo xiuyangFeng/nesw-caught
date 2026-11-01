@@ -26,6 +26,16 @@ describe('router', () => {
     expect(router.currentRoute.value.name).toBe('dashboard');
   });
 
+  it('sends bookmarks of removed pages back to the dashboard', async () => {
+    const { default: router } = await import('./index');
+
+    for (const removed of ['/desk', '/desk/stocks/600519.SH', '/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment']) {
+      await router.push('/news');
+      await router.push(removed);
+      expect(router.currentRoute.value.path).toBe('/dashboard');
+    }
+  });
+
   it('resolves event detail routes by event key', async () => {
     const { default: router } = await import('./index');
 

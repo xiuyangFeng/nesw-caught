@@ -41,7 +41,7 @@
     # 1) 另开一个终端，用临时库 + 关掉所有会干扰测量的后台 worker 起后端
     DATABASE_URL="sqlite:////tmp/r2_bench.db" SEED_DEMO_DATA=true \
       NEWS_SCHEDULER_ENABLED=false MARKET_QUOTE_PRODUCER_ENABLED=false \
-      X_MONITOR_ENABLED=false BACKUP_ENABLED=false DATA_CLEANUP_ENABLED=false \
+      BACKUP_ENABLED=false DATA_CLEANUP_ENABLED=false \
       PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8991 --log-level warning
 
     # 2) 跑基准并存档
@@ -922,7 +922,7 @@ def build_parser() -> argparse.ArgumentParser:
             "推荐的被测后端启动命令（务必用临时库，绝不要指向 backend/data/app.db）：\n"
             "  DATABASE_URL=\"sqlite:////tmp/r2_bench.db\" SEED_DEMO_DATA=true \\\n"
             "    NEWS_SCHEDULER_ENABLED=false MARKET_QUOTE_PRODUCER_ENABLED=false \\\n"
-            "    X_MONITOR_ENABLED=false BACKUP_ENABLED=false DATA_CLEANUP_ENABLED=false \\\n"
+            "    BACKUP_ENABLED=false DATA_CLEANUP_ENABLED=false \\\n"
             "    PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8991 --log-level warning\n"
             "\n"
             "本脚本自己不会拉起后端，也不会读写任何数据库文件——只发 HTTP。\n"
