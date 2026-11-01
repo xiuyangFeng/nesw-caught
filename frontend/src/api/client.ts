@@ -1,5 +1,6 @@
 import type {
   BacktestQuery,
+  FundFlow,
   BacktestSummary,
   Digest,
   DigestLatest,
@@ -35,7 +36,6 @@ import type {
   PortfolioSummary,
   QuantDataStatus,
   QuantFactor,
-  QuantFundFlow,
   QuantRadar,
   QuantRecommendationLatest,
   QuantRecommendationRun,
@@ -289,6 +289,12 @@ export const apiClient = {
       `/api/market/symbols/${encodeURIComponent(symbol)}/kline?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`,
     ).then((data) => ({ data, degraded: false }));
   },
+  getFundFlow(symbol: string) {
+    return withMockFallback<FundFlow>(
+      () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}/fund-flow`),
+      (mock) => ({ ...mock.mockFundFlow, symbol }),
+    );
+  },
   getWatchlistSparklines(symbols: string[]) {
     return withMockFallback<WatchlistSparklineMap>(
       () => postJson('/api/market/sparklines', { symbols }),
@@ -491,12 +497,6 @@ export const apiClient = {
   },
   getQuantRadar() {
     return withMockFallback<QuantRadar>(() => getJson('/api/quant/radar'), (mock) => mock.mockQuantRadar);
-  },
-  getQuantFundFlow(symbol: string) {
-    return withMockFallback<QuantFundFlow>(
-      () => getJson(`/api/quant/symbols/${encodeURIComponent(symbol)}/fund-flow`),
-      (mock) => ({ ...mock.mockQuantFundFlow, symbol }),
-    );
   },
   getQuantResearch(symbol: string) {
     return withMockFallback<QuantResearchPack>(

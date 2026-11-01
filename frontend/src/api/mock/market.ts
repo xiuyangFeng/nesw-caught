@@ -2,6 +2,7 @@
 // 及自选股研究简报(WatchlistResearchBrief)。
 
 import type {
+  FundFlow,
   MarketSnapshot,
   NewsEventMarker,
   SparklineSeries,
@@ -374,3 +375,9 @@ export const mockWatchlistSparklines: Record<string, SparklineSeries> = Object.f
     },
   ]),
 );
+
+export const mockFundFlow: FundFlow = {
+  symbol: '600519.SH',
+  points: [],
+  note: '离线模式：暂无资金流数据。',
+};

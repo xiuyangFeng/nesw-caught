@@ -512,6 +512,11 @@ export type CalibrationMappingEntry = Schemas['CalibrationMappingEntryView'];
 export type SentimentCalibration = Schemas['SentimentCalibrationView'];
 
 // ---------------------------------------------------------------------------
+// A 股个股资金流（东财按需拉取）
+export type FundFlowPoint = Schemas['FundFlowPointView'];
+export type FundFlow = Schemas['FundFlowView'];
+
+// ---------------------------------------------------------------------------
 // 量化交易台 Phase 0
 // ---------------------------------------------------------------------------
 export type QuantRecommendationItem = Schemas['QuantRecommendationItemView'];
@@ -519,8 +524,6 @@ export type QuantRecommendationRun = Schemas['QuantRecommendationRunView'];
 export type QuantRecommendationLatest = Schemas['QuantRecommendationLatestView'];
 export type QuantRunRequest = Schemas['QuantRunRequest'];
 export type QuantDataStatus = Schemas['QuantDataStatusView'];
-export type QuantFundFlowPoint = Schemas['QuantFundFlowPointView'];
-export type QuantFundFlow = Schemas['QuantFundFlowView'];
 export type QuantRadarCandidate = Schemas['QuantRadarCandidateView'];
 export type QuantRadar = Schemas['QuantRadarView'];
 export type QuantResearchModule = Schemas['QuantResearchModuleView'];

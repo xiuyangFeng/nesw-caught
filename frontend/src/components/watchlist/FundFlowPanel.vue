@@ -3,13 +3,13 @@ import { onMounted, ref, watch } from 'vue';
 
 import SectionCard from '../common/SectionCard.vue';
 import { apiClient } from '../../api/client';
-import type { QuantFundFlow } from '../../types/api';
+import type { FundFlow } from '../../types/api';
 
 const props = defineProps<{
   symbol: string;
 }>();
 
-const payload = ref<QuantFundFlow | null>(null);
+const payload = ref<FundFlow | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -17,7 +17,7 @@ async function loadFlow(symbol: string) {
   loading.value = true;
   error.value = null;
   try {
-    const response = await apiClient.getQuantFundFlow(symbol);
+    const response = await apiClient.getFundFlow(symbol);
     payload.value = response.data;
   } catch (err) {
     error.value = err instanceof Error ? err.message : '资金流加载失败';

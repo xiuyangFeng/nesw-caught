@@ -4,7 +4,6 @@ import type {
   QuantDataStatus,
   QuantDecisionLog,
   QuantFactor,
-  QuantFundFlow,
   QuantPaperAccount,
   QuantProposal,
   QuantRadar,
@@ -38,12 +37,6 @@ export const mockQuantDataStatus: QuantDataStatus = {
   symbol_count: 0,
   fund_flow_count: 0,
   last_trade_date: null,
-};
-
-export const mockQuantFundFlow: QuantFundFlow = {
-  symbol: '600519.SH',
-  points: [],
-  note: '尚无个股资金流。运行 make quant-backfill 后可见。',
 };
 
 export const mockQuantRadar: QuantRadar = {

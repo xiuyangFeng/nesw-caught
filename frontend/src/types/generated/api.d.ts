@@ -524,6 +524,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/market/symbols/{symbol}/fund-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Symbol Fund Flow
+         * @description A 股个股日线资金流（东财按需拉取，进程内 TTL 缓存；非 A 股或上游失败返回空 + note）。
+         */
+        get: operations["get_symbol_fund_flow_api_market_symbols__symbol__fund_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/market/symbols/{symbol}/kline": {
         parameters: {
             query?: never;
@@ -1981,6 +2001,35 @@ export interface components {
             accepted: number;
             /** Dropped */
             dropped: number;
+        };
+        /** FundFlowPointView */
+        FundFlowPointView: {
+            /** Large Net */
+            large_net?: number | null;
+            /** Main Net Inflow */
+            main_net_inflow?: number | null;
+            /** Main Net Pct */
+            main_net_pct?: number | null;
+            /** Medium Net */
+            medium_net?: number | null;
+            /** Small Net */
+            small_net?: number | null;
+            /** Super Large Net */
+            super_large_net?: number | null;
+            /**
+             * Trade Date
+             * Format: date
+             */
+            trade_date: string;
+        };
+        /** FundFlowView */
+        FundFlowView: {
+            /** Note */
+            note?: string | null;
+            /** Points */
+            points?: components["schemas"]["FundFlowPointView"][];
+            /** Symbol */
+            symbol: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -5841,6 +5890,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuoteDetailView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_symbol_fund_flow_api_market_symbols__symbol__fund_flow_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FundFlowView"];
                 };
             };
             /** @description Validation Error */

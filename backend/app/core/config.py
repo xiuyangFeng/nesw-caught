@@ -172,6 +172,8 @@ class Settings(BaseSettings):
     x_radar_rules_file: str | None = None
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
+    # A 股个股资金流（东财）按需拉取的进程内缓存 TTL。
+    fund_flow_cache_ttl_seconds: int = 600
     # 财报/事件日历缓存 TTL：yfinance 日历调用慢，默认 6 小时。
     calendar_cache_ttl_seconds: int = 21600
     # 单机单进程默认形态:producer 随后端 lifespan 一起启停(见 app/main.py)。

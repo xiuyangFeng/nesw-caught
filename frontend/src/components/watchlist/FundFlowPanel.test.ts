@@ -3,23 +3,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FundFlowPanel from './FundFlowPanel.vue';
 
-const { getQuantFundFlow } = vi.hoisted(() => ({
-  getQuantFundFlow: vi.fn(),
+const { getFundFlow } = vi.hoisted(() => ({
+  getFundFlow: vi.fn(),
 }));
 
 vi.mock('../../api/client', () => ({
   apiClient: {
-    getQuantFundFlow,
+    getFundFlow,
   },
 }));
 
 describe('FundFlowPanel', () => {
   beforeEach(() => {
-    getQuantFundFlow.mockReset();
+    getFundFlow.mockReset();
   });
 
   it('renders the empty fund-flow state', async () => {
-    getQuantFundFlow.mockResolvedValue({
+    getFundFlow.mockResolvedValue({
       data: { symbol: '600519.SH', points: [], note: '尚无个股资金流。运行 make quant-backfill 后可见。' },
       degraded: false,
     });
@@ -28,6 +28,6 @@ describe('FundFlowPanel', () => {
 
     expect(wrapper.find('[data-role="stock-fund-flow-empty"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('尚无个股资金流');
-    expect(getQuantFundFlow).toHaveBeenCalledWith('600519.SH');
+    expect(getFundFlow).toHaveBeenCalledWith('600519.SH');
   });
 });

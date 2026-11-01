@@ -5,6 +5,20 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T1：A 股资金流迁出量化模块（按需拉取 + 修正字段顺序）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端行情接口、自选股详情资金流面板（前端）。
+- 变更内容：
+  - 新增 `fund_flow_service`：打开个股详情时按需拉取东财日线资金流，进程内 TTL 缓存（默认 600 秒，`FUND_FLOW_CACHE_TTL_SECONDS`）；非 A 股或上游失败返回空 `points` + `note`，不抛 500，失败不缓存。不再依赖 `market_data.db` 回填。
+  - **修复字段顺序错误**：东财 `fflow/daykline` 第 2～5 列依次为小单、中单、大单、超大单（实测：主力净流入 = 大单 + 超大单）。原量化解析器把它们整体颠倒，页面上的"超大单"实为小单。
+  - **修复历史深度**：原地址 `push2` 只返回当日一条（原 `fund_flow_daily` 每只股仅 1 天）；改用 `push2his`，可返回约 120 个交易日，接口取最近 60 个。
+  - 新增 `GET /api/market/symbols/{symbol}/fund-flow`；前端 `FundFlowPanel` 改用 `apiClient.getFundFlow`，类型改为 `FundFlow` / `FundFlowPoint`，mock 移到 `api/mock/market.ts`；移除前端的 `getQuantFundFlow` 与 `mockQuantFundFlow`（旧后端接口随 T2 删除）。
+- 影响文件：`backend/app/services/fund_flow_service.py`（新）、`backend/app/api/routes/market.py`、`backend/app/schemas/market.py`、`backend/app/core/config.py`、`backend/tests/test_fund_flow_service.py`（新）、`frontend/src/api/client.ts`、`frontend/src/api/mock/market.ts`、`frontend/src/api/mock/quant.ts`、`frontend/src/types/api.ts`、`frontend/src/components/watchlist/FundFlowPanel.vue`、`frontend/src/components/watchlist/FundFlowPanel.test.ts`、`frontend/src/smoke/app-navigation.test.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 `GET /api/market/symbols/{symbol}/fund-flow`（响应字段与旧 `QuantFundFlowView` 相同：`symbol`、`points[]`、`note`）。新增配置 `fund_flow_cache_ttl_seconds`。旧 `/api/quant/symbols/{symbol}/fund-flow` 暂留，T2 删除。
+- 验证情况：`pytest backend/tests/test_fund_flow_service.py`（8 个，含用真实返回行锁定字段顺序）、`test_market.py`、`test_market_overview_api.py` 共 50 passed；`ruff check backend/app` 通过；前端相关 vitest 15 个文件 129 passed，`vue-tsc` 零错误，`check:api-drift` OK。实网：curl 调 `push2his` 成功拿到 002384.SZ 120 天数据并核对列顺序；之后因连续请求被东财临时限流（连接直接断开，curl 和 httpx 都一样），服务按设计返回 `note`。页面实测留到 T8。
+- 风险或后续事项：东财接口无 SLA、对连续请求会限流；TTL 缓存可减少请求次数。
+
 ## 2026-11-01 聚焦改造 P1 实施计划
 
 - 修改人：Claude Code（Opus 5.5），与用户 xiuyang 访谈产出
