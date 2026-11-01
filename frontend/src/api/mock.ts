@@ -5,7 +5,6 @@
 //   - mock/news.ts        新闻、话题(Topic)、事件流(NewsFeedLayout)
 //   - mock/market.ts      行情快照、自选股(Watchlist)、K 线、研究简报
 //   - mock/llm.ts         LLM 配置、翻译、新闻个股映射分析、AI 投研简报
-//   - mock/xMonitor.ts    X（Twitter）监控：账号、帖子、情报雷达
 //   - mock/ops.ts         系统健康检查、SSE 流、飞书通知、新闻链路运行时状态
 //   - mock/marketOverview.ts  市场总览(五市场聚合 + 指数配置清单)
 //   - mock/sentimentEval.ts 情绪/利好利空评测闭环（GET/POST /api/eval/sentiment[/run]）
@@ -16,7 +15,6 @@
 export * from './mock/news';
 export * from './mock/market';
 export * from './mock/llm';
-export * from './mock/xMonitor';
 export * from './mock/ops';
 export * from './mock/marketOverview';
 export * from './mock/sentimentEval';

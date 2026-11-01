@@ -5,6 +5,22 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T5：删除 X 监控
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端 X 监控模块、健康检查与系统健康、数据库迁移、前端 X 页面与系统健康页。
+- 变更内容：
+  - 后端删除：`app/services/x_monitor/`、`x_radar_signal_builder.py`、`twitterapi_io_client.py`、`workers/x_health_probe_worker.py`、`/api/x/*` 路由、`GET /api/health/x`、4 个 `x_*` repository、6 个 `x_*` 模型、`schemas/x_monitor.py`、`tests/test_x_monitor.py`、`tests/test_x_health_probe_worker.py`。
+  - `main.py` 与 `pipeline_worker_main.py` 去掉 X 健康探针；`config.py` 去掉 `x_monitor_*`、`twitterapi_io_*`、`x_radar_rules_file`；`ops_health` 去掉 X 源采集与"X 源连续失败"告警；`seed_demo_data.py` 去掉 X 种子数据。
+  - 新增主库迁移 `c2a7e9d1f3b4`：删除 6 张 `x_*` 表。这些表大多由早期 `create_all` 建出、迁移链中没有建表记录，因此 `downgrade` 回放下线前从真实库取得的原始 DDL。
+  - 前端删除：`XMonitorView`、`xMonitorStore`、`api/mock/xMonitor.ts`、`components/ops/OpsXSourcesCard`（均含测试）；移除 `/x-monitor` 路由、"智能"导航组、`client.ts` 中 12 个 X 方法与 `types/api.ts` 中的 X 类型；系统健康页去掉 X 源卡片。
+  - 测试：`test_ops_health.py` 去掉 X 源数据与断言，改为断言响应中不再有 `x_sources`；`test_market_route_perf.py` 用"`/health` 不再返回 `x_monitor_*`"替换原两个 X 探针用例。
+- 影响文件：上述删除文件，以及 `backend/alembic/versions/c2a7e9d1f3b4_drop_x_monitor_tables.py`（新）、`backend/app/{main.py,core/config.py,api/router.py,api/routes/health.py,schemas/health.py,schemas/ops.py,services/ops_health.py,models/__init__.py,db/initializer.py,workers/pipeline_worker_main.py}`、`backend/alembic/env.py`、`backend/tests/{test_ops_health.py,test_market_route_perf.py}`、`scripts/seed_demo_data.py`、`frontend/src/{router/index.ts,components/layout/AppShell.vue,api/client.ts,api/client.test.ts,api/mock.ts,api/mock/ops.ts,types/api.ts,views/OpsHealthView.vue,views/OpsHealthView.test.ts,smoke/app-navigation.test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `/api/x/*` 与 `GET /api/health/x`；`GET /api/health` 移除 `x_monitor_enabled`、`x_monitor_healthy`；`GET /api/ops/health` 移除 `x_sources`（前端已同步）；主库删除 6 张 `x_*` 表（迁移可回退）。本地 `.env` 中残留的 `X_MONITOR_*` / `TWITTERAPI_IO_*` 会被 `extra="ignore"` 忽略，不影响启动。
+- 验证情况：`pytest backend/tests` 1198 passed / 9 failed（与基线相同）；`ruff check` 通过；备份副本上 `upgrade head`（连同 T2 迁移）删除 30 个 `x_*` 表和索引，`downgrade -1` 后 30 个全部恢复（`.schema x_post` 仅索引列出顺序不同），再次 upgrade 正常。前端 `vue-tsc` 零错误，`vitest run` 81 个文件、475 passed，`npm run build` 通过，`check:api-drift` OK，`openapi.json` 中已无 `/api/x`。
+- 附带：`ruff --fix` 顺手调整了 `scripts/reprocess_news_signals.py` 的 import 顺序（无行为变化）。
+- 风险或后续事项：建议用户自行从 `.env` 中删除 `TWITTERAPI_IO_API_KEY` 等已失效的配置项（其中含 API key，本次未改动用户 `.env`）。
+
 ## 2026-11-01 聚焦改造 P1-T4：删除 AI 对话
 
 - 修改人：Claude Code（Opus 5.5）

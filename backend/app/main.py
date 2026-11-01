@@ -194,7 +194,6 @@ async def lifespan(_: FastAPI):
     redis_consumer = None
     market_quote_producer: MarketQuoteProducer | None = None
     market_overview_producer: MarketOverviewProducer | None = None
-    x_health_probe_worker = None
     event_bus = get_event_bus()
     redis_publisher = getattr(event_bus, "redis_publisher", None)
     stream_map = getattr(event_bus, "stream_map", None) or {}
@@ -259,16 +258,6 @@ async def lifespan(_: FastAPI):
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
-    if settings.pipeline_workers_enabled:
-        # /health 已改为只读 x_source_health 的上次探测结果（不再在请求线程里发起
-        # 最长 60 秒的外网探针）。这个 worker 负责按固定间隔把该结果刷新，否则
-        # /health 会长期把健康的 X 监控报成 unknown。
-        # 纯外网探针没必要占 web 进程，因此与 pipeline worker 共用同一个进程归属开关。
-        from app.workers.x_health_probe_worker import build_x_health_probe_worker
-
-        x_health_probe_worker = build_x_health_probe_worker(SessionLocal)
-        if x_health_probe_worker is not None:
-            x_health_probe_worker.start()
     if settings.backup_enabled:
         backup_worker = build_backup_worker(SessionLocal)
         if backup_worker is not None:
@@ -294,8 +283,6 @@ async def lifespan(_: FastAPI):
         redis_consumer.stop()
     if digest_worker is not None:
         digest_worker.stop()
-    if x_health_probe_worker is not None:
-        x_health_probe_worker.stop()
     if cleanup_worker is not None:
         cleanup_worker.stop()
     if backup_worker is not None:

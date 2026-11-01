@@ -65,20 +65,6 @@ class OpsSourceView(BaseModel):
     consecutive_empty_batches: int = 0
 
 
-class OpsXSourceView(BaseModel):
-    """X（推特）数据源健康快照。"""
-
-    provider_name: str
-    last_success_at: UTCDateTime | None = None
-    last_failure_at: UTCDateTime | None = None
-    consecutive_failures: int
-    total_fetches: int
-    total_failures: int
-    success_rate: float | None = None
-    avg_latency_ms: float | None = None
-    last_error: str | None = None
-
-
 class OpsLlmModelUsageView(BaseModel):
     """近窗口内单个模型的调用/token 用量。"""
 
@@ -132,7 +118,6 @@ class OpsHealthResponse(BaseModel):
     alerts: list[OpsAlert]
     workers: list[OpsWorkerView]
     sources: list[OpsSourceView]
-    x_sources: list[OpsXSourceView]
     llm_usage: OpsLlmUsageView
     event_bus: OpsEventBusView
     database: OpsDatabaseView

@@ -16,12 +16,6 @@ from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
 from app.models.watchlist_item import WatchlistItem
 from app.models.worker_runtime_status import WorkerRuntimeStatus
-from app.models.x_account import XAccount
-from app.models.x_post import XPost
-from app.models.x_post_symbol_mention import XPostSymbolMention
-from app.models.x_signal import XSignal
-from app.models.x_signal_post_link import XSignalPostLink
-from app.models.x_source_health import XSourceHealth
 
 __all__ = [
     "ArticleContent",
@@ -42,10 +36,4 @@ __all__ = [
     "TopicNewsLink",
     "WatchlistItem",
     "WorkerRuntimeStatus",
-    "XAccount",
-    "XPost",
-    "XPostSymbolMention",
-    "XSignal",
-    "XSignalPostLink",
-    "XSourceHealth",
 ]

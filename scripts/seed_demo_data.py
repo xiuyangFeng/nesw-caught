@@ -27,7 +27,7 @@ def _ensure_backend_on_path() -> None:
 
 _ensure_backend_on_path()
 
-from datetime import datetime, timedelta, timezone  # noqa: E402
+from datetime import UTC, datetime, timedelta  # noqa: E402
 
 from sqlalchemy import select  # noqa: E402
 
@@ -38,10 +38,6 @@ from app.models.price_snapshot import PriceSnapshot  # noqa: E402
 from app.models.topic_cluster import TopicCluster  # noqa: E402
 from app.models.topic_news_link import TopicNewsLink  # noqa: E402
 from app.models.watchlist_item import WatchlistItem  # noqa: E402
-from app.models.x_account import XAccount  # noqa: E402
-from app.models.x_post import XPost  # noqa: E402
-from app.models.x_post_symbol_mention import XPostSymbolMention  # noqa: E402
-from app.models.x_source_health import XSourceHealth  # noqa: E402
 
 
 def seed_demo_data(session_factory=None) -> None:
@@ -56,22 +52,16 @@ def seed_demo_data(session_factory=None) -> None:
         has_news = session.scalar(select(NewsItem.id).limit(1)) is not None
         has_snapshots = session.scalar(select(PriceSnapshot.id).limit(1)) is not None
         has_topics = session.scalar(select(TopicCluster.id).limit(1)) is not None
-        has_x_accounts = session.scalar(select(XAccount.id).limit(1)) is not None
-        has_x_posts = session.scalar(select(XPost.id).limit(1)) is not None
-        has_x_health = session.scalar(select(XSourceHealth.id).limit(1)) is not None
 
         if (
             has_watchlist
             and has_news
             and has_snapshots
             and has_topics
-            and has_x_accounts
-            and has_x_posts
-            and has_x_health
         ):
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if not has_watchlist:
             session.add_all(
@@ -248,93 +238,6 @@ def seed_demo_data(session_factory=None) -> None:
                         fetched_at=now - timedelta(minutes=4),
                     ),
                 ]
-            )
-
-        if not has_x_accounts:
-            session.add_all(
-                [
-                    XAccount(
-                        handle="DeItaone",
-                        display_name="Delta One",
-                        market_focus="us",
-                        is_active=True,
-                        priority=100,
-                        tier="core",
-                        source="manual",
-                        notes="Macro and breaking market headlines",
-                    ),
-                    XAccount(
-                        handle="SawyerMerritt",
-                        display_name="Sawyer Merritt",
-                        market_focus="us",
-                        is_active=True,
-                        priority=80,
-                        tier="watch",
-                        source="manual",
-                        notes="Tech and EV market chatter",
-                    ),
-                ]
-            )
-            session.flush()
-
-        if not has_x_posts:
-            account_by_handle = {
-                item.handle: item
-                for item in session.scalars(select(XAccount).where(XAccount.handle.in_(["DeItaone", "SawyerMerritt"])))
-            }
-            x_posts: list[XPost] = []
-            if account_by_handle.get("DeItaone"):
-                x_posts.append(
-                    XPost(
-                        account_id=account_by_handle["DeItaone"].id,
-                        external_post_id="190001",
-                        canonical_url="https://x.com/DeItaone/status/190001",
-                        content_text="NVIDIA suppliers remain in focus as AI infrastructure demand signals stay firm into the next quarter.",
-                        market="us",
-                        sentiment_label="positive",
-                        relevance_score=0.92,
-                        posted_at=now - timedelta(minutes=13),
-                        captured_at=now - timedelta(minutes=5),
-                        raw_payload_json='{"account_handle":"DeItaone"}',
-                        dedupe_hash="seed-x-post-deltaone-190001",
-                    )
-                )
-            if account_by_handle.get("SawyerMerritt"):
-                x_posts.append(
-                    XPost(
-                        account_id=account_by_handle["SawyerMerritt"].id,
-                        external_post_id="190002",
-                        canonical_url="https://x.com/SawyerMerritt/status/190002",
-                        content_text="Tesla supply chain comments are weighing on near-term EV sentiment after softer delivery expectations.",
-                        market="us",
-                        sentiment_label="negative",
-                        relevance_score=0.84,
-                        posted_at=now - timedelta(minutes=18),
-                        captured_at=now - timedelta(minutes=6),
-                        raw_payload_json='{"account_handle":"SawyerMerritt"}',
-                        dedupe_hash="seed-x-post-sawyermerritt-190002",
-                    )
-                )
-            session.add_all(x_posts)
-            session.flush()
-            mentions: list[XPostSymbolMention] = []
-            for item in x_posts:
-                if item.external_post_id == "190001":
-                    mentions.append(XPostSymbolMention(x_post_id=item.id, symbol="NVDA", market="us", confidence=0.8))
-                if item.external_post_id == "190002":
-                    mentions.append(XPostSymbolMention(x_post_id=item.id, symbol="TSLA", market="us", confidence=0.8))
-            session.add_all(mentions)
-
-        if not has_x_health:
-            session.add(
-                XSourceHealth(
-                    provider_name="twitterapi.io",
-                    total_fetches=0,
-                    total_failures=0,
-                    consecutive_failures=0,
-                    avg_latency_ms=None,
-                    last_error=None,
-                )
             )
 
         session.commit()

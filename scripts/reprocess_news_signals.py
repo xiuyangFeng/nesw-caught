@@ -18,10 +18,11 @@ import time
 
 sys.path.insert(0, ".")
 
+from sqlalchemy import func, select
+
 from app.db.session import SessionLocal
 from app.models.news_item import NewsItem
 from app.services.news_signal_pipeline import NewsSignalPipelineService
-from sqlalchemy import func, select
 
 
 def count_pending(session, *, include_all: bool) -> int:

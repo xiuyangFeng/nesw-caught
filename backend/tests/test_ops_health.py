@@ -13,7 +13,6 @@ from app.main import app
 from app.models.llm_token_usage import LLMTokenUsage
 from app.models.source_health import SourceHealth
 from app.models.worker_runtime_status import WorkerRuntimeStatus
-from app.models.x_source_health import XSourceHealth
 from app.services import ops_health as ops_health_module
 from app.services.event_bus import EventBusStatus
 
@@ -36,7 +35,6 @@ def _clear_tables() -> None:
     with SessionLocal() as session:
         session.query(LLMTokenUsage).delete()
         session.query(SourceHealth).delete()
-        session.query(XSourceHealth).delete()
         session.query(WorkerRuntimeStatus).delete()
         session.commit()
 
@@ -76,16 +74,6 @@ def test_build_ops_health_aggregates_fields(monkeypatch) -> None:
                 last_fetched_count=12,
                 last_inserted_count=3,
                 consecutive_empty_batches=0,
-            )
-        )
-        session.add(
-            XSourceHealth(
-                provider_name="twitterapi_io",
-                last_success_at=now - timedelta(minutes=2),
-                consecutive_failures=0,
-                total_fetches=40,
-                total_failures=0,
-                avg_latency_ms=800.0,
             )
         )
         session.add(
@@ -134,10 +122,6 @@ def test_build_ops_health_aggregates_fields(monkeypatch) -> None:
     assert source.last_fetched_count == 12
     assert source.last_inserted_count == 3
     assert source.consecutive_empty_batches == 0
-
-    assert len(result.x_sources) == 1
-    assert result.x_sources[0].provider_name == "twitterapi_io"
-    assert result.x_sources[0].success_rate == 1.0
 
     # 仅统计近 24h：一条 300 tokens 的记录。
     assert result.llm_usage.window_hours == 24
@@ -198,15 +182,6 @@ def test_ops_health_alerts_triggered(monkeypatch) -> None:
                 is_disabled=True,
             )
         )
-        # 连续失败的 X 源。
-        session.add(
-            XSourceHealth(
-                provider_name="twitterapi_io",
-                consecutive_failures=ops_health_module.SOURCE_CONSECUTIVE_FAILURE_THRESHOLD + 3,
-                total_fetches=10,
-                total_failures=10,
-            )
-        )
         session.commit()
 
     with SessionLocal() as session:
@@ -216,7 +191,6 @@ def test_ops_health_alerts_triggered(monkeypatch) -> None:
     assert "worker.heartbeat_timeout" in codes
     assert "source.consecutive_failures" in codes
     assert "source.disabled" in codes
-    assert "x_source.consecutive_failures" in codes
     assert "event_bus.degraded" in codes
     assert "database.size" in codes
 
@@ -255,7 +229,6 @@ def test_ops_health_no_data_does_not_crash(monkeypatch) -> None:
 
     assert result.workers == []
     assert result.sources == []
-    assert result.x_sources == []
     assert result.llm_usage.call_count == 0
     assert result.llm_usage.total_tokens == 0
     assert result.llm_usage.models == []
@@ -293,7 +266,7 @@ def test_ops_health_route_returns_payload(monkeypatch) -> None:
     assert "alerts" in payload
     assert "workers" in payload
     assert "sources" in payload
-    assert "x_sources" in payload
+    assert "x_sources" not in payload
     assert "llm_usage" in payload
     assert "event_bus" in payload
     assert "database" in payload

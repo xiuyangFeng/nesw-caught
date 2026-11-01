@@ -51,11 +51,6 @@ const router = createRouter({
       component: lazyView(() => import('../views/PortfolioView.vue')),
     },
     {
-      path: '/x-monitor',
-      name: 'x-monitor',
-      component: lazyView(() => import('../views/XMonitorView.vue')),
-    },
-    {
       path: '/calendar',
       name: 'event-calendar',
       component: lazyView(() => import('../views/CalendarView.vue')),

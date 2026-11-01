@@ -19,8 +19,7 @@
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -366,96 +365,16 @@ def test_sparklines_releases_db_session_before_network() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_health_endpoint_never_calls_twitterapi(monkeypatch) -> None:
-    """/health 是前端轮询接口，绝不能在请求线程里发起 twitterapi.io 探针。"""
-    calls: list[str] = []
+def test_health_response_has_no_x_monitor_fields() -> None:
+    """X 监控已下线（聚焦改造 P1）：/health 不再返回 x_monitor_* 字段。"""
+    from fastapi.testclient import TestClient
 
-    def forbidden_request(self, path, params, *, apply_rate_limit=True):  # pragma: no cover - 不应被调用
-        calls.append(path)
-        raise AssertionError("health check must not perform external twitterapi.io calls")
+    from app.main import app
 
-    monkeypatch.setattr(
-        "app.services.twitterapi_io_client.TwitterApiIoClient._request",
-        forbidden_request,
-    )
+    payload = TestClient(app).get("/api/health").json()
 
-    class ForbiddenXMonitorService:  # pragma: no cover - 不应被实例化
-        def __init__(self, session) -> None:
-            calls.append("XMonitorService()")
-            raise AssertionError("health check must not construct XMonitorService")
-
-    monkeypatch.setattr("app.api.routes.health.XMonitorService", ForbiddenXMonitorService)
-    monkeypatch.setattr(
-        "app.api.routes.health.get_settings",
-        lambda: SimpleNamespace(
-            app_name="News Caught Backend",
-            environment="test",
-            stream_mode="sse",
-            ai_enabled=False,
-            x_monitor_enabled=True,
-            twitterapi_io_api_key="test-key",
-            x_monitor_refresh_cooldown_hours=3,
-        ),
-    )
-
-    client = TestClient(app)
-    started_at = time.monotonic()
-    response = client.get("/api/health")
-    elapsed = time.monotonic() - started_at
-
-    assert response.status_code == 200
-    assert calls == []
-    # 未探测过 / 记录陈旧 -> unknown -> False（schema 字段保持不变）。
-    assert response.json()["x_monitor_healthy"] is False
-    assert elapsed < 2.0, f"/health 疑似仍在请求路径里联网：{elapsed:.2f}s"
-
-
-def test_health_reports_x_monitor_healthy_from_recorded_probe(monkeypatch) -> None:
-    """有新鲜的后台探测记录时，/health 直接复用它（纯 DB 读，零网络）。"""
-    from app.models.x_source_health import XSourceHealth
-    from app.services.x_monitor import PROVIDER_NAME
-
-    monkeypatch.setattr(
-        "app.api.routes.health.get_settings",
-        lambda: SimpleNamespace(
-            app_name="News Caught Backend",
-            environment="test",
-            stream_mode="sse",
-            ai_enabled=False,
-            x_monitor_enabled=True,
-            twitterapi_io_api_key="test-key",
-            x_monitor_refresh_cooldown_hours=3,
-        ),
-    )
-
-    with SessionLocal() as session:
-        session.query(XSourceHealth).filter(XSourceHealth.provider_name == PROVIDER_NAME).delete()
-        session.add(
-            XSourceHealth(
-                provider_name=PROVIDER_NAME,
-                last_success_at=datetime.now(UTC) - timedelta(minutes=5),
-                consecutive_failures=0,
-                total_fetches=3,
-                total_failures=0,
-            )
-        )
-        session.commit()
-
-    try:
-        client = TestClient(app)
-        assert client.get("/api/health").json()["x_monitor_healthy"] is True
-
-        # 陈旧记录 -> 视为 unknown -> False。
-        with SessionLocal() as session:
-            row = session.query(XSourceHealth).filter(XSourceHealth.provider_name == PROVIDER_NAME).one()
-            row.last_success_at = datetime.now(UTC) - timedelta(days=30)
-            session.commit()
-
-        assert client.get("/api/health").json()["x_monitor_healthy"] is False
-    finally:
-        with SessionLocal() as session:
-            session.query(XSourceHealth).filter(XSourceHealth.provider_name == PROVIDER_NAME).delete()
-            session.commit()
+    assert "x_monitor_enabled" not in payload
+    assert "x_monitor_healthy" not in payload
 
 
 # ---------------------------------------------------------------------------

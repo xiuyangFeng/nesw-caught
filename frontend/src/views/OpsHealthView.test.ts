@@ -44,19 +44,6 @@ function buildHealth(overrides: Partial<OpsHealth> = {}): OpsHealth {
         consecutive_empty_batches: 0,
       },
     ],
-    x_sources: [
-      {
-        provider_name: 'twitterapi_io',
-        consecutive_failures: 0,
-        success_rate: 0.9,
-        avg_latency_ms: 500,
-        total_fetches: 100,
-        total_failures: 5,
-        last_success_at: '2026-07-14T02:57:00Z',
-        last_failure_at: null,
-        last_error: null,
-      },
-    ],
     llm_usage: {
       window_hours: 24,
       call_count: 12,
@@ -113,12 +100,11 @@ describe('OpsHealthView', () => {
     expect(wrapper.find('[data-role="ops-workers"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="ops-llm"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="ops-sources"]').exists()).toBe(true);
-    expect(wrapper.find('[data-role="ops-x-sources"]').exists()).toBe(true);
+    expect(wrapper.find('[data-role="ops-x-sources"]').exists()).toBe(false);
     expect(wrapper.find('[data-role="ops-event-bus"]').exists()).toBe(true);
     expect(wrapper.find('[data-role="ops-database"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('news_fetch_worker');
     expect(wrapper.text()).toContain('Reuters HK');
-    expect(wrapper.text()).toContain('twitterapi_io');
     expect(wrapper.find('[data-role="ops-alert-empty"]').exists()).toBe(true);
   });
 
@@ -129,7 +115,6 @@ describe('OpsHealthView', () => {
     expect(wrapper.find('[data-role="ops-health-view"]').exists()).toBe(true);
     expect(wrapper.text()).toContain('暂无 worker 运行记录');
     expect(wrapper.text()).toContain('暂无新闻源记录');
-    expect(wrapper.text()).toContain('暂无 X 源记录');
     expect(wrapper.find('[data-role="ops-event-bus"]').text()).toContain('加载中');
     expect(wrapper.find('[data-role="ops-database"]').text()).toContain('加载中');
   });

@@ -232,7 +232,6 @@ export type OpsHealth = Schemas['OpsHealthResponse'];
 export type OpsAlert = Schemas['OpsAlert'];
 export type OpsWorker = Schemas['OpsWorkerView'];
 export type OpsSource = Schemas['OpsSourceView'];
-export type OpsXSource = Schemas['OpsXSourceView'];
 export type OpsLlmUsage = Schemas['OpsLlmUsageView'];
 export type OpsLlmModelUsage = Schemas['OpsLlmModelUsageView'];
 export type OpsEventBus = Schemas['OpsEventBusView'];
@@ -396,30 +395,6 @@ export type NewsQuery = {
   sentiment_label?: SentimentLabel | '';
   limit?: number;
   cursor?: string;
-};
-
-// ---------------------------------------------------------------------------
-// X 监控
-// ---------------------------------------------------------------------------
-export type XAccount = Schemas['XAccountView'];
-export type XAccountCreatePayload = Schemas['XAccountCreateRequest'];
-export type XAccountUpdatePayload = Schemas['XAccountUpdateRequest'];
-export type XAccountsImportResult = Schemas['XAccountsImportResult'];
-export type XAccountsExportResult = Schemas['XAccountsExportResult'];
-export type XPost = Schemas['XPostSummaryView'];
-export type XRadarSignal = Schemas['XRadarSignalView'];
-export type XRadarMacroCluster = Schemas['XRadarMacroClusterView'];
-export type XRadarResponse = Schemas['XRadarResponse'];
-export type XRefreshResult = Schemas['XRefreshResponse'];
-export type XHealth = Schemas['XHealthResponse'];
-
-// 前端 UI 专用:X 帖子查询表单状态(含 '' 哨兵值),理由同 NewsQuery。
-export type XPostQuery = {
-  account_handle?: string;
-  market?: Market | '';
-  q?: string;
-  symbol?: string;
-  limit?: number;
 };
 
 // ---------------------------------------------------------------------------

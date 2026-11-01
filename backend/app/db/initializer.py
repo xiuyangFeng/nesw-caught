@@ -50,12 +50,6 @@ from app.models.topic_cluster import TopicCluster  # noqa: F401
 from app.models.topic_news_link import TopicNewsLink  # noqa: F401
 from app.models.watchlist_item import WatchlistItem  # noqa: F401
 from app.models.worker_runtime_status import WorkerRuntimeStatus  # noqa: F401
-from app.models.x_account import XAccount  # noqa: F401
-from app.models.x_post import XPost  # noqa: F401
-from app.models.x_post_symbol_mention import XPostSymbolMention  # noqa: F401
-from app.models.x_signal import XSignal  # noqa: F401
-from app.models.x_signal_post_link import XSignalPostLink  # noqa: F401
-from app.models.x_source_health import XSourceHealth  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

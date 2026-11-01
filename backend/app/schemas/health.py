@@ -26,8 +26,6 @@ class HealthResponse(BaseModel):
     database: str
     stream_mode: str
     ai_enabled: bool
-    x_monitor_enabled: bool = False
-    x_monitor_healthy: bool = False
     # 数据库真实连通性探测结果：执行一次轻量 SELECT 1 判定，而非硬编码字符串。
     database_healthy: bool = False
     # 全站 source_type="rss" 新闻源里最近一次成功抓取的时间（取全局最大值）；无记录时为 None。

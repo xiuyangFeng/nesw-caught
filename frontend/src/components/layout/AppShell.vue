@@ -65,13 +65,6 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: '智能',
-    ai: true,
-    items: [
-      { label: 'X 监控', en: 'X Monitor', to: '/x-monitor' },
-    ],
-  },
-  {
     title: '系统',
     items: [
       { label: '模型设置', en: 'LLM', to: '/settings/llm' },

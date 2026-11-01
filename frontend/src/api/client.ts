@@ -49,16 +49,6 @@ import type {
   WatchlistItemCreate,
   WatchlistQuoteSummary,
   WatchlistResearchBrief,
-  XAccount,
-  XAccountCreatePayload,
-  XAccountUpdatePayload,
-  XAccountsExportResult,
-  XAccountsImportResult,
-  XHealth,
-  XPost,
-  XPostQuery,
-  XRadarResponse,
-  XRefreshResult,
 } from '../types/api';
 import { HttpError, deleteJson, getJson, isAbortError, patchJson, postJson } from './http';
 type MockModule = typeof import('./mock');
@@ -370,67 +360,6 @@ export const apiClient = {
       () => postJson('/api/eval/sentiment/run', {}),
       (mock) => mock.mockSentimentEval,
     );
-  },
-  getXHealth() {
-    return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);
-  },
-  getXAccounts() {
-    return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), (mock) => mock.mockXAccounts);
-  },
-  getXRadar(limit = 50) {
-    return withMockFallback<XRadarResponse>(() => getJson(`/api/x/radar?limit=${limit}`), (mock) => mock.mockXRadar);
-  },
-  createXAccount(payload: XAccountCreatePayload) {
-    return postJson<XAccount>('/api/x/accounts', payload).then((data) => ({ data, degraded: false }));
-  },
-  updateXAccount(handle: string, payload: XAccountUpdatePayload) {
-    return patchJson<XAccount>(`/api/x/accounts/${encodeURIComponent(handle)}`, payload).then((data) => ({
-      data,
-      degraded: false,
-    }));
-  },
-  deleteXAccount(handle: string) {
-    return deleteJson(`/api/x/accounts/${encodeURIComponent(handle)}`).then((data) => ({ data, degraded: false }));
-  },
-  importXAccounts() {
-    return postJson<XAccountsImportResult>('/api/x/accounts/import', {}).then((data) => ({ data, degraded: false }));
-  },
-  exportXAccounts() {
-    return postJson<XAccountsExportResult>('/api/x/accounts/export', {}).then((data) => ({ data, degraded: false }));
-  },
-  getXPosts(query: XPostQuery = {}) {
-    return withMockFallback<XPost[]>(
-      () => getJson(withQuery('/api/x/posts', query)),
-      (mock) => {
-        const filtered = mock.mockXPosts.filter((item) => {
-          const accountOk = !query.account_handle || item.account_handle === query.account_handle;
-          const marketOk = !query.market || item.market === query.market;
-          const searchText = query.q?.toLowerCase();
-          const searchOk = !searchText || item.content_text.toLowerCase().includes(searchText);
-          const symbolOk = !query.symbol || item.symbols.includes(query.symbol);
-          return accountOk && marketOk && searchOk && symbolOk;
-        });
-        return filtered.slice(0, query.limit ?? filtered.length);
-      },
-    );
-  },
-  getXSearchResults(query: { q: string; limit?: number }) {
-    return withMockFallback<XPost[]>(
-      () => getJson(withQuery('/api/x/search', query)),
-      (mock) => {
-        const searchText = query.q.toLowerCase();
-        const filtered = mock.mockXPosts.filter((item) => {
-          return (
-            item.content_text.toLowerCase().includes(searchText) ||
-            item.symbols.some((symbol) => symbol.toLowerCase().includes(searchText))
-          );
-        });
-        return filtered.slice(0, query.limit ?? filtered.length);
-      },
-    );
-  },
-  refreshXPosts() {
-    return postJson<XRefreshResult>('/api/x/refresh', {}).then((data) => ({ data, degraded: false }));
   },
   getFeishuConfig() {
     return withMockFallback<FeishuNotifyConfig>(

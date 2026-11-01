@@ -23,8 +23,6 @@ export const mockHealth: HealthStatus = {
   ai_enabled: false,
   ai_status: { enabled: false, last_call_at: null },
   source_health_summary: { total: 0, disabled: 0, consecutive_failing: 0 },
-  x_monitor_enabled: false,
-  x_monitor_healthy: false,
 };
 
 export const mockStreamStatus: StreamStatus = {
