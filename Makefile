@@ -2,7 +2,7 @@ PYTHON := conda run -n news-caught python
 PIP := conda run -n news-caught python -m pip
 NPM := npm --prefix frontend
 
-.PHONY: setup backend frontend dev dev-split test test-backend build-frontend ingest-news market-worker pipeline-worker bench bench-save check-openapi quant-backfill
+.PHONY: setup backend frontend dev dev-split test test-backend build-frontend ingest-news market-worker pipeline-worker bench bench-save check-openapi
 
 setup:
 	$(PIP) install -r requirements.txt -e backend
@@ -63,5 +63,3 @@ bench-save:
 check-openapi:
 	$(PYTHON) scripts/export_openapi.py --check
 
-quant-backfill:
-	PYTHONPATH=backend conda run -n news-caught python -m app.services.quant.market_data.backfill_main

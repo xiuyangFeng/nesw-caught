@@ -1,4 +1,7 @@
-"""规则实体识别：用 A 股内存索引把新闻映射到 news_stock_mention。"""
+"""A 股规则实体识别：用 A 股内存索引把新闻映射到 news_stock_mention。
+
+由新闻信号流水线（news_signal_pipeline）在每条新闻落库后调用；原位于量化模块，P1 迁出。
+"""
 
 from __future__ import annotations
 

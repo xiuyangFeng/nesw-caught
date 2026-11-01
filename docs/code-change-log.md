@@ -5,6 +5,20 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T2：删除量化台后端
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端量化模块、独立行情库、数据库迁移、演示数据脚本、Makefile。
+- 变更内容：
+  - 删除 `app/services/quant/`、`quant_desk_service.py`、`/api/quant/*` 路由、`quant_scheduler` worker、`schemas/quant.py`、`models/quant.py`、`models/market_data.py`、`repositories/quant_recommendation_repository.py`、`db/market_initializer.py`、`db/market_session.py`、`backend/alembic_market/`、`alembic_market.ini`、`tests/quant/`、`tests/test_quant_api.py`。
+  - **迁出 A 股股票名匹配**：新闻主流程 `news_signal_pipeline` 依赖量化模块里的 `match_a_share_mentions` / `persist_rule_mentions`（写 `news_stock_mention`，即"新闻和股票的关联"）。原样迁到 `app/services/a_share_mentions.py`，测试迁到 `tests/test_a_share_mentions.py`；只去掉写 `radar_event` 的 `ingest_news` 调用。
+  - 新增主库迁移 `c1f0a2b3d4e5`：删除 15 张量化表（含只被量化使用的 `llm_role_binding`）；`downgrade` 复用原三个建表迁移的 `upgrade()`，回退后结构完全一致。
+  - `main.py` 去掉量化调度 worker；`initializer.py` 去掉行情库初始化；`config.py` 去掉 `market_database_url` 与 `quant_scheduler_*`；`router.py` 去掉 quant；Makefile 去掉 `quant-backfill`；`seed_demo_data.py` 去掉默认量化策略；AI 对话去掉 `desk_symbol` 研究副驾分支（`LLMChatRequest` 移除 `desk_symbol`、`desk_context`）。
+- 影响文件：上述删除文件，以及 `backend/app/services/a_share_mentions.py`（新）、`backend/tests/test_a_share_mentions.py`（新）、`backend/alembic/versions/c1f0a2b3d4e5_drop_quant_desk_tables.py`（新）、`backend/app/services/news_signal_pipeline.py`、`backend/app/main.py`、`backend/app/db/initializer.py`、`backend/app/core/config.py`、`backend/app/api/router.py`、`backend/app/api/routes/llm.py`、`backend/app/schemas/llm.py`、`backend/app/models/__init__.py`、`backend/alembic/env.py`、`scripts/seed_demo_data.py`、`Makefile`、`docs/code-change-log.md`。共 81 个文件，删除约 7,500 行。
+- 接口/数据结构变化：删除全部 `/api/quant/*`；`POST /api/llm/chat` 请求体移除 `desk_symbol`、`desk_context`；主库删除 15 张表（迁移可回退）；不再创建与读取 `market_data.db`（数据文件已备份到 `backend/data/backups/market_data-final-20261101.db`）。前端仍引用这些接口，T3 同步删除。
+- 验证情况：`pytest backend/tests` 1250 passed / 9 failed，失败与 T0 基线完全相同，无新增；`ruff check backend scripts` 通过（基线中的 4 个错误随 quant 测试一并删除）；`python -c "import app.main"` 正常。迁移在备份副本上实测：upgrade 删除 25 个表和索引，downgrade 重建后 `recommendation_run` 的结构与原始完全一致，再次 upgrade 正常，`news_item` 和 `watchlist_item` 数据不受影响；真实 `app.db` 尚未迁移（仍为 `b9d5f2a7c013`）。
+- 风险或后续事项：下次启动后端时会自动对真实 `app.db` 执行删表迁移（已备份）。前端在 T3 完成前会调用不存在的 `/api/quant/*`。
+
 ## 2026-11-01 聚焦改造 P1-T1：A 股资金流迁出量化模块（按需拉取 + 修正字段顺序）
 
 - 修改人：Claude Code（Opus 5.5）

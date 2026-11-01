@@ -33,9 +33,6 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )
-    market_database_url: str = Field(
-        default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'market_data.db'}"
-    )
     # ---------------------------------------------------------------------
     # 连接池与并发（2026-07-25 重构新增）
     # 此前 create_engine 未显式配置池，SQLAlchemy 对文件型 SQLite 默认
@@ -92,14 +89,6 @@ class Settings(BaseSettings):
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
     news_backoff_max_multiplier: int = 8
-    # ---------------------------------------------------------------------
-    # 量化盘后调度（Phase C）：交易日 run_at 后自动增量回填 + 跑真实选票流水线。
-    # 单机单进程默认形态随后端 lifespan 启停（对齐 market_quote_producer_enabled）。
-    # ---------------------------------------------------------------------
-    quant_scheduler_enabled: bool = True
-    quant_scheduler_run_at: str = "16:30"
-    quant_scheduler_tick_seconds: float = 60.0
-    quant_scheduler_backfill_limit: int = 50
     # ---------------------------------------------------------------------
     # 抓取并发与超时（2026-07-25 重构：此前全部是散落在各模块的硬编码常量）
     # ---------------------------------------------------------------------

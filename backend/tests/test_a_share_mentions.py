@@ -1,4 +1,4 @@
-from app.services.quant.mention_backfill import (
+from app.services.a_share_mentions import (
     build_mention_index,
     match_a_share_mentions,
 )
