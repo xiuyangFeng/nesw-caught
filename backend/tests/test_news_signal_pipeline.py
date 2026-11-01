@@ -524,3 +524,46 @@ def test_process_news_ids_writes_rule_stock_mentions_from_title() -> None:
         assert any(row.symbol == "600519.SH" and row.mention_type == "rule" for row in mentions)
     finally:
         _cleanup_news(url_hashes)
+
+
+@pytest.mark.parametrize("topic_key", ["general-market-update", "should you forget"])
+def test_apply_result_skips_topic_link_for_non_clusterable_key(topic_key: str) -> None:
+    """无关键词的兜底 key 与通用词打头的 key 不再建/挂事件（曾产生 1,894 条的兜底事件）。"""
+    import sqlalchemy as sa
+
+    from app.models.news_signal_result import NewsSignalResult
+    from app.services.news_signal_classifier import ClassificationResult
+
+    result = ClassificationResult(
+        sentiment_label="neutral",
+        sentiment_score=0.0,
+        signal_confidence=0.5,
+        keywords=topic_key.split()[:3] if topic_key != "general-market-update" else [],
+        topic_key=topic_key,
+        summary="s",
+        classifier_type="rule",
+    )
+    with SessionLocal() as session:
+        item = NewsItem(
+            source_name="UnitTest",
+            source_url="https://example.com/no-topic",
+            title="五粮液称将持续加大分红力度",
+            canonical_url="https://example.com/no-topic",
+            url_hash=f"hash-no-topic-{topic_key}",
+            market="cn",
+            fetched_at=datetime.now(UTC),
+        )
+        session.add(item)
+        session.flush()
+        touched: set[int] = set()
+        try:
+            NewsSignalPipelineService(session, session_factory=SessionLocal)._apply_result(item, result, touched)
+            session.flush()
+            assert touched == set()
+            assert session.scalar(sa.select(TopicNewsLink).where(TopicNewsLink.news_id == item.id)) is None
+            assert session.scalar(sa.select(TopicCluster).where(TopicCluster.topic_key == topic_key)) is None
+            # 信号结果照常落库，新闻本身不受影响
+            assert item.signal_status == "processed"
+            assert session.scalar(sa.select(NewsSignalResult).where(NewsSignalResult.news_id == item.id)) is not None
+        finally:
+            session.rollback()

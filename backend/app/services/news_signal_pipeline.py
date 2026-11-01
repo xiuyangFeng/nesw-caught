@@ -21,6 +21,7 @@ from app.services.ingestion.article_crawler import (
     crawl_and_extract_article,
 )
 from app.services.news_signal_classifier import ClassificationResult, NewsSignalClassifier
+from app.services.topic_matching import is_clusterable_topic_key
 
 logger = logging.getLogger(__name__)
 
@@ -278,24 +279,26 @@ class NewsSignalPipelineService:
         body: str | None = None,
     ) -> None:
         """将分类结果落库(纯数据库写,无网络 I/O)。"""
-        topic = self.repository.find_topic(topic_key=result.topic_key, keywords=result.keywords)
-        if topic is None:
-            topic = self.repository.create_topic(
-                topic_key=result.topic_key,
-                topic_title=result.topic_title_hint or result.topic_key.title(),
-                topic_summary=result.topic_summary_hint or result.summary,
-                keywords=result.keywords,
-                last_seen_at=item.published_at or item.fetched_at,
-            )
-        else:
-            if not topic.topic_summary and result.summary:
-                topic.topic_summary = result.summary
-            if not topic.keywords and result.keywords:
-                topic.keywords = ",".join(result.keywords)
-            topic.last_seen_at = max(filter(None, [topic.last_seen_at, item.published_at, item.fetched_at]))
+        topic = None
+        if is_clusterable_topic_key(result.topic_key):
+            topic = self.repository.find_topic(topic_key=result.topic_key, keywords=result.keywords)
+            if topic is None:
+                topic = self.repository.create_topic(
+                    topic_key=result.topic_key,
+                    topic_title=result.topic_title_hint or result.topic_key.title(),
+                    topic_summary=result.topic_summary_hint or result.summary,
+                    keywords=result.keywords,
+                    last_seen_at=item.published_at or item.fetched_at,
+                )
+            else:
+                if not topic.topic_summary and result.summary:
+                    topic.topic_summary = result.summary
+                if not topic.keywords and result.keywords:
+                    topic.keywords = ",".join(result.keywords)
+                topic.last_seen_at = max(filter(None, [topic.last_seen_at, item.published_at, item.fetched_at]))
 
-        if result.classifier_type == "hybrid":
-            topic.llm_refined_at = _utc_now()
+            if result.classifier_type == "hybrid":
+                topic.llm_refined_at = _utc_now()
 
         item.sentiment_label = result.sentiment_label
         item.sentiment_score = result.sentiment_score
@@ -305,7 +308,9 @@ class NewsSignalPipelineService:
         if result.takeaway and not item.ai_takeaway:
             item.ai_takeaway = result.takeaway
 
-        self.repository.ensure_link(topic_id=topic.id, news_id=item.id)
+        if topic is not None:
+            self.repository.ensure_link(topic_id=topic.id, news_id=item.id)
+            touched_topic_ids.add(topic.id)
         self.repository.upsert_signal_result(
             news_id=item.id,
             classifier_type=result.classifier_type,
@@ -320,7 +325,6 @@ class NewsSignalPipelineService:
                 "llm_error": result.llm_error,
             },
         )
-        touched_topic_ids.add(topic.id)
         persist_rule_mentions(
             self.session,
             item.id,

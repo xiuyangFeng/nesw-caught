@@ -89,13 +89,23 @@ def test_find_topic_keyword_overlap_semantics_unchanged() -> None:
         _seed_topic(session, topic_key="repo cache sem", keywords="ai,cloud,chip")
         repo = NewsSignalRepository(session)
 
-        # overlap=1 < min(2, 2) => 不命中
+        # overlap=1 < 2 => 不命中
         assert repo.find_topic(topic_key="m1", keywords=["ai", "nvidia"]) is None
-        # 单词关键词:min(2,1)=1 => overlap 1 命中
-        matched = repo.find_topic(topic_key="m2", keywords=["ai"])
+        # 主体 + 1 个有效词重合 => 命中
+        matched = repo.find_topic(topic_key="m2", keywords=["ai", "cloud"])
         assert matched is not None and matched.topic_key == "repo cache sem"
+        # 单个关键词不再靠重合并入（曾导致巨型伪事件），只走 topic_key 精确匹配
+        assert repo.find_topic(topic_key="m3", keywords=["ai"]) is None
         # 空关键词 => None
-        assert repo.find_topic(topic_key="m3", keywords=[]) is None
+        assert repo.find_topic(topic_key="m4", keywords=[]) is None
+
+
+def test_find_topic_ignores_generic_word_overlap() -> None:
+    with SessionLocal() as session:
+        _seed_topic(session, topic_key="baker hughes non", keywords="baker,hughes,non,gaap,eps,beats")
+        repo = NewsSignalRepository(session)
+
+        assert repo.find_topic(topic_key="pfizer non gaap", keywords=["pfizer", "non", "gaap", "eps", "beats"]) is None
 
 
 # ---------------------------------------------------------------------------

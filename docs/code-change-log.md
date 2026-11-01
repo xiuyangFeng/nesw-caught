@@ -5,6 +5,24 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 收紧事件聚类：去掉兜底事件与通用词串起来的伪事件
+
+- 修改人：Claude Code（Opus 5.5），按用户要求（截图中的 "General-market-update" 事件：1,894 条来源、上百只股票代码）
+- 修改范围：后端新闻信号管线的事件（topic）聚类；存量事件数据清理；本地分支清理。
+- 变更内容：
+  - **根因**：没有关键词的新闻全部落进兜底事件 `general-market-update`；关键词重合 ≥2 即并入同一事件，而重合的常是 "stock / just / why / non / gaap / eps / beats / corp / 2026" 这类通用词。实测前 30 大事件几乎全是伪事件，如 "supermicro stock just" 886 条里只有 1 条提到 Supermicro，"baker hughes non" 829 条里只有 5 条提到 Baker。
+  - 新增 `app/services/topic_matching.py`：通用词表（标题模板词、行情动词、财报样板词、公司后缀、星期等）与纯数字视为无效词，A 股 6 位代码、港股 0 打头 5 位代码视为有效；兜底 key 与无效词打头的 key 不聚类；关键词重合只计有效词，且必须包含事件主体（事件第一个有效关键词），有效重合 ≥2 才并入。单关键词主题（如"半导体"）仍靠 topic_key 精确匹配。
+  - `news_signal_pipeline._apply_result`：key 不可聚类时不建、不挂事件，情绪、信号结果、个股关联照常写入。`news_signal_repository.find_topic` 改用新匹配规则。分类器兜底 key 改用共享常量。
+  - 新增一次性清理脚本 `backend/scripts/prune_topic_clusters.py`（默认 dry-run，`--apply` 写库，幂等）：删除不可聚类事件，其余事件中标题+摘要不含事件主体的成员解除关联，并刷新统计；`topic_key` 为空的非分类器事件不动；新闻本身不删。
+  - 已对本地库执行：删除伪事件 1,163 个，解除无关成员 8,253 条，清空事件 1 个；第二次运行无改动。执行前备份 `backend/data/backups/app-before-topic-prune-20261101.db`。清理后最大事件为"半导体"99 条、"federal reserve board"51 条。
+  - 本地已合并分支（`refactor/focus-p1`、`feature/focus-p2`、`feature/market-overview`、`redesign/smart-quant-desk`、两个 `backup/main-before-*`）与远程 `origin/feature/focus-p2` 已删除，均已完全并入 `main`。
+- 影响文件：`backend/app/services/topic_matching.py`（新）、`backend/app/services/news_signal_pipeline.py`、`backend/app/services/news_signal_classifier.py`、`backend/app/repositories/news_signal_repository.py`、`backend/scripts/prune_topic_clusters.py`（新）、`backend/tests/test_topic_matching.py`（新）、`backend/tests/test_prune_topic_clusters.py`（新）、`backend/tests/test_news_signal_repository.py`、`backend/tests/test_news_signal_pipeline.py`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无接口与表结构变化。行为变化：部分新闻不再归属任何事件（新闻列表照常显示，只是事件页不聚合）；`find_topic` 不再因单个关键词重合而并入。
+- 验证情况：新增/改写测试先确认失败再实现；`pytest backend/tests` 1035 passed，7 failed（即 `test_news.py` 3 个、`test_news_analysis.py` 4 个已知种子污染失败，与本改动无关）；`ruff check backend` 通过。重启开发服务后实测 `/api/topics`、`/api/news/feed`、`/api/news/events` 均不再出现兜底事件。
+- 风险或后续事项：
+  - 通用词表是规则，仍会漏掉少量通用词打头的 key（如 "see which recent"），也会误伤少数以通用词开头的真实主体（如 "first horizon bank"）。P3 的 AI 漏斗会接管"哪些新闻值得看"，届时可再评估是否由 AI 生成事件归属。
+  - 开发服务在本次后端文件修改后热重载卡住（所有接口无响应、CPU 为 0），重启后恢复且未复现；如再出现需排查 `--reload` 与后台 worker 的关停顺序。
+
 ## 2026-11-01 移除误提交的 Vitest 缓存并忽略根目录 node_modules
 
 - 修改人：Claude Code（Opus 5.5），按用户要求
