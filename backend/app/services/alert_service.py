@@ -5,12 +5,14 @@
 
 规则：
 - **持仓价格**：仅 ``position_size > 0`` 的自选股；|涨跌幅| ≥ ``price_move_percent``（默认 5）；
-  只在该市场交易时段内触发。去重键用昨收价区分交易日——节假日行情不更新、昨收不变，
-  因此不会把上一个交易日的涨跌重复提醒；缺昨收时退回按本地日期去重。
+  只在该市场交易时段内、且**当天已观察到价格变动**（行情"活着"）时触发，按市场本地日期每天
+  最多一次。节假日行情整天停在上一个交易日的数据、价格不动，因此不会重复提醒；前一天平收
+  （昨收不变）也不会挡住第二天的真实异动。代价是当天第一次看到报价时不提醒，要等价格动一次。
 - **新闻**：标题出现股票简称（中文子串 / 英文整词）或代码，或 A 股规则关联
   （``news_stock_mention`` 置信度 ≥ 0.9，即标题命中）即算命中。持仓股立即提醒；
-  仅关注的股票先进内存合并窗口，每 ``watch_digest_minutes`` 合并成一条。
-  进程重启会丢失尚未合并的关注股命中（最多一个窗口），持仓提醒不受影响。
+  仅关注的股票先进内存合并窗口，每 ``watch_digest_minutes`` 合并成一条（行情回调与新闻
+  worker 每个周期都会推进落库）。命中写入窗口时在锁内读时钟，避免落进已被并发落库的旧窗口；
+  落库失败时窗口放回缓冲下次重试。进程重启会丢失尚未合并的关注股命中（最多一个窗口）。
 - **静默时段**（默认北京时间 22:00～08:00）：提醒照常写库，``overnight=True``，
   ``visible_at`` 推迟到静默结束时刻，不发布 SSE。
 
@@ -54,6 +56,8 @@ ALERT_CREATED_EVENT = "alert.created"
 RULE_MENTION_MIN_CONFIDENCE = 0.9
 _NAME_SUFFIX_RE = re.compile(r"[-－](W|SW|U|WD|S)$", re.IGNORECASE)
 _CJK_RE = re.compile(r"[一-鿿]")
+# 市场本地时区：价格提醒按市场本地日期去重（美股一个交易时段跨北京时间两天）。
+_MARKET_TZ = {"cn": "Asia/Shanghai", "hk": "Asia/Hong_Kong", "us": "America/New_York"}
 
 
 def _utc_now() -> datetime:
@@ -137,8 +141,11 @@ def _code_patterns(symbol: str, market: str) -> list[re.Pattern[str]]:
             re.compile(rf"(?<!\d){re.escape(padded)}(?!\d)"),
             re.compile(rf"(?<!\d)0*{re.escape(digits.lstrip('0'))}\.HK\b", re.IGNORECASE),
         ]
-    if code.isalpha() and len(code) >= 2:
+    if code.isalpha() and len(code) >= 3:
         return [re.compile(rf"(?<![A-Za-z]){re.escape(code)}(?![A-Za-z])")]
+    if code.isalpha():
+        # 1～2 个字母的代码（AI、ON、GE…）裸匹配会撞上大量普通词，只认 "$AI" 写法。
+        return [re.compile(rf"\${re.escape(code)}(?![A-Za-z])")]
     return []
 
 
@@ -170,6 +177,10 @@ class AlertService:
         )
         self._digest_lock = threading.Lock()
         self._digest_windows: dict[datetime, _DigestWindow] = {}
+        # 行情活性：(symbol, 市场本地日期) -> 当天首次看到的价格；价格变动过即视为当天在交易。
+        self._price_lock = threading.Lock()
+        self._first_price: dict[tuple[str, date], float] = {}
+        self._live_days: set[tuple[str, date]] = set()
 
     # ------------------------------------------------------------------ 公共入口
 
@@ -188,11 +199,14 @@ class AlertService:
                 change = quote.get("change_percent")
                 if stock is None or change is None:
                     continue
-                if abs(float(change)) < self._price_move_percent:
-                    continue
                 if not is_market_open(stock.market, now):
                     continue
-                alert = self._create_price_alert(repo, stock, quote, float(change), now)
+                market_day = self._market_date(stock.market, now)
+                if not self._observe_price(stock.symbol, market_day, quote.get("price")):
+                    continue
+                if abs(float(change)) < self._price_move_percent:
+                    continue
+                alert = self._create_price_alert(repo, stock, quote, float(change), now, market_day)
                 if alert is not None:
                     created.append(alert)
             session.commit()
@@ -228,15 +242,15 @@ class AlertService:
                         if alert is not None:
                             created.append(alert)
                     else:
-                        self._buffer_digest_hit(stock, item, now)
+                        self._buffer_digest_hit(stock, item)
             session.commit()
             self._publish(created)
             return len(created)
 
     def flush_watch_digest(self) -> int:
         """把已结束的合并窗口各写成一条 ``watch_news_digest`` 提醒，返回写入条数。"""
-        now = self._clock()
         with self._digest_lock:
+            now = self._clock()
             due = [
                 window
                 for start, window in self._digest_windows.items()
@@ -247,16 +261,21 @@ class AlertService:
         if not due:
             return 0
         created: list[Alert] = []
-        with self._session_factory() as session:
-            repo = AlertRepository(session)
-            for window in sorted(due, key=lambda w: w.start):
-                if not window.hits:
-                    continue
-                alert = self._create_digest_alert(repo, window, now)
-                if alert is not None:
-                    created.append(alert)
-            session.commit()
-            self._publish(created)
+        try:
+            with self._session_factory() as session:
+                repo = AlertRepository(session)
+                for window in sorted(due, key=lambda w: w.start):
+                    if not window.hits:
+                        continue
+                    alert = self._create_digest_alert(repo, window, now)
+                    if alert is not None:
+                        created.append(alert)
+                session.commit()
+                self._publish(created)
+        except Exception:
+            logger.warning("watch digest flush failed; %s window(s) kept for retry", len(due), exc_info=True)
+            self._restore_windows(due)
+            return 0
         return len(created)
 
     def on_sentiment_divergence(self, payload: dict[str, Any]) -> int:
@@ -286,14 +305,43 @@ class AlertService:
 
     # ------------------------------------------------------------------ 规则细节
 
+    def _observe_price(self, symbol: str, market_day: date, price: Any) -> bool:
+        """记录当天价格并返回"行情是否在动"：当天出现过与首次报价不同的价格即为 True。"""
+        if price is None:
+            return False
+        key = (symbol, market_day)
+        value = float(price)
+        with self._price_lock:
+            if key in self._live_days:
+                return True
+            first = self._first_price.get(key)
+            if first is None:
+                # 换日时顺带清掉旧日期的记录，避免常驻进程里无限增长。
+                for stale in [k for k in self._first_price if k[1] != market_day and k[0] == symbol]:
+                    self._first_price.pop(stale, None)
+                    self._live_days.discard(stale)
+                self._first_price[key] = value
+                return False
+            if value != first:
+                self._live_days.add(key)
+                return True
+            return False
+
+    def _market_date(self, market: str, now: datetime) -> date:
+        tz_name = _MARKET_TZ.get((market or "").lower())
+        return now.astimezone(ZoneInfo(tz_name)).date() if tz_name else self._local_date(now)
+
     def _create_price_alert(
-        self, repo: AlertRepository, stock: _Stock, quote: dict[str, Any], change: float, now: datetime
+        self,
+        repo: AlertRepository,
+        stock: _Stock,
+        quote: dict[str, Any],
+        change: float,
+        now: datetime,
+        market_day: date,
     ) -> Alert | None:
         price = quote.get("price")
         previous_close = quote.get("previous_close")
-        day_marker = (
-            f"{float(previous_close):.4f}" if previous_close is not None else self._local_date(now).isoformat()
-        )
         direction = "涨" if change > 0 else "跌"
         body_parts: list[str] = []
         if price is not None:
@@ -320,7 +368,7 @@ class AlertService:
                 "average_cost": stock.average_cost,
                 "threshold": self._price_move_percent,
             },
-            dedupe_key=f"price:{stock.symbol}:{day_marker}",
+            dedupe_key=f"price:{stock.symbol}:{market_day.isoformat()}",
             overnight=overnight,
             visible_at=visible_at,
             created_at=now,
@@ -349,10 +397,11 @@ class AlertService:
             created_at=now,
         )
 
-    def _buffer_digest_hit(self, stock: _Stock, item: dict[str, Any], now: datetime) -> None:
-        window_start = self._window_start(now)
+    def _buffer_digest_hit(self, stock: _Stock, item: dict[str, Any]) -> None:
         key = (int(item["id"]), stock.symbol)
         with self._digest_lock:
+            # 锁内读时钟：flush 也在锁内读时钟并弹出到期窗口，因此命中不会落进已落库的旧窗口。
+            window_start = self._window_start(self._clock())
             window = self._digest_windows.setdefault(window_start, _DigestWindow(start=window_start))
             if key in window.keys:
                 return
@@ -366,6 +415,19 @@ class AlertService:
                     source_name=item.get("source_name"),
                 )
             )
+
+    def _restore_windows(self, windows: list[_DigestWindow]) -> None:
+        with self._digest_lock:
+            for window in windows:
+                existing = self._digest_windows.get(window.start)
+                if existing is None:
+                    self._digest_windows[window.start] = window
+                    continue
+                for hit in window.hits:
+                    key = (hit.news_id, hit.symbol)
+                    if key not in existing.keys:
+                        existing.keys.add(key)
+                        existing.hits.append(hit)
 
     def _create_digest_alert(self, repo: AlertRepository, window: _DigestWindow, now: datetime) -> Alert | None:
         names: list[str] = []

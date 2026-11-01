@@ -5,6 +5,23 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T7：评审修复（价格提醒判定、合并窗口可靠性、短代码误报）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端提醒规则服务、新闻队列 worker、前端提醒页与重连。
+- 变更内容（独立子任务评审发现，逐条复现后修复）：
+  - **价格提醒漏报**：原去重键只用昨收价，前一天平收（收盘价 = 昨收）时第二天的真实异动会被当成重复而漏掉。改为"当天观察到价格变动才认为行情在动"，按**市场本地日期**去重（A 股 / 港股北京时间，美股纽约时间）。节假日行情整天不变，因此仍不会重复提醒；代价是当天第一次看到报价时不提醒，要等价格动一次（行情约 15 秒刷新一次）。
+  - **关注股新闻丢失**：命中写入合并窗口时改为在锁内读时钟（flush 也在锁内读时钟），避免并发 flush 后命中落进已落库的旧窗口、被去重键吞掉。
+  - **落库失败**：合并窗口写库失败时放回缓冲下次重试，不再丢失，也不再中断同批的持仓新闻提醒。
+  - **多进程下合并延迟**：`BackgroundQueueWorker.do_cycle` 每个周期调用一次 `flush_watch_digest()`，合并窗口在哪个进程就在哪个进程按时落库，不依赖下一批新闻到来。
+  - **短代码误报**：1～2 个字母的美股代码（如 `AI`）不再裸匹配，只认 `$AI` 写法；3 个字母及以上仍按整词匹配。
+  - 前端：SSE 重连后补拉未读数；"今日提醒"分组改名"近期提醒"（实际包含所有非隔夜提醒）。删除 `test_market.py` 中替换已不存在函数的残留代码。
+  - 测试：价格用例改为两轮报价，新增"节假日行情不变不提醒""平收不挡第二天"；新增并发 flush 不丢命中、落库失败重试且不影响持仓提醒、短代码需 `$` 前缀、worker 周期推进 flush，共 5 个。均先确认失败再修复。
+- 影响文件：`backend/app/services/alert_service.py`、`backend/app/workers/queue_worker.py`、`backend/tests/test_alert_service.py`、`backend/tests/test_market.py`、`frontend/src/components/layout/AppShell.vue`、`frontend/src/views/AlertsView.vue`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无；价格提醒 `dedupe_key` 格式由 `price:{symbol}:{昨收}` 改为 `price:{symbol}:{市场本地日期}`（此前尚无真实价格提醒数据）。
+- 验证情况：`pytest backend/tests` 1024 passed / 7 failed（已知测试污染）；`ruff check backend scripts` 通过；前端 `vue-tsc` 零错误、`vitest run` 80 个文件 467 passed、`npm run build` 通过、`check:api-drift` OK。
+- 风险或后续事项（评审中判定为低风险、暂不处理）：`000001.SZ` 等代码可能撞上"上证指数(000001)"标题；`primary` / `manual` 类型的股票关联也会触发持仓新闻提醒（与"新闻与该股相关"的语义一致）；行情备用源切换可能导致昨收略有差异（已不影响去重）；集合竞价 9:15～9:25 的指示价可能触发当天唯一一次提醒。这些在 P3 由 AI 判断时一并处理。`docs/technical-architecture.md`、`docs/stability-and-evolution.md`、`docs/api-contract.md` 仍有飞书 / 单股阈值的旧描述（前两者为第一阶段草稿或原则文档，未改）。
+
 ## 2026-11-01 聚焦改造 P2-T6：多进程提醒推送修复、文档与端到端验证
 
 - 修改人：Claude Code（Opus 5.5）

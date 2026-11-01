@@ -329,6 +329,12 @@ class BackgroundQueueWorker(BaseWorker):
     def do_cycle(self) -> int:
         """异步消化分析队列。"""
         self._maybe_flush_error_metrics()
+        # 关注股新闻合并窗口在本进程（多进程形态下即 pipeline worker 进程）的内存里，
+        # 每个周期推进一次落库，保证新闻空窗期也能按时写出合并提醒。
+        try:
+            get_alert_service().flush_watch_digest()
+        except Exception:
+            self.logger.warning("watch digest flush failed", exc_info=True)
 
         cycle_started = time.perf_counter()
         queue_depth_before = analysis_queue.qsize()

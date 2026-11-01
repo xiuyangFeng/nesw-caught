@@ -395,7 +395,13 @@ async function bootstrap() {
         void runtimeStatusStore.loadRuntimeStatusIfStale();
       }
     },
-    { onReconnect: reconcileNewsSnapshot },
+    {
+      onReconnect: () => {
+        reconcileNewsSnapshot();
+        // 断线期间产生的提醒没有推送到本页，重连后补拉未读数。
+        void alertStore.refreshUnread();
+      },
+    },
   );
 }
 

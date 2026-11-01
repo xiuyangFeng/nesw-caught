@@ -115,7 +115,7 @@ onMounted(() => {
     />
 
     <template v-for="group in [
-      { key: 'daytime', title: '今日提醒', eyebrow: 'Today', items: alertStore.daytimeAlerts },
+      { key: 'daytime', title: '近期提醒', eyebrow: 'Recent', items: alertStore.daytimeAlerts },
       { key: 'overnight', title: '隔夜汇总', eyebrow: 'Overnight', items: alertStore.overnightAlerts },
     ]" :key="group.key">
       <SectionCard

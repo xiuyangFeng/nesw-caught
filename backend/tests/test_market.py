@@ -551,14 +551,9 @@ def test_market_watchlist_quotes_read_cached_payload_without_publishing_refresh_
         def publish(self, event_name: str, payload: dict[str, object]) -> None:
             self.published.append((event_name, payload))
 
-    class ExplodingNotificationService:
-        def on_watchlist_alert(self, payload):  # pragma: no cover - should not be called
-            raise AssertionError("route should not call notification service directly")
-
     fake_bus = FakeBus()
     monkeypatch.setattr(market_routes, "get_quote_service", lambda: FakeQuoteService(), raising=False)
     monkeypatch.setattr(market_routes, "get_event_bus", lambda: fake_bus, raising=False)
-    monkeypatch.setattr(market_routes, "get_notification_service", lambda: ExplodingNotificationService(), raising=False)
     client = TestClient(app)
 
     response = client.get("/api/market/watchlist")
