@@ -12,7 +12,6 @@ At application startup the seed runs automatically only when the
 """
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -28,7 +27,7 @@ def _ensure_backend_on_path() -> None:
 
 _ensure_backend_on_path()
 
-from datetime import datetime, timedelta, timezone  # noqa: E402
+from datetime import UTC, datetime, timedelta  # noqa: E402
 
 from sqlalchemy import select  # noqa: E402
 
@@ -36,14 +35,9 @@ from app.models.article_content import ArticleContent  # noqa: E402
 from app.models.news_item import NewsItem  # noqa: E402
 from app.models.news_stock_mention import NewsStockMention  # noqa: E402
 from app.models.price_snapshot import PriceSnapshot  # noqa: E402
-from app.models.quant import QuantStrategy  # noqa: E402
 from app.models.topic_cluster import TopicCluster  # noqa: E402
 from app.models.topic_news_link import TopicNewsLink  # noqa: E402
 from app.models.watchlist_item import WatchlistItem  # noqa: E402
-from app.models.x_account import XAccount  # noqa: E402
-from app.models.x_post import XPost  # noqa: E402
-from app.models.x_post_symbol_mention import XPostSymbolMention  # noqa: E402
-from app.models.x_source_health import XSourceHealth  # noqa: E402
 
 
 def seed_demo_data(session_factory=None) -> None:
@@ -58,24 +52,16 @@ def seed_demo_data(session_factory=None) -> None:
         has_news = session.scalar(select(NewsItem.id).limit(1)) is not None
         has_snapshots = session.scalar(select(PriceSnapshot.id).limit(1)) is not None
         has_topics = session.scalar(select(TopicCluster.id).limit(1)) is not None
-        has_x_accounts = session.scalar(select(XAccount.id).limit(1)) is not None
-        has_x_posts = session.scalar(select(XPost.id).limit(1)) is not None
-        has_x_health = session.scalar(select(XSourceHealth.id).limit(1)) is not None
-        has_quant_strategy = session.scalar(select(QuantStrategy.id).limit(1)) is not None
 
         if (
             has_watchlist
             and has_news
             and has_snapshots
             and has_topics
-            and has_x_accounts
-            and has_x_posts
-            and has_x_health
-            and has_quant_strategy
         ):
             return
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if not has_watchlist:
             session.add_all(
@@ -250,150 +236,6 @@ def seed_demo_data(session_factory=None) -> None:
                         provider_symbol="AAPL",
                         quote_status="ok",
                         fetched_at=now - timedelta(minutes=4),
-                    ),
-                ]
-            )
-
-        if not has_x_accounts:
-            session.add_all(
-                [
-                    XAccount(
-                        handle="DeItaone",
-                        display_name="Delta One",
-                        market_focus="us",
-                        is_active=True,
-                        priority=100,
-                        tier="core",
-                        source="manual",
-                        notes="Macro and breaking market headlines",
-                    ),
-                    XAccount(
-                        handle="SawyerMerritt",
-                        display_name="Sawyer Merritt",
-                        market_focus="us",
-                        is_active=True,
-                        priority=80,
-                        tier="watch",
-                        source="manual",
-                        notes="Tech and EV market chatter",
-                    ),
-                ]
-            )
-            session.flush()
-
-        if not has_x_posts:
-            account_by_handle = {
-                item.handle: item
-                for item in session.scalars(select(XAccount).where(XAccount.handle.in_(["DeItaone", "SawyerMerritt"])))
-            }
-            x_posts: list[XPost] = []
-            if account_by_handle.get("DeItaone"):
-                x_posts.append(
-                    XPost(
-                        account_id=account_by_handle["DeItaone"].id,
-                        external_post_id="190001",
-                        canonical_url="https://x.com/DeItaone/status/190001",
-                        content_text="NVIDIA suppliers remain in focus as AI infrastructure demand signals stay firm into the next quarter.",
-                        market="us",
-                        sentiment_label="positive",
-                        relevance_score=0.92,
-                        posted_at=now - timedelta(minutes=13),
-                        captured_at=now - timedelta(minutes=5),
-                        raw_payload_json='{"account_handle":"DeItaone"}',
-                        dedupe_hash="seed-x-post-deltaone-190001",
-                    )
-                )
-            if account_by_handle.get("SawyerMerritt"):
-                x_posts.append(
-                    XPost(
-                        account_id=account_by_handle["SawyerMerritt"].id,
-                        external_post_id="190002",
-                        canonical_url="https://x.com/SawyerMerritt/status/190002",
-                        content_text="Tesla supply chain comments are weighing on near-term EV sentiment after softer delivery expectations.",
-                        market="us",
-                        sentiment_label="negative",
-                        relevance_score=0.84,
-                        posted_at=now - timedelta(minutes=18),
-                        captured_at=now - timedelta(minutes=6),
-                        raw_payload_json='{"account_handle":"SawyerMerritt"}',
-                        dedupe_hash="seed-x-post-sawyermerritt-190002",
-                    )
-                )
-            session.add_all(x_posts)
-            session.flush()
-            mentions: list[XPostSymbolMention] = []
-            for item in x_posts:
-                if item.external_post_id == "190001":
-                    mentions.append(XPostSymbolMention(x_post_id=item.id, symbol="NVDA", market="us", confidence=0.8))
-                if item.external_post_id == "190002":
-                    mentions.append(XPostSymbolMention(x_post_id=item.id, symbol="TSLA", market="us", confidence=0.8))
-            session.add_all(mentions)
-
-        if not has_x_health:
-            session.add(
-                XSourceHealth(
-                    provider_name="twitterapi.io",
-                    total_fetches=0,
-                    total_failures=0,
-                    consecutive_failures=0,
-                    avg_latency_ms=None,
-                    last_error=None,
-                )
-            )
-
-        if not has_quant_strategy:
-            # 三条探索性默认策略，每 sleeve 一条；DSL 只引用 FACTOR_REGISTRY 内的因子，
-            # 与 POST /api/quant/strategies 的 validate_dsl 校验格式一致。is_active=0、
-            # exploratory=1：仅作为因子/DSL 用法的可见样例，不参与真实选票排名。
-            session.add_all(
-                [
-                    QuantStrategy(
-                        name="资金流趋势探索",
-                        dsl=json.dumps(
-                            {
-                                "sleeve": "trend_flow",
-                                "horizon": "5d",
-                                "logic": "and",
-                                "conditions": [
-                                    {"factor": "main_inflow_1d", "op": ">", "value": 50000000}
-                                ],
-                            },
-                            ensure_ascii=False,
-                        ),
-                        is_active=0,
-                        exploratory=1,
-                    ),
-                    QuantStrategy(
-                        name="事件催化探索",
-                        dsl=json.dumps(
-                            {
-                                "sleeve": "event_catalyst",
-                                "horizon": "5d",
-                                "logic": "and",
-                                "conditions": [
-                                    {"factor": "news_novelty", "op": ">", "value": 0.5}
-                                ],
-                            },
-                            ensure_ascii=False,
-                        ),
-                        is_active=0,
-                        exploratory=1,
-                    ),
-                    QuantStrategy(
-                        name="基本面重估探索",
-                        dsl=json.dumps(
-                            {
-                                "sleeve": "fundamental_revalue",
-                                "horizon": "60d",
-                                "logic": "and",
-                                "conditions": [
-                                    {"factor": "gap_unfilled", "op": "<", "value": 1}
-                                ],
-                            },
-                            ensure_ascii=False,
-                        ),
-                        is_active=0,
-                        exploratory=1,
                     ),
                 ]
             )

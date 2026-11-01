@@ -39,7 +39,6 @@ describe('apiClient write operations', () => {
 
     await expect(apiClient.deleteLlmConfig(1)).rejects.toMatchObject({ status: 500, message: 'internal error' });
     await expect(apiClient.deleteWatchlist('NVDA')).rejects.toMatchObject({ status: 500, message: 'internal error' });
-    await expect(apiClient.deleteXAccount('elonmusk')).rejects.toMatchObject({ status: 500, message: 'internal error' });
   });
 
   it('rejects account and config mutations when the backend is unavailable', async () => {
@@ -47,18 +46,6 @@ describe('apiClient write operations', () => {
 
     await expect(apiClient.setDefaultLlmConfig(1)).rejects.toThrow('backend offline');
     await expect(apiClient.toggleLlmConfigActive(1, false)).rejects.toThrow('backend offline');
-    await expect(
-      apiClient.createXAccount({
-        handle: 'tester',
-        display_name: 'Tester',
-        market_focus: 'us',
-        is_active: true,
-        priority: 0,
-        tier: 'watch',
-        notes: null,
-      }),
-    ).rejects.toThrow('backend offline');
-    await expect(apiClient.updateXAccount('tester', { is_active: false })).rejects.toThrow('backend offline');
     await expect(apiClient.refreshNews()).rejects.toThrow('backend offline');
     await expect(apiClient.analyzeNews(1)).rejects.toThrow('backend offline');
   });

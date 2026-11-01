@@ -33,9 +33,6 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'app.db'}"
     )
-    market_database_url: str = Field(
-        default=f"sqlite:///{Path(__file__).resolve().parents[2] / 'data' / 'market_data.db'}"
-    )
     # ---------------------------------------------------------------------
     # 连接池与并发（2026-07-25 重构新增）
     # 此前 create_engine 未显式配置池，SQLAlchemy 对文件型 SQLite 默认
@@ -92,14 +89,6 @@ class Settings(BaseSettings):
     news_scheduler_enabled: bool = False
     news_scheduler_tick_seconds: float = 5.0
     news_backoff_max_multiplier: int = 8
-    # ---------------------------------------------------------------------
-    # 量化盘后调度（Phase C）：交易日 run_at 后自动增量回填 + 跑真实选票流水线。
-    # 单机单进程默认形态随后端 lifespan 启停（对齐 market_quote_producer_enabled）。
-    # ---------------------------------------------------------------------
-    quant_scheduler_enabled: bool = True
-    quant_scheduler_run_at: str = "16:30"
-    quant_scheduler_tick_seconds: float = 60.0
-    quant_scheduler_backfill_limit: int = 50
     # ---------------------------------------------------------------------
     # 抓取并发与超时（2026-07-25 重构：此前全部是散落在各模块的硬编码常量）
     # ---------------------------------------------------------------------
@@ -161,17 +150,10 @@ class Settings(BaseSettings):
     news_inflight_lease_seconds: float = 600.0
     # 手动 POST /news/refresh 的服务端冷却（秒）；0 = 关闭。默认 60 对齐前端节流。
     news_refresh_cooldown_seconds: float = 60.0
-    x_monitor_enabled: bool = False
-    x_monitor_accounts_file: str | None = None
-    twitterapi_io_api_key: str | None = None
-    twitterapi_io_timeout_seconds: float = 60.0
-    # twitterapi.io 请求最小间隔(秒):账号间逐个请求,由 TwitterApiIoClient
-    # ._wait_for_rate_limit 按此间隔 sleep;默认 1.0 避免多账号轮询打满限流。
-    twitterapi_io_min_interval_seconds: float = 1.0
-    x_monitor_refresh_cooldown_hours: int = 3
-    x_radar_rules_file: str | None = None
     market_quote_provider: str = "yahoo_finance"
     market_quote_cache_ttl_seconds: int = 180
+    # A 股个股资金流（东财）按需拉取的进程内缓存 TTL。
+    fund_flow_cache_ttl_seconds: int = 600
     # 财报/事件日历缓存 TTL：yfinance 日历调用慢，默认 6 小时。
     calendar_cache_ttl_seconds: int = 21600
     # 单机单进程默认形态:producer 随后端 lifespan 一起启停(见 app/main.py)。
@@ -226,14 +208,7 @@ class Settings(BaseSettings):
     backup_retention_count: int = 7
     backup_dir: str | None = None
     dedup_secondary_judge: str | None = None
-    # 情绪/利好利空评测金标集路径；缺省时用 backend/data/research 内置金标。
-    sentiment_eval_dataset_file: str | None = None
-    # —— 情绪 Phase 2/3（回测校准 + 背离提醒），默认全部保守关闭，不改变旧行为 ——
-    # 回测 baseline 快照允许的最大陈旧时长（小时），超过则该样本跳过并计数。
-    signal_backtest_max_snapshot_age_hours: float = 24.0
-    # 置信度校准开关：开启后 pipeline 的 signal_confidence 使用最近一次回测校准映射。
-    sentiment_confidence_calibration_enabled: bool = False
-    # 情绪-价格背离提醒开关及参数。
+    # 情绪-价格背离提醒开关及参数（默认关闭，不改变旧行为）。
     sentiment_divergence_alert_enabled: bool = False
     sentiment_divergence_window_days: int = 3
     sentiment_divergence_min_abs_sentiment: float = 0.4

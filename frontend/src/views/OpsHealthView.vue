@@ -7,7 +7,6 @@ import OpsLlmUsageCard from '../components/ops/OpsLlmUsageCard.vue';
 import OpsSourcesCard from '../components/ops/OpsSourcesCard.vue';
 import OpsSystemStatusCard from '../components/ops/OpsSystemStatusCard.vue';
 import OpsWorkersCard from '../components/ops/OpsWorkersCard.vue';
-import OpsXSourcesCard from '../components/ops/OpsXSourcesCard.vue';
 import { timeLabel } from '../components/ops/opsFormat';
 import type { OpsAlert, OpsHealth } from '../types/api';
 
@@ -77,7 +76,7 @@ const overallBadge = computed(() => {
         <p class="mb-2 text-[11px] uppercase tracking-[0.2em] text-warning">Operations</p>
         <h1 class="page-title">System Health</h1>
         <p class="page-subtitle">
-          统一运维看板：按需聚合后台 worker、新闻源 / X 源健康、近 24h LLM 用量、事件层与数据库体积，并给出结构化告警。每 15s 自动刷新。
+          统一运维看板：按需聚合后台 worker、新闻源健康、近 24h LLM 用量、事件层与数据库体积，并给出结构化告警。每 15s 自动刷新。
         </p>
       </div>
       <div class="flex items-center gap-2 self-start">
@@ -114,7 +113,6 @@ const overallBadge = computed(() => {
 
       <!-- X sources + Event bus + Database 合并到右列 -->
       <div class="grid gap-4">
-        <OpsXSourcesCard :x-sources="health?.x_sources ?? []" />
         <OpsSystemStatusCard :event-bus="health?.event_bus ?? null" :database="health?.database ?? null" />
       </div>
     </div>

@@ -44,35 +44,11 @@ from app.models.news_signal_result import NewsSignalResult  # noqa: F401
 from app.models.news_stock_mention import NewsStockMention  # noqa: F401
 from app.models.notification_job import NotificationJob  # noqa: F401
 from app.models.price_snapshot import PriceSnapshot  # noqa: F401
-from app.models.quant import (  # noqa: F401
-    AiCallAudit,
-    DecisionLog,
-    LlmRoleBinding,
-    PaperAccount,
-    PaperOrder,
-    PaperTrade,
-    PortfolioProposal,
-    PortfolioProposalItem,
-    QuantBacktestRun,
-    QuantRunStageLog,
-    QuantStrategy,
-    RadarEvent,
-    RecommendationItem,
-    RecommendationRun,
-    ResearchSnapshot,
-)
-from app.models.sentiment_eval_run import SentimentEvalRun  # noqa: F401
 from app.models.source_health import SourceHealth  # noqa: F401
 from app.models.topic_cluster import TopicCluster  # noqa: F401
 from app.models.topic_news_link import TopicNewsLink  # noqa: F401
 from app.models.watchlist_item import WatchlistItem  # noqa: F401
 from app.models.worker_runtime_status import WorkerRuntimeStatus  # noqa: F401
-from app.models.x_account import XAccount  # noqa: F401
-from app.models.x_post import XPost  # noqa: F401
-from app.models.x_post_symbol_mention import XPostSymbolMention  # noqa: F401
-from app.models.x_signal import XSignal  # noqa: F401
-from app.models.x_signal_post_link import XSignalPostLink  # noqa: F401
-from app.models.x_source_health import XSourceHealth  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -129,10 +105,6 @@ def initialize_database() -> None:
     else:
         logger.info("Existing database detected: running Alembic upgrade to head.")
         command.upgrade(alembic_cfg, "head")
-
-    from app.db.market_initializer import initialize_market_database
-
-    initialize_market_database()
 
     if get_settings().seed_demo_data:
         _apply_demo_seeds()

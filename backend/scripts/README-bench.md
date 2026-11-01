@@ -24,7 +24,7 @@ SSE 场景的 60 条长连接同样是坑 1 的变体：连接由**独立的 `cu
 #    ⚠️ 绝对不要让被压测的后端指向 backend/data/app.db —— 压测会把上千条请求打进真实数据
 DATABASE_URL="sqlite:////tmp/r2_bench.db" SEED_DEMO_DATA=true \
   NEWS_SCHEDULER_ENABLED=false MARKET_QUOTE_PRODUCER_ENABLED=false \
-  X_MONITOR_ENABLED=false BACKUP_ENABLED=false DATA_CLEANUP_ENABLED=false \
+  BACKUP_ENABLED=false DATA_CLEANUP_ENABLED=false \
   PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8991 --log-level warning
 
 # 2) 跑基准并存档

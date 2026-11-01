@@ -113,13 +113,6 @@ watch(
               <span>{{ formatMarketTime(getNewsDisplayTimestamp(detail), detail.market) }} {{ getMarketTimezoneLabel(detail.market) }}</span>
             </div>
             <div class="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
-              <button
-                class="detail-ai-action"
-                type="button"
-                @click="router.push({ path: '/chat', query: { news_id: newsId } })"
-              >
-                关于此新闻问 AI
-              </button>
               <a
                 v-if="detail.canonical_url"
                 :href="detail.canonical_url"
@@ -287,33 +280,12 @@ watch(
   box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
-.detail-ai-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 999px;
-  background: var(--grad-ai);
-  color: var(--text);
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-
-.detail-ai-action:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--ai) 35%, transparent);
-}
-
 @media (max-width: 720px) {
   .detail-header-actions {
     align-items: stretch;
   }
 
-  .detail-primary-action,
-  .detail-ai-action {
+  .detail-primary-action {
     width: 100%;
   }
 }

@@ -24,7 +24,6 @@ from app.core.config import get_settings
 from app.models.llm_token_usage import LLMTokenUsage
 from app.models.source_health import SourceHealth
 from app.models.worker_runtime_status import WorkerRuntimeStatus
-from app.models.x_source_health import XSourceHealth
 from app.schemas.ops import (
     OpsAlert,
     OpsDatabaseView,
@@ -34,7 +33,6 @@ from app.schemas.ops import (
     OpsLlmUsageView,
     OpsSourceView,
     OpsWorkerView,
-    OpsXSourceView,
 )
 from app.services.event_bus import get_event_bus
 
@@ -126,26 +124,6 @@ def _collect_sources(session: Session) -> list[OpsSourceView]:
             last_fetched_count=row.last_fetched_count or 0,
             last_inserted_count=row.last_inserted_count or 0,
             consecutive_empty_batches=row.consecutive_empty_batches or 0,
-        )
-        for row in rows
-    ]
-
-
-def _collect_x_sources(session: Session) -> list[OpsXSourceView]:
-    rows = list(
-        session.scalars(select(XSourceHealth).order_by(XSourceHealth.provider_name.asc()))
-    )
-    return [
-        OpsXSourceView(
-            provider_name=row.provider_name,
-            last_success_at=row.last_success_at,
-            last_failure_at=row.last_failure_at,
-            consecutive_failures=row.consecutive_failures,
-            total_fetches=row.total_fetches,
-            total_failures=row.total_failures,
-            success_rate=_success_rate(row.total_fetches, row.total_failures),
-            avg_latency_ms=row.avg_latency_ms,
-            last_error=row.last_error,
         )
         for row in rows
     ]
@@ -251,7 +229,6 @@ def _evaluate_alerts(
     *,
     workers: list[OpsWorkerView],
     sources: list[OpsSourceView],
-    x_sources: list[OpsXSourceView],
     event_bus: OpsEventBusView,
     database: OpsDatabaseView,
 ) -> list[OpsAlert]:
@@ -300,18 +277,7 @@ def _evaluate_alerts(
                 f"新闻源 {subject} 已被自动禁用",
             )
 
-    # 3) X 源连续失败。
-    for x_source in x_sources:
-        if x_source.consecutive_failures >= SOURCE_CONSECUTIVE_FAILURE_THRESHOLD:
-            _add(
-                "warning",
-                "x_source.consecutive_failures",
-                x_source.provider_name,
-                f"X 源 {x_source.provider_name} 已连续失败 {x_source.consecutive_failures} 次"
-                f"（阈值 {SOURCE_CONSECUTIVE_FAILURE_THRESHOLD}）",
-            )
-
-    # 4) 事件层降级。
+    # 3) 事件层降级。
     if event_bus.status == "degraded":
         detail = f"，最近错误：{event_bus.last_error}" if event_bus.last_error else ""
         _add(
@@ -321,7 +287,7 @@ def _evaluate_alerts(
             f"事件层（backend={event_bus.backend}）处于 degraded 状态{detail}",
         )
 
-    # 5) SQLite 体积异常。
+    # 4) SQLite 体积异常。
     if database.size_mb > DB_SIZE_CRITICAL_MB:
         _add(
             "critical",
@@ -357,7 +323,6 @@ def build_ops_health(session: Session) -> OpsHealthResponse:
 
     workers = _collect_workers(session, now)
     sources = _collect_sources(session)
-    x_sources = _collect_x_sources(session)
     llm_usage = _collect_llm_usage(session, now)
     event_bus = _collect_event_bus()
     database = _collect_database()
@@ -365,7 +330,6 @@ def build_ops_health(session: Session) -> OpsHealthResponse:
     alerts = _evaluate_alerts(
         workers=workers,
         sources=sources,
-        x_sources=x_sources,
         event_bus=event_bus,
         database=database,
     )
@@ -376,7 +340,6 @@ def build_ops_health(session: Session) -> OpsHealthResponse:
         alerts=alerts,
         workers=workers,
         sources=sources,
-        x_sources=x_sources,
         llm_usage=llm_usage,
         event_bus=event_bus,
         database=database,

@@ -54,7 +54,6 @@ from app.services.event_bus import HybridEventBus, build_event_bus, set_event_bu
 from app.workers.base_worker import BaseWorker
 from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
 from app.workers.takeaway_worker import TakeawayWorker
-from app.workers.x_health_probe_worker import build_x_health_probe_worker
 
 logger = logging.getLogger(__name__)
 
@@ -183,10 +182,6 @@ def build_pipeline_workers(
             fallback_scan_interval_seconds=takeaway_fallback,
         ),
     ]
-    # X 健康探针是纯外网探针，跟着 pipeline worker 一起离开 web 进程。
-    probe = build_x_health_probe_worker(session_factory)
-    if probe is not None:
-        workers.append(probe)
     return workers
 
 
@@ -299,7 +294,7 @@ def run(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m app.workers.pipeline_worker_main",
-        description="独立进程运行 BackgroundQueueWorker / TakeawayWorker / X 健康探针",
+        description="独立进程运行 BackgroundQueueWorker / TakeawayWorker",
     )
     parser.add_argument(
         "--force",

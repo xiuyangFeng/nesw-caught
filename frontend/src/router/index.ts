@@ -7,42 +7,8 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/desk',
-    },
-    {
-      path: '/desk',
-      name: 'desk',
-      component: lazyView(() => import('../views/DeskView.vue')),
-    },
-    {
-      path: '/desk/ops',
-      name: 'desk-ops',
-      component: lazyView(() => import('../views/DeskOpsView.vue')),
-    },
-    {
-      path: '/desk/portfolio-proposal',
-      name: 'desk-proposal',
-      component: lazyView(() => import('../views/DeskProposalView.vue')),
-    },
-    {
-      path: '/desk/report-card',
-      name: 'desk-report-card',
-      component: lazyView(() => import('../views/DeskReportCardView.vue')),
-    },
-    {
-      path: '/desk/strategies',
-      name: 'desk-strategies',
-      component: lazyView(() => import('../views/DeskStrategiesView.vue')),
-    },
-    {
-      path: '/desk/backtest',
-      name: 'desk-backtest',
-      component: lazyView(() => import('../views/DeskBacktestView.vue')),
-    },
-    {
-      path: '/desk/stocks/:symbol',
-      name: 'desk-stock',
-      component: lazyView(() => import('../views/DeskStockView.vue')),
+      // P1 期间首页临时指向仪表盘；P4 盯盘台上线后替换。
+      redirect: '/dashboard',
     },
     {
       path: '/dashboard',
@@ -85,11 +51,6 @@ const router = createRouter({
       component: lazyView(() => import('../views/PortfolioView.vue')),
     },
     {
-      path: '/x-monitor',
-      name: 'x-monitor',
-      component: lazyView(() => import('../views/XMonitorView.vue')),
-    },
-    {
       path: '/calendar',
       name: 'event-calendar',
       component: lazyView(() => import('../views/CalendarView.vue')),
@@ -105,11 +66,6 @@ const router = createRouter({
       component: lazyView(() => import('../views/NotifySettingsView.vue')),
     },
     {
-      path: '/chat',
-      name: 'ai-chat',
-      component: lazyView(() => import('../views/ChatView.vue')),
-    },
-    {
       path: '/digest',
       name: 'daily-digest',
       component: lazyView(() => import('../views/DigestView.vue')),
@@ -120,19 +76,15 @@ const router = createRouter({
       component: lazyView(() => import('../views/TopicDetailView.vue')),
     },
     {
-      path: '/analytics/backtest',
-      name: 'signal-backtest',
-      component: lazyView(() => import('../views/SignalBacktestView.vue')),
-    },
-    {
       path: '/ops',
       name: 'ops-health',
       component: lazyView(() => import('../views/OpsHealthView.vue')),
     },
     {
-      path: '/eval/sentiment',
-      name: 'sentiment-eval',
-      component: lazyView(() => import('../views/SentimentEvalView.vue')),
+      // 兜底：已下线页面（/desk*、/chat、/x-monitor、/analytics/backtest、/eval/sentiment）
+      // 的旧书签及任何未知路径都回到仪表盘，避免空白页。
+      path: '/:pathMatch(.*)*',
+      redirect: '/dashboard',
     },
   ],
 });

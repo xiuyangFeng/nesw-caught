@@ -1,19 +1,13 @@
-import asyncio
-import json
 import time
 from datetime import UTC
 
-import anyio
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db_session
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
-from app.repositories.news_repository import NewsRepository
 from app.schemas.llm import (
-    LLMChatRequest,
     LLMConfigUpsertRequest,
     LLMConfigView,
     LLMConnectionTestView,
@@ -21,7 +15,7 @@ from app.schemas.llm import (
     LLMTranslateRequest,
     LLMTranslateView,
 )
-from app.services.llm_providers import LLMProviderError, build_async_provider, build_provider
+from app.services.llm_providers import LLMProviderError, build_provider
 
 router = APIRouter()
 TRANSLATE_MAX_LENGTH = 4000
@@ -191,130 +185,6 @@ def test_llm_connection(session: Session = Depends(get_db_session)) -> LLMConnec
         model_name=config.model_name,
         message="LLM connection succeeded",
     )
-
-
-def _load_chat_context(
-    session: Session,
-    payload: LLMChatRequest,
-) -> tuple[object, list[dict[str, str]]]:
-    """同步读取聊天所需的 provider 配置与新闻上下文。
-
-    这里聚合了 chat_with_llm 进入流式/非流式分支前的全部同步 DB 读，
-    统一通过一次 anyio.to_thread.run_sync 线程跳转执行，避免直接在事件
-    循环线程里做同步 SQLite 读——一旦撞上写锁（busy_timeout 最长 30s），
-    会阻塞该线程上的所有 async 请求与 SSE。
-    """
-    repository = LLMProviderConfigRepository(session)
-    config = None
-    if payload.config_id is not None:
-        config = repository.get_by_id(payload.config_id)
-    if config is None:
-        config = repository.get_default()
-
-    if config is None:
-        raise HTTPException(status_code=400, detail="LLM provider is not configured")
-
-    # 构造消息上下文
-    messages = []
-
-    # 角色设定与新闻上下文
-    system_prompt = "你是一个资深的金融投资与分析助手，能给出深刻的新闻解读和分析。"
-    if payload.desk_symbol:
-        from app.services.quant.ai.guard import wrap_untrusted_evidence
-        from app.services.quant_desk_service import QuantDeskService
-
-        pack = QuantDeskService().get_research(session, payload.desk_symbol)
-        extra = payload.desk_context or pack.ask_ai_context
-        system_prompt = (
-            "你是交易台研究副驾。只能解读研究材料，禁止修改排名、分数或仓位，"
-            "禁止编造财务数字。回答必须引用 evidence_id。\n"
-            + wrap_untrusted_evidence(extra)
-        )
-    elif payload.news_id is not None:
-        news_repo = NewsRepository(session)
-        news = news_repo.get_by_id(payload.news_id)
-        if news is not None:
-            article = news_repo.get_article(payload.news_id)
-            news_context = f"系统提示：请结合以下关联新闻内容回答用户的问题。\n\n【新闻标题】：{news.title}\n"
-            if news.source_name:
-                news_context += f"【新闻来源】：{news.source_name}\n"
-            if news.published_at:
-                news_context += f"【发布时间】：{news.published_at.isoformat()}\n"
-            if news.summary:
-                news_context += f"【新闻摘要】：{news.summary}\n"
-            if article and article.content_text:
-                news_context += f"【新闻正文】：{article.content_text}\n"
-            news_context += "\n请结合上述新闻内容，回答用户的相关提问。"
-            system_prompt = news_context
-
-    messages.append({"role": "system", "content": system_prompt})
-
-    # 对话历史
-    for msg in payload.history:
-        role = msg.get("role")
-        content = msg.get("content")
-        if role in {"user", "assistant"} and content:
-            messages.append({"role": role, "content": content})
-
-    # 当前用户提问
-    messages.append({"role": "user", "content": payload.message})
-
-    return config, messages
-
-
-@router.post("/chat")
-async def chat_with_llm(
-    payload: LLMChatRequest,
-    request: Request,
-    session: Session = Depends(get_db_session),
-):
-    config, messages = await anyio.to_thread.run_sync(_load_chat_context, session, payload)
-
-    provider = build_async_provider(config)
-
-    # 1. 流式返回
-    if payload.stream:
-        async def event_generator():
-            try:
-                async for event_type, data in provider.chat_stream(messages=messages):
-                    if await request.is_disconnected():
-                        break
-                    if event_type == "failover":
-                        yield f"data: {json.dumps({'failover': data})}\n\n"
-                    elif event_type == "reasoning":
-                        yield f"data: {json.dumps({'reasoning': data})}\n\n"
-                    else:
-                        yield f"data: {json.dumps({'text': data})}\n\n"
-            except asyncio.CancelledError:
-                pass
-            except LLMProviderError as exc:
-                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
-            except Exception as exc:
-                yield f"data: {json.dumps({'error': 'Internal error: ' + str(exc)})}\n\n"
-
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
-
-    # 2. 非流式返回（普通 JSON）
-    else:
-        try:
-            # 拼接历史会话
-            result = await provider.complete(messages=messages)
-            res_payload = {"text": result.content}
-            if result.failover is not None:
-                res_payload["failover"] = result.failover
-            return res_payload
-        except LLMProviderError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Internal error: {exc}") from exc
 
 
 def _compute_cost_usd(

@@ -165,31 +165,6 @@ describe('AppShell', () => {
     expect(wrapper.find('[data-role="router-view-stub"]').exists()).toBe(true);
   });
 
-  it('locks the outer document to one viewport on the chat route', () => {
-    routeState.path = '/chat';
-    const wrapper = mount(AppShell);
-
-    expect(wrapper.get('[data-role="app-shell-root"]').classes()).toEqual(expect.arrayContaining([
-      'min-h-screen',
-      'shell:h-[100dvh]',
-      'shell:min-h-0',
-      'shell:overflow-hidden',
-    ]));
-    expect(wrapper.get('[data-role="app-shell-sidebar"]').classes()).toEqual(expect.arrayContaining([
-      'min-h-[calc(100vh-36px)]',
-      'shell:h-[calc(100dvh-36px)]',
-      'shell:min-h-0',
-      'shell:overflow-y-auto',
-    ]));
-    expect(wrapper.get('[data-role="app-shell-main"]').classes()).toEqual(expect.arrayContaining([
-      'content-start',
-      'shell:h-[calc(100dvh-36px)]',
-      'shell:min-h-0',
-      'shell:grid-rows-[minmax(0,1fr)]',
-      'shell:overflow-hidden',
-    ]));
-  });
-
   it('uses the shared stacked layout for shell status indicator units', () => {
     const wrapper = mount(AppShell);
 
@@ -216,18 +191,29 @@ describe('AppShell', () => {
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
 
-  it('lists desk ops in trading-desk nav without treating it as the radar route', () => {
-    routeState.path = '/desk/ops';
+  it('groups the focused nav into monitoring, holdings and system', () => {
+    routeState.path = '/dashboard';
     const wrapper = mount(AppShell);
 
-    expect(wrapper.text()).toContain('运行中心');
-    expect(wrapper.text()).toContain('组合提案');
-    expect(wrapper.text()).toContain('成绩单');
-    expect(wrapper.text()).toContain('回测实验室');
-    const activeLink = wrapper.find('[data-route-active="true"]');
-    expect(activeLink.exists()).toBe(true);
-    expect(activeLink.text()).toContain('运行中心');
-    expect(activeLink.text()).not.toContain('机会雷达');
+    const hrefs = wrapper.findAll('a[href]').map((link) => link.attributes('href'));
+    expect(hrefs).toEqual(
+      expect.arrayContaining(['/dashboard', '/news', '/digest', '/calendar', '/watchlist', '/portfolio', '/settings/llm', '/settings/notify', '/ops']),
+    );
+    for (const removed of ['/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment']) {
+      expect(hrefs).not.toContain(removed);
+    }
+    expect(wrapper.text()).toContain('盯盘');
+    expect(wrapper.text()).toContain('持仓');
+  });
+
+  it('no longer lists the removed trading-desk pages in the nav', () => {
+    routeState.path = '/dashboard';
+    const wrapper = mount(AppShell);
+
+    expect(wrapper.text()).not.toContain('机会雷达');
+    expect(wrapper.text()).not.toContain('组合提案');
+    expect(wrapper.text()).not.toContain('回测实验室');
+    expect(wrapper.find('a[href^="/desk"]').exists()).toBe(false);
   });
 
   it('keeps connection diagnostics in the sidebar when connection state is degraded', () => {
@@ -634,7 +620,7 @@ describe('AppShell', () => {
     vi.useRealTimers();
   });
 
-  it('redirects root navigation to the desk homepage', async () => {
+  it('redirects root navigation to the dashboard', async () => {
     vi.resetModules();
     vi.doUnmock('vue-router');
 
@@ -642,7 +628,7 @@ describe('AppShell', () => {
 
     await router.push('/');
 
-    expect(router.currentRoute.value.path).toBe('/desk');
-    expect(router.currentRoute.value.name).toBe('desk');
+    expect(router.currentRoute.value.path).toBe('/dashboard');
+    expect(router.currentRoute.value.name).toBe('dashboard');
   });
 });

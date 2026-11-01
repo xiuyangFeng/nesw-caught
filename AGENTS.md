@@ -22,9 +22,9 @@
 - **Git Worktrees**：涉及隔离开发、风险较高改动或并行分支时，可优先使用 git worktree，但不作为普通修改的强制前提。
 
 ### 3. 面向本项目的补充要求
-- 开始工作前先读 [docs/current-state.md](/Users/xiuyang/Desktop/news-caught/docs/current-state.md) 和根目录 [README.md](/Users/xiuyang/Desktop/news-caught/README.md)，以**当前代码能力**为准，不要从早期总控计划或旧优化清单推导待办。
-- 开始较大改动前，只阅读 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md) **顶部近期条目**，确认是否与正在改的模块冲突。不要通读历史归档，也不要把变更记录里的“风险或后续事项”自动当成新任务。
-- 必须遵守本文中“二、代码记录与提交规范”的要求；每次完成明确修改单元后，必须更新 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)。
+- 开始工作前先读 [docs/current-state.md](docs/current-state.md) 和根目录 [README.md](README.md)，以**当前代码能力**为准，不要从早期总控计划或旧优化清单推导待办。
+- 开始较大改动前，只阅读 [docs/code-change-log.md](docs/code-change-log.md) **顶部近期条目**，确认是否与正在改的模块冲突。不要通读历史归档，也不要把变更记录里的“风险或后续事项”自动当成新任务。
+- 必须遵守本文中“二、代码记录与提交规范”的要求；每次完成明确修改单元后，必须更新 [docs/code-change-log.md](docs/code-change-log.md)。
 - 设计文档和计划文档继续统一放在 `docs/superpowers/` 下；该目录名仅为历史兼容，不表示依赖 Superpowers 套件：
   - 设计：`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
   - 计划：`docs/superpowers/plans/YYYY-MM-DD-<topic>-plan.md`
@@ -43,7 +43,7 @@
 ## 二、 代码记录与提交规范 (Code Change Log Rules)
 
 ### 1. 强制要求
-任何修改都必须在提交修改内容的同时，回填到代码记录文档 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md) 中。如果修改了代码但没有同步更新该记录文档，则该修改视为不完整。
+任何修改都必须在提交修改内容的同时，回填到代码记录文档 [docs/code-change-log.md](docs/code-change-log.md) 中。如果修改了代码但没有同步更新该记录文档，则该修改视为不完整。
 
 ### 2. 适用范围与改动粒度
 所有后端/前端代码、配置文件、脚本、数据库模型、API 契约、文档、测试以及构建和运行方式的改动均须记录。每次完成一个明确修改单元后立即记录，不要等到最后统一补写。
@@ -67,4 +67,4 @@
 8. **风险或后续事项**
 
 ### 4. 建议模板
-参考 [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md) 中的模板和历史示例。2026-07 及更早的条目在 [docs/archive/code-change-log-before-2026-08.md](/Users/xiuyang/Desktop/news-caught/docs/archive/code-change-log-before-2026-08.md)，只读。
+参考 [docs/code-change-log.md](docs/code-change-log.md) 中的模板和历史示例。2026-07 及更早的条目在 [docs/archive/code-change-log-before-2026-08.md](docs/archive/code-change-log-before-2026-08.md)，只读。

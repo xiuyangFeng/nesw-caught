@@ -93,29 +93,10 @@ vi.mock('../api/client', async () => {
     getTopics: () => ok(mock.mockTopics),
     getTopicDetail: (id) => ok(mock.mockTopicDetails[id as number] ?? firstOf(mock.mockTopicDetails)),
     getStreamStatus: () => ok(mock.mockStreamStatus),
-    getBacktestSummary: () => ok(null),
     getOpsHealth: () => ok(null),
-    getXHealth: () => ok(mock.mockXHealth),
-    getXAccounts: () => ok(mock.mockXAccounts),
-    getXRadar: () => ok(mock.mockXRadar),
-    getXPosts: () => ok(mock.mockXPosts),
-    getXSearchResults: () => ok([]),
     getFeishuConfig: () => ok(mock.mockFeishuConfig),
     getLatestDigest: () => ok({ available: false, digest: null }),
-    getQuantLatest: () => ok(mock.mockQuantLatest),
-    getQuantDataStatus: () => ok(mock.mockQuantDataStatus),
-    getQuantRadar: () => ok(mock.mockQuantRadar),
-    getQuantFundFlow: (symbol) => ok({ ...mock.mockQuantFundFlow, symbol: String(symbol ?? mock.mockQuantFundFlow.symbol) }),
-    getQuantResearch: (symbol) => ok({ ...mock.mockQuantResearch, symbol: String(symbol ?? mock.mockQuantResearch.symbol) }),
-    getQuantAiAudit: () => ok(mock.mockQuantAiAudit),
-    getQuantRuns: () => ok(mock.mockQuantRuns),
-    getQuantProposal: () => ok(mock.mockQuantProposal),
-    getQuantReportCard: () => ok(mock.mockQuantReportCard),
-    getQuantStrategies: () => ok(mock.mockQuantStrategies),
-    getQuantPaperAccount: () => ok(mock.mockQuantPaperAccount),
-    getQuantDecisionLog: () => ok(mock.mockQuantDecisionLog),
-    getQuantCopilotTools: () => ok(mock.mockQuantCopilotTools),
-    runQuantRecommendations: () => ok(mock.mockQuantLatest),
+    getFundFlow: (symbol) => ok({ ...mock.mockFundFlow, symbol: String(symbol ?? mock.mockFundFlow.symbol) }),
   };
 
   const apiClient = new Proxy(explicit, {
@@ -142,25 +123,15 @@ interface SmokeRoute {
 
 // 全部无参主模块（导航侧栏可直达的模块）。
 const primaryModules: SmokeRoute[] = [
-  { path: '/desk', label: 'Desk', anchor: { kind: 'role', value: 'desk-view' } },
-  { path: '/desk/ops', label: 'DeskOps', anchor: { kind: 'role', value: 'desk-ops-view' } },
-  { path: '/desk/portfolio-proposal', label: 'DeskProposal', anchor: { kind: 'role', value: 'desk-proposal-view' } },
-  { path: '/desk/report-card', label: 'DeskReportCard', anchor: { kind: 'role', value: 'desk-report-card-view' } },
-  { path: '/desk/strategies', label: 'DeskStrategies', anchor: { kind: 'role', value: 'desk-strategies-view' } },
-  { path: '/desk/backtest', label: 'DeskBacktest', anchor: { kind: 'role', value: 'desk-backtest-view' } },
   { path: '/news', label: 'NewsFeed', anchor: { kind: 'text', value: 'Latest Events' } },
   { path: '/dashboard', label: 'Dashboard', anchor: { kind: 'text', value: 'Dashboard' } },
   { path: '/watchlist', label: 'Watchlist', anchor: { kind: 'role', value: 'watchlist-dashboard' } },
-  { path: '/x-monitor', label: 'XMonitor', anchor: { kind: 'text', value: 'X Radar' } },
   { path: '/calendar', label: 'Calendar', anchor: { kind: 'role', value: 'calendar-view' } },
   { path: '/settings/llm', label: 'LlmSettings', anchor: { kind: 'text', value: 'LLM Settings' } },
   { path: '/settings/notify', label: 'NotifySettings', anchor: { kind: 'text', value: '通知推送设置' } },
-  { path: '/chat', label: 'Chat', anchor: { kind: 'text', value: 'AI 对话助手' } },
   { path: '/digest', label: 'Digest', anchor: { kind: 'text', value: '每日盘前/盘后 AI 简报' } },
-  { path: '/analytics/backtest', label: 'SignalBacktest', anchor: { kind: 'text', value: 'Signal Backtest' } },
   { path: '/ops', label: 'OpsHealth', anchor: { kind: 'role', value: 'ops-health-view' } },
   { path: '/portfolio', label: 'Portfolio', anchor: { kind: 'role', value: 'portfolio-view' } },
-  { path: '/eval/sentiment', label: 'SentimentEval', anchor: { kind: 'text', value: 'Sentiment Eval' } },
 ];
 
 // 带参路由用示例参数补充覆盖（参数取自 ../api/mock 里存在的良性夹具）。
@@ -169,7 +140,6 @@ const parameterizedModules: SmokeRoute[] = [
   { path: '/news/101', label: 'NewsDetail', anchor: { kind: 'text', value: 'News Detail' } },
   { path: '/news/sentiment/positive', label: 'SentimentNews', anchor: { kind: 'text', value: '新闻' } },
   { path: '/watchlist/0700.HK', label: 'WatchlistDetail', anchor: { kind: 'role', value: 'watchlist-detail-main' } },
-  { path: '/desk/stocks/600519.SH', label: 'DeskStock', anchor: { kind: 'role', value: 'desk-stock-view' } },
   { path: '/topics/501', label: 'TopicDetail', anchor: { kind: 'text', value: 'Topic Detail' } },
 ];
 

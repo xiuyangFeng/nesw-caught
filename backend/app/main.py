@@ -150,7 +150,7 @@ async def lifespan(_: FastAPI):
         # 单机单进程默认形态（README 推荐）：重活 worker 随 web 进程一起启停。
         logger.info(
             "pipeline workers mode: IN-PROCESS (PIPELINE_WORKERS_ENABLED=true) — "
-            "BackgroundQueueWorker/TakeawayWorker/X 健康探针跑在 web 进程里；"
+            "BackgroundQueueWorker/TakeawayWorker跑在 web 进程里；"
             "如需把它们移出 GIL，请设 PIPELINE_WORKERS_ENABLED=false 并单独运行 "
             "`python -m app.workers.pipeline_worker_main`"
         )
@@ -160,7 +160,7 @@ async def lifespan(_: FastAPI):
         # 独立进程侧同时打出「exclusive ownership OK」才说明两边配置一致。
         logger.info(
             "pipeline workers mode: OUT-OF-PROCESS (PIPELINE_WORKERS_ENABLED=false) — "
-            "本进程不启动 BackgroundQueueWorker/TakeawayWorker/X 健康探针；"
+            "本进程不启动 BackgroundQueueWorker/TakeawayWorker；"
             "请确保 `python -m app.workers.pipeline_worker_main` 正在运行，否则"
             "新闻只会入库、不会被评分"
         )
@@ -194,8 +194,6 @@ async def lifespan(_: FastAPI):
     redis_consumer = None
     market_quote_producer: MarketQuoteProducer | None = None
     market_overview_producer: MarketOverviewProducer | None = None
-    quant_scheduler_worker = None
-    x_health_probe_worker = None
     event_bus = get_event_bus()
     redis_publisher = getattr(event_bus, "redis_publisher", None)
     stream_map = getattr(event_bus, "stream_map", None) or {}
@@ -257,27 +255,9 @@ async def lifespan(_: FastAPI):
         # `app.workers.market_overview_producer`。
         market_overview_producer = build_market_overview_producer()
         market_overview_producer.start()
-    if settings.quant_scheduler_enabled:
-        # 量化盘后调度：交易日 run_at 后自动增量回填 + 跑真实选票流水线。
-        # 多进程部署关掉该开关，改用独立入口
-        # `app.workers.quant_scheduler_worker`。
-        from app.workers.quant_scheduler_worker import build_quant_scheduler_worker
-
-        quant_scheduler_worker = build_quant_scheduler_worker()
-        quant_scheduler_worker.start()
     if settings.data_cleanup_enabled:
         cleanup_worker = build_data_cleanup_worker(SessionLocal)
         cleanup_worker.start()
-    if settings.pipeline_workers_enabled:
-        # /health 已改为只读 x_source_health 的上次探测结果（不再在请求线程里发起
-        # 最长 60 秒的外网探针）。这个 worker 负责按固定间隔把该结果刷新，否则
-        # /health 会长期把健康的 X 监控报成 unknown。
-        # 纯外网探针没必要占 web 进程，因此与 pipeline worker 共用同一个进程归属开关。
-        from app.workers.x_health_probe_worker import build_x_health_probe_worker
-
-        x_health_probe_worker = build_x_health_probe_worker(SessionLocal)
-        if x_health_probe_worker is not None:
-            x_health_probe_worker.start()
     if settings.backup_enabled:
         backup_worker = build_backup_worker(SessionLocal)
         if backup_worker is not None:
@@ -303,8 +283,6 @@ async def lifespan(_: FastAPI):
         redis_consumer.stop()
     if digest_worker is not None:
         digest_worker.stop()
-    if x_health_probe_worker is not None:
-        x_health_probe_worker.stop()
     if cleanup_worker is not None:
         cleanup_worker.stop()
     if backup_worker is not None:
@@ -315,8 +293,6 @@ async def lifespan(_: FastAPI):
         market_quote_producer.stop()
     if market_overview_producer is not None:
         market_overview_producer.stop()
-    if quant_scheduler_worker is not None:
-        quant_scheduler_worker.stop()
     if queue_worker is not None:
         queue_worker.stop()
     if takeaway_worker is not None:

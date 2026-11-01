@@ -16,35 +16,24 @@ describe('router', () => {
     await router.isReady();
   });
 
-  it('redirects root navigation to the desk homepage', async () => {
+  it('redirects root navigation to the dashboard', async () => {
     const { default: router } = await import('./index');
 
+    await router.push('/news');
     await router.push('/');
 
-    expect(router.currentRoute.value.path).toBe('/desk');
-    expect(router.currentRoute.value.name).toBe('desk');
+    expect(router.currentRoute.value.path).toBe('/dashboard');
+    expect(router.currentRoute.value.name).toBe('dashboard');
   });
 
-  it('resolves the desk ops route', async () => {
+  it('sends bookmarks of removed pages back to the dashboard', async () => {
     const { default: router } = await import('./index');
 
-    await router.push('/desk/ops');
-
-    expect(router.currentRoute.value.path).toBe('/desk/ops');
-    expect(router.currentRoute.value.name).toBe('desk-ops');
-  });
-
-  it('resolves desk product pages added in later phases', async () => {
-    const { default: router } = await import('./index');
-
-    await router.push('/desk/portfolio-proposal');
-    expect(router.currentRoute.value.name).toBe('desk-proposal');
-    await router.push('/desk/report-card');
-    expect(router.currentRoute.value.name).toBe('desk-report-card');
-    await router.push('/desk/strategies');
-    expect(router.currentRoute.value.name).toBe('desk-strategies');
-    await router.push('/desk/backtest');
-    expect(router.currentRoute.value.name).toBe('desk-backtest');
+    for (const removed of ['/desk', '/desk/stocks/600519.SH', '/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment']) {
+      await router.push('/news');
+      await router.push(removed);
+      expect(router.currentRoute.value.path).toBe('/dashboard');
+    }
   });
 
   it('resolves event detail routes by event key', async () => {

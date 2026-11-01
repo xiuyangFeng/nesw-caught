@@ -16,6 +16,7 @@ from app.repositories.market_repository import MarketRepository
 from app.schemas.market import (
     BoardItemView,
     BoardSectionView,
+    FundFlowView,
     MarketIndexConfigCreateRequest,
     MarketIndexConfigUpdateRequest,
     MarketIndexConfigView,
@@ -34,6 +35,7 @@ from app.schemas.market import (
     QuoteSummaryView,
     SparklineSeriesView,
 )
+from app.services import fund_flow_service
 from app.services.board_provider import BoardFetchResult, get_cached_industry_boards
 from app.services.event_bus import get_event_bus
 from app.services.market_chart_service import MarketChartService
@@ -156,6 +158,12 @@ def get_symbol_kline(
 ) -> MarketKlineView:
     service = get_market_chart_service()
     return MarketKlineView.model_validate(service.get_kline(symbol, interval, range, session))
+
+
+@router.get("/symbols/{symbol}/fund-flow", response_model=FundFlowView)
+def get_symbol_fund_flow(symbol: str) -> FundFlowView:
+    """A 股个股日线资金流（东财按需拉取，进程内 TTL 缓存；非 A 股或上游失败返回空 + note）。"""
+    return fund_flow_service.get_fund_flow_service().get_fund_flow(symbol)
 
 
 @router.post("/sparklines", response_model=dict[str, SparklineSeriesView])

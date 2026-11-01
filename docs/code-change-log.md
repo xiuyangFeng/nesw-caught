@@ -5,6 +5,174 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 协作文档路径修正与审计文档入库
+
+- 修改人：Claude Code（Opus 5.5），按用户要求
+- 修改范围：文档（纯文档）。
+- 变更内容：
+  - `AGENTS.md`、`ANGENT.md` 中指向 `/Users/xiuyang/Desktop/news-caught/...` 的旧绝对路径改为相对仓库根目录的链接（仓库已迁到 `/Users/xiuyang/研究生学习/news-caught`，旧链接全部失效）。
+  - 此前未提交的 `docs/superpowers/specs/2026-09-28-audit-fixes-design.md` 与 `docs/superpowers/plans/2026-09-28-audit-fixes-plan.md` 入库；两份文档顶部各加一段 P1 之后的状态说明，列出已失效条目（量化、X 监控、AI 对话相关）与仍然有效的条目，原文未改。
+- 影响文件：`AGENTS.md`、`ANGENT.md`、`docs/superpowers/specs/2026-09-28-audit-fixes-design.md`（新入库）、`docs/superpowers/plans/2026-09-28-audit-fixes-plan.md`（新入库）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；`git grep "Desktop/news-caught"` 在 `docs/archive` 与变更记录之外已无匹配。
+- 风险或后续事项：审计文档中仍然有效的条目待后续单独排期，不自动视为当前待办。
+
+## 2026-11-01 聚焦改造 P1 计划归档
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：文档（纯文档）。
+- 变更内容：P1 计划执行完毕，按规范移到 `docs/archive/superpowers/plans/`，补充完成记录与相对计划的偏离说明；设计文档仍在 `docs/superpowers/specs/`，继续指导 P2～P4，状态行改为指向归档后的计划。
+- 影响文件：`docs/archive/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`（移动）、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；确认归档路径存在、文中相对链接指向正确。
+- 风险或后续事项：无。
+
+## 2026-11-01 聚焦改造 P1-T8：全量验证与评审修复
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：数据库迁移、资金流服务与面板、前端路由、测试与配置清理。
+- 变更内容：
+  - **已下线 worker 的心跳残留**：真实库实测发现 `worker_runtime_status` 中仍有 `quant_scheduler`、`x_health_probe` 两行，系统健康页会因心跳不再更新而永久报 `worker.heartbeat_timeout`。新增迁移 `c4e1d7a9b2f8` 删除这两行（downgrade 无需恢复，心跳为运行时状态），并新增 `tests/test_focus_p1_migrations.py`（先确认去掉迁移时测试失败，再确认加上后通过；不误删其他 worker）。
+  - **资金流限流保护**：实测东财对连续请求会直接断开连接。`FundFlowService` 改为失败结果也短暂缓存（默认 60 秒，成功仍为 600 秒），避免限流期间反复请求上游；增加可注入时钟便于测试。新增 2 个测试（失败短缓存后重试、成功缓存过期）。
+  - **资金流面板**：接口改为返回约 60 个交易日后，面板只展示最近 10 个交易日、最新在上，金额格式化为"亿 / 万"，占比带正负号；新增测试。
+  - **旧书签兜底**：前端新增 `/:pathMatch(.*)*` 重定向到 `/dashboard`，`/desk*`、`/chat`、`/x-monitor`、`/analytics/backtest`、`/eval/sentiment` 等旧书签不再显示空白页；新增路由测试。
+  - 清理遗留：`pyproject.toml` 删除已不存在的 `x_monitor/__init__.py` 的 ruff 例外；`tests/conftest.py` 删除行情测试库 `MARKET_DATABASE_URL` 设置；`backend/scripts/README-bench.md`、`bench_readpath.py` 删除 `X_MONITOR_ENABLED=false`；资金流面板测试中的"make quant-backfill"文案。
+  - 代码评审：由独立子任务对整个分支做只读评审，确认无遗留引用、保留功能无回归、迁移逐级 downgrade/upgrade 正确；其指出的问题均已在本条处理（未提交的心跳迁移现已提交）。
+- 影响文件：`backend/alembic/versions/c4e1d7a9b2f8_purge_removed_worker_heartbeats.py`（新）、`backend/tests/test_focus_p1_migrations.py`（新）、`backend/app/services/fund_flow_service.py`、`backend/tests/test_fund_flow_service.py`、`backend/tests/conftest.py`、`backend/pyproject.toml`、`backend/scripts/README-bench.md`、`backend/scripts/bench_readpath.py`、`frontend/src/components/watchlist/FundFlowPanel.{vue,test.ts}`、`frontend/src/router/index.{ts,test.ts}`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无接口变化；删除 `worker_runtime_status` 中两条已下线 worker 的心跳行。
+- 验证情况：
+  - 后端 `pytest backend/tests` 1051 passed / 7 failed（均为审计文档已知的测试种子污染）；`ruff check backend scripts` 通过。
+  - 前端 `vitest run` 79 个文件、462 passed；`npm run build` 通过；`check:api-drift` OK。
+  - **真实库**：`make dev` 启动时自动将 `app.db` 从 `b9d5f2a7c013` 升级到 `c4e1d7a9b2f8`；量化、X、评测相关表已删除；`news_item` 21,412 条、`watchlist_item` 4 条完好；`news_stock_mention` 从 2,307 增长到 2,348，说明主流程仍在写入新闻与股票的关联。
+  - **接口实测**（带 App Token）：保留页面依赖的 28 个接口全部 200；已删除接口均为 404。
+  - **资金流实测**：接口在东财限流时返回 200 + 提示文案（符合设计）；未能在本次验证窗口内拿到实时数据（东财持续限流，curl 同样被断开），字段顺序已用此前成功拉取的真实数据锁定在测试中。
+  - 中途出现过 1 个 `test_market.py` K 线测试失败：原因是测试与开发服务器共用本机 Redis 缓存，我的冒烟测试刚好请求了同一只股的 K 线；Redis key 过期后重跑全部通过。这是原有的测试隔离问题，不是本次改动引入。
+- 风险或后续事项：`orphan_queue_drainer` 心跳自 2026-08-21 未更新、`background_queue_worker:crawl_error` 处于降级，这两个系统健康告警在本次改动前就存在。测试未隔离 Redis，开发服务器运行时可能干扰 K 线相关测试。`docs/api-contract.md`（第一阶段草稿）仍记载 `/api/x/*`，未改。
+
+## 2026-11-01 聚焦改造 P1-T7：导航收敛、遗漏入口清理与文档更新
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端导航与新闻详情页、README、现状快照、启动脚本与日志文案。
+- 变更内容：
+  - 导航收敛为三组：**盯盘**（仪表盘、最新事件、每日复盘、日历）、**持仓**（自选股、组合）、**系统**（模型设置、通知、系统健康），并新增导航测试。
+  - **补删 T4 遗漏**：新闻详情页的"关于此新闻问 AI"按钮仍跳转已删除的 `/chat`（T4 的检索写法没匹配到 `path: '/chat'`），删除按钮及其样式；复查前端源码已无指向已删页面的链接。
+  - 删除 X 监控遗留的 `backend/data/x_monitor_accounts.example.json`；`scripts/dev.sh`、`main.py`、`pipeline_worker_main.py` 中的启动日志/注释去掉"X 健康探针"。
+  - README：顶部加聚焦改造说明；删除 X 监控整节、AI 对话页与"问 AI"、打字机动效等说明及 `/api/llm/chat` 接口；LLM 故障切换说明改为只描述 JSON 接口；所有 `/Users/xiuyang/Desktop/news-caught/...` 旧绝对路径改为相对仓库根目录。
+  - `docs/current-state.md` 按 P1 之后的实际能力重写，列出已下线模块、备份位置与 P2～P4 分期。
+- 影响文件：`frontend/src/components/layout/AppShell.{vue,test.ts}`、`frontend/src/views/NewsDetailView.vue`、`backend/data/x_monitor_accounts.example.json`（删）、`backend/app/main.py`、`backend/app/workers/pipeline_worker_main.py`、`scripts/dev.sh`、`README.md`、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：`ruff check backend scripts` 通过；前端 `vitest run` 79 个文件、460 passed（新增 1 个导航测试），`npm run build` 通过。
+- 风险或后续事项：`AGENTS.md` 中仍有 `/Users/xiuyang/Desktop/news-caught` 旧绝对路径（属于协作规范文件，本次未改，留给用户决定）。侧栏品牌文字"Quant Intelligence"留到 P4 首页改版时一起调整。
+
+## 2026-11-01 聚焦改造 P1-T6：删除信号统计与情绪评测工具
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端评测/回测模块、研究脚本、数据库迁移、新闻信号分类器、前端两个页面。
+- 变更内容：
+  - 后端删除：`/api/backtest`、`/api/eval/*` 路由；`signal_backtest`、`news_sentiment_{dataset,evaluator,experiment_runner,llm_classifier,report}`、`news_relevance_{dataset,annotation,report,experiment_runner}`、`sentiment_eval_persistence`、`sentiment_calibration` 服务；`sentiment_eval_run` 模型与 repository；`schemas/backtest.py`、`schemas/sentiment_eval.py`；`backend/scripts/` 下 11 个标注/实验/报告脚本；对应 13 个测试文件。
+  - **相对计划的偏离**：计划原定保留 `sentiment_calibration`。核查后发现它只在开关 `sentiment_confidence_calibration_enabled` 打开时生效，该开关默认关闭、用户 `.env` 未开启、校准文件 `sentiment_calibration.json` 从未生成，且唯一的生成方就是被删除的信号统计。因此一并删除，并去掉 `news_signal_classifier` 中这个从未执行过的分支；置信度计算与现状完全相同（线性公式）。
+  - 保留 `news_relevance_evaluator`（被新闻优先级排序 `news_priority` 使用）及其测试；保留 `backend/data/research/` 下已提交的研究数据（用户实验成果，只删代码）。
+  - `config.py` 去掉 `sentiment_eval_dataset_file`、`signal_backtest_max_snapshot_age_hours`、`sentiment_confidence_calibration_enabled`。
+  - 新增主库迁移 `c3b8f0e2a5d6`：删除 `sentiment_eval_run` 表，`downgrade` 复用原建表迁移 `e6c2a9f4d1b7`。
+  - 前端删除 `SignalBacktestView`、`SentimentEvalView`（含测试）、`api/mock/sentimentEval.ts`；移除两条路由、两个导航项、`client.ts` 中 3 个方法、`types/api.ts` 中回测/评测/校准类型（保留情绪时间线用的 `SentimentEvalLabel`）。
+- 影响文件：上述删除文件，以及 `backend/alembic/versions/c3b8f0e2a5d6_drop_sentiment_eval_run.py`（新）、`backend/app/{api/router.py,core/config.py,services/news_signal_classifier.py,models/__init__.py,db/initializer.py}`、`backend/alembic/env.py`、`frontend/src/{router/index.ts,components/layout/AppShell.vue,components/watchlist/SentimentTimelinePanel.vue,api/client.ts,api/mock.ts,types/api.ts,smoke/app-navigation.test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `GET /api/backtest`、`GET /api/eval/sentiment`、`POST /api/eval/sentiment/run`；主库删除 `sentiment_eval_run`（原有 3 行评测记录，已在 T0 备份中保留；迁移可回退）；删除 3 个配置项（`.env` 中若有会被忽略）。
+- 验证情况：`pytest backend/tests` 1049 passed / 7 failed——剩余 7 个均为审计文档已知的测试种子污染（`test_news.py` 3 个、`test_news_analysis.py` 4 个）；基线中另 2 个硬编码旧路径的失败随评测测试删除而消失。`ruff check` 通过。备份副本上迁移 upgrade/downgrade/upgrade 往返正常，回退后表结构与原始一致。前端 `vue-tsc` 零错误，`vitest run` 79 个文件、459 passed，`npm run build` 通过，`check:api-drift` OK，`openapi.json` 中已无 `/api/eval`、`/api/backtest`。
+- 风险或后续事项：无。
+
+## 2026-11-01 聚焦改造 P1-T5：删除 X 监控
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端 X 监控模块、健康检查与系统健康、数据库迁移、前端 X 页面与系统健康页。
+- 变更内容：
+  - 后端删除：`app/services/x_monitor/`、`x_radar_signal_builder.py`、`twitterapi_io_client.py`、`workers/x_health_probe_worker.py`、`/api/x/*` 路由、`GET /api/health/x`、4 个 `x_*` repository、6 个 `x_*` 模型、`schemas/x_monitor.py`、`tests/test_x_monitor.py`、`tests/test_x_health_probe_worker.py`。
+  - `main.py` 与 `pipeline_worker_main.py` 去掉 X 健康探针；`config.py` 去掉 `x_monitor_*`、`twitterapi_io_*`、`x_radar_rules_file`；`ops_health` 去掉 X 源采集与"X 源连续失败"告警；`seed_demo_data.py` 去掉 X 种子数据。
+  - 新增主库迁移 `c2a7e9d1f3b4`：删除 6 张 `x_*` 表。这些表大多由早期 `create_all` 建出、迁移链中没有建表记录，因此 `downgrade` 回放下线前从真实库取得的原始 DDL。
+  - 前端删除：`XMonitorView`、`xMonitorStore`、`api/mock/xMonitor.ts`、`components/ops/OpsXSourcesCard`（均含测试）；移除 `/x-monitor` 路由、"智能"导航组、`client.ts` 中 12 个 X 方法与 `types/api.ts` 中的 X 类型；系统健康页去掉 X 源卡片。
+  - 测试：`test_ops_health.py` 去掉 X 源数据与断言，改为断言响应中不再有 `x_sources`；`test_market_route_perf.py` 用"`/health` 不再返回 `x_monitor_*`"替换原两个 X 探针用例。
+- 影响文件：上述删除文件，以及 `backend/alembic/versions/c2a7e9d1f3b4_drop_x_monitor_tables.py`（新）、`backend/app/{main.py,core/config.py,api/router.py,api/routes/health.py,schemas/health.py,schemas/ops.py,services/ops_health.py,models/__init__.py,db/initializer.py,workers/pipeline_worker_main.py}`、`backend/alembic/env.py`、`backend/tests/{test_ops_health.py,test_market_route_perf.py}`、`scripts/seed_demo_data.py`、`frontend/src/{router/index.ts,components/layout/AppShell.vue,api/client.ts,api/client.test.ts,api/mock.ts,api/mock/ops.ts,types/api.ts,views/OpsHealthView.vue,views/OpsHealthView.test.ts,smoke/app-navigation.test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `/api/x/*` 与 `GET /api/health/x`；`GET /api/health` 移除 `x_monitor_enabled`、`x_monitor_healthy`；`GET /api/ops/health` 移除 `x_sources`（前端已同步）；主库删除 6 张 `x_*` 表（迁移可回退）。本地 `.env` 中残留的 `X_MONITOR_*` / `TWITTERAPI_IO_*` 会被 `extra="ignore"` 忽略，不影响启动。
+- 验证情况：`pytest backend/tests` 1198 passed / 9 failed（与基线相同）；`ruff check` 通过；备份副本上 `upgrade head`（连同 T2 迁移）删除 30 个 `x_*` 表和索引，`downgrade -1` 后 30 个全部恢复（`.schema x_post` 仅索引列出顺序不同），再次 upgrade 正常。前端 `vue-tsc` 零错误，`vitest run` 81 个文件、475 passed，`npm run build` 通过，`check:api-drift` OK，`openapi.json` 中已无 `/api/x`。
+- 附带：`ruff --fix` 顺手调整了 `scripts/reprocess_news_signals.py` 的 import 顺序（无行为变化）。
+- 风险或后续事项：建议用户自行从 `.env` 中删除 `TWITTERAPI_IO_API_KEY` 等已失效的配置项（其中含 API key，本次未改动用户 `.env`）。
+
+## 2026-11-01 聚焦改造 P1-T4：删除 AI 对话
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端 LLM 路由、前端对话页与布局。
+- 变更内容：
+  - 后端：删除 `POST /api/llm/chat` 及只为其服务的 `_load_chat_context`；删除 `LLMChatRequest`；删除 `tests/test_llm_chat.py` 与 `test_llm_stats.py` 中的 `test_llm_chat_failover_sse`。保留 LLM 配置、`translate`、`test`、`stats`、`ping` 接口；`llm_providers` 的流式/降级能力保留，供 P3 的 AI 分层处理复用。
+  - 前端：删除 `ChatView`、`components/chat/`、`composables/useChatStream`、`composables/useChatSessions`（含"交易台研究会话"入口）及其测试；移除 `/chat` 路由与导航项；`AppShell.vue` 去掉只为对话页做的整屏锁定布局分支（`isChatRoute`），改为固定样式，并删除对应测试。
+- 影响文件：`backend/app/api/routes/llm.py`、`backend/app/schemas/llm.py`、`backend/tests/test_llm_chat.py`（删）、`backend/tests/test_llm_stats.py`、`frontend/src/views/ChatView.{vue,test.ts}`（删）、`frontend/src/components/chat/`（删）、`frontend/src/composables/useChatStream.{ts,test.ts}`、`useChatSessions.{ts,test.ts}`（删）、`frontend/src/router/index.ts`、`frontend/src/components/layout/AppShell.{vue,test.ts}`、`frontend/src/smoke/app-navigation.test.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `POST /api/llm/chat`。无数据表变化（对话从未落库）。
+- 验证情况：`pytest backend/tests` 1243 passed / 9 failed（与基线相同的 9 个）；`ruff check backend` 通过；`vue-tsc` 零错误；`vitest run` 84 个文件、488 passed；`npm run build` 通过；`openapi.json` 中已无 `/api/llm/chat`。
+- 风险或后续事项：`utils/markdown.ts` 仍被每日复盘页和个股详情使用，保留。
+
+## 2026-11-01 聚焦改造 P1-T3：删除量化台前端
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端路由、导航、组合页、API 客户端、类型与 mock。
+- 变更内容：
+  - 删除 7 个 `Desk*View` 页面及测试、`components/quant/`（净值曲线、DSL 构建器）、`stores/deskStore`、`constants/quantLabels`、`api/mock/quant.ts`。
+  - `router/index.ts`：移除 7 条 `/desk*` 路由，`/` 临时重定向到 `/dashboard`（P4 盯盘台上线后替换）。
+  - `AppShell.vue`：移除"交易台"导航组和 `/desk` 激活逻辑。
+  - `PortfolioView.vue`：移除模拟盘区块（账户现金、下单表单、下单结果）。
+  - `api/client.ts`：移除 21 个 `getQuant*` / `runQuant*` 等方法；`types/api.ts` 移除量化类型与手写的 `QuantFactor`（保留市场总览用的 `QuantSentiment*`）。
+  - 重新生成 `openapi.json` 与 `types/generated/api.d.ts`（已不含 `/api/quant`）。
+  - 更新测试：路由与 AppShell 的根路径重定向断言改为 `/dashboard`，导航断言改为"不再出现交易台页面"；组合页测试去掉模拟盘；冒烟测试去掉 `/desk*` 路由与 quant mock。
+- 影响文件：上述删除文件，以及 `frontend/src/router/index.ts`、`router/index.test.ts`、`components/layout/AppShell.vue`、`AppShell.test.ts`、`views/PortfolioView.vue`、`PortfolioView.test.ts`、`api/client.ts`、`api/mock.ts`、`types/api.ts`、`smoke/app-navigation.test.ts`、`frontend/openapi.json`、`src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：前端不再调用 `/api/quant/*`；首页由 `/desk` 改为 `/dashboard`，旧的 `/desk*` 书签会落到未匹配路由。
+- 验证情况：`vue-tsc` 零错误；`vitest run` 88 个文件、514 passed（基线 99 个文件、568 个；减少部分均为被删页面与组件的测试）；`npm run build` 通过；`check:api-drift` OK；`grep` 确认 `src/` 中已无 `/api/quant`、`/desk` 路由、量化类型的残留引用。
+- 风险或后续事项：AI 对话页仍有"交易台研究会话"入口（`openDeskResearchSession`），随 T4 一起删除。
+
+## 2026-11-01 聚焦改造 P1-T2：删除量化台后端
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端量化模块、独立行情库、数据库迁移、演示数据脚本、Makefile。
+- 变更内容：
+  - 删除 `app/services/quant/`、`quant_desk_service.py`、`/api/quant/*` 路由、`quant_scheduler` worker、`schemas/quant.py`、`models/quant.py`、`models/market_data.py`、`repositories/quant_recommendation_repository.py`、`db/market_initializer.py`、`db/market_session.py`、`backend/alembic_market/`、`alembic_market.ini`、`tests/quant/`、`tests/test_quant_api.py`。
+  - **迁出 A 股股票名匹配**：新闻主流程 `news_signal_pipeline` 依赖量化模块里的 `match_a_share_mentions` / `persist_rule_mentions`（写 `news_stock_mention`，即"新闻和股票的关联"）。原样迁到 `app/services/a_share_mentions.py`，测试迁到 `tests/test_a_share_mentions.py`；只去掉写 `radar_event` 的 `ingest_news` 调用。
+  - 新增主库迁移 `c1f0a2b3d4e5`：删除 15 张量化表（含只被量化使用的 `llm_role_binding`）；`downgrade` 复用原三个建表迁移的 `upgrade()`，回退后结构完全一致。
+  - `main.py` 去掉量化调度 worker；`initializer.py` 去掉行情库初始化；`config.py` 去掉 `market_database_url` 与 `quant_scheduler_*`；`router.py` 去掉 quant；Makefile 去掉 `quant-backfill`；`seed_demo_data.py` 去掉默认量化策略；AI 对话去掉 `desk_symbol` 研究副驾分支（`LLMChatRequest` 移除 `desk_symbol`、`desk_context`）。
+- 影响文件：上述删除文件，以及 `backend/app/services/a_share_mentions.py`（新）、`backend/tests/test_a_share_mentions.py`（新）、`backend/alembic/versions/c1f0a2b3d4e5_drop_quant_desk_tables.py`（新）、`backend/app/services/news_signal_pipeline.py`、`backend/app/main.py`、`backend/app/db/initializer.py`、`backend/app/core/config.py`、`backend/app/api/router.py`、`backend/app/api/routes/llm.py`、`backend/app/schemas/llm.py`、`backend/app/models/__init__.py`、`backend/alembic/env.py`、`scripts/seed_demo_data.py`、`Makefile`、`docs/code-change-log.md`。共 81 个文件，删除约 7,500 行。
+- 接口/数据结构变化：删除全部 `/api/quant/*`；`POST /api/llm/chat` 请求体移除 `desk_symbol`、`desk_context`；主库删除 15 张表（迁移可回退）；不再创建与读取 `market_data.db`（数据文件已备份到 `backend/data/backups/market_data-final-20261101.db`）。前端仍引用这些接口，T3 同步删除。
+- 验证情况：`pytest backend/tests` 1250 passed / 9 failed，失败与 T0 基线完全相同，无新增；`ruff check backend scripts` 通过（基线中的 4 个错误随 quant 测试一并删除）；`python -c "import app.main"` 正常。迁移在备份副本上实测：upgrade 删除 25 个表和索引，downgrade 重建后 `recommendation_run` 的结构与原始完全一致，再次 upgrade 正常，`news_item` 和 `watchlist_item` 数据不受影响；真实 `app.db` 尚未迁移（仍为 `b9d5f2a7c013`）。
+- 风险或后续事项：下次启动后端时会自动对真实 `app.db` 执行删表迁移（已备份）。前端在 T3 完成前会调用不存在的 `/api/quant/*`。
+
+## 2026-11-01 聚焦改造 P1-T1：A 股资金流迁出量化模块（按需拉取 + 修正字段顺序）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端行情接口、自选股详情资金流面板（前端）。
+- 变更内容：
+  - 新增 `fund_flow_service`：打开个股详情时按需拉取东财日线资金流，进程内 TTL 缓存（默认 600 秒，`FUND_FLOW_CACHE_TTL_SECONDS`）；非 A 股或上游失败返回空 `points` + `note`，不抛 500，失败不缓存。不再依赖 `market_data.db` 回填。
+  - **修复字段顺序错误**：东财 `fflow/daykline` 第 2～5 列依次为小单、中单、大单、超大单（实测：主力净流入 = 大单 + 超大单）。原量化解析器把它们整体颠倒，页面上的"超大单"实为小单。
+  - **修复历史深度**：原地址 `push2` 只返回当日一条（原 `fund_flow_daily` 每只股仅 1 天）；改用 `push2his`，可返回约 120 个交易日，接口取最近 60 个。
+  - 新增 `GET /api/market/symbols/{symbol}/fund-flow`；前端 `FundFlowPanel` 改用 `apiClient.getFundFlow`，类型改为 `FundFlow` / `FundFlowPoint`，mock 移到 `api/mock/market.ts`；移除前端的 `getQuantFundFlow` 与 `mockQuantFundFlow`（旧后端接口随 T2 删除）。
+- 影响文件：`backend/app/services/fund_flow_service.py`（新）、`backend/app/api/routes/market.py`、`backend/app/schemas/market.py`、`backend/app/core/config.py`、`backend/tests/test_fund_flow_service.py`（新）、`frontend/src/api/client.ts`、`frontend/src/api/mock/market.ts`、`frontend/src/api/mock/quant.ts`、`frontend/src/types/api.ts`、`frontend/src/components/watchlist/FundFlowPanel.vue`、`frontend/src/components/watchlist/FundFlowPanel.test.ts`、`frontend/src/smoke/app-navigation.test.ts`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 `GET /api/market/symbols/{symbol}/fund-flow`（响应字段与旧 `QuantFundFlowView` 相同：`symbol`、`points[]`、`note`）。新增配置 `fund_flow_cache_ttl_seconds`。旧 `/api/quant/symbols/{symbol}/fund-flow` 暂留，T2 删除。
+- 验证情况：`pytest backend/tests/test_fund_flow_service.py`（8 个，含用真实返回行锁定字段顺序）、`test_market.py`、`test_market_overview_api.py` 共 50 passed；`ruff check backend/app` 通过；前端相关 vitest 15 个文件 129 passed，`vue-tsc` 零错误，`check:api-drift` OK。实网：curl 调 `push2his` 成功拿到 002384.SZ 120 天数据并核对列顺序；之后因连续请求被东财临时限流（连接直接断开，curl 和 httpx 都一样），服务按设计返回 `note`。页面实测留到 T8。
+- 风险或后续事项：东财接口无 SLA、对连续请求会限流；TTL 缓存可减少请求次数。
+
+## 2026-11-01 聚焦改造 P1 实施计划
+
+- 修改人：Claude Code（Opus 5.5），与用户 xiuyang 访谈产出
+- 修改范围：文档（纯文档，无运行时代码）。
+- 变更内容：新增 `docs/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`（T0～T8：基线备份、资金流迁出、删除量化台前后端、AI 对话、X 监控、信号统计与情绪评测工具、导航收敛、全量验证）；设计文档 §11 记录用户确认（资金流按需轻量服务、terra 单价单位）与分期微调（飞书移到 P2，日历/复盘页删除移到 P4）。
+- 影响文件：`docs/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`（新）、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（计划中的接口与表变化在执行时记录）。
+- 验证情况：未运行测试（纯文档）；计划中的耦合点均经 grep 引用分析确认。
+- 风险或后续事项：计划待用户批准后执行。
+
+## 2026-10-31 聚焦改造设计草案（盯盘与复盘台）
+
+- 修改人：Claude Code（Opus 5.5），与用户 xiuyang 访谈产出
+- 修改范围：文档（纯文档，无运行时代码）。
+- 变更内容：新增设计草案 `docs/superpowers/specs/2026-10-31-focus-redesign-design.md`：基于多轮访谈与对 `app.db` / `market_data.db` 的只读实测，给出项目现状画像、目标形态（盘中站内提醒 / 盘后简报 / 早间隔夜简报）、保留-合并-删除清单（删除量化台、AI 对话、信号统计、情绪评测工具、飞书外部推送）、AI 分层漏斗成本估算、X 监控结论与 P1～P4 分期。另：本地 conda 环境补装 `requirements.txt` 中缺失的 `pyarrow==21.0.0`（环境操作，非仓库改动）。
+- 影响文件：`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`（新）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；文中数据均来自只读 SQL 实测。
+- 风险或后续事项：§10 五项用户已确认（站内提醒、terra 单价、首页仪表盘、日历并入、X 删除），设计已同步更新并新增 §3.1 首页布局与 §11 两项新发现（资金流面板依赖量化模块、terra 单价单位）；确认后出 P1 计划，确认前不改代码。
+
 ## 2026-08-21 量化工作台优化文档归档与状态快照更新
 
 - 修改人：ZCode（GLM-5.3）

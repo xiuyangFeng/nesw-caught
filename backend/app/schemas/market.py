@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -230,3 +231,19 @@ class MarketIndexConfigUpdateRequest(BaseModel):
     kind: str | None = None
     sort_order: int | None = None
     enabled: bool | None = None
+
+
+class FundFlowPointView(BaseModel):
+    trade_date: date
+    main_net_inflow: float | None = None
+    super_large_net: float | None = None
+    large_net: float | None = None
+    medium_net: float | None = None
+    small_net: float | None = None
+    main_net_pct: float | None = None
+
+
+class FundFlowView(BaseModel):
+    symbol: str
+    points: list[FundFlowPointView] = Field(default_factory=list)
+    note: str | None = None

@@ -129,13 +129,13 @@ def scan_files(root_dir):
                 continue
 
             filepath = os.path.join(dirpath, filename)
-            
+
             # 额外防范：如果是 data/ 目录或者包含 .secret_key 或 .app_token，略过（这些是本地方案里允许存密钥的文件）
             if "/data/" in filepath or ".secret_key" in filepath or ".app_token" in filepath:
                 continue
 
             try:
-                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                with open(filepath, encoding="utf-8", errors="ignore") as f:
                     for line_num, line in enumerate(f, 1):
                         rel_path = os.path.relpath(filepath, root_dir)
 
@@ -178,7 +178,7 @@ def main():
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     print(f"[*] 开始在 {root_dir} 进行密钥静态扫描...")
     findings = scan_files(root_dir)
-    
+
     if findings:
         print("[!] 警告：扫描到疑似硬编码的明文 API Key/密钥！")
         for f in findings:

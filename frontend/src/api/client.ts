@@ -1,6 +1,5 @@
 import type {
-  BacktestQuery,
-  BacktestSummary,
+  FundFlow,
   Digest,
   DigestLatest,
   FeishuNotifyConfig,
@@ -33,28 +32,7 @@ import type {
   NewsRefreshAcceptedResult,
   OpsHealth,
   PortfolioSummary,
-  QuantDataStatus,
-  QuantFactor,
-  QuantFundFlow,
-  QuantRadar,
-  QuantRecommendationLatest,
-  QuantRecommendationRun,
-  QuantResearchPack,
-  QuantAiAudit,
-  QuantProposal,
-  QuantProposalExecute,
-  QuantReportCard,
-  QuantStrategy,
-  QuantStrategyUpsert,
-  QuantStrategyUpdate,
-  QuantBacktest,
-  QuantBacktestRequest,
-  QuantPaperAccount,
-  QuantPaperOrder,
-  QuantDecisionLog,
-  QuantCopilotTools,
   WatchlistPositionUpdate,
-  SentimentEvalResponse,
   SentimentTimelineResponse,
   WatchlistSparklineMap,
   StockQuoteDetail,
@@ -68,16 +46,6 @@ import type {
   WatchlistItemCreate,
   WatchlistQuoteSummary,
   WatchlistResearchBrief,
-  XAccount,
-  XAccountCreatePayload,
-  XAccountUpdatePayload,
-  XAccountsExportResult,
-  XAccountsImportResult,
-  XHealth,
-  XPost,
-  XPostQuery,
-  XRadarResponse,
-  XRefreshResult,
 } from '../types/api';
 import { HttpError, deleteJson, getJson, isAbortError, patchJson, postJson } from './http';
 type MockModule = typeof import('./mock');
@@ -289,6 +257,12 @@ export const apiClient = {
       `/api/market/symbols/${encodeURIComponent(symbol)}/kline?interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`,
     ).then((data) => ({ data, degraded: false }));
   },
+  getFundFlow(symbol: string) {
+    return withMockFallback<FundFlow>(
+      () => getJson(`/api/market/symbols/${encodeURIComponent(symbol)}/fund-flow`),
+      (mock) => ({ ...mock.mockFundFlow, symbol }),
+    );
+  },
   getWatchlistSparklines(symbols: string[]) {
     return withMockFallback<WatchlistSparklineMap>(
       () => postJson('/api/market/sparklines', { symbols }),
@@ -366,84 +340,8 @@ export const apiClient = {
   getStreamStatus() {
     return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), (mock) => mock.mockStreamStatus);
   },
-  getBacktestSummary(query: BacktestQuery = {}) {
-    return getJson<BacktestSummary>(withQuery('/api/backtest', query)).then((data) => ({ data, degraded: false }));
-  },
   getOpsHealth() {
     return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
-  },
-  getSentimentEval() {
-    return withMockFallback<SentimentEvalResponse>(
-      () => getJson('/api/eval/sentiment'),
-      (mock) => mock.mockSentimentEval,
-    );
-  },
-  runSentimentEval() {
-    return withMockFallback<SentimentEvalResponse>(
-      () => postJson('/api/eval/sentiment/run', {}),
-      (mock) => mock.mockSentimentEval,
-    );
-  },
-  getXHealth() {
-    return withMockFallback<XHealth>(() => getJson('/api/health/x'), (mock) => mock.mockXHealth);
-  },
-  getXAccounts() {
-    return withMockFallback<XAccount[]>(() => getJson('/api/x/accounts'), (mock) => mock.mockXAccounts);
-  },
-  getXRadar(limit = 50) {
-    return withMockFallback<XRadarResponse>(() => getJson(`/api/x/radar?limit=${limit}`), (mock) => mock.mockXRadar);
-  },
-  createXAccount(payload: XAccountCreatePayload) {
-    return postJson<XAccount>('/api/x/accounts', payload).then((data) => ({ data, degraded: false }));
-  },
-  updateXAccount(handle: string, payload: XAccountUpdatePayload) {
-    return patchJson<XAccount>(`/api/x/accounts/${encodeURIComponent(handle)}`, payload).then((data) => ({
-      data,
-      degraded: false,
-    }));
-  },
-  deleteXAccount(handle: string) {
-    return deleteJson(`/api/x/accounts/${encodeURIComponent(handle)}`).then((data) => ({ data, degraded: false }));
-  },
-  importXAccounts() {
-    return postJson<XAccountsImportResult>('/api/x/accounts/import', {}).then((data) => ({ data, degraded: false }));
-  },
-  exportXAccounts() {
-    return postJson<XAccountsExportResult>('/api/x/accounts/export', {}).then((data) => ({ data, degraded: false }));
-  },
-  getXPosts(query: XPostQuery = {}) {
-    return withMockFallback<XPost[]>(
-      () => getJson(withQuery('/api/x/posts', query)),
-      (mock) => {
-        const filtered = mock.mockXPosts.filter((item) => {
-          const accountOk = !query.account_handle || item.account_handle === query.account_handle;
-          const marketOk = !query.market || item.market === query.market;
-          const searchText = query.q?.toLowerCase();
-          const searchOk = !searchText || item.content_text.toLowerCase().includes(searchText);
-          const symbolOk = !query.symbol || item.symbols.includes(query.symbol);
-          return accountOk && marketOk && searchOk && symbolOk;
-        });
-        return filtered.slice(0, query.limit ?? filtered.length);
-      },
-    );
-  },
-  getXSearchResults(query: { q: string; limit?: number }) {
-    return withMockFallback<XPost[]>(
-      () => getJson(withQuery('/api/x/search', query)),
-      (mock) => {
-        const searchText = query.q.toLowerCase();
-        const filtered = mock.mockXPosts.filter((item) => {
-          return (
-            item.content_text.toLowerCase().includes(searchText) ||
-            item.symbols.some((symbol) => symbol.toLowerCase().includes(searchText))
-          );
-        });
-        return filtered.slice(0, query.limit ?? filtered.length);
-      },
-    );
-  },
-  refreshXPosts() {
-    return postJson<XRefreshResult>('/api/x/refresh', {}).then((data) => ({ data, degraded: false }));
   },
   getFeishuConfig() {
     return withMockFallback<FeishuNotifyConfig>(
@@ -465,118 +363,5 @@ export const apiClient = {
       data,
       degraded: false,
     }));
-  },
-  getQuantLatest() {
-    return withMockFallback<QuantRecommendationLatest>(
-      () => getJson('/api/quant/recommendations/latest'),
-      (mock) => mock.mockQuantLatest,
-    );
-  },
-  runQuantRecommendations(scenario: 'real' | 'abstain' | 'mixed' = 'real') {
-    return postJson<QuantRecommendationLatest>('/api/quant/recommendations/run', { scenario, trigger: 'manual' }).then(
-      (data) => ({ data, degraded: false }),
-    );
-  },
-  getQuantDataStatus() {
-    return withMockFallback<QuantDataStatus>(
-      () => getJson('/api/quant/data/status'),
-      (mock) => mock.mockQuantDataStatus,
-    );
-  },
-  getQuantFactors() {
-    return withMockFallback<QuantFactor[]>(
-      () => getJson('/api/quant/factors'),
-      (mock) => mock.mockQuantFactors,
-    );
-  },
-  getQuantRadar() {
-    return withMockFallback<QuantRadar>(() => getJson('/api/quant/radar'), (mock) => mock.mockQuantRadar);
-  },
-  getQuantFundFlow(symbol: string) {
-    return withMockFallback<QuantFundFlow>(
-      () => getJson(`/api/quant/symbols/${encodeURIComponent(symbol)}/fund-flow`),
-      (mock) => ({ ...mock.mockQuantFundFlow, symbol }),
-    );
-  },
-  getQuantResearch(symbol: string) {
-    return withMockFallback<QuantResearchPack>(
-      () => getJson(`/api/quant/symbols/${encodeURIComponent(symbol)}/research`),
-      (mock) => ({ ...mock.mockQuantResearch, symbol }),
-    );
-  },
-  getQuantAiAudit() {
-    return withMockFallback<QuantAiAudit>(() => getJson('/api/quant/ai/audit'), (mock) => mock.mockQuantAiAudit);
-  },
-  getQuantRuns() {
-    return withMockFallback<QuantRecommendationRun[]>(
-      () => getJson('/api/quant/recommendations/runs'),
-      (mock) => mock.mockQuantRuns,
-    );
-  },
-  getQuantProposal() {
-    return withMockFallback<QuantProposal>(
-      () => getJson('/api/quant/portfolio-proposals/latest'),
-      (mock) => mock.mockQuantProposal,
-    );
-  },
-  executeQuantProposal() {
-    return postJson<QuantProposalExecute>('/api/quant/portfolio-proposals/latest/execute', {}).then((data) => ({
-      data,
-      degraded: false,
-    }));
-  },
-  getQuantReportCard(window = '30d') {
-    return withMockFallback<QuantReportCard>(
-      () => getJson(withQuery('/api/quant/report-card', { window })),
-      (mock) => ({ ...mock.mockQuantReportCard, window }),
-    );
-  },
-  getQuantStrategies() {
-    return withMockFallback<QuantStrategy[]>(
-      () => getJson('/api/quant/strategies'),
-      (mock) => mock.mockQuantStrategies,
-    );
-  },
-  createQuantStrategy(payload: QuantStrategyUpsert) {
-    return postJson<QuantStrategy>('/api/quant/strategies', payload).then((data) => ({ data, degraded: false }));
-  },
-  updateQuantStrategy(strategyId: number, payload: Partial<QuantStrategyUpdate>) {
-    return patchJson<QuantStrategy>(`/api/quant/strategies/${strategyId}`, payload).then((data) => ({
-      data,
-      degraded: false,
-    }));
-  },
-  deleteQuantStrategy(strategyId: number) {
-    return deleteJson(`/api/quant/strategies/${strategyId}`).then(() => ({ degraded: false }));
-  },
-  previewQuantStrategy(payload: QuantStrategyUpsert) {
-    return postJson<{ errors: string[]; hit: boolean }>('/api/quant/strategies/preview', payload).then((data) => ({
-      data,
-      degraded: false,
-    }));
-  },
-  runQuantBacktest(payload: QuantBacktestRequest) {
-    return postJson<QuantBacktest>('/api/quant/backtests', payload).then((data) => ({ data, degraded: false }));
-  },
-  getQuantPaperAccount() {
-    return withMockFallback<QuantPaperAccount>(
-      () => getJson('/api/quant/paper/account'),
-      (mock) => mock.mockQuantPaperAccount,
-    );
-  },
-  placeQuantPaperOrder(payload: { symbol: string; side?: string; quantity?: number; confirmed?: boolean }) {
-    return postJson<QuantPaperOrder>('/api/quant/paper/orders', payload).then((data) => ({ data, degraded: false }));
-  },
-  getQuantDecisionLog() {
-    return withMockFallback<QuantDecisionLog>(
-      () => getJson('/api/quant/decision-log'),
-      (mock) => mock.mockQuantDecisionLog,
-    );
-  },
-  getQuantCopilotTools() {
-    return withMockFallback<QuantCopilotTools>(
-      () => getJson('/api/quant/copilot/tools'),
-      (mock) => mock.mockQuantCopilotTools,
-    );
   },
 };

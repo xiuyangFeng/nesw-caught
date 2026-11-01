@@ -48,39 +48,19 @@ type NavGroup = {
 
 const navGroups: NavGroup[] = [
   {
-    title: '交易台',
+    title: '盯盘',
     items: [
-      { label: '机会雷达', en: 'Desk', to: '/desk' },
-      { label: '组合提案', en: 'Proposal', to: '/desk/portfolio-proposal' },
-      { label: '成绩单', en: 'Card', to: '/desk/report-card' },
-      { label: '策略', en: 'DSL', to: '/desk/strategies' },
-      { label: '回测实验室', en: 'Lab', to: '/desk/backtest' },
-      { label: '运行中心', en: 'Ops', to: '/desk/ops' },
-    ],
-  },
-  {
-    title: '情报',
-    items: [
-      { label: '最新事件', en: 'Events', to: '/news' },
       { label: '仪表盘', en: 'Dashboard', to: '/dashboard' },
+      { label: '最新事件', en: 'Events', to: '/news' },
       { label: '每日复盘', en: 'Digest', to: '/digest' },
       { label: '日历', en: 'Calendar', to: '/calendar' },
     ],
   },
   {
-    title: '交易',
+    title: '持仓',
     items: [
       { label: '自选股', en: 'Watchlist', to: '/watchlist' },
       { label: '组合', en: 'Portfolio', to: '/portfolio' },
-      { label: '信号统计', en: 'Signals', to: '/analytics/backtest' },
-    ],
-  },
-  {
-    title: '智能',
-    ai: true,
-    items: [
-      { label: 'AI 对话', en: 'AI Chat', to: '/chat' },
-      { label: 'X 监控', en: 'X Monitor', to: '/x-monitor' },
     ],
   },
   {
@@ -88,7 +68,6 @@ const navGroups: NavGroup[] = [
     items: [
       { label: '模型设置', en: 'LLM', to: '/settings/llm' },
       { label: '通知', en: 'Notify', to: '/settings/notify' },
-      { label: '情绪评测', en: 'Eval', to: '/eval/sentiment' },
       { label: '系统健康', en: 'Health', to: '/ops' },
     ],
   },
@@ -111,7 +90,6 @@ const connectionSummary = computed(() => {
 });
 
 const isLiveConnection = computed(() => connectionStore.state === 'live');
-const isChatRoute = computed(() => route.path === '/chat');
 
 const marketWorkerSummary = computed(() => {
   const status = runtimeStatusStore.marketWorkerStatus;
@@ -172,9 +150,6 @@ function runtimeDiagnosticToneClass(tone: 'success' | 'warning' | 'danger' | 'de
 function isNavItemActive(targetPath: string) {
   if (route.path === targetPath) {
     return true;
-  }
-  if (targetPath === '/desk') {
-    return route.path.startsWith('/desk/stocks/');
   }
   if (targetPath === '/news') {
     return route.path.startsWith('/news/');
@@ -418,17 +393,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="grid gap-[18px] p-[18px] shell:grid-cols-[272px_minmax(0,1fr)]"
-    :class="isChatRoute
-      ? 'min-h-screen shell:h-[100dvh] shell:min-h-0 shell:overflow-hidden'
-      : 'min-h-screen'"
+    class="grid min-h-screen gap-[18px] p-[18px] shell:grid-cols-[272px_minmax(0,1fr)]"
     data-role="app-shell-root"
   >
     <aside
-      class="surface top-[18px] flex flex-col gap-[18px] rounded-lg px-4 pb-4 pt-5"
-      :class="isChatRoute
-        ? 'min-h-[calc(100vh-36px)] shell:h-[calc(100dvh-36px)] shell:min-h-0 shell:overflow-y-auto shell:sticky'
-        : 'min-h-[calc(100vh-36px)] shell:sticky'"
+      class="surface top-[18px] flex min-h-[calc(100vh-36px)] flex-col gap-[18px] rounded-lg px-4 pb-4 pt-5 shell:sticky"
       data-role="app-shell-sidebar"
     >
       <div class="grid gap-4 border-b border-border pb-4" data-role="system-header">
@@ -546,10 +515,7 @@ onBeforeUnmount(() => {
     </aside>
 
     <main
-      class="grid min-w-0 gap-3"
-      :class="isChatRoute
-        ? 'content-start shell:h-[calc(100dvh-36px)] shell:min-h-0 shell:grid-rows-[minmax(0,1fr)] shell:overflow-hidden'
-        : 'content-start'"
+      class="grid min-w-0 content-start gap-3"
       data-role="app-shell-main"
     >
       <RouteErrorBoundary>
