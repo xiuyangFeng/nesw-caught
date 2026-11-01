@@ -1,7 +1,5 @@
 import type {
-  BacktestQuery,
   FundFlow,
-  BacktestSummary,
   Digest,
   DigestLatest,
   FeishuNotifyConfig,
@@ -35,7 +33,6 @@ import type {
   OpsHealth,
   PortfolioSummary,
   WatchlistPositionUpdate,
-  SentimentEvalResponse,
   SentimentTimelineResponse,
   WatchlistSparklineMap,
   StockQuoteDetail,
@@ -343,23 +340,8 @@ export const apiClient = {
   getStreamStatus() {
     return withMockFallback<StreamStatus>(() => getJson('/api/stream/status'), (mock) => mock.mockStreamStatus);
   },
-  getBacktestSummary(query: BacktestQuery = {}) {
-    return getJson<BacktestSummary>(withQuery('/api/backtest', query)).then((data) => ({ data, degraded: false }));
-  },
   getOpsHealth() {
     return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
-  },
-  getSentimentEval() {
-    return withMockFallback<SentimentEvalResponse>(
-      () => getJson('/api/eval/sentiment'),
-      (mock) => mock.mockSentimentEval,
-    );
-  },
-  runSentimentEval() {
-    return withMockFallback<SentimentEvalResponse>(
-      () => postJson('/api/eval/sentiment/run', {}),
-      (mock) => mock.mockSentimentEval,
-    );
   },
   getFeishuConfig() {
     return withMockFallback<FeishuNotifyConfig>(

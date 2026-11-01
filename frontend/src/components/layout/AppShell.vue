@@ -61,7 +61,6 @@ const navGroups: NavGroup[] = [
     items: [
       { label: '自选股', en: 'Watchlist', to: '/watchlist' },
       { label: '组合', en: 'Portfolio', to: '/portfolio' },
-      { label: '信号统计', en: 'Signals', to: '/analytics/backtest' },
     ],
   },
   {
@@ -69,7 +68,6 @@ const navGroups: NavGroup[] = [
     items: [
       { label: '模型设置', en: 'LLM', to: '/settings/llm' },
       { label: '通知', en: 'Notify', to: '/settings/notify' },
-      { label: '情绪评测', en: 'Eval', to: '/eval/sentiment' },
       { label: '系统健康', en: 'Health', to: '/ops' },
     ],
   },

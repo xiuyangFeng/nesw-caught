@@ -398,30 +398,6 @@ export type NewsQuery = {
 };
 
 // ---------------------------------------------------------------------------
-// 信号有效性回测（Signal Backtest）
-// ---------------------------------------------------------------------------
-// Pydantic 为带默认值的字段生成了 required OpenAPI 属性，但前端仍需兼容部署升级前
-// 的旧响应，因此只把这 3 个 additive 字段放宽为可选；其余结构直接跟随生成契约。
-type GeneratedBacktestSummary = Schemas['BacktestSummaryView'];
-export type BacktestSummary = Omit<
-  GeneratedBacktestSummary,
-  'benchmark_note' | 'distinct_news_count' | 'skipped_stale_count'
-> & {
-  benchmark_note?: GeneratedBacktestSummary['benchmark_note'];
-  distinct_news_count?: GeneratedBacktestSummary['distinct_news_count'];
-  skipped_stale_count?: GeneratedBacktestSummary['skipped_stale_count'];
-};
-export type SignalDirectionStats = Schemas['SignalDirectionStatsView'];
-export type ImportanceBucketStats = Schemas['ImportanceBucketStatsView'];
-
-// 前端 UI 专用:回测查询表单状态,理由同 NewsQuery(market 含 '' 哨兵值)。
-export type BacktestQuery = {
-  market?: Market | '';
-  window_days?: number;
-  horizon?: string;
-};
-
-// ---------------------------------------------------------------------------
 // 飞书通知
 // ---------------------------------------------------------------------------
 // 告警治理配置。后端以 settings 默认 + NotificationService 内存覆盖实现（不落库），
@@ -450,17 +426,11 @@ export type FeishuTestResult = Schemas['FeishuTestResult'];
 export type DigestSection = Schemas['DigestSectionView'];
 export type Digest = Schemas['DigestView'];
 export type DigestLatest = Schemas['DigestLatestView'];
-// 情绪/利好利空评测与 Phase 2/3 类型已在本次集成后进入 OpenAPI，统一回归生成类型。
+
+// ---------------------------------------------------------------------------
+// 个股情绪时间线（自选股详情）
 // ---------------------------------------------------------------------------
 export type SentimentEvalLabel = 'positive' | 'negative' | 'neutral';
-export type SentimentLabelMetrics = Schemas['SentimentLabelMetrics'];
-export type SentimentEvaluationMetrics = Schemas['SentimentEvaluationMetrics'];
-export type SentimentModelRun = Schemas['SentimentModelRun'];
-export type SentimentLabelDelta = Schemas['SentimentLabelDelta'];
-export type SentimentABComparison = Schemas['SentimentABComparison'];
-export type SentimentEvalHistoryPoint = Schemas['SentimentEvalHistoryPoint'];
-export type SentimentEvalRegression = Schemas['SentimentEvalRegression'];
-export type SentimentEvalResponse = Schemas['SentimentEvalResponse'];
 
 // 后端 sentiment_label 是普通可空 string；前端只在已知三种标签上着色，因此窄化。
 export type SentimentTimelineNewsRef = Omit<
@@ -481,10 +451,6 @@ export type SentimentTimelineResponse = Omit<
   points: SentimentTimelinePoint[];
   divergence: DivergenceStatus | null;
 };
-
-export type ScoreBucketStats = Schemas['ScoreBucketStatsView'];
-export type CalibrationMappingEntry = Schemas['CalibrationMappingEntryView'];
-export type SentimentCalibration = Schemas['SentimentCalibrationView'];
 
 // ---------------------------------------------------------------------------
 // A 股个股资金流（东财按需拉取）

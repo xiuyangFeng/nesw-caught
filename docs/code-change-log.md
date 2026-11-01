@@ -5,6 +5,22 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T6：删除信号统计与情绪评测工具
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端评测/回测模块、研究脚本、数据库迁移、新闻信号分类器、前端两个页面。
+- 变更内容：
+  - 后端删除：`/api/backtest`、`/api/eval/*` 路由；`signal_backtest`、`news_sentiment_{dataset,evaluator,experiment_runner,llm_classifier,report}`、`news_relevance_{dataset,annotation,report,experiment_runner}`、`sentiment_eval_persistence`、`sentiment_calibration` 服务；`sentiment_eval_run` 模型与 repository；`schemas/backtest.py`、`schemas/sentiment_eval.py`；`backend/scripts/` 下 11 个标注/实验/报告脚本；对应 13 个测试文件。
+  - **相对计划的偏离**：计划原定保留 `sentiment_calibration`。核查后发现它只在开关 `sentiment_confidence_calibration_enabled` 打开时生效，该开关默认关闭、用户 `.env` 未开启、校准文件 `sentiment_calibration.json` 从未生成，且唯一的生成方就是被删除的信号统计。因此一并删除，并去掉 `news_signal_classifier` 中这个从未执行过的分支；置信度计算与现状完全相同（线性公式）。
+  - 保留 `news_relevance_evaluator`（被新闻优先级排序 `news_priority` 使用）及其测试；保留 `backend/data/research/` 下已提交的研究数据（用户实验成果，只删代码）。
+  - `config.py` 去掉 `sentiment_eval_dataset_file`、`signal_backtest_max_snapshot_age_hours`、`sentiment_confidence_calibration_enabled`。
+  - 新增主库迁移 `c3b8f0e2a5d6`：删除 `sentiment_eval_run` 表，`downgrade` 复用原建表迁移 `e6c2a9f4d1b7`。
+  - 前端删除 `SignalBacktestView`、`SentimentEvalView`（含测试）、`api/mock/sentimentEval.ts`；移除两条路由、两个导航项、`client.ts` 中 3 个方法、`types/api.ts` 中回测/评测/校准类型（保留情绪时间线用的 `SentimentEvalLabel`）。
+- 影响文件：上述删除文件，以及 `backend/alembic/versions/c3b8f0e2a5d6_drop_sentiment_eval_run.py`（新）、`backend/app/{api/router.py,core/config.py,services/news_signal_classifier.py,models/__init__.py,db/initializer.py}`、`backend/alembic/env.py`、`frontend/src/{router/index.ts,components/layout/AppShell.vue,components/watchlist/SentimentTimelinePanel.vue,api/client.ts,api/mock.ts,types/api.ts,smoke/app-navigation.test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：删除 `GET /api/backtest`、`GET /api/eval/sentiment`、`POST /api/eval/sentiment/run`；主库删除 `sentiment_eval_run`（原有 3 行评测记录，已在 T0 备份中保留；迁移可回退）；删除 3 个配置项（`.env` 中若有会被忽略）。
+- 验证情况：`pytest backend/tests` 1049 passed / 7 failed——剩余 7 个均为审计文档已知的测试种子污染（`test_news.py` 3 个、`test_news_analysis.py` 4 个）；基线中另 2 个硬编码旧路径的失败随评测测试删除而消失。`ruff check` 通过。备份副本上迁移 upgrade/downgrade/upgrade 往返正常，回退后表结构与原始一致。前端 `vue-tsc` 零错误，`vitest run` 79 个文件、459 passed，`npm run build` 通过，`check:api-drift` OK，`openapi.json` 中已无 `/api/eval`、`/api/backtest`。
+- 风险或后续事项：无。
+
 ## 2026-11-01 聚焦改造 P1-T5：删除 X 监控
 
 - 修改人：Claude Code（Opus 5.5）

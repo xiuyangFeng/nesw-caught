@@ -5,10 +5,8 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
 from app.api.routes import (
-    backtest,
     calendar,
     digest,
-    eval,
     health,
     llm,
     logs,
@@ -26,7 +24,6 @@ from app.core.auth import verify_app_token
 from app.core.config import get_settings
 
 api_router = APIRouter(dependencies=[Depends(verify_app_token)])
-api_router.include_router(eval.router, prefix="/eval", tags=["eval"])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(digest.router, prefix="/digest", tags=["digest"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
@@ -39,7 +36,6 @@ api_router.include_router(watchlist.router, prefix="/watchlist", tags=["watchlis
 api_router.include_router(portfolio.router, prefix="/portfolio", tags=["portfolio"])
 api_router.include_router(research.router, prefix="/research", tags=["research"])
 api_router.include_router(stream.router, prefix="/stream", tags=["stream"])
-api_router.include_router(backtest.router, prefix="/backtest", tags=["backtest"])
 api_router.include_router(ops.router, prefix="/ops", tags=["ops"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 

@@ -76,19 +76,9 @@ const router = createRouter({
       component: lazyView(() => import('../views/TopicDetailView.vue')),
     },
     {
-      path: '/analytics/backtest',
-      name: 'signal-backtest',
-      component: lazyView(() => import('../views/SignalBacktestView.vue')),
-    },
-    {
       path: '/ops',
       name: 'ops-health',
       component: lazyView(() => import('../views/OpsHealthView.vue')),
-    },
-    {
-      path: '/eval/sentiment',
-      name: 'sentiment-eval',
-      component: lazyView(() => import('../views/SentimentEvalView.vue')),
     },
   ],
 });

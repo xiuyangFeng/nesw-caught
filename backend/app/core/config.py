@@ -208,14 +208,7 @@ class Settings(BaseSettings):
     backup_retention_count: int = 7
     backup_dir: str | None = None
     dedup_secondary_judge: str | None = None
-    # 情绪/利好利空评测金标集路径；缺省时用 backend/data/research 内置金标。
-    sentiment_eval_dataset_file: str | None = None
-    # —— 情绪 Phase 2/3（回测校准 + 背离提醒），默认全部保守关闭，不改变旧行为 ——
-    # 回测 baseline 快照允许的最大陈旧时长（小时），超过则该样本跳过并计数。
-    signal_backtest_max_snapshot_age_hours: float = 24.0
-    # 置信度校准开关：开启后 pipeline 的 signal_confidence 使用最近一次回测校准映射。
-    sentiment_confidence_calibration_enabled: bool = False
-    # 情绪-价格背离提醒开关及参数。
+    # 情绪-价格背离提醒开关及参数（默认关闭，不改变旧行为）。
     sentiment_divergence_alert_enabled: bool = False
     sentiment_divergence_window_days: int = 3
     sentiment_divergence_min_abs_sentiment: float = 0.4
