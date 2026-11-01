@@ -1,7 +1,7 @@
 # 聚焦改造 P2：持仓与站内提醒 实施计划（2026-11-01）
 
-> 设计：[2026-10-31-focus-redesign-design.md](../specs/2026-10-31-focus-redesign-design.md) §5.3、§5.4、§7
-> 状态：**用户已确认 §2 全部决定（2026-11-01），执行中**。
+> 设计：[2026-10-31-focus-redesign-design.md](../../../superpowers/specs/2026-10-31-focus-redesign-design.md) §5.3、§5.4、§7
+> 状态：**已完成（2026-11-01）并归档**。执行记录见 `docs/code-change-log.md` 中 P2-T1～T7 条目。
 > 分支：`feature/focus-p2`，每个任务一个提交，同步更新 `docs/code-change-log.md`。
 
 ## 1. 现状（代码实测）
@@ -108,3 +108,14 @@
 | 删除飞书后若将来想恢复外部推送 | 代码在 git 历史；`alert` 表与渠道无关，日后可加推送通道 |
 | 港股/美股简称匹配依赖 `display_name` 质量 | 自选股名称可编辑；匹配时同时用代码 |
 | 价格提醒依赖行情 producer 正常运行 | 系统健康页已有 worker 心跳监控 |
+
+## 完成记录（2026-11-01）
+
+- 分支 `feature/focus-p2`，计划 + T1～T7 共 8 个提交。
+- 后端 1024 passed / 7 failed（已知测试污染，与基线相同）；前端 80 个文件、467 passed；构建与 `check:api-drift` 通过。
+- 真实 `app.db` 已升级到 `c6d2f8a4e9b1`，P2 前备份为 `backend/data/backups/app-before-focus-p2-20261101.db`。
+- 端到端实测：独立进程触发的持仓新闻提醒经 Redis 转发到 SSE `alert.created`，`/api/alerts` 可见、可标记已读；测试数据已清理。
+- 相对计划的调整：
+  1. 价格提醒去重从"昨收价"改为"当天行情在动 + 市场本地日期"（评审发现平收会导致次日漏报）。
+  2. 计划外修复：多进程形态下 `alert.created` 未经 Redis 转发（T6）；合并窗口并发丢失、落库失败丢失、多进程下延迟落库、两字母美股代码误报（T7）。
+  3. 单股阈值 UI 的删除提前在 T4 完成（后端契约变更后前端类型检查需要）。

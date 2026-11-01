@@ -1,6 +1,6 @@
 # 聚焦改造设计：从"量化交易台"收敛为"A 股盯盘与复盘台"（2026-10-31）
 
-> 状态：**设计已确认（2026-10-31）**，§10 五项已由用户答复；§11 已处理；P1 已完成，计划已归档到 `docs/archive/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`。
+> 状态：**设计已确认（2026-10-31）**，§10 五项已由用户答复；§11 已处理；P1、P2 已完成，计划已归档到 `docs/archive/superpowers/plans/`（`2026-11-01-focus-p1-removal-plan.md`、`2026-11-01-focus-p2-holdings-alerts-plan.md`）。
 > 来源：2026-10-31 与用户的多轮访谈（Q1～Q20）+ 对代码、git 历史、`app.db` / `market_data.db` 的只读实测。
 
 ## 1. 背景：现状画像（实测）

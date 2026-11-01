@@ -5,6 +5,16 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2 计划归档与文档同步
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：文档（纯文档）。
+- 变更内容：P2 计划补充完成记录与相对计划的调整后移入 `docs/archive/superpowers/plans/`；设计文档状态行指向两份归档计划；README 与 `docs/current-state.md` 中价格提醒规则描述同步为"当天行情在动 + 每天一次"，README 补充两字母美股代码需 `$` 前缀的说明。
+- 影响文件：`docs/archive/superpowers/plans/2026-11-01-focus-p2-holdings-alerts-plan.md`（移动）、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`README.md`、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）。
+- 风险或后续事项：无。
+
 ## 2026-11-01 聚焦改造 P2-T7：评审修复（价格提醒判定、合并窗口可靠性、短代码误报）
 
 - 修改人：Claude Code（Opus 5.5）
