@@ -5,6 +5,16 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 移除误提交的 Vitest 缓存并忽略根目录 node_modules
+
+- 修改人：Claude Code（Opus 5.5），按用户要求
+- 修改范围：仓库配置（`.gitignore`），无运行时代码。
+- 变更内容：提交 `9582d8f`（说明为"avoid committing Vitest cache output"）实际把根目录 `node_modules/.vite/vitest/.../results.json` 缓存加进了仓库。现将该文件从版本库移除（`git rm --cached`，本地文件保留），并在 `.gitignore` 增加根目录 `node_modules/`（原先只忽略 `frontend/node_modules/`），避免再次误提交。
+- 影响文件：`.gitignore`、`node_modules/.vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709/results.json`（移出版本库）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：`git ls-files node_modules` 为空；`git check-ignore` 确认该路径已被 `.gitignore` 第 32 行忽略。
+- 风险或后续事项：远程仍有旧的 `origin/feature/focus-p2` 分支（只含 P2 计划与该缓存提交），内容已全部并入 `main`，可按需删除。
+
 ## 2026-11-01 聚焦改造 P2 计划归档与文档同步
 
 - 修改人：Claude Code（Opus 5.5）

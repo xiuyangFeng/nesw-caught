@@ -28,6 +28,8 @@ data/
 
 # Frontend
 frontend/node_modules/
+# 根目录 node_modules（编辑器/工具偶尔在仓库根运行 vitest 等生成的缓存）
+node_modules/
 frontend/dist/
 
 # Editor and tooling
