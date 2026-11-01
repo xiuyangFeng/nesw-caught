@@ -5,6 +5,26 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1 实施计划
+
+- 修改人：Claude Code（Opus 5.5），与用户 xiuyang 访谈产出
+- 修改范围：文档（纯文档，无运行时代码）。
+- 变更内容：新增 `docs/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`（T0～T8：基线备份、资金流迁出、删除量化台前后端、AI 对话、X 监控、信号统计与情绪评测工具、导航收敛、全量验证）；设计文档 §11 记录用户确认（资金流按需轻量服务、terra 单价单位）与分期微调（飞书移到 P2，日历/复盘页删除移到 P4）。
+- 影响文件：`docs/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`（新）、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（计划中的接口与表变化在执行时记录）。
+- 验证情况：未运行测试（纯文档）；计划中的耦合点均经 grep 引用分析确认。
+- 风险或后续事项：计划待用户批准后执行。
+
+## 2026-10-31 聚焦改造设计草案（盯盘与复盘台）
+
+- 修改人：Claude Code（Opus 5.5），与用户 xiuyang 访谈产出
+- 修改范围：文档（纯文档，无运行时代码）。
+- 变更内容：新增设计草案 `docs/superpowers/specs/2026-10-31-focus-redesign-design.md`：基于多轮访谈与对 `app.db` / `market_data.db` 的只读实测，给出项目现状画像、目标形态（盘中站内提醒 / 盘后简报 / 早间隔夜简报）、保留-合并-删除清单（删除量化台、AI 对话、信号统计、情绪评测工具、飞书外部推送）、AI 分层漏斗成本估算、X 监控结论与 P1～P4 分期。另：本地 conda 环境补装 `requirements.txt` 中缺失的 `pyarrow==21.0.0`（环境操作，非仓库改动）。
+- 影响文件：`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`（新）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；文中数据均来自只读 SQL 实测。
+- 风险或后续事项：§10 五项用户已确认（站内提醒、terra 单价、首页仪表盘、日历并入、X 删除），设计已同步更新并新增 §3.1 首页布局与 §11 两项新发现（资金流面板依赖量化模块、terra 单价单位）；确认后出 P1 计划，确认前不改代码。
+
 ## 2026-08-21 量化工作台优化文档归档与状态快照更新
 
 - 修改人：ZCode（GLM-5.3）
