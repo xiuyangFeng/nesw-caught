@@ -1,10 +1,8 @@
 import type {
+  Alert,
   FundFlow,
   Digest,
   DigestLatest,
-  FeishuNotifyConfig,
-  FeishuNotifyConfigUpdate,
-  FeishuTestResult,
   HealthStatus,
   LLMConnectionTestResponse,
   LLMConfigSummary,
@@ -343,17 +341,23 @@ export const apiClient = {
   getOpsHealth() {
     return getJson<OpsHealth>('/api/ops/health').then((data) => ({ data, degraded: false }));
   },
-  getFeishuConfig() {
-    return withMockFallback<FeishuNotifyConfig>(
-      () => getJson('/api/notify/feishu/config'),
-      (mock) => mock.mockFeishuConfig,
+  getAlerts(unreadOnly = false) {
+    return withMockFallback<Alert[]>(
+      () => getJson(unreadOnly ? '/api/alerts?unread_only=true' : '/api/alerts'),
+      (mock) => mock.mockAlerts,
     );
   },
-  saveFeishuConfig(payload: FeishuNotifyConfigUpdate) {
-    return postJson<FeishuNotifyConfig>('/api/notify/feishu/config', payload).then((data) => ({ data, degraded: false }));
+  getAlertUnreadCount() {
+    return withMockFallback<{ unread: number }>(
+      () => getJson('/api/alerts/unread-count'),
+      (mock) => ({ unread: mock.mockAlerts.filter((alert) => !alert.read_at).length }),
+    );
   },
-  testFeishuNotify() {
-    return postJson<FeishuTestResult>('/api/notify/feishu/test', {}).then((data) => ({ data, degraded: false }));
+  markAlertRead(id: number) {
+    return postJson<Alert>(`/api/alerts/${id}/read`, {}).then((data) => ({ data, degraded: false }));
+  },
+  markAllAlertsRead() {
+    return postJson<{ updated: number }>('/api/alerts/read-all', {}).then((data) => ({ data, degraded: false }));
   },
   getLatestDigest() {
     return getJson<DigestLatest>('/api/digest/latest').then((data) => ({ data, degraded: false }));

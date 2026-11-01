@@ -9,24 +9,6 @@ describe('apiClient write operations', () => {
     vi.unstubAllGlobals();
   });
 
-  it('rejects saveFeishuConfig when the backend is unavailable instead of faking success', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
-
-    await expect(
-      apiClient.saveFeishuConfig({
-        app_id: 'cli_test123',
-        target_type: 'chat',
-        target_id: 'oc_test_chat_id',
-        news_enabled: true,
-        news_keywords: null,
-        news_batch_interval_minutes: 30,
-        alert_enabled: true,
-        analysis_enabled: true,
-        is_active: true,
-      }),
-    ).rejects.toThrow('backend offline');
-  });
-
   it('rejects delete operations with the backend error instead of mutating mock data', async () => {
     vi.stubGlobal(
       'fetch',

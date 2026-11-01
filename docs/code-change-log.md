@@ -5,6 +5,23 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T4：前端提醒中心（替换飞书通知设置）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端路由、导航、实时推送处理、新页面与 store；添加自选弹窗。
+- 变更内容：
+  - 新增 `/alerts` 提醒中心（`AlertsView`）：按"今日提醒 / 隔夜汇总"分组；类型标签（持仓异动、持仓新闻、关注股新闻、情绪背离）；未读圆点；点击标题跳转对应新闻或自选股详情并标记已读；关注股合并提醒逐条列出新闻链接；"全部已读"、"刷新"。
+  - 新增 `alertStore`（列表、未读数、增量接收推送并按 id 去重、单条/全部已读）。
+  - `AppShell`：导航"盯盘"组加入"提醒"并显示未读角标；SSE `alert.created` 推入 store 并弹出 8 秒 toast；启动时拉一次未读数，此后每 5 分钟兜底刷新（隔夜提醒早上才可见，没有推送）。
+  - 删除飞书通知设置页 `NotifySettingsView`、`notifyStore`、`client.ts` 中 3 个飞书方法、飞书类型与 mock；`/settings/notify` 路由改为 `/alerts`（旧书签由兜底路由带回仪表盘）。
+  - 添加自选弹窗删除"高级设置 / 异动阈值"（后端已删除单股阈值）；mock 与测试夹具去掉 `alert_threshold`、`alert_mode`。
+  - 新增 `api/client.ts`：`getAlerts`、`getAlertUnreadCount`、`markAlertRead`、`markAllAlertsRead`；`StreamEventMap` 新增 `alert.created`；重新生成 `openapi.json` 与生成类型。
+  - 测试：`alertStore.test.ts`（5 个）、`AlertsView.test.ts`（3 个，先确认页面不存在时失败再实现）、`AppShell.test.ts` 新增推送与角标 2 个用例并补充 store 替身；冒烟测试加入 `/alerts`；删除"高级阈值"用例。
+- 影响文件：`frontend/src/views/AlertsView.{vue,test.ts}`（新）、`frontend/src/stores/alertStore.{ts,test.ts}`（新）、`frontend/src/views/NotifySettingsView.{vue,test.ts}`（删）、`frontend/src/stores/notifyStore.ts`（删）、`frontend/src/{router/index.ts,components/layout/AppShell.vue,components/layout/AppShell.test.ts,components/watchlist/WatchlistAddModal.vue,views/WatchlistView.vue,views/WatchlistView.test.ts,stores/watchlistStore.test.ts,api/client.ts,api/client.test.ts,api/mock/ops.ts,api/mock/market.ts,types/api.ts,smoke/app-navigation.test.ts}`、`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：前端改用 `/api/alerts*`，不再调用 `/api/notify/*`；创建自选不再发送 `alert_threshold`、`alert_mode`。
+- 验证情况：`vue-tsc` 零错误；`vitest run` 80 个文件、469 passed；`npm run build` 通过；`check:api-drift` OK。
+- 风险或后续事项：toast 只在页面打开时出现（用户确认只做站内提醒）。
+
 ## 2026-11-01 聚焦改造 P2-T3：删除飞书推送与旧通知体系、单股阈值
 
 - 修改人：Claude Code（Opus 5.5）

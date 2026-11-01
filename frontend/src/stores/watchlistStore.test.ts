@@ -69,8 +69,8 @@ describe('watchlistStore', () => {
     const store = useWatchlistStore();
 
     const initialItems = [
-      { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' },
-      { id: 2, symbol: 'AAPL', market: 'us', display_name: 'Apple', is_active: true, alert_threshold: 2, alert_mode: 'fixed' },
+      { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true },
+      { id: 2, symbol: 'AAPL', market: 'us', display_name: 'Apple', is_active: true },
     ];
     const remainingItems = [initialItems[1]];
     const initialQuotes = [
@@ -144,7 +144,7 @@ describe('watchlistStore', () => {
 
     apiClient.getWatchlist
       .mockResolvedValueOnce({
-        data: [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }],
+        data: [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true }],
         degraded: false,
       })
       .mockResolvedValueOnce({ data: [], degraded: false });
@@ -243,7 +243,7 @@ describe('watchlistStore', () => {
     const store = useWatchlistStore();
 
     apiClient.getWatchlist.mockResolvedValue({
-      data: [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }],
+      data: [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true }],
       degraded: false,
     });
     apiClient.getWatchlistQuotes.mockResolvedValue({
@@ -487,7 +487,7 @@ describe('watchlistStore', () => {
     const { useWatchlistStore } = await import('./watchlistStore');
     setActivePinia(createPinia());
     const store = useWatchlistStore();
-    store.items = [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' }];
+    store.items = [{ id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true }];
     apiClient.getStockKline.mockRejectedValue(new Error('timeout'));
     apiClient.getRelatedNews.mockResolvedValue({ data: [], degraded: false });
     apiClient.getWatchlistResearchBrief.mockResolvedValue({

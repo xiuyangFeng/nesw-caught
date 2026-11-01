@@ -94,7 +94,8 @@ vi.mock('../api/client', async () => {
     getTopicDetail: (id) => ok(mock.mockTopicDetails[id as number] ?? firstOf(mock.mockTopicDetails)),
     getStreamStatus: () => ok(mock.mockStreamStatus),
     getOpsHealth: () => ok(null),
-    getFeishuConfig: () => ok(mock.mockFeishuConfig),
+    getAlerts: () => ok([]),
+    getAlertUnreadCount: () => ok({ unread: 0 }),
     getLatestDigest: () => ok({ available: false, digest: null }),
     getFundFlow: (symbol) => ok({ ...mock.mockFundFlow, symbol: String(symbol ?? mock.mockFundFlow.symbol) }),
   };
@@ -128,7 +129,7 @@ const primaryModules: SmokeRoute[] = [
   { path: '/watchlist', label: 'Watchlist', anchor: { kind: 'role', value: 'watchlist-dashboard' } },
   { path: '/calendar', label: 'Calendar', anchor: { kind: 'role', value: 'calendar-view' } },
   { path: '/settings/llm', label: 'LlmSettings', anchor: { kind: 'text', value: 'LLM Settings' } },
-  { path: '/settings/notify', label: 'NotifySettings', anchor: { kind: 'text', value: '通知推送设置' } },
+  { path: '/alerts', label: 'Alerts', anchor: { kind: 'role', value: 'alerts-view' } },
   { path: '/digest', label: 'Digest', anchor: { kind: 'text', value: '每日盘前/盘后 AI 简报' } },
   { path: '/ops', label: 'OpsHealth', anchor: { kind: 'role', value: 'ops-health-view' } },
   { path: '/portfolio', label: 'Portfolio', anchor: { kind: 'role', value: 'portfolio-view' } },

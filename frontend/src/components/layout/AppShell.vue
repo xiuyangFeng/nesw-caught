@@ -4,16 +4,20 @@ import { RouterLink, RouterView, useRoute } from 'vue-router';
 
 import RouteErrorBoundary from '../common/RouteErrorBoundary.vue';
 
+import { useAlertStore } from '../../stores/alertStore';
 import { useConnectionStore } from '../../stores/connectionStore';
 import { useMarketStore } from '../../stores/marketStore';
 import { useNewsStore } from '../../stores/newsStore';
 import { useRuntimeStatusStore } from '../../stores/runtimeStatusStore';
+import { useToastStore } from '../../stores/toastStore';
 import { useTopicStore } from '../../stores/topicStore';
 import { useWatchlistStore } from '../../stores/watchlistStore';
 import { getRuntimeDiagnostic } from '../../utils/runtimeDiagnostics';
 import { formatMarketTime } from '../../utils/time';
 
 const route = useRoute();
+const alertStore = useAlertStore();
+const toastStore = useToastStore();
 const connectionStore = useConnectionStore();
 const newsStore = useNewsStore();
 const marketStore = useMarketStore();
@@ -38,6 +42,9 @@ let feedLayoutPollHandle: ReturnType<typeof setInterval> | null = null;
 let newsRefreshPollHandle: ReturnType<typeof setInterval> | null = null;
 let quotesPollHandle: ReturnType<typeof setInterval> | null = null;
 let feedLayoutDebounceHandle: ReturnType<typeof setTimeout> | null = null;
+// 站内提醒未读数兜底轮询：隔夜提醒到早上才对接口可见，不会有 SSE 推送。
+let alertUnreadPollHandle: ReturnType<typeof setInterval> | null = null;
+const ALERT_UNREAD_POLL_MS = 5 * 60 * 1000;
 let shellDisposed = false;
 
 type NavGroup = {
@@ -51,6 +58,7 @@ const navGroups: NavGroup[] = [
     title: '盯盘',
     items: [
       { label: '仪表盘', en: 'Dashboard', to: '/dashboard' },
+      { label: '提醒', en: 'Alerts', to: '/alerts' },
       { label: '最新事件', en: 'Events', to: '/news' },
       { label: '每日复盘', en: 'Digest', to: '/digest' },
       { label: '日历', en: 'Calendar', to: '/calendar' },
@@ -67,7 +75,6 @@ const navGroups: NavGroup[] = [
     title: '系统',
     items: [
       { label: '模型设置', en: 'LLM', to: '/settings/llm' },
-      { label: '通知', en: 'Notify', to: '/settings/notify' },
       { label: '系统健康', en: 'Health', to: '/ops' },
     ],
   },
@@ -286,6 +293,21 @@ function reconcileNewsSnapshot() {
   scheduleNewsFeedLayoutRefresh();
 }
 
+function startAlertUnreadPolling() {
+  stopAlertUnreadPolling();
+  alertUnreadPollHandle = setInterval(() => {
+    void alertStore.refreshUnread();
+  }, ALERT_UNREAD_POLL_MS);
+}
+
+function stopAlertUnreadPolling() {
+  if (alertUnreadPollHandle === null) {
+    return;
+  }
+  clearInterval(alertUnreadPollHandle);
+  alertUnreadPollHandle = null;
+}
+
 function startRuntimeStatusPolling() {
   stopRuntimeStatusPolling();
   runtimeStatusPollHandle = setInterval(() => {
@@ -314,6 +336,8 @@ async function bootstrap() {
 
   startRuntimeStatusPolling();
   startFeedLayoutPolling();
+  void alertStore.refreshUnread();
+  startAlertUnreadPolling();
   document.addEventListener('visibilitychange', handleVisibilityChange);
   if (document.visibilityState === 'visible') {
     startNewsRefreshPolling();
@@ -363,6 +387,11 @@ async function bootstrap() {
         quotes.forEach((quote) => marketStore.upsertSnapshot(quote));
         return;
       }
+      if (event.type === 'alert.created') {
+        alertStore.receiveAlert(event.payload);
+        toastStore.showWarning(event.payload.title, 8000);
+        return;
+      }
       if (event.type === 'stream.keepalive') {
         void runtimeStatusStore.loadRuntimeStatusIfStale();
       }
@@ -386,6 +415,7 @@ onBeforeUnmount(() => {
   stopRuntimeStatusPolling();
   stopNewsRefreshPolling();
   stopQuotesPolling();
+  stopAlertUnreadPolling();
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   connectionStore.disconnect();
 });
@@ -442,7 +472,16 @@ onBeforeUnmount(() => {
                 data-role="nav-active-signal"
               />
               <span class="flex min-w-0 flex-col gap-0.5">
-                <span class="text-sm leading-tight">{{ item.label }}</span>
+                <span class="flex items-center gap-1.5 text-sm leading-tight">
+                  {{ item.label }}
+                  <span
+                    v-if="item.to === '/alerts' && alertStore.unread > 0"
+                    class="rounded-full bg-danger px-1.5 font-mono text-[10px] leading-4 text-white"
+                    data-role="nav-alert-badge"
+                  >
+                    {{ alertStore.unread > 99 ? '99+' : alertStore.unread }}
+                  </span>
+                </span>
                 <span
                   class="font-mono text-[10px] uppercase tracking-[0.16em]"
                   :class="isNavItemActive(item.to) ? 'text-accent' : 'text-text-faint'"

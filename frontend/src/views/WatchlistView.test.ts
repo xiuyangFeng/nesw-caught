@@ -40,8 +40,8 @@ const watchlistStore = reactive({
     { symbol: '600519.SH', market: 'cn', display_name: '贵州茅台', aliases: ['茅台', '600519'] },
   ],
   items: [
-    { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' },
-    { id: 2, symbol: 'AAPL', market: 'us', display_name: 'Apple', is_active: true, alert_threshold: 2, alert_mode: 'fixed' },
+    { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true },
+    { id: 2, symbol: 'AAPL', market: 'us', display_name: 'Apple', is_active: true },
   ],
   quotes: [
     {
@@ -204,8 +204,8 @@ describe('WatchlistView', () => {
       { symbol: '600519.SH', market: 'cn', display_name: '贵州茅台', aliases: ['茅台', '600519'] },
     ];
     watchlistStore.items = [
-      { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true, alert_threshold: 3, alert_mode: 'fixed' },
-      { id: 2, symbol: 'AAPL', market: 'us', display_name: 'Apple', is_active: true, alert_threshold: 2, alert_mode: 'fixed' },
+      { id: 1, symbol: '0700.HK', market: 'hk', display_name: 'Tencent', is_active: true },
+      { id: 2, symbol: 'AAPL', market: 'us', display_name: 'Apple', is_active: true },
     ];
     watchlistStore.selectedSymbol = '0700.HK';
     watchlistStore.createError = null;
@@ -283,8 +283,6 @@ describe('WatchlistView', () => {
       symbol: '600519.SH',
       market: 'cn',
       display_name: '贵州茅台',
-      alert_threshold: null,
-      alert_mode: 'fixed',
     });
     expect(push).toHaveBeenCalledWith({ name: 'watchlist-detail', params: { symbol: '600519.SH' } });
   });
@@ -312,33 +310,9 @@ describe('WatchlistView', () => {
       symbol: 'BABA',
       market: 'us',
       display_name: 'Alibaba',
-      alert_threshold: null,
-      alert_mode: 'fixed',
     });
     expect(watchlistStore.selectSymbol).not.toHaveBeenCalled();
     expect(wrapper.get('[data-role="watchlist-add-modal"]').attributes('aria-hidden')).toBe('true');
-  });
-
-  it('passes advanced threshold when user expands advanced settings', async () => {
-    const wrapper = mount(WatchlistView);
-    await flushPromises();
-
-    await wrapper.get('[data-role="watchlist-open-add-modal"]').trigger('click');
-    await wrapper.get('[data-role="watchlist-add-search"]').setValue('Alibaba');
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await flushPromises();
-    await wrapper.get('[data-role="watchlist-candidate-BABA"]').trigger('click');
-    await wrapper.get('[data-role="watchlist-add-advanced-toggle"]').trigger('click');
-    await wrapper.get('[data-role="watchlist-add-threshold"]').setValue('8.5');
-    await wrapper.get('[data-role="watchlist-add-submit"]').trigger('click');
-
-    expect(watchlistStore.createWatchlist).toHaveBeenCalledWith({
-      symbol: 'BABA',
-      market: 'us',
-      display_name: 'Alibaba',
-      alert_threshold: 8.5,
-      alert_mode: 'fixed',
-    });
   });
 
   it('keeps the modal open and preserves selection after add failure', async () => {

@@ -2,8 +2,7 @@
 // 以及新闻抓取链路运行时状态(NewsRuntimeStatus，各市场/信源的健康度)。
 
 import type {
-  FeishuNotifyConfig,
-  FeishuTestResult,
+  Alert,
   HealthStatus,
   NewsRuntimeStatus,
   StreamEnvelope,
@@ -98,31 +97,5 @@ export const mockStreamEvents: StreamEnvelope[] = [
   },
 ];
 
-export const mockFeishuConfig: FeishuNotifyConfig = {
-  configured: false,
-  app_id: null,
-  app_secret_set: false,
-  target_type: null,
-  target_id: null,
-  news_enabled: true,
-  news_keywords: null,
-  news_batch_interval_minutes: 60,
-  alert_enabled: true,
-  analysis_enabled: true,
-  is_active: true,
-  updated_at: null,
-  governance: {
-    quiet_hours_start: null,
-    quiet_hours_end: null,
-    quiet_hours_tz: 'Asia/Shanghai',
-    dedupe_window_minutes: 0,
-    digest_window_minutes: 0,
-    digest_threshold: 3,
-    critical_change_percent: 8,
-  },
-};
-
-export const mockFeishuTestResult: FeishuTestResult = {
-  success: true,
-  message: '测试消息发送成功（mock）',
-};
+// 站内提醒：离线模式下为空列表（提醒只在真实后端产生）。
+export const mockAlerts: Alert[] = [];

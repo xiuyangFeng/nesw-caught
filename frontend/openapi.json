@@ -24,114 +24,60 @@
         "title": "AiServiceStatus",
         "type": "object"
       },
-      "AlertGovernanceUpdate": {
-        "description": "告警治理运行期覆盖（保存在 NotificationService 内存，不落库）。全部可选。",
+      "AlertReadAllView": {
         "properties": {
-          "critical_change_percent": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Critical Change Percent"
-          },
-          "dedupe_window_minutes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dedupe Window Minutes"
-          },
-          "digest_threshold": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Digest Threshold"
-          },
-          "digest_window_minutes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Digest Window Minutes"
-          },
-          "quiet_hours_end": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours End"
-          },
-          "quiet_hours_start": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours Start"
-          },
-          "quiet_hours_tz": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quiet Hours Tz"
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
           }
         },
-        "title": "AlertGovernanceUpdate",
+        "required": [
+          "updated"
+        ],
+        "title": "AlertReadAllView",
         "type": "object"
       },
-      "AlertGovernanceView": {
-        "description": "治理当前生效值（settings 默认叠加内存覆盖后的结果），供前端回显。",
+      "AlertUnreadCountView": {
         "properties": {
-          "critical_change_percent": {
-            "default": 8.0,
-            "title": "Critical Change Percent",
-            "type": "number"
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread"
+        ],
+        "title": "AlertUnreadCountView",
+        "type": "object"
+      },
+      "AlertView": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
           },
-          "dedupe_window_minutes": {
-            "default": 0,
-            "title": "Dedupe Window Minutes",
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
             "type": "integer"
           },
-          "digest_threshold": {
-            "default": 3,
-            "title": "Digest Threshold",
-            "type": "integer"
+          "kind": {
+            "title": "Kind",
+            "type": "string"
           },
-          "digest_window_minutes": {
-            "default": 0,
-            "title": "Digest Window Minutes",
-            "type": "integer"
+          "overnight": {
+            "title": "Overnight",
+            "type": "boolean"
           },
-          "quiet_hours_end": {
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "read_at": {
             "anyOf": [
               {
                 "type": "string"
@@ -140,9 +86,13 @@
                 "type": "null"
               }
             ],
-            "title": "Quiet Hours End"
+            "title": "Read At"
           },
-          "quiet_hours_start": {
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "symbol": {
             "anyOf": [
               {
                 "type": "string"
@@ -151,15 +101,29 @@
                 "type": "null"
               }
             ],
-            "title": "Quiet Hours Start"
+            "title": "Symbol"
           },
-          "quiet_hours_tz": {
-            "default": "Asia/Shanghai",
-            "title": "Quiet Hours Tz",
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "visible_at": {
+            "title": "Visible At",
             "type": "string"
           }
         },
-        "title": "AlertGovernanceView",
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "title",
+          "body",
+          "payload",
+          "overnight",
+          "created_at",
+          "visible_at"
+        ],
+        "title": "AlertView",
         "type": "object"
       },
       "BoardItemView": {
@@ -594,212 +558,6 @@
           "sections"
         ],
         "title": "DigestView",
-        "type": "object"
-      },
-      "FeishuConfigUpsertRequest": {
-        "properties": {
-          "alert_enabled": {
-            "default": true,
-            "title": "Alert Enabled",
-            "type": "boolean"
-          },
-          "analysis_enabled": {
-            "default": true,
-            "title": "Analysis Enabled",
-            "type": "boolean"
-          },
-          "app_id": {
-            "title": "App Id",
-            "type": "string"
-          },
-          "app_secret": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "App Secret"
-          },
-          "governance": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AlertGovernanceUpdate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "is_active": {
-            "default": true,
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "news_batch_interval_minutes": {
-            "default": 60,
-            "title": "News Batch Interval Minutes",
-            "type": "integer"
-          },
-          "news_enabled": {
-            "default": true,
-            "title": "News Enabled",
-            "type": "boolean"
-          },
-          "news_keywords": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "News Keywords"
-          },
-          "target_id": {
-            "title": "Target Id",
-            "type": "string"
-          },
-          "target_type": {
-            "default": "chat",
-            "title": "Target Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "app_id",
-          "target_id"
-        ],
-        "title": "FeishuConfigUpsertRequest",
-        "type": "object"
-      },
-      "FeishuConfigView": {
-        "properties": {
-          "alert_enabled": {
-            "default": true,
-            "title": "Alert Enabled",
-            "type": "boolean"
-          },
-          "analysis_enabled": {
-            "default": true,
-            "title": "Analysis Enabled",
-            "type": "boolean"
-          },
-          "app_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "App Id"
-          },
-          "app_secret_set": {
-            "default": false,
-            "title": "App Secret Set",
-            "type": "boolean"
-          },
-          "configured": {
-            "title": "Configured",
-            "type": "boolean"
-          },
-          "governance": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AlertGovernanceView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "is_active": {
-            "default": true,
-            "title": "Is Active",
-            "type": "boolean"
-          },
-          "news_batch_interval_minutes": {
-            "default": 60,
-            "title": "News Batch Interval Minutes",
-            "type": "integer"
-          },
-          "news_enabled": {
-            "default": true,
-            "title": "News Enabled",
-            "type": "boolean"
-          },
-          "news_keywords": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "News Keywords"
-          },
-          "target_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Id"
-          },
-          "target_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Type"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          }
-        },
-        "required": [
-          "configured"
-        ],
-        "title": "FeishuConfigView",
-        "type": "object"
-      },
-      "FeishuTestResult": {
-        "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "success": {
-            "title": "Success",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "message"
-        ],
-        "title": "FeishuTestResult",
         "type": "object"
       },
       "FrontendLogBatch": {
@@ -5971,22 +5729,6 @@
       },
       "WatchlistItemCreate": {
         "properties": {
-          "alert_mode": {
-            "default": "fixed",
-            "title": "Alert Mode",
-            "type": "string"
-          },
-          "alert_threshold": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Alert Threshold"
-          },
           "display_name": {
             "maxLength": 120,
             "minLength": 1,
@@ -6045,21 +5787,6 @@
       },
       "WatchlistItemView": {
         "properties": {
-          "alert_mode": {
-            "title": "Alert Mode",
-            "type": "string"
-          },
-          "alert_threshold": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Alert Threshold"
-          },
           "average_cost": {
             "anyOf": [
               {
@@ -6108,8 +5835,7 @@
           "symbol",
           "market",
           "display_name",
-          "is_active",
-          "alert_mode"
+          "is_active"
         ],
         "title": "WatchlistItemView",
         "type": "object"
@@ -6211,6 +5937,238 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/alerts": {
+      "get": {
+        "description": "当前可见的站内提醒（隔夜提醒在次日早上之前不出现），新的在前。",
+        "operationId": "list_alerts_api_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unread_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertView"
+                  },
+                  "title": "Response List Alerts Api Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Alerts",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/api/alerts/read-all": {
+      "post": {
+        "operationId": "mark_all_read_api_alerts_read_all_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertReadAllView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark All Read",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/api/alerts/unread-count": {
+      "get": {
+        "operationId": "get_unread_count_api_alerts_unread_count_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertUnreadCountView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Unread Count",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/api/alerts/{alert_id}/read": {
+      "post": {
+        "operationId": "mark_read_api_alerts__alert_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-App-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
     "/api/calendar": {
       "get": {
         "operationId": "list_upcoming_calendar_api_calendar_get",
@@ -8510,161 +8468,6 @@
         "summary": "Analyze News",
         "tags": [
           "news"
-        ]
-      }
-    },
-    "/api/notify/feishu/config": {
-      "get": {
-        "operationId": "get_feishu_config_api_notify_feishu_config_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-App-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-App-Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeishuConfigView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Feishu Config",
-        "tags": [
-          "notify"
-        ]
-      },
-      "post": {
-        "operationId": "upsert_feishu_config_api_notify_feishu_config_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-App-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-App-Token"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeishuConfigUpsertRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeishuConfigView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Upsert Feishu Config",
-        "tags": [
-          "notify"
-        ]
-      }
-    },
-    "/api/notify/feishu/test": {
-      "post": {
-        "operationId": "test_feishu_notification_api_notify_feishu_test_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-App-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-App-Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeishuTestResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Test Feishu Notification",
-        "tags": [
-          "notify"
         ]
       }
     },

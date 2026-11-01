@@ -27,8 +27,6 @@ const marketOverviewStore = useMarketOverviewStore();
 const isAddModalOpen = ref(false);
 const addModalQuery = ref('');
 const addModalSelectedCandidate = ref<WatchlistCandidate | null>(null);
-const addModalAdvancedOpen = ref(false);
-const addModalAlertThreshold = ref('');
 
 const dynamicMatches = ref<WatchlistCandidate[]>([]);
 const isSearching = ref(false);
@@ -236,8 +234,6 @@ function closeAddModal() {
   isAddModalOpen.value = false;
   addModalQuery.value = '';
   addModalSelectedCandidate.value = null;
-  addModalAdvancedOpen.value = false;
-  addModalAlertThreshold.value = '';
 }
 
 function handleSelectAddCandidate(candidate: WatchlistCandidate) {
@@ -253,14 +249,11 @@ async function handleAddCandidate() {
     return;
   }
 
-  const threshold = addModalAlertThreshold.value.trim();
   try {
     await watchlistStore.createWatchlist({
       symbol: addModalSelectedCandidate.value.symbol,
       market: addModalSelectedCandidate.value.market,
       display_name: addModalSelectedCandidate.value.display_name,
-      alert_threshold: addModalAdvancedOpen.value && threshold ? Number(threshold) : null,
-      alert_mode: 'fixed',
     });
     await router.push({ name: 'watchlist-detail', params: { symbol: addModalSelectedCandidate.value.symbol } });
     closeAddModal();
@@ -655,16 +648,12 @@ onUnmounted(() => {
       :query="addModalQuery"
       :matches="addModalMatches"
       :selected-candidate="addModalSelectedCandidate"
-      :advanced-open="addModalAdvancedOpen"
-      :alert-threshold="addModalAlertThreshold"
       :create-loading="watchlistStore.createLoading"
       :create-error="watchlistStore.createError"
       :is-searching="isSearching"
       @close="closeAddModal"
       @update-query="addModalQuery = $event"
       @select-candidate="handleSelectAddCandidate"
-      @toggle-advanced="addModalAdvancedOpen = !addModalAdvancedOpen"
-      @update-alert-threshold="addModalAlertThreshold = $event"
       @submit="handleAddCandidate"
     />
   </div>

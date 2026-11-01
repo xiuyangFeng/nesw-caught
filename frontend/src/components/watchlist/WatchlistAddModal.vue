@@ -6,8 +6,6 @@ defineProps<{
   query: string;
   matches: WatchlistCandidate[];
   selectedCandidate: WatchlistCandidate | null;
-  advancedOpen: boolean;
-  alertThreshold: string;
   createLoading: boolean;
   createError: string | null;
   isSearching?: boolean;
@@ -17,8 +15,6 @@ const emit = defineEmits<{
   close: [];
   updateQuery: [value: string];
   selectCandidate: [candidate: WatchlistCandidate];
-  toggleAdvanced: [];
-  updateAlertThreshold: [value: string];
   submit: [];
 }>();
 </script>
@@ -101,28 +97,6 @@ const emit = defineEmits<{
               <span class="mt-1 block text-[11px] uppercase tracking-[0.14em] text-text-faint" data-role="watchlist-add-selected-symbol">
                 {{ selectedCandidate.symbol }} · {{ selectedCandidate.market }}
               </span>
-            </div>
-            <button
-              type="button"
-              class="justify-self-start rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.18em] text-text-faint"
-              data-role="watchlist-add-advanced-toggle"
-              @click="emit('toggleAdvanced')"
-            >
-              {{ advancedOpen ? '收起高级设置' : '展开高级设置' }}
-            </button>
-            <div v-if="advancedOpen" class="grid gap-2 rounded-[20px] border border-border/70 bg-black/10 p-4">
-              <label class="text-[11px] uppercase tracking-[0.14em] text-text-faint" for="watchlist-add-threshold">
-                异动阈值 (%)
-              </label>
-              <input
-                id="watchlist-add-threshold"
-                :value="alertThreshold"
-                class="w-full rounded-2xl border border-border bg-field px-3 py-2.5 text-sm text-text"
-                data-role="watchlist-add-threshold"
-                inputmode="decimal"
-                placeholder="例如 5"
-                @input="emit('updateAlertThreshold', ($event.target as HTMLInputElement).value)"
-              />
             </div>
           </div>
           <p v-else class="mt-3 rounded-[20px] border border-dashed border-border/70 px-3 py-6 text-sm text-text-soft">
