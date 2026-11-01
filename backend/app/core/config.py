@@ -208,6 +208,13 @@ class Settings(BaseSettings):
     backup_retention_count: int = 7
     backup_dir: str | None = None
     dedup_secondary_judge: str | None = None
+    # 站内提醒（聚焦改造 P2）：持仓 |涨跌幅| 阈值、静默时段（本地时间，跨午夜）、
+    # 时区与关注股新闻合并窗口。静默时段留空（两项任一为空）即关闭静默。
+    alert_price_move_percent: float = 5.0
+    alert_quiet_hours_start: str | None = "22:00"
+    alert_quiet_hours_end: str | None = "08:00"
+    alert_tz: str = "Asia/Shanghai"
+    alert_watch_digest_minutes: int = 30
     # 情绪-价格背离提醒开关及参数（默认关闭，不改变旧行为）。
     sentiment_divergence_alert_enabled: bool = False
     sentiment_divergence_window_days: int = 3

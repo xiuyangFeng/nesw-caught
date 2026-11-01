@@ -12,7 +12,7 @@ from app.core.request_logging import RequestLoggingMiddleware
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.repositories.news_repository import NewsRepository  # noqa: F401 -- monkeypatched by tests
-from app.repositories.watchlist_repository import WatchlistRepository
+from app.services.alert_service import get_alert_service
 from app.services.backup import build_backup_worker
 from app.services.cleanup import build_data_cleanup_worker
 from app.services.event_bus import build_event_bus, get_event_bus, set_event_bus
@@ -76,27 +76,11 @@ def register_market_watchlist_handlers(event_bus: Any) -> None:
         raw_quotes = payload.get("quotes") if isinstance(payload, dict) else None
         if not isinstance(raw_quotes, list):
             return
-        with SessionLocal() as session:
-            watchlist_items = {item.symbol: item for item in WatchlistRepository(session).list_all()}
-        notification_service = get_notification_service()
-        for quote in raw_quotes:
-            if not isinstance(quote, dict):
-                continue
-            symbol = quote.get("symbol")
-            if not symbol:
-                continue
-            watchlist_item = watchlist_items.get(str(symbol))
-            if watchlist_item is None or not watchlist_item.alert_threshold:
-                continue
-            notification_service.on_watchlist_alert(
-                {
-                    "symbol": symbol,
-                    "display_name": quote.get("display_name") or watchlist_item.display_name,
-                    "price": quote.get("price"),
-                    "change_percent": quote.get("change_percent"),
-                    "alert_threshold": watchlist_item.alert_threshold,
-                }
-            )
+        # 站内提醒：持仓股 |涨跌幅| 超阈值（默认 5%）每个交易日提醒一次；顺带推进关注股新闻合并窗口。
+        try:
+            get_alert_service().on_quotes([quote for quote in raw_quotes if isinstance(quote, dict)])
+        except Exception:
+            logger.exception("price alert evaluation failed")
 
     event_bus.subscribe("market.watchlist_refreshed", handle_market_watchlist_refreshed)
 

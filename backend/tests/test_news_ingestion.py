@@ -1238,7 +1238,7 @@ def test_refresh_news_endpoint_returns_summary(monkeypatch) -> None:
     assert payload["results"][0]["source_name"] == "The Verge"
 
 
-def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> None:
+def test_refresh_news_endpoint_hands_exact_inserted_items_to_alerts(monkeypatch) -> None:
     inserted_item = NewsItem(
         id=999,
         source_name="Inserted Source",
@@ -1257,12 +1257,13 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         ingest_status="ingested",
     )
 
-    class FakeNotificationService:
+    class FakeAlertService:
         def __init__(self) -> None:
             self.news_payloads: list[dict] = []
 
-        def on_news_created_batch(self, payloads: list[dict]) -> None:
+        def on_news_batch(self, payloads: list[dict]) -> int:
             self.news_payloads.extend(payloads)
+            return 0
 
     class FakeNewsRepository:
         def __init__(self, session) -> None:
@@ -1295,12 +1296,11 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
         except Exception:
             break
 
-    notification_service = FakeNotificationService()
+    alert_service = FakeAlertService()
     fake_bus = FakeBus()
     monkeypatch.setattr(main_module, "build_event_bus", lambda: fake_bus)
     monkeypatch.setattr(main_module, "NewsRepository", FakeNewsRepository)
-    monkeypatch.setattr(main_module, "get_notification_service", lambda: notification_service)
-    monkeypatch.setattr("app.workers.queue_worker.get_notification_service", lambda: notification_service)
+    monkeypatch.setattr("app.workers.queue_worker.get_alert_service", lambda: alert_service)
 
     class FakePipelineService:
         def __init__(self, session, session_factory=None) -> None:
@@ -1333,8 +1333,9 @@ def test_refresh_news_endpoint_notifies_exact_inserted_items(monkeypatch) -> Non
     monkeypatch.setattr(qw, "_record_success", lambda *args, **kwargs: None)
     qw.run_cycle()
 
-    assert notification_service.news_payloads == [
+    assert alert_service.news_payloads == [
         {
+            "id": 999,
             "title": "Inserted news",
             "summary": "Inserted summary",
             "source_name": "Inserted Source",

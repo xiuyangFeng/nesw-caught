@@ -14,9 +14,9 @@ from app.repositories.news_repository import NewsRepository
 from app.repositories.worker_runtime_status_repository import WorkerRuntimeStatusRepository
 from app.schemas.news import NewsItemSummary
 from app.services import llm_providers, news_signal_pipeline
+from app.services.alert_service import get_alert_service
 from app.services.event_bus import get_event_bus
 from app.services.news_signal_pipeline import NewsSignalPipelineService
-from app.services.notification_service import get_notification_service
 from app.workers.base_worker import BaseWorker
 
 # 全局内存分析任务队列
@@ -365,7 +365,7 @@ class BackgroundQueueWorker(BaseWorker):
         )
 
         event_bus = get_event_bus()
-        notification_service = get_notification_service()
+        alert_service = get_alert_service()
 
         pipeline_ms = 0.0
         persist_ms = 0.0
@@ -387,13 +387,14 @@ class BackgroundQueueWorker(BaseWorker):
                 # item.title/summary/... 会各触发一次 SELECT refresh(N 次查询)。
                 # 因此把事件与通知需要的字段全部在 commit 之前取成普通 Python 值。
                 update_payloads: list[dict] = []
-                notification_payloads: list[dict] = []
+                alert_payloads: list[dict] = []
                 for item in items:
                     payload = NewsItemSummary.model_validate(item, from_attributes=True).model_dump(mode="json")
                     payload["updated_fields"] = ["sentiment_label"]
                     update_payloads.append(payload)
-                    notification_payloads.append(
+                    alert_payloads.append(
                         {
+                            "id": item.id,
                             "title": item.title,
                             "summary": item.summary,
                             "source_name": item.source_name,
@@ -405,7 +406,7 @@ class BackgroundQueueWorker(BaseWorker):
                 session.commit()
                 persist_ms = (time.perf_counter() - stage_started) * 1000
 
-                # 3. 广播已评分事件，并批量进行通知草稿入队(一次配置加载 + 一次提交)
+                # 3. 广播已评分事件，并按持仓/关注股规则生成站内提醒(一次加载 + 一次提交)
                 stage_started = time.perf_counter()
                 publish_batch = getattr(event_bus, "publish_batch", None)
                 if callable(publish_batch):
@@ -413,16 +414,16 @@ class BackgroundQueueWorker(BaseWorker):
                 else:  # 兼容只实现了 publish() 的测试替身
                     for payload in update_payloads:
                         event_bus.publish("news.updated", payload)
-                if notification_payloads:
+                if alert_payloads:
                     try:
-                        notification_service.on_news_created_batch(notification_payloads)
+                        alert_service.on_news_batch(alert_payloads)
                     except Exception:
-                        # 不可恢复:这一批通知草稿的入队机会已经丢失(不会重试),但
-                        # 不影响本轮已提交的情感分析结果,因此不改变整批处理的返回值/
-                        # 语义,只补上计数使其可观测。
+                        # 不可恢复:这一批新闻的提醒机会已经丢失(不会重试),但不影响本轮
+                        # 已提交的情感分析结果,因此不改变整批处理的返回值/语义,只补上
+                        # 计数使其可观测。
                         self.logger.exception(
-                            "Failed to enqueue feishu notifications for %s news items",
-                            len(notification_payloads),
+                            "Failed to evaluate news alerts for %s news items",
+                            len(alert_payloads),
                         )
                         _incr_notification_error()
                 publish_ms = (time.perf_counter() - stage_started) * 1000

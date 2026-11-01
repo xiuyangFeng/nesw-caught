@@ -588,13 +588,13 @@ def test_queue_worker_does_not_refresh_orm_items_after_commit(monkeypatch) -> No
         def publish_batch(self, *args, **kwargs):
             return 0
 
-    class NoopNotifications:
-        def on_news_created_batch(self, payloads):
-            return None
+    class NoopAlerts:
+        def on_news_batch(self, payloads):
+            return 0
 
     monkeypatch.setattr(queue_worker_module, "NewsSignalPipelineService", FakePipelineService)
     monkeypatch.setattr(queue_worker_module, "get_event_bus", lambda: NoopBus())
-    monkeypatch.setattr(queue_worker_module, "get_notification_service", lambda: NoopNotifications())
+    monkeypatch.setattr(queue_worker_module, "get_alert_service", lambda: NoopAlerts())
 
     state = {"committed": False}
     selects_after_commit: list[str] = []

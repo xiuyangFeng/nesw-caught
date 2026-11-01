@@ -5,6 +5,24 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T2：站内提醒规则服务并接入行情与新闻流程
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端提醒规则、行情刷新回调、新闻队列挂载点、SSE 事件。
+- 变更内容：
+  - 新增 `AlertService`（可注入时钟与事件总线）：
+    - **持仓价格**：仅 `position_size > 0`；`|涨跌幅| ≥ 5%`（`ALERT_PRICE_MOVE_PERCENT`）；只在该市场交易时段内触发。去重键用**昨收价**区分交易日（`price:{symbol}:{previous_close}`），节假日行情不更新、昨收不变，不会重复提醒上一个交易日的涨跌；缺昨收时按北京时间日期去重。
+    - **新闻**：标题出现简称（中文子串；英文按整词、忽略大小写）或代码（A 股 6 位、港股 5 位补零或 `xxxx.HK`、美股代码整词），或 A 股 `news_stock_mention` 置信度 ≥ 0.9。持仓股立即提醒（`news:{news_id}:{symbol}` 去重）；仅关注的股票进入内存合并窗口，每 30 分钟合并为一条 `watch_news_digest`。
+    - **静默时段**（默认北京时间 22:00～08:00，可配）：照常写库，`overnight=True`，`visible_at` 推迟到静默结束，不推 SSE。
+    - 非静默期提醒发布 `alert.created` 事件；SSE `/api/stream` 新增转发该事件。
+  - `main.py` 行情刷新回调改为调用 `AlertService.on_quotes`（去掉按单股阈值、内存"越线"状态、依赖飞书的旧逻辑）；`queue_worker` 新闻挂载点改为 `AlertService.on_news_batch`，并在 payload 中补 `id`。
+  - 新增配置：`alert_price_move_percent`、`alert_quiet_hours_start/end`、`alert_tz`、`alert_watch_digest_minutes`。
+  - 测试：新增 `tests/test_alert_service.py`（10 个，覆盖阈值方向、仅持仓、交易时段外不触发、节假日昨收不变不重复、新交易日再触发、中英文名称与代码匹配、整词边界、规则关联、合并窗口、静默跨午夜与凌晨）；先确认在模块缺失时失败再实现。`test_market.py` 原"越线才触发"用例改写为"行情刷新把报价交给提醒服务"的集成测试；`test_news_ingestion.py`、`test_scheduler_timeliness.py`、`test_worker_process_split.py` 中的通知替身改为提醒服务替身。
+- 影响文件：`backend/app/services/alert_service.py`（新）、`backend/app/api/routes/alerts.py`、`backend/app/api/routes/stream.py`、`backend/app/main.py`、`backend/app/workers/queue_worker.py`、`backend/app/core/config.py`、`backend/tests/test_alert_service.py`（新）、`backend/tests/{test_market.py,test_news_ingestion.py,test_scheduler_timeliness.py,test_worker_process_split.py}`、`docs/code-change-log.md`。
+- 接口/数据结构变化：SSE 新增 `alert.created` 事件；无接口删除。旧 `NotificationService` 仍在但已不再接收价格与新闻事件，T3 删除。
+- 验证情况：`pytest backend/tests` 1066 passed / 7 failed（与基线相同的已知测试污染）；`ruff check backend` 通过。
+- 风险或后续事项：标题关键词匹配会有误报（如"阿里云"命中名称"阿里"类简称）；英文简称（如 Alibaba）无法匹配中文新闻"阿里巴巴"，P3 由 AI 判断替换。关注股合并窗口在内存中，进程重启最多丢失一个窗口的关注股命中。
+
 ## 2026-11-01 聚焦改造 P2-T1：站内提醒存储与接口
 
 - 修改人：Claude Code（Opus 5.5）
