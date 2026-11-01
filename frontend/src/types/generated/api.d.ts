@@ -6,6 +6,26 @@
  */
 
 export interface paths {
+    "/api/ai/funnel/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Funnel Status
+         * @description AI 漏斗是否在线、今日处理量与费用、预算、最近错误。
+         */
+        get: operations["get_funnel_status_api_ai_funnel_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/alerts": {
         parameters: {
             query?: never;
@@ -140,6 +160,44 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/focus-sectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Focus Sectors
+         * @description 关注板块：自选股的 AI 推断板块 + 手动添加 − 手动删除。
+         */
+        get: operations["get_focus_sectors_api_focus_sectors_get"];
+        put?: never;
+        /** Create Focus Sector */
+        post: operations["create_focus_sector_api_focus_sectors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/focus-sectors/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Focus Sector */
+        delete: operations["delete_focus_sector_api_focus_sectors__name__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -656,6 +714,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/news/{news_id}/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get News Ai
+         * @description 新闻的 AI 粗筛、精读结论与影响列表；尚未经过 AI 时各项为空。
+         */
+        get: operations["get_news_ai_api_news__news_id__ai_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/news/{news_id}/analysis": {
         parameters: {
             query?: never;
@@ -684,6 +762,26 @@ export interface paths {
         put?: never;
         /** Analyze News */
         post: operations["analyze_news_api_news__news_id__analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/news/{news_id}/impacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Correct News Impacts
+         * @description 用户修正影响列表（整表替换）；修正会作为后续 AI 判断的示例。
+         */
+        put: operations["correct_news_impacts_api_news__news_id__impacts_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -895,6 +993,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/watchlist/{symbol}/impacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Stock Impacts
+         * @description 某只股票最近的 AI（或用户修正）影响判断，新的在前。
+         */
+        get: operations["list_stock_impacts_api_watchlist__symbol__impacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/watchlist/{symbol}/related-news": {
         parameters: {
             query?: never;
@@ -958,6 +1076,66 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiFunnelErrorView */
+        AiFunnelErrorView: {
+            /** At */
+            at?: string | null;
+            /** Message */
+            message?: string | null;
+        };
+        /** AiFunnelStatusView */
+        AiFunnelStatusView: {
+            /** Active */
+            active: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Inactive Reason */
+            inactive_reason?: ("disabled" | "no_default_model" | "over_budget" | "worker_not_running") | null;
+            last_error?: components["schemas"]["AiFunnelErrorView"] | null;
+            /** Model Display Name */
+            model_display_name?: string | null;
+            /** Model Name */
+            model_name?: string | null;
+            /** Month Cost Usd */
+            month_cost_usd?: number | null;
+            /** Monthly Budget Usd */
+            monthly_budget_usd?: number | null;
+            /** Over Budget */
+            over_budget: boolean;
+            today: components["schemas"]["AiFunnelTodayView"];
+            /** Usage */
+            usage: components["schemas"]["AiFunnelUsageView"][];
+        };
+        /** AiFunnelTodayView */
+        AiFunnelTodayView: {
+            /** Analysis Daily Limit */
+            analysis_daily_limit: number;
+            /** Analysis Errors */
+            analysis_errors: number;
+            /** Analyzed */
+            analyzed: number;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Impacts */
+            impacts: number;
+            /** Screen Errors */
+            screen_errors: number;
+            /** Screened */
+            screened: number;
+        };
+        /** AiFunnelUsageView */
+        AiFunnelUsageView: {
+            /** Calls */
+            calls: number;
+            /** Completion Tokens */
+            completion_tokens: number;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Operation Type */
+            operation_type: string;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+        };
         /**
          * AiServiceStatus
          * @description AI 服务状态：是否启用 + 最近一次 LLM 调用时间（无专门的 provider 健康表可查，用作存活参考）。
@@ -1160,6 +1338,23 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** FocusSectorCreate */
+        FocusSectorCreate: {
+            /** Name */
+            name: string;
+        };
+        /** FocusSectorView */
+        FocusSectorView: {
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "user";
+            /** Symbols */
+            symbols?: string[];
+        };
         /** FrontendLogBatch */
         FrontendLogBatch: {
             /** Entries */
@@ -1260,6 +1455,37 @@ export interface components {
             /** Stream Mode */
             stream_mode: string;
         };
+        /** ImpactCorrectionRequest */
+        ImpactCorrectionRequest: {
+            /** Impacts */
+            impacts: components["schemas"]["ImpactInput"][];
+            /** Note */
+            note?: string | null;
+        };
+        /** ImpactInput */
+        ImpactInput: {
+            /** Code */
+            code?: string | null;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "bullish" | "bearish" | "neutral";
+            /** Name */
+            name: string;
+            /** Rationale */
+            rationale?: string | null;
+            /**
+             * Strength
+             * @enum {string}
+             */
+            strength: "strong" | "medium" | "weak";
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "stock" | "sector";
+        };
         /** IndicatorSeriesView */
         IndicatorSeriesView: {
             /** Bollinger */
@@ -1332,8 +1558,8 @@ export interface components {
             display_name?: string | null;
             /** Id */
             id?: number | null;
-            /** Input Price Per 1K */
-            input_price_per_1k?: number | null;
+            /** Input Price Per 1M */
+            input_price_per_1m?: number | null;
             /**
              * Is Active
              * @default true
@@ -1348,8 +1574,8 @@ export interface components {
             model_name: string;
             /** Monthly Budget Usd */
             monthly_budget_usd?: number | null;
-            /** Output Price Per 1K */
-            output_price_per_1k?: number | null;
+            /** Output Price Per 1M */
+            output_price_per_1m?: number | null;
             /** Provider Name */
             provider_name: string;
         };
@@ -1370,8 +1596,8 @@ export interface components {
             display_name?: string | null;
             /** Id */
             id?: number | null;
-            /** Input Price Per 1K */
-            input_price_per_1k?: number | null;
+            /** Input Price Per 1M */
+            input_price_per_1m?: number | null;
             /**
              * Is Active
              * @default true
@@ -1386,8 +1612,8 @@ export interface components {
             model_name?: string | null;
             /** Monthly Budget Usd */
             monthly_budget_usd?: number | null;
-            /** Output Price Per 1K */
-            output_price_per_1k?: number | null;
+            /** Output Price Per 1M */
+            output_price_per_1m?: number | null;
             /** Provider Name */
             provider_name?: string | null;
             /** Updated At */
@@ -1428,12 +1654,12 @@ export interface components {
             cost_available: boolean;
             /** Cost Usd */
             cost_usd?: number | null;
-            /** Input Price Per 1K */
-            input_price_per_1k?: number | null;
+            /** Input Price Per 1M */
+            input_price_per_1m?: number | null;
             /** Model Name */
             model_name: string;
-            /** Output Price Per 1K */
-            output_price_per_1k?: number | null;
+            /** Output Price Per 1M */
+            output_price_per_1m?: number | null;
             /** Prompt Tokens */
             prompt_tokens: number;
             /** Total Tokens */
@@ -1631,6 +1857,53 @@ export interface components {
             /** Success Count */
             success_count: number;
         };
+        /** NewsAiAnalysisView */
+        NewsAiAnalysisView: {
+            /**
+             * Analyzed At
+             * Format: date-time
+             */
+            analyzed_at: string;
+            /** Error */
+            error?: string | null;
+            /** Major */
+            major: boolean;
+            /** Status */
+            status: string;
+            /** Summary Zh */
+            summary_zh?: string | null;
+            /** View */
+            view?: string | null;
+        };
+        /** NewsAiScreenView */
+        NewsAiScreenView: {
+            /** Deep Read */
+            deep_read: boolean;
+            /** Importance */
+            importance: number;
+            /** Overseas */
+            overseas: boolean;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Screened At
+             * Format: date-time
+             */
+            screened_at: string;
+            /** Status */
+            status: string;
+            /** Title Zh */
+            title_zh?: string | null;
+        };
+        /** NewsAiView */
+        NewsAiView: {
+            analysis?: components["schemas"]["NewsAiAnalysisView"] | null;
+            /** Impacts */
+            impacts?: components["schemas"]["NewsImpactView"][];
+            /** News Id */
+            news_id: number;
+            screen?: components["schemas"]["NewsAiScreenView"] | null;
+        };
         /** NewsAnalysisView */
         NewsAnalysisView: {
             /** Analysis Error */
@@ -1819,6 +2092,37 @@ export interface components {
             topic_summary?: string | null;
             /** Topic Title */
             topic_title: string;
+        };
+        /** NewsImpactView */
+        NewsImpactView: {
+            /** Code */
+            code?: string | null;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "bullish" | "bearish" | "neutral";
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Rationale */
+            rationale?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "user";
+            /**
+             * Strength
+             * @enum {string}
+             */
+            strength: "strong" | "medium" | "weak";
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "stock" | "sector";
         };
         /** NewsItemSummary */
         NewsItemSummary: {
@@ -2600,6 +2904,36 @@ export interface components {
             /** Prices */
             prices?: number[];
         };
+        /** StockImpactView */
+        StockImpactView: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "bullish" | "bearish" | "neutral";
+            /** News Id */
+            news_id: number;
+            /** News Title */
+            news_title: string;
+            /** Published At */
+            published_at?: string | null;
+            /** Rationale */
+            rationale?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "user";
+            /**
+             * Strength
+             * @enum {string}
+             */
+            strength: "strong" | "medium" | "weak";
+            /** Title Zh */
+            title_zh?: string | null;
+            /** View */
+            view?: string | null;
+        };
         /**
          * StockResearchKeyEvent
          * @description 关键时间线上的单个事件。
@@ -2922,6 +3256,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_funnel_status_api_ai_funnel_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiFunnelStatusView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_alerts_api_alerts_get: {
         parameters: {
             query?: {
@@ -3173,6 +3538,103 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DigestLatestView"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_focus_sectors_api_focus_sectors_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FocusSectorView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_focus_sector_api_focus_sectors_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FocusSectorCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FocusSectorView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_focus_sector_api_focus_sectors__name__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -4242,6 +4704,39 @@ export interface operations {
             };
         };
     };
+    get_news_ai_api_news__news_id__ai_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                news_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsAiView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_news_analysis_api_news__news_id__analysis_get: {
         parameters: {
             query?: never;
@@ -4297,6 +4792,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NewsAnalysisView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correct_news_impacts_api_news__news_id__impacts_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                news_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImpactCorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewsAiView"];
                 };
             };
             /** @description Validation Error */
@@ -4723,6 +5255,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WatchlistAiInsightView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_stock_impacts_api_watchlist__symbol__impacts_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                "X-App-Token"?: string | null;
+            };
+            path: {
+                symbol: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockImpactView"][];
                 };
             };
             /** @description Validation Error */

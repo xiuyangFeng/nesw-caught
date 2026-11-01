@@ -5,6 +5,27 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P3-T1～T8：AI 漏斗后端（L1 粗筛、L2 精读、板块、提醒接管、接口）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端 LLM 计费、数据模型与迁移、AI 漏斗服务与 worker、站内提醒、接口；前端仅同步单价字段改名与生成类型。
+- 变更内容（计划见 `docs/superpowers/plans/2026-11-01-focus-p3-ai-funnel-plan.md`）：
+  - **单价单位**：`llm_provider_config.input/output_price_per_1k` 改为 `*_per_1m`（美元/百万 token），数值保留；费用计算抽到 `app/services/llm_cost.py`，`/api/llm/stats` 与漏斗预算闸共用。存量 DeepSeek 配置按新口径为 $0.02 / $1.0 每百万。
+  - **新表**（迁移 `c7e4a1b9d3f6`）：`news_ai_screen`、`news_ai_analysis`、`news_impact`、`impact_correction`、`stock_sector`、`focus_sector_override`，外键随新闻级联删除。
+  - **`app/services/ai/`**：`context`（持仓/关注/关注板块上下文）、`llm_json`（只用明确设为默认且启用的模型，JSON 模式）、`sectors`（关注板块 = 自选股板块并集 + 手动增删；AI 推断个股板块）、`screen`（L1：24 小时内新闻每批 20 条，标题+摘要 → 重要度/海外/精读/译文标题，逐条校验，失败最多重试 3 次）、`impact`（L2：重要度 ≥ 2 且需精读，每日上限 300，全文截 4,000 字 + 最近 8 条用户修正作示例 → 摘要/看法/重大/影响列表；用户修正整表替换并记录）、`status`（AI 在线判定与状态卡数据）。
+  - **`AiFunnelWorker`**（30 秒一周期：板块推断 1 只 → L1 最多 3 批 → L2 最多 5 条 → 提醒），单进程与多进程形态都启动；无明确默认模型、开关关闭或超月度预算时空转。超过 6 小时的新闻只分析不提醒。
+  - **提醒接管**：AI 在线（开关开、有明确默认模型、未超预算、漏斗心跳 10 分钟内）时，`on_news_batch` 不再按关键词提醒，改由 `on_news_impacts`：持仓利多/利空且强度 ≥ 中立即提醒（正文带方向·强度、理由、AI 看法，每只每天最多 5 条，超出进合并）；只关注股票、关注板块、自选外"利多·强"新机会分别合并为 `watch_news_digest` / `sector_news_digest` / `opportunity_digest`；海外重大事件 `overseas_major` 立即提醒（每天最多 5 条）。AI 不在线时回退关键词；L1/L2 重试用尽的新闻由漏斗调 `on_news_keyword_fallback` 补发。合并提醒标题由"关注股新闻"改为"自选股新闻"。
+  - **接口**：`GET /api/news/{id}/ai`、`PUT /api/news/{id}/impacts`、`GET /api/watchlist/{symbol}/impacts`、`GET/POST/DELETE /api/focus-sectors`、`GET /api/ai/funnel/status`。
+  - 配置：`AI_FUNNEL_ENABLED` 等 12 项 `ai_*`（见 `config.py`）。
+- 影响文件：`backend/app/services/ai/*`（新）、`backend/app/services/llm_cost.py`（新）、`backend/app/workers/ai_funnel_worker.py`（新）、`backend/app/models/news_ai.py`、`backend/app/models/sector.py`（新）、`backend/app/models/__init__.py`、`backend/app/models/llm_provider_config.py`、`backend/alembic/versions/c7e4a1b9d3f6_ai_funnel_tables_and_price_per_1m.py`（新）、`backend/app/schemas/ai.py`（新）、`backend/app/schemas/llm.py`、`backend/app/api/routes/ai.py`（新）、`backend/app/api/routes/llm.py`、`backend/app/api/router.py`、`backend/app/repositories/llm_provider_config_repository.py`、`backend/app/services/alert_service.py`、`backend/app/core/config.py`、`backend/app/main.py`、`backend/app/workers/pipeline_worker_main.py`、测试 `test_ai_*.py`、`test_alert_ai.py`、`test_focus_p3_migrations.py`、`test_llm_cost.py`、`test_alert_service.py`；`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`frontend/src/components/llm/*`、`frontend/src/api/mock/llm.ts`、`frontend/src/views/LlmSettingsView.test.ts`（单价字段改名）；`docs/superpowers/plans/2026-11-01-focus-p3-ai-funnel-plan.md`（新）。
+- 接口/数据结构变化：**有**。LLM 配置接口与 `/api/llm/stats` 的 `input/output_price_per_1k` 改名为 `*_per_1m`（前端已同步）；新增 6 张表与上述接口；新增提醒 kind `overseas_major`、`sector_news_digest`、`opportunity_digest`。
+- 验证情况：新增测试均先确认失败再实现（LLM 全部 mock）；`pytest backend/tests` 1069 passed，7 failed（已知种子污染，与本改动无关）；`ruff check backend` 通过；`test_migration_parity` 通过；`npm run generate:api` 已重新生成。
+- 风险或后续事项：
+  - 尚未用真实 terra 跑过：中转地址对 JSON 模式的兼容性未知。用户在"模型设置"添加 terra 并设为默认后漏斗才会启动。
+  - AI 模式下持仓新闻提醒要等 L1 + L2 完成（预计 1 分钟内），比关键词规则慢；AI 判定"不重要"的持仓新闻不再提醒（用户选择的"AI 为主"）。
+  - 计划中"板块名从东财候选列表里选"改为提示词约束（东财叫法 + 沿用关注板块名），不依赖实时网络。
+  - 前端（T9）另行提交。
+
 ## 2026-11-01 收紧事件聚类：去掉兜底事件与通用词串起来的伪事件
 
 - 修改人：Claude Code（Opus 5.5），按用户要求（截图中的 "General-market-update" 事件：1,894 条来源、上百只股票代码）

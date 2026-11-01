@@ -172,8 +172,8 @@ describe('LlmSettingsView', () => {
       api_key: 'sk-test-key',
       is_active: true,
       is_default: false,
-      input_price_per_1k: null,
-      output_price_per_1k: null,
+      input_price_per_1m: null,
+      output_price_per_1m: null,
       monthly_budget_usd: null,
     });
     expect(toastStore.showSuccess).toHaveBeenCalledWith('大模型配置保存成功');
@@ -188,14 +188,14 @@ describe('LlmSettingsView', () => {
     await wrapper.find('input[name="base_url"]').setValue('https://api.deepseek.com/v1');
     await wrapper.find('input[name="model_name"]').setValue('deepseek-chat');
     await wrapper.find('input[name="api_key"]').setValue('sk-test-key');
-    await wrapper.find('input[name="input_price_per_1k"]').setValue('0.0002');
-    await wrapper.find('input[name="output_price_per_1k"]').setValue('0.002');
+    await wrapper.find('input[name="input_price_per_1m"]').setValue('0.0002');
+    await wrapper.find('input[name="output_price_per_1m"]').setValue('0.002');
     await wrapper.find('input[name="monthly_budget_usd"]').setValue('25');
     await wrapper.find('form').trigger('submit.prevent');
 
     expect(llmStore.saveConfig).toHaveBeenCalledWith(expect.objectContaining({
-      input_price_per_1k: 0.0002,
-      output_price_per_1k: 0.002,
+      input_price_per_1m: 0.0002,
+      output_price_per_1m: 0.002,
       monthly_budget_usd: 25,
     }));
     expect(wrapper.text()).not.toContain('raw.trim is not a function');
@@ -209,7 +209,7 @@ describe('LlmSettingsView', () => {
     await wrapper.find('input[name="base_url"]').setValue('deepseek-api');
     await wrapper.find('input[name="model_name"]').setValue('deepseek-chat');
     await wrapper.find('input[name="api_key"]').setValue('sk-test-key');
-    await wrapper.find('input[name="input_price_per_1k"]').setValue('-0.1');
+    await wrapper.find('input[name="input_price_per_1m"]').setValue('-0.1');
 
     expect(wrapper.text()).toContain('请输入完整有效的 Base URL');
     expect(wrapper.text()).toContain('输入单价不能小于 0');
@@ -228,8 +228,8 @@ describe('LlmSettingsView', () => {
       api_key_set: true,
       is_active: true,
       is_default: true,
-      input_price_per_1k: 0.0002,
-      output_price_per_1k: 0.002,
+      input_price_per_1m: 0.0002,
+      output_price_per_1m: 0.002,
       monthly_budget_usd: 25,
       updated_at: '2026-08-02T08:00:00Z',
     }];

@@ -5,6 +5,7 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
 from app.api.routes import (
+    ai,
     alerts,
     calendar,
     digest,
@@ -26,6 +27,7 @@ from app.core.config import get_settings
 api_router = APIRouter(dependencies=[Depends(verify_app_token)])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(alerts.router, prefix="/alerts", tags=["alerts"])
+api_router.include_router(ai.router, tags=["ai"])
 api_router.include_router(digest.router, prefix="/digest", tags=["digest"])
 api_router.include_router(llm.router, prefix="/llm", tags=["llm"])
 api_router.include_router(logs.router, prefix="/logs", tags=["logs"])

@@ -35,8 +35,8 @@ def _priced_config(
             api_key="sk-cost-test",
             is_active=True,
             is_default=is_default,
-            input_price_per_1k=input_price,
-            output_price_per_1k=output_price,
+            input_price_per_1m=input_price,
+            output_price_per_1m=output_price,
             monthly_budget_usd=budget,
         )
         session.commit()
@@ -46,14 +46,14 @@ def test_stats_converts_tokens_to_usd_cost() -> None:
     _reset()
     _priced_config(
         model_name="priced-model",
-        input_price=0.001,   # $/1K input tokens
-        output_price=0.002,  # $/1K output tokens
+        input_price=0.15,   # $/1M input tokens（terra 单价）
+        output_price=0.75,  # $/1M output tokens
         budget=None,
     )
     log_token_usage(
         model_name="priced-model",
-        prompt_tokens=1000,
-        completion_tokens=500,
+        prompt_tokens=1_000_000,
+        completion_tokens=500_000,
         operation_type="analysis",
     )
 
@@ -63,14 +63,14 @@ def test_stats_converts_tokens_to_usd_cost() -> None:
     data = res.json()
 
     model = next(m for m in data["models"] if m["model_name"] == "priced-model")
-    # 1000/1000*0.001 + 500/1000*0.002 = 0.001 + 0.001 = 0.002
+    # 1M × 0.15 + 0.5M × 0.75 = 0.15 + 0.375 = 0.525
     assert model["cost_available"] is True
-    assert model["cost_usd"] == pytest.approx(0.002)
-    assert model["input_price_per_1k"] == pytest.approx(0.001)
-    assert model["output_price_per_1k"] == pytest.approx(0.002)
+    assert model["cost_usd"] == pytest.approx(0.525)
+    assert model["input_price_per_1m"] == pytest.approx(0.15)
+    assert model["output_price_per_1m"] == pytest.approx(0.75)
 
     assert data["overall"]["cost_available"] is True
-    assert data["overall"]["cost_usd"] == pytest.approx(0.002)
+    assert data["overall"]["cost_usd"] == pytest.approx(0.525)
 
 
 def test_stats_cost_is_null_when_price_missing() -> None:
@@ -103,8 +103,8 @@ def test_stats_budget_over_budget_flag() -> None:
     )
     log_token_usage(
         model_name="budget-model",
-        prompt_tokens=1000,
-        completion_tokens=1000,
+        prompt_tokens=1_000_000,
+        completion_tokens=1_000_000,
         operation_type="analysis",
     )
 

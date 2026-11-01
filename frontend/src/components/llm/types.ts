@@ -24,8 +24,8 @@ export interface TokenModelStats {
   call_count: number;
   cost_usd?: number | null;
   cost_available?: boolean;
-  input_price_per_1k?: number | null;
-  output_price_per_1k?: number | null;
+  input_price_per_1m?: number | null;
+  output_price_per_1m?: number | null;
 }
 
 export interface TokenOperationStats {

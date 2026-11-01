@@ -24,6 +24,7 @@ from app.services.news_signal_pipeline import (  # noqa: F401 -- monkeypatched b
     NewsSignalPipelineService,
 )
 from app.services.quote_service import QuoteService
+from app.workers.ai_funnel_worker import AiFunnelWorker
 from app.workers.queue_worker import (
     BackgroundQueueWorker,
     OrphanQueueDrainWorker,
@@ -160,6 +161,7 @@ async def lifespan(_: FastAPI):
 
     queue_worker: BackgroundQueueWorker | None = None
     takeaway_worker: TakeawayWorker | None = None
+    ai_funnel_worker: AiFunnelWorker | None = None
     orphan_queue_drainer: OrphanQueueDrainWorker | None = None
     if settings.pipeline_workers_enabled:
         # Start queue worker for async pipeline processing
@@ -168,6 +170,10 @@ async def lifespan(_: FastAPI):
 
         takeaway_worker = TakeawayWorker(session_factory=SessionLocal)
         takeaway_worker.start()
+
+        # AI 漏斗：未明确设置默认模型时空转，提醒自动回退关键词规则。
+        ai_funnel_worker = AiFunnelWorker(session_factory=SessionLocal)
+        ai_funnel_worker.start()
     elif settings.orphan_queue_drain_interval_seconds > 0:
         # 多进程形态：scheduler（仍在本进程）与 feed layout（请求线程）还会往
         # analysis_queue / takeaway_queue 里塞数据，而本进程已经没有消费者了。
@@ -283,6 +289,8 @@ async def lifespan(_: FastAPI):
         queue_worker.stop()
     if takeaway_worker is not None:
         takeaway_worker.stop()
+    if ai_funnel_worker is not None:
+        ai_funnel_worker.stop()
     if orphan_queue_drainer is not None:
         orphan_queue_drainer.stop()
     if divergence_worker is not None:

@@ -316,11 +316,11 @@ def test_digest_write_failure_keeps_hits_and_holding_alerts(monkeypatch: pytest.
     original = AlertService._create_digest_alert
     calls = {"n": 0}
 
-    def flaky(self, repo, window, now):
+    def flaky(self, repo, window_start, group, hits, now):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("database is locked")
-        return original(self, repo, window, now)
+        return original(self, repo, window_start, group, hits, now)
 
     monkeypatch.setattr(AlertService, "_create_digest_alert", flaky)
 

@@ -79,8 +79,8 @@ export const mockLlmStats: LLMStats = {
       call_count: 12,
       cost_usd: 0.011,
       cost_available: true,
-      input_price_per_1k: 0.0002,
-      output_price_per_1k: 0.002,
+      input_price_per_1m: 0.0002,
+      output_price_per_1m: 0.002,
     },
     {
       model_name: 'gpt-4o',
@@ -90,8 +90,8 @@ export const mockLlmStats: LLMStats = {
       call_count: 4,
       cost_usd: 0.0066,
       cost_available: true,
-      input_price_per_1k: 0.0025,
-      output_price_per_1k: 0.002,
+      input_price_per_1m: 0.0025,
+      output_price_per_1m: 0.002,
     },
   ],
   operations: [

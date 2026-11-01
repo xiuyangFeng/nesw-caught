@@ -17,9 +17,9 @@ class LLMProviderConfig(Base):
     api_key: Mapped[str] = mapped_column(Text())
     is_active: Mapped[bool] = mapped_column(Boolean(), default=True, index=True)
     is_default: Mapped[bool] = mapped_column(Boolean(), default=False, index=True)
-    # 成本治理：每 1K tokens 的输入/输出单价（美元）与月度预算（美元），均可为空。
-    input_price_per_1k: Mapped[float | None] = mapped_column(Float(), default=None)
-    output_price_per_1k: Mapped[float | None] = mapped_column(Float(), default=None)
+    # 成本治理：每百万 tokens 的输入/输出单价（美元）与月度预算（美元），均可为空。
+    input_price_per_1m: Mapped[float | None] = mapped_column(Float(), default=None)
+    output_price_per_1m: Mapped[float | None] = mapped_column(Float(), default=None)
     monthly_budget_usd: Mapped[float | None] = mapped_column(Float(), default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
