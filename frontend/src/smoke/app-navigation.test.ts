@@ -132,7 +132,6 @@ const primaryModules: SmokeRoute[] = [
   { path: '/alerts', label: 'Alerts', anchor: { kind: 'role', value: 'alerts-view' } },
   { path: '/digest', label: 'Digest', anchor: { kind: 'text', value: '每日盘前/盘后 AI 简报' } },
   { path: '/ops', label: 'OpsHealth', anchor: { kind: 'role', value: 'ops-health-view' } },
-  { path: '/portfolio', label: 'Portfolio', anchor: { kind: 'role', value: 'portfolio-view' } },
 ];
 
 // 带参路由用示例参数补充覆盖（参数取自 ../api/mock 里存在的良性夹具）。

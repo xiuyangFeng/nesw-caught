@@ -68,7 +68,6 @@ const navGroups: NavGroup[] = [
     title: '持仓',
     items: [
       { label: '自选股', en: 'Watchlist', to: '/watchlist' },
-      { label: '组合', en: 'Portfolio', to: '/portfolio' },
     ],
   },
   {

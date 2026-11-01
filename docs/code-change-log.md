@@ -5,6 +5,19 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T5：自选股持仓高亮，删除重复的组合页
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端自选股列表、路由与导航。
+- 变更内容：
+  - `StockCard` 新增可选属性 `holding`：持仓股显示左侧警示色条、浅警示色底与边框，名称旁加"持仓"标签（`data-holding` 便于测试与样式定位）；选中态样式优先。`WatchlistSidebar` 按 `position_size > 0` 判断持仓（为空或 0 视为仅关注），列表排序不变。
+  - 删除独立的 `/portfolio` 页面（`PortfolioView` 及测试）、路由与导航项；自选股页内"组合"标签保留（同样调用 `GET /api/portfolio`）。导航"持仓"组只剩"自选股"。旧书签由兜底路由带回仪表盘。
+  - 测试：新增 `StockCard.test.ts`（持仓/非持仓渲染差异、侧栏按持仓数量判断，共 3 个，先确认失败再实现）；AppShell 与路由测试把 `/portfolio`、`/settings/notify` 加入"已删除页面"断言。
+- 影响文件：`frontend/src/components/watchlist/{StockCard.vue,WatchlistSidebar.vue,StockCard.test.ts}`、`frontend/src/views/PortfolioView.{vue,test.ts}`（删）、`frontend/src/{router/index.ts,router/index.test.ts,components/layout/AppShell.vue,components/layout/AppShell.test.ts,smoke/app-navigation.test.ts}`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无（`GET /api/portfolio` 保留）。
+- 验证情况：`vue-tsc` 零错误；`vitest run` 80 个文件、467 passed；`npm run build` 通过，并确认 `bg-warning/[0.07]`、`border-warning/45` 已编译进 CSS。
+- 风险或后续事项：无。
+
 ## 2026-11-01 聚焦改造 P2-T4：前端提醒中心（替换飞书通知设置）
 
 - 修改人：Claude Code（Opus 5.5）

@@ -22,6 +22,10 @@ const emit = defineEmits<{
 
 const query = ref('');
 
+const holdingSymbols = computed(
+  () => new Set(props.items.filter((item) => (item.position_size ?? 0) > 0).map((item) => item.symbol)),
+);
+
 const filteredRows = computed(() => {
   const keyword = query.value.trim().toLowerCase();
   const rows = props.quotes.slice().sort((left, right) => Math.abs(right.change_percent ?? 0) - Math.abs(left.change_percent ?? 0));
@@ -82,6 +86,7 @@ const filteredRows = computed(() => {
         :selected="row.symbol === selectedSymbol"
         :sparkline="sparklines[row.symbol] ?? []"
         :deleting="deleteLoadingSymbol === row.symbol"
+        :holding="holdingSymbols.has(row.symbol)"
         @select="emit('select', $event)"
         @delete="emit('delete', $event)"
       />

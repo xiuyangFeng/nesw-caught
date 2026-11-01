@@ -215,9 +215,9 @@ describe('AppShell', () => {
 
     const hrefs = wrapper.findAll('a[href]').map((link) => link.attributes('href'));
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/dashboard', '/news', '/digest', '/calendar', '/watchlist', '/portfolio', '/settings/llm', '/alerts', '/ops']),
+      expect.arrayContaining(['/dashboard', '/news', '/digest', '/calendar', '/watchlist', '/settings/llm', '/alerts', '/ops']),
     );
-    for (const removed of ['/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment', '/settings/notify']) {
+    for (const removed of ['/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment', '/settings/notify', '/portfolio']) {
       expect(hrefs).not.toContain(removed);
     }
     expect(wrapper.text()).toContain('盯盘');

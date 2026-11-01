@@ -10,6 +10,8 @@ const props = defineProps<{
   selected: boolean;
   sparkline: number[];
   deleting: boolean;
+  // 有持仓（position_size > 0）的股票用警示色高亮，与仅关注的股票区分。
+  holding?: boolean;
 }>();
 
 defineEmits<{
@@ -41,9 +43,12 @@ const toneClass = computed(() => {
     :class="
       selected
         ? 'border-accent/70 bg-accent/10 shadow-[0_0_12px_rgba(59,130,246,0.1)]'
-        : 'border-border/80 bg-panel'
+        : holding
+          ? 'border-warning/45 bg-warning/[0.07]'
+          : 'border-border/80 bg-panel'
     "
     :data-role="`stock-card-${row.symbol}`"
+    :data-holding="holding ? 'true' : 'false'"
     data-density="compact"
     role="button"
     tabindex="0"
@@ -51,13 +56,24 @@ const toneClass = computed(() => {
     @keydown.enter.prevent="$emit('select', row.symbol)"
     @keydown.space.prevent="$emit('select', row.symbol)"
   >
-    <!-- 左侧：名称 / 代码 / 市场标 / 财报预警 -->
+    <span
+      v-if="holding"
+      class="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-warning"
+      data-role="stock-card-holding-bar"
+      aria-hidden="true"
+    />
+    <!-- 左侧：名称 / 代码 / 市场标 / 持仓标 / 财报预警 -->
     <div class="grid min-w-0 gap-0.5">
       <div class="flex items-center gap-1.5 min-w-0">
         <strong class="truncate text-sm font-bold text-text leading-tight">{{ row.display_name ?? row.symbol }}</strong>
         <span class="shrink-0 rounded-md bg-white/10 px-1 py-0.2 text-[9px] uppercase font-semibold tracking-wider text-text-faint">
           {{ row.market }}
         </span>
+        <span
+          v-if="holding"
+          class="shrink-0 rounded-md border border-warning/50 bg-warning/15 px-1 py-0.2 text-[9px] font-semibold text-warning"
+          data-role="stock-card-holding-badge"
+        >持仓</span>
         <!-- 雷达警报灯 -->
         <div v-if="row.has_hot_alert" class="relative flex h-2 w-2 shrink-0" title="12小时内有重大警报新闻">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75"></span>
