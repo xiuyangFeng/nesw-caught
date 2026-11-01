@@ -2,7 +2,7 @@
 
 后续优化和开发请先读 [docs/current-state.md](docs/current-state.md)。已完成的设计、启动期计划和旧优化清单在 `docs/archive/`，只读，不作为当前待办。
 
-> **2026-11 聚焦改造**：项目正在收敛为"A 股盯盘与复盘台"（设计见 [docs/superpowers/specs/2026-10-31-focus-redesign-design.md](docs/superpowers/specs/2026-10-31-focus-redesign-design.md)）。第一期已下线量化交易台（含模拟盘、`market_data.db`）、AI 对话、X 监控、信号统计与情绪评测工具；下文与这些模块相关的历史说明已删除。
+> **2026-11 聚焦改造**：项目正在收敛为"A 股盯盘与复盘台"（设计见 [docs/superpowers/specs/2026-10-31-focus-redesign-design.md](docs/superpowers/specs/2026-10-31-focus-redesign-design.md)）。第一期已下线量化交易台（含模拟盘、`market_data.db`）、AI 对话、X 监控、信号统计与情绪评测工具；第二期用站内提醒取代了飞书推送，删除了单独的组合页与单股提醒阈值。下文与这些模块相关的历史说明已删除。
 
 本项目包含：
 
@@ -209,6 +209,31 @@ MARKET_QUOTE_POLL_INTERVAL_SECONDS=15
 
 港/A/美股符号兼容规范：支持输入 `600519`、`600519.SH`、`000858.SZ`、`0700.HK`、`AAPL` 等格式。当前 producer 属于后端轮询型实时链路，已全面支持大A股票行情与分析展现。
 
+## 站内提醒
+
+系统替你盯盘，只在值得的时候提醒，提醒只在页面内展示（侧栏"提醒"角标、右上角弹窗、`/alerts` 提醒中心），不接外部推送。
+
+| 类型 | 触发条件 | 方式 |
+|---|---|---|
+| 持仓异动 | 持仓股（自选股里填了持仓数量）全天涨跌幅达到 ±5%，只在该市场交易时段内 | 立即；同一只股每个交易日最多一次（按昨收价区分交易日，节假日不重复） |
+| 持仓新闻 | 新闻标题出现持仓股简称或代码（A 股另用标题级股票关联） | 立即；同一新闻同一股票只提醒一次 |
+| 关注股新闻 | 只关注、没有持仓的股票命中新闻 | 每 30 分钟合并成一条 |
+| 静默时段 | 北京时间 22:00～08:00 产生的提醒照常记录、不弹出，早上归入"隔夜汇总" | — |
+
+持仓直接在自选股页"行情"标签下的"持仓设置"里填写；有持仓的股票在列表中用警示色条和"持仓"标签高亮。
+
+可选配置（`.env`）：
+
+```bash
+ALERT_PRICE_MOVE_PERCENT=5
+ALERT_QUIET_HOURS_START=22:00
+ALERT_QUIET_HOURS_END=08:00
+ALERT_TZ=Asia/Shanghai
+ALERT_WATCH_DIGEST_MINUTES=30
+```
+
+"重大新闻"目前是标题关键词规则，会有误报；英文简称（如 Alibaba）匹配不到中文新闻。第三期将改为 AI 判断。
+
 ## Redis 事件层
 
 后端现在支持一个第一阶段的混合事件层：
@@ -218,7 +243,7 @@ MARKET_QUOTE_POLL_INTERVAL_SECONDS=15
 - Redis 不可用时自动降级回进程内事件总线
 - 当前前端仍继续使用 `SSE`，不需要同步改造
 - 第二阶段已将 `news.analysis_completed`、`news.signals_processed` 和 `market.watchlist_refreshed` 统一接入同一事件层；其中 `market.watchlist_refreshed` 现由后台行情 producer 主动发布
-- 新闻通知批处理、自选股阈值提醒和分析卡片通知现在由本地事件订阅者驱动，而不是在 route 里直接调用
+- 站内提醒（持仓价格异动、持仓/关注股新闻）由本地事件订阅者驱动，见下方「站内提醒」一节
 
 建议先确保本机 Redis 已启动：
 
@@ -329,8 +354,7 @@ curl http://127.0.0.1:8000/api/stream/status
    - 当大模型配置被修改，且提交的参数中更改了 `base_url` 时，系统强制校验用户必须重新输入明文 API Key，拒绝重用或省略已有的加密 Key（不允许保留带 `*` 掩码星号值）。这杜绝了攻击者试图通过配置注入恶意基址，配合已有 Key 在向新目标地址发包时窃取 Key 的严重漏洞风险。
 
 4. **敏感密钥本地 Fernet 加密存储**：
-   - 升级了飞书推送通知模块。将原本明文保存在数据库中的飞书推送 API `app_secret`，重构为大模型 API Key 相同的 Fernet 本地加密机制。
-   - 数据库存储一律使用密文，并在服务发送与测试时在内存中实时解密（`config.decrypted_app_secret`）。
+   - 大模型 API Key 在数据库中一律以 Fernet 密文存储，使用时在内存中解密。（原飞书推送密钥的加密存储已随飞书推送在 2026-11 下线。）
 
 5. **本地密钥防泄露静态扫描**：
    - 强化了 `.gitignore` 规则以阻止 `.env` 各种子版本、`.secret_key`、`.app_token` 被无意中提交到 Git 仓库。

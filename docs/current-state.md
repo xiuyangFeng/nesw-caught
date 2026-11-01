@@ -1,4 +1,4 @@
-# 当前系统快照（2026-11-01，聚焦改造 P1 之后）
+# 当前系统快照（2026-11-01，聚焦改造 P2 之后）
 
 本文档是后续优化和开发的**现状入口**。它描述仓库当前已经具备的能力，而不是规划中"打算做但还没做"的事项。
 
@@ -8,7 +8,7 @@
 
 本地单用户的 **A 股盯盘与复盘台**（改造进行中）：信息源要宽（美股、亚太、A 股新闻与指数），输出要窄（只给结论）。盘中由系统替用户盯盘，盘后集中复盘。
 
-- 改造设计：[superpowers/specs/2026-10-31-focus-redesign-design.md](./superpowers/specs/2026-10-31-focus-redesign-design.md)（P1～P4 分期；P1 已完成）
+- 改造设计：[superpowers/specs/2026-10-31-focus-redesign-design.md](./superpowers/specs/2026-10-31-focus-redesign-design.md)（P1～P4 分期；P1、P2 已完成）
 - 使用形态：本机运行，浏览器访问
 - 存储：单一 SQLite 主库 `backend/data/app.db`（原独立行情库 `market_data.db` 已下线，最终数据备份在 `backend/data/backups/market_data-final-20261101.db`）
 - 实时性：准实时（秒到分钟级），不承诺交易所级行情
@@ -22,12 +22,11 @@
 | 仪表盘 | `/dashboard`，市场总览（美股、A 股、日经、KOSPI、欧股指数与 ETF）、情绪与恐慌指标、动态行情条 |
 | 新闻流 | `/news`，34 个源多源抓取、去重、正文爬取、主题聚合、事件详情、手动刷新；新闻落库后由 `a_share_mentions` 按 A 股名称/代码写入 `news_stock_mention`（新闻↔个股关联） |
 | 主题 / 事件 | `/topics/:id`、`/news/events/:eventKey`、`/news/sentiment/:sentiment` |
-| 自选股 | `/watchlist`、`/watchlist/:symbol`：全量 A 股检索、真实行情、K 线、关联新闻、情绪时间线；A 股详情含资金流面板（`GET /api/market/symbols/{symbol}/fund-flow`，东财按需拉取 + 10 分钟缓存，约 60 个交易日） |
-| 组合 | `/portfolio`，基于自选股填写的持仓量与成本计算市值、盈亏与按仓位加权的新闻（模拟盘已删除） |
+| 自选股 | `/watchlist`、`/watchlist/:symbol`：全量 A 股检索、真实行情、K 线、关联新闻、情绪时间线；"行情"标签内填写持仓数量与成本，有持仓的股票以警示色条和"持仓"标签高亮；"组合"标签展示市值、盈亏与按仓位加权的新闻；A 股详情含资金流面板（`GET /api/market/symbols/{symbol}/fund-flow`，东财按需拉取 + 10 分钟缓存，约 60 个交易日） |
 | 每日复盘 | `/digest`，盘前/盘后简报（P4 将升级为 AI 盘后简报 + 明日关注 + 早间隔夜简报） |
 | 日历 | `/calendar`，财报等事件（P4 将并入首页与简报后删除页面） |
 | LLM 设置 | `/settings/llm`，多模型配置、连接测试、Token 用量账本 |
-| 通知 | `/settings/notify`，飞书推送（P2 将替换为站内提醒中心） |
+| 提醒中心 | `/alerts` + 侧栏未读角标 + 页面内弹窗（SSE `alert.created`）：持仓全天涨跌 ±5%（交易时段内、每股每交易日一次）、持仓股新闻立即提醒，仅关注股新闻每 30 分钟合并；北京时间 22:00～08:00 静默，早上归入"隔夜汇总"。规则在 `app/services/alert_service.py`，"重大新闻"暂为标题关键词规则 |
 | 系统健康 | `/ops`，worker、新闻源、LLM 用量、事件层、数据库体积与告警 |
 
 后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送、每日备份与数据清理。
@@ -36,10 +35,13 @@
 
 量化交易台（`/desk*`、选票流水线、策略 DSL、回测实验室、成绩单、组合提案、模拟盘、盘后量化调度、`market_data.db`）、AI 对话（`/chat`、`POST /api/llm/chat`）、X 监控（`/x-monitor`、`/api/x/*`、`/api/health/x`）、信号统计（`/analytics/backtest`）、情绪评测与相关性实验工具（`/eval/sentiment`、标注/实验脚本）、情绪置信度校准（从未启用）。对应数据表已通过可回退的 Alembic 迁移删除，删除前的主库完整备份在 `backend/data/backups/app-before-focus-p1-20261101.db`。代码可从 git 历史找回。
 
+## P2 已完成（2026-11-01）
+
+站内提醒（`alert` 表、`/api/alerts*`、`AlertService`）取代飞书推送；删除 `/settings/notify`、`feishu_notify_config` / `notification_job` 表、独立的 `/portfolio` 页面、自选股单股阈值（`alert_threshold` / `alert_mode` 列）。备份：`backend/data/backups/app-before-focus-p2-20261101.db`。
+
 ## 后续分期（见设计文档 §7）
 
-- **P2 持仓与提醒**：自选股与组合合并为"持仓与关注"（真实成本/仓位）；站内提醒中心替换飞书推送；持仓全天涨跌超过 ±5%、持仓重大新闻、海外重大事件即时提醒；夜间静默、早间归集。
-- **P3 AI 分层**：单模型（`gpt-6.1-terra`）分层处理新闻，结构化输出影响的 A 股板块/个股、方向、强度；用户可修正并沉淀为传导规则。
+- **P3 AI 分层**：单模型（`gpt-6.1-terra`）分层处理新闻，结构化输出影响的 A 股板块/个股、方向、强度；用户可修正并沉淀为传导规则；用 AI 判断替换 P2 的标题关键词规则，并补上海外重大事件、板块异动、自选外新机会三类提醒。
 - **P4 盯盘台与简报**：首页仪表盘、盘后简报 + 明日关注、早间隔夜简报；日历与复盘页并入后删除。
 
 ## 权威来源（按优先级）

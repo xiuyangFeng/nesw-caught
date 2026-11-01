@@ -142,6 +142,8 @@ def test_stream_map_includes_sse_events() -> None:
     assert stream_map["news.created"] == settings.redis_stream_news_ingested
     assert stream_map["news.updated"] == settings.redis_stream_news_processed
     assert stream_map["news.created_batch"] == settings.redis_stream_news_ingested
+    # 多进程形态下新闻提醒在 pipeline worker 进程产生，必须经 Redis 转发到 web 进程的 SSE。
+    assert stream_map["alert.created"] == settings.redis_stream_alerts
 
 
 def test_hybrid_publish_forwards_event_name_to_redis() -> None:

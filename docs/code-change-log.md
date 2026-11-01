@@ -5,6 +5,25 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T6：多进程提醒推送修复、文档与端到端验证
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：事件总线 Redis 转发、README、现状快照、`.env.example`。
+- 变更内容：
+  - **修复**：多进程形态（`make dev-split`）下新闻提醒在 pipeline worker 进程产生，但 `alert.created` 不在 Redis 转发表里，web 进程的 SSE 收不到（提醒仍会写库，只是页面不实时弹出）。`_build_stream_map` 新增 `alert.created → redis_stream_alerts`（新配置，默认 `stream:alerts`）；`test_redis_stream_consumer.py` 先加断言确认失败再修复。
+  - README 新增"站内提醒"一节（规则表、持仓填写位置与高亮说明、可选配置、关键词规则的局限）；顶部改造说明补充 P2；Redis 事件层与安全加固两节去掉飞书/通知旧描述。
+  - `docs/current-state.md` 更新为 P2 之后：新增提醒中心、自选股持仓高亮与组合标签，删除独立组合页与通知设置，补充 P3 要替换的规则与新增的提醒类型。
+  - `.env.example` 新增 `ALERT_*` 配置样例。
+- 影响文件：`backend/app/services/event_bus.py`、`backend/app/core/config.py`、`backend/tests/test_redis_stream_consumer.py`、`README.md`、`docs/current-state.md`、`.env.example`、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增配置 `redis_stream_alerts`；无接口变化。
+- 验证情况：
+  - 后端 `pytest backend/tests` 1019 passed / 7 failed（已知测试污染）；`ruff check backend scripts` 通过；前端 `vitest run` 80 个文件、467 passed，`npm run build` 通过，`check:api-drift` OK。
+  - **真实库**：`make dev` 启动时自动从 `c4e1d7a9b2f8` 升级到 `c6d2f8a4e9b1`；`notification_job`、`feishu_notify_config` 已删除；4 只自选股的名称、持仓数量、成本完好；`/api/watchlist` 响应已不含 `alert_threshold` / `alert_mode`。
+  - **接口实测**（带 App Token）：`/api/alerts`、`/api/alerts/unread-count`、自选股、组合、行情、新闻、复盘、日历、系统健康、LLM 配置、SSE 状态均 200；`/api/notify/feishu/config` 为 404。
+  - **端到端实测**：在独立进程中用一条真实新闻 id 构造标题含"寒武纪"（持仓）的新闻，`AlertService` 写入一条 `holding_news` 提醒并经 Redis 转发，服务端 `/api/stream/events` 推出了 `alert.created`；`/api/alerts` 可见、未读数为 1，`POST /api/alerts/{id}/read` 后未读数为 0。测试提醒与 Redis 中的测试事件已清理。
+  - 未实测：真实盘中的 ±5% 价格提醒（验证时为周日休市），由单元测试覆盖交易时段、阈值、去重规则。
+- 风险或后续事项：无新增。
+
 ## 2026-11-01 聚焦改造 P2-T5：自选股持仓高亮，删除重复的组合页
 
 - 修改人：Claude Code（Opus 5.5）
