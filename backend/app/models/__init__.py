@@ -1,3 +1,4 @@
+from app.models.alert import Alert
 from app.models.article_content import ArticleContent
 from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_classification_cache import LLMClassificationCache
@@ -17,6 +18,7 @@ from app.models.watchlist_item import WatchlistItem
 from app.models.worker_runtime_status import WorkerRuntimeStatus
 
 __all__ = [
+    "Alert",
     "ArticleContent",
     "FeishuNotifyConfig",
     "LLMClassificationCache",

@@ -32,6 +32,7 @@ from app.db.base import Base
 from app.db.session import engine
 
 # Import all models so Base.metadata registers every table for create_all.
+from app.models.alert import Alert  # noqa: F401
 from app.models.article_content import ArticleContent  # noqa: F401
 from app.models.feishu_notify_config import FeishuNotifyConfig  # noqa: F401
 from app.models.llm_classification_cache import LLMClassificationCache  # noqa: F401

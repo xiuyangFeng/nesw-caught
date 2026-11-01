@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.db.base import Base
 
 # Import all models to register them with Base.metadata
+from app.models.alert import Alert
 from app.models.article_content import ArticleContent
 from app.models.feishu_notify_config import FeishuNotifyConfig
 from app.models.llm_classification_cache import LLMClassificationCache

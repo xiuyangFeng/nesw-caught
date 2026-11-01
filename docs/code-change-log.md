@@ -5,6 +5,16 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P2-T1：站内提醒存储与接口
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端新表、repository、接口。
+- 变更内容：新增 `alert` 表（`kind`、`severity`、`symbol`、`title`、`body`、`payload_json`、唯一 `dedupe_key`、`overnight`、`visible_at`、`read_at`、`created_at`）与迁移 `c5a9b3e7d1f2`（建表前判断已存在，downgrade 删表）；`AlertRepository`：按 `dedupe_key` 幂等写入（先查后插 + savepoint 内唯一约束兜底）、按 `visible_at <= now` 过滤可见、未读数、单条/全部已读；新增 `GET /api/alerts`、`GET /api/alerts/unread-count`、`POST /api/alerts/{id}/read`、`POST /api/alerts/read-all`。
+- 影响文件：`backend/app/models/alert.py`（新）、`backend/app/repositories/alert_repository.py`（新）、`backend/app/schemas/alert.py`（新）、`backend/app/api/routes/alerts.py`（新）、`backend/alembic/versions/c5a9b3e7d1f2_add_alert_table.py`（新）、`backend/app/api/router.py`、`backend/app/models/__init__.py`、`backend/app/db/initializer.py`、`backend/alembic/env.py`、`backend/tests/test_alerts_api.py`（新）、`docs/code-change-log.md`。
+- 接口/数据结构变化：新增 4 个 `/api/alerts` 接口与 `alert` 表；无删除。
+- 验证情况：`pytest backend/tests/test_alerts_api.py`（5 个）、`test_migration_parity.py`、`test_focus_p1_migrations.py` 通过；`ruff check backend` 通过。
+- 风险或后续事项：规则服务与前端在 T2、T4 接入。
+
 ## 2026-11-01 聚焦改造 P2 实施计划（草案）
 
 - 修改人：Claude Code（Opus 5.5），与用户 xiuyang 讨论产出
