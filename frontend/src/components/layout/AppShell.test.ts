@@ -216,18 +216,14 @@ describe('AppShell', () => {
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
 
-  it('lists desk ops in trading-desk nav without treating it as the radar route', () => {
-    routeState.path = '/desk/ops';
+  it('no longer lists the removed trading-desk pages in the nav', () => {
+    routeState.path = '/dashboard';
     const wrapper = mount(AppShell);
 
-    expect(wrapper.text()).toContain('运行中心');
-    expect(wrapper.text()).toContain('组合提案');
-    expect(wrapper.text()).toContain('成绩单');
-    expect(wrapper.text()).toContain('回测实验室');
-    const activeLink = wrapper.find('[data-route-active="true"]');
-    expect(activeLink.exists()).toBe(true);
-    expect(activeLink.text()).toContain('运行中心');
-    expect(activeLink.text()).not.toContain('机会雷达');
+    expect(wrapper.text()).not.toContain('机会雷达');
+    expect(wrapper.text()).not.toContain('组合提案');
+    expect(wrapper.text()).not.toContain('回测实验室');
+    expect(wrapper.find('a[href^="/desk"]').exists()).toBe(false);
   });
 
   it('keeps connection diagnostics in the sidebar when connection state is degraded', () => {
@@ -634,7 +630,7 @@ describe('AppShell', () => {
     vi.useRealTimers();
   });
 
-  it('redirects root navigation to the desk homepage', async () => {
+  it('redirects root navigation to the dashboard', async () => {
     vi.resetModules();
     vi.doUnmock('vue-router');
 
@@ -642,7 +638,7 @@ describe('AppShell', () => {
 
     await router.push('/');
 
-    expect(router.currentRoute.value.path).toBe('/desk');
-    expect(router.currentRoute.value.name).toBe('desk');
+    expect(router.currentRoute.value.path).toBe('/dashboard');
+    expect(router.currentRoute.value.name).toBe('dashboard');
   });
 });

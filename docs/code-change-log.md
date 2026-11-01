@@ -5,6 +5,23 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T3：删除量化台前端
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端路由、导航、组合页、API 客户端、类型与 mock。
+- 变更内容：
+  - 删除 7 个 `Desk*View` 页面及测试、`components/quant/`（净值曲线、DSL 构建器）、`stores/deskStore`、`constants/quantLabels`、`api/mock/quant.ts`。
+  - `router/index.ts`：移除 7 条 `/desk*` 路由，`/` 临时重定向到 `/dashboard`（P4 盯盘台上线后替换）。
+  - `AppShell.vue`：移除"交易台"导航组和 `/desk` 激活逻辑。
+  - `PortfolioView.vue`：移除模拟盘区块（账户现金、下单表单、下单结果）。
+  - `api/client.ts`：移除 21 个 `getQuant*` / `runQuant*` 等方法；`types/api.ts` 移除量化类型与手写的 `QuantFactor`（保留市场总览用的 `QuantSentiment*`）。
+  - 重新生成 `openapi.json` 与 `types/generated/api.d.ts`（已不含 `/api/quant`）。
+  - 更新测试：路由与 AppShell 的根路径重定向断言改为 `/dashboard`，导航断言改为"不再出现交易台页面"；组合页测试去掉模拟盘；冒烟测试去掉 `/desk*` 路由与 quant mock。
+- 影响文件：上述删除文件，以及 `frontend/src/router/index.ts`、`router/index.test.ts`、`components/layout/AppShell.vue`、`AppShell.test.ts`、`views/PortfolioView.vue`、`PortfolioView.test.ts`、`api/client.ts`、`api/mock.ts`、`types/api.ts`、`smoke/app-navigation.test.ts`、`frontend/openapi.json`、`src/types/generated/api.d.ts`、`docs/code-change-log.md`。
+- 接口/数据结构变化：前端不再调用 `/api/quant/*`；首页由 `/desk` 改为 `/dashboard`，旧的 `/desk*` 书签会落到未匹配路由。
+- 验证情况：`vue-tsc` 零错误；`vitest run` 88 个文件、514 passed（基线 99 个文件、568 个；减少部分均为被删页面与组件的测试）；`npm run build` 通过；`check:api-drift` OK；`grep` 确认 `src/` 中已无 `/api/quant`、`/desk` 路由、量化类型的残留引用。
+- 风险或后续事项：AI 对话页仍有"交易台研究会话"入口（`openDeskResearchSession`），随 T4 一起删除。
+
 ## 2026-11-01 聚焦改造 P1-T2：删除量化台后端
 
 - 修改人：Claude Code（Opus 5.5）

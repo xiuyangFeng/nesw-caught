@@ -48,17 +48,6 @@ type NavGroup = {
 
 const navGroups: NavGroup[] = [
   {
-    title: '交易台',
-    items: [
-      { label: '机会雷达', en: 'Desk', to: '/desk' },
-      { label: '组合提案', en: 'Proposal', to: '/desk/portfolio-proposal' },
-      { label: '成绩单', en: 'Card', to: '/desk/report-card' },
-      { label: '策略', en: 'DSL', to: '/desk/strategies' },
-      { label: '回测实验室', en: 'Lab', to: '/desk/backtest' },
-      { label: '运行中心', en: 'Ops', to: '/desk/ops' },
-    ],
-  },
-  {
     title: '情报',
     items: [
       { label: '最新事件', en: 'Events', to: '/news' },
@@ -172,9 +161,6 @@ function runtimeDiagnosticToneClass(tone: 'success' | 'warning' | 'danger' | 'de
 function isNavItemActive(targetPath: string) {
   if (route.path === targetPath) {
     return true;
-  }
-  if (targetPath === '/desk') {
-    return route.path.startsWith('/desk/stocks/');
   }
   if (targetPath === '/news') {
     return route.path.startsWith('/news/');
