@@ -5,6 +5,16 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1 计划归档
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：文档（纯文档）。
+- 变更内容：P1 计划执行完毕，按规范移到 `docs/archive/superpowers/plans/`，补充完成记录与相对计划的偏离说明；设计文档仍在 `docs/superpowers/specs/`，继续指导 P2～P4，状态行改为指向归档后的计划。
+- 影响文件：`docs/archive/superpowers/plans/2026-11-01-focus-p1-removal-plan.md`（移动）、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；确认归档路径存在、文中相对链接指向正确。
+- 风险或后续事项：无。
+
 ## 2026-11-01 聚焦改造 P1-T8：全量验证与评审修复
 
 - 修改人：Claude Code（Opus 5.5）

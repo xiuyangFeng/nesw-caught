@@ -1,7 +1,7 @@
 # 聚焦改造 P1：删除与合并 实施计划（2026-11-01）
 
-> 设计：[2026-10-31-focus-redesign-design.md](../specs/2026-10-31-focus-redesign-design.md)
-> 状态：**待用户批准后执行**。
+> 设计：[2026-10-31-focus-redesign-design.md](../../../superpowers/specs/2026-10-31-focus-redesign-design.md)
+> 状态：**已完成（2026-11-01）并归档**。执行记录见 `docs/code-change-log.md` 中 P1-T1～T8 条目。
 > 分支：`refactor/focus-p1`（从 `main` 切出），每个任务一个提交，每个提交同步更新 `docs/code-change-log.md`。
 
 ## 0. 范围
@@ -148,3 +148,12 @@
 - `ruff check backend`：4 个错误（均在 `tests/quant/` 与 `test_quant_api.py`，属 T2 删除范围）。
 - 前端 `vitest run`：99 个文件、568 passed；`npm run build` 通过；`check:api-drift` OK。
 - 备份：`backend/data/backups/app-before-focus-p1-20261101.db`、`backend/data/backups/market_data-final-20261101.db`（命名不匹配备份 worker 的 `app_*.db` 清理规则，不会被自动删除）。
+
+## 完成记录（2026-11-01）
+
+- 分支 `refactor/focus-p1`，T0～T8 共 9 个提交；相对 `main` 共 246 个文件，删除约 4 万行。
+- 后端 1051 passed / 7 failed（已知测试污染，基线为 1339 / 9）；前端 79 个文件、462 passed；构建与 `check:api-drift` 通过。
+- 真实 `app.db` 已升级到 `c4e1d7a9b2f8`，删表前完整备份为 `backend/data/backups/app-before-focus-p1-20261101.db`。
+- 相对计划的偏离：
+  1. `sentiment_calibration` 原计划保留；核查后发现其开关默认关闭、从未启用，唯一生成方是被删除的信号统计，因此一并删除（T6）。
+  2. 计划外发现并处理：新闻主流程依赖量化模块里的 A 股名称匹配，迁出到 `a_share_mentions.py`（T2）；东财资金流原解析器列顺序颠倒、原地址只返回 1 天，已修正（T1）；新闻详情页残留的"问 AI"按钮（T7）；已下线 worker 的心跳残留（T8）。
