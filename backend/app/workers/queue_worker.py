@@ -27,6 +27,7 @@ DEFAULT_INFLIGHT_LEASE_SECONDS = 600.0
 DEFAULT_BACKLOG_BATCH_SIZE = 50
 DEFAULT_POLL_INTERVAL_SECONDS = 1.0
 DEFAULT_FALLBACK_SCAN_INTERVAL_SECONDS = 30.0
+DEFERRAL_SWEEP_INTERVAL_SECONDS = 30.0
 # 情绪-价格背离周期检查间隔：design 明确"间隔可硬编码 30min"，不额外加 settings 项
 # （config.py 由主协调者独占，本工作块不改）。
 SENTIMENT_DIVERGENCE_CHECK_INTERVAL_SECONDS = 1800.0
@@ -221,6 +222,7 @@ class BackgroundQueueWorker(BaseWorker):
         )
         self.inflight = inflight if inflight is not None else analysis_inflight
         self._next_fallback_scan_at = 0.0
+        self._next_deferral_sweep_at = 0.0
         # 被吞掉异常的计数回写节流(见 _maybe_flush_error_metrics)。
         self._next_error_metrics_flush_at = 0.0
         self._last_reported_error_counts: dict[str, int] = {}
@@ -335,6 +337,13 @@ class BackgroundQueueWorker(BaseWorker):
             get_alert_service().flush_watch_digest()
         except Exception:
             self.logger.warning("watch digest flush failed", exc_info=True)
+        # AI 模式下被跳过的关键词命中：AI 迟迟没结论时按关键词补发（30 秒扫一次）。
+        if time.monotonic() >= self._next_deferral_sweep_at:
+            self._next_deferral_sweep_at = time.monotonic() + DEFERRAL_SWEEP_INTERVAL_SECONDS
+            try:
+                get_alert_service().sweep_deferred()
+            except Exception:
+                self.logger.warning("ai deferral sweep failed", exc_info=True)
 
         cycle_started = time.perf_counter()
         queue_depth_before = analysis_queue.qsize()

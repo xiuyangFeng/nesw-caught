@@ -366,6 +366,10 @@ def test_queue_worker_cycle_flushes_watch_digest(monkeypatch: pytest.MonkeyPatch
             calls.append("flush")
             return 0
 
+        def sweep_deferred(self) -> int:
+            calls.append("sweep")
+            return 0
+
     monkeypatch.setattr(queue_worker_module, "get_alert_service", lambda: _Alerts())
     worker = queue_worker_module.BackgroundQueueWorker(
         session_factory=SessionLocal,
@@ -375,4 +379,7 @@ def test_queue_worker_cycle_flushes_watch_digest(monkeypatch: pytest.MonkeyPatch
     worker._next_fallback_scan_at = float("inf")
 
     assert worker.do_cycle() == 0
-    assert calls == ["flush"]
+    assert calls == ["flush", "sweep"]
+    # AI 兜底扫描按 30 秒节流，不必每个周期都查库
+    worker.do_cycle()
+    assert calls == ["flush", "sweep", "flush"]

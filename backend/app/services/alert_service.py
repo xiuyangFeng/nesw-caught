@@ -36,11 +36,12 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.alert import Alert
+from app.models.news_ai import AiAlertDeferral, NewsAiAnalysis, NewsAiScreen
 from app.models.news_stock_mention import NewsStockMention
 from app.models.watchlist_item import WatchlistItem
 from app.repositories.alert_repository import AlertRepository
@@ -63,6 +64,8 @@ GROUP_OPPORTUNITY = "opportunity"
 _DIRECTION_LABELS = {"bullish": "利多", "bearish": "利空", "neutral": "中性"}
 _STRENGTH_LABELS = {"strong": "强", "medium": "中", "weak": "弱"}
 _SIGNIFICANT_STRENGTHS = {"strong", "medium"}
+# AI 模式下关键词命中的新闻，AI 这么久还没给出结论就按关键词补发。
+DEFERRAL_TIMEOUT = timedelta(minutes=15)
 SEVERITY_IMMEDIATE = "immediate"
 SEVERITY_DIGEST = "digest"
 ALERT_CREATED_EVENT = "alert.created"
@@ -183,6 +186,11 @@ def _code_patterns(symbol: str, market: str) -> list[re.Pattern[str]]:
     return []
 
 
+def stock_title_patterns(name: str, symbol: str, market: str) -> list[re.Pattern[str]]:
+    """标题里点名某只股票（简称或代码）的匹配规则，与关键词提醒同一套口径。"""
+    return _name_patterns(name) + _code_patterns(symbol, market)
+
+
 class AlertService:
     def __init__(
         self,
@@ -262,10 +270,106 @@ class AlertService:
 
     def on_news_batch(self, news_items: Iterable[dict[str, Any]]) -> int:
         """新闻评分完成回调。AI 模式下交给漏斗（这里只推进合并窗口），否则走关键词规则。"""
+        items = list(news_items)
         if self._ai_mode():
             self.flush_watch_digest()
+            self._defer_keyword_hits(items)
             return 0
-        return self.on_news_keyword_fallback(news_items)
+        return self.on_news_keyword_fallback(items)
+
+    def sweep_deferred(self) -> int:
+        """兜底扫描：AI 模式下跳过的关键词命中，AI 已有结论的直接丢弃；
+        超过 ``DEFERRAL_TIMEOUT`` 仍没结论的按关键词补发。返回补发的立即提醒条数。"""
+        now = self._clock()
+        min_importance = get_settings().ai_impact_min_importance
+        with self._session_factory() as session:
+            rows = list(session.scalars(select(AiAlertDeferral)))
+            if not rows:
+                return 0
+            ids = [row.news_id for row in rows]
+            analyzed = set(
+                session.scalars(
+                    select(NewsAiAnalysis.news_id).where(
+                        NewsAiAnalysis.news_id.in_(ids), NewsAiAnalysis.status == "ok"
+                    )
+                )
+            )
+            screened_low = set(
+                session.scalars(
+                    select(NewsAiScreen.news_id).where(
+                        NewsAiScreen.news_id.in_(ids),
+                        NewsAiScreen.status == "ok",
+                        or_(NewsAiScreen.importance < min_importance, NewsAiScreen.deep_read.is_(False)),
+                    )
+                )
+            )
+            handled = analyzed | screened_low
+            fallback: list[dict[str, Any]] = []
+            done: list[int] = []
+            for row in rows:
+                if row.news_id in handled:
+                    done.append(row.news_id)
+                    continue
+                deferred_at = row.deferred_at if row.deferred_at.tzinfo else row.deferred_at.replace(tzinfo=UTC)
+                if now - deferred_at >= DEFERRAL_TIMEOUT:
+                    done.append(row.news_id)
+                    fallback.append(
+                        {"id": row.news_id, "title": row.title, "source_name": row.source_name, "market": row.market}
+                    )
+            if done:
+                session.execute(delete(AiAlertDeferral).where(AiAlertDeferral.news_id.in_(done)))
+                session.commit()
+        if not fallback:
+            return 0
+        logger.info("ai deferral timeout: %s news fall back to keyword alerts", len(fallback))
+        return self.on_news_keyword_fallback(fallback)
+
+    def _keyword_matches(self, session: Any, items: list[dict[str, Any]]) -> tuple[dict[str, _Stock], dict[int, set[str]]]:
+        stocks = self._load_stocks(session)
+        if not stocks or not items:
+            return {}, {}
+        by_symbol = {stock.symbol: stock for stock in stocks}
+        mention_hits = self._load_rule_mentions(session, [int(item["id"]) for item in items], by_symbol)
+        matches: dict[int, set[str]] = {}
+        for item in items:
+            news_id = int(item["id"])
+            title = str(item["title"])
+            matched = {stock.symbol for stock in stocks if any(pattern.search(title) for pattern in stock.patterns)}
+            matched |= mention_hits.get(news_id, set())
+            if matched:
+                matches[news_id] = matched
+        return by_symbol, matches
+
+    def _defer_keyword_hits(self, items: list[dict[str, Any]]) -> None:
+        items = [item for item in items if item.get("id") is not None and item.get("title")]
+        if not items:
+            return
+        now = self._clock()
+        try:
+            with self._session_factory() as session:
+                _, matches = self._keyword_matches(session, items)
+                if not matches:
+                    return
+                existing = set(
+                    session.scalars(select(AiAlertDeferral.news_id).where(AiAlertDeferral.news_id.in_(list(matches))))
+                )
+                for item in items:
+                    news_id = int(item["id"])
+                    if news_id in matches and news_id not in existing:
+                        session.add(
+                            AiAlertDeferral(
+                                news_id=news_id,
+                                title=str(item["title"]),
+                                source_name=item.get("source_name"),
+                                market=item.get("market"),
+                                deferred_at=now,
+                            )
+                        )
+                session.commit()
+        except Exception:
+            # 记不下来就当场走关键词，宁可提醒早一点也不能漏。
+            logger.warning("recording ai deferrals failed; using keyword alerts now", exc_info=True)
+            self.on_news_keyword_fallback(items)
 
     def on_news_keyword_fallback(self, news_items: Iterable[dict[str, Any]]) -> int:
         """关键词规则：持仓命中立即写提醒，关注股命中进合并窗口；返回立即提醒条数。"""
@@ -275,20 +379,13 @@ class AlertService:
         if not items:
             return 0
         with self._session_factory() as session:
-            stocks = self._load_stocks(session)
-            if not stocks:
+            by_symbol, matches = self._keyword_matches(session, items)
+            if not by_symbol:
                 return 0
-            by_symbol = {stock.symbol: stock for stock in stocks}
-            mention_hits = self._load_rule_mentions(session, [int(item["id"]) for item in items], by_symbol)
             repo = AlertRepository(session)
             created: list[Alert] = []
             for item in items:
-                news_id = int(item["id"])
-                title = str(item["title"])
-                matched = {
-                    stock.symbol for stock in stocks if any(pattern.search(title) for pattern in stock.patterns)
-                }
-                matched |= mention_hits.get(news_id, set())
+                matched = matches.get(int(item["id"]), set())
                 for symbol in sorted(matched):
                     stock = by_symbol[symbol]
                     if stock.is_holding:

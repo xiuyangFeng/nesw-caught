@@ -18,6 +18,7 @@ _NEW_TABLES = {
     "impact_correction",
     "stock_sector",
     "focus_sector_override",
+    "ai_alert_deferral",
 }
 
 

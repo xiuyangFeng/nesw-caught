@@ -68,6 +68,8 @@ class ImpactOutcome:
     impacts: list[NewsImpact] = field(default_factory=list)
     ok: bool = False
     exhausted: bool = False
+    # 用户已修正过该新闻的影响：精读只更新文字结论，不覆盖影响、不再发提醒。
+    user_corrected: bool = False
 
 
 def _clean_text(value: object, limit: int) -> str | None:
@@ -217,6 +219,14 @@ class NewsImpactService:
         analysis.view = parsed["view"]
         analysis.major = parsed["major"]
         analysis.status, analysis.error = STATUS_OK, None
+        outcome.ok = True
+        corrected = self.session.scalar(
+            select(ImpactCorrection.id).where(ImpactCorrection.news_id == item.id).limit(1)
+        )
+        if corrected is not None:
+            outcome.user_corrected = True
+            self.session.flush()
+            return outcome
         self.session.execute(
             delete(NewsImpact).where(NewsImpact.news_id == item.id, NewsImpact.source == SOURCE_AI)
         )
@@ -225,7 +235,6 @@ class NewsImpactService:
             self.session.add(row)
             outcome.impacts.append(row)
         self.session.flush()
-        outcome.ok = True
         return outcome
 
     @staticmethod
@@ -294,7 +303,12 @@ class NewsImpactService:
 
 
 def replace_impacts_by_user(
-    session: Session, news_id: int, impacts: list[dict], *, note: str | None = None
+    session: Session,
+    news_id: int,
+    impacts: list[dict],
+    *,
+    note: str | None = None,
+    context: PortfolioContext | None = None,
 ) -> list[NewsImpact]:
     """用户修正：整表替换该新闻的影响，并记录修正（作为后续 L2 示例）。不合法的条目直接报错。"""
     item = session.get(NewsItem, news_id)
@@ -302,7 +316,7 @@ def replace_impacts_by_user(
         raise LookupError(f"news {news_id} not found")
     parsed: list[dict] = []
     for raw in impacts:
-        impact = parse_impact(raw)
+        impact = parse_impact(raw, context)
         if impact is None:
             raise ValueError(f"invalid impact: {raw!r}")
         parsed.append(impact)

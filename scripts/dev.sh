@@ -130,7 +130,8 @@ if [[ "${SPLIT_PIPELINE}" == "1" ]]; then
 else
   echo "[news-caught] pipeline workers mode: IN-PROCESS (set NEWS_CAUGHT_SPLIT_PIPELINE=1 to split)"
 fi
-conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 &
+# --timeout-graceful-shutdown：页面开着时 SSE 长连接永不结束，热重载会一直等它关闭、接口全部无响应。
+conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 --timeout-graceful-shutdown 3 &
 BACKEND_PID=$!
 wait_for_process_start "${BACKEND_PID}" "backend"
 wait_for_http "http://127.0.0.1:8000/api/health" 400 0.2

@@ -42,6 +42,9 @@ class _Bus:
 @pytest.fixture(autouse=True)
 def _seed():
     def wipe(session) -> None:
+        from app.models.news_ai import AiAlertDeferral
+
+        session.query(AiAlertDeferral).delete()
         session.query(Alert).delete()
         session.query(StockSector).delete()
         session.query(FocusSectorOverride).delete()
@@ -189,3 +192,83 @@ def test_ai_alerts_respect_quiet_hours() -> None:
     alerts = _alerts()
     assert len(alerts) == 2 and all(alert.overnight for alert in alerts)
     assert bus.events == []
+
+
+# ---------------------------------------------------------------- 兜底：AI 模式下跳过的关键词命中
+
+
+def _seed_news_row(title: str) -> int:
+    from app.models.news_item import NewsItem
+
+    with SessionLocal() as session:
+        item = NewsItem(source_name="alert-ai-test", source_url="https://example.com", title=title,
+                        canonical_url=f"https://example.com/{title}", url_hash=f"alert-ai-{title}", market="cn",
+                        published_at=MONDAY_10AM, fetched_at=MONDAY_10AM)
+        session.add(item)
+        session.commit()
+        return item.id
+
+
+@pytest.fixture()
+def _news_cleanup():
+    yield
+    from app.models.news_ai import AiAlertDeferral, NewsAiAnalysis, NewsAiScreen
+    from app.models.news_item import NewsItem
+
+    with SessionLocal() as session:
+        ids = [row.id for row in session.query(NewsItem).filter(NewsItem.source_name == "alert-ai-test")]
+        session.query(AiAlertDeferral).delete()
+        session.query(NewsAiAnalysis).filter(NewsAiAnalysis.news_id.in_(ids)).delete()
+        session.query(NewsAiScreen).filter(NewsAiScreen.news_id.in_(ids)).delete()
+        session.query(NewsItem).filter(NewsItem.id.in_(ids)).delete()
+        session.commit()
+
+
+def _deferrals() -> list[int]:
+    from app.models.news_ai import AiAlertDeferral
+
+    with SessionLocal() as session:
+        return [row.news_id for row in session.query(AiAlertDeferral).order_by(AiAlertDeferral.news_id)]
+
+
+def test_unhandled_deferred_keyword_hit_falls_back_after_15_minutes(_news_cleanup) -> None:
+    news_id = _seed_news_row("寒武纪发布新品")
+    plain_id = _seed_news_row("与自选股无关的新闻")
+    service, clock, _ = _service(MONDAY_10AM)
+    assert service.on_news_batch([
+        {"id": news_id, "title": "寒武纪发布新品", "source_name": "x", "market": "cn"},
+        {"id": plain_id, "title": "与自选股无关的新闻", "source_name": "x", "market": "cn"},
+    ]) == 0
+    assert _deferrals() == [news_id]  # 只记有关键词命中的
+
+    clock.now += timedelta(minutes=10)
+    assert service.sweep_deferred() == 0 and _alerts() == []
+    clock.now += timedelta(minutes=6)
+    assert service.sweep_deferred() == 1
+    [alert] = _alerts()
+    assert alert.kind == "holding_news" and alert.dedupe_key == f"news:{news_id}:688256.SH"
+    assert _deferrals() == []
+
+
+def test_deferred_hit_dropped_when_ai_already_decided(_news_cleanup) -> None:
+    from app.models.news_ai import NewsAiAnalysis, NewsAiScreen
+
+    analyzed = _seed_news_row("寒武纪A")
+    low = _seed_news_row("寒武纪B")
+    pending_l2 = _seed_news_row("寒武纪C")
+    service, clock, _ = _service(MONDAY_10AM)
+    service.on_news_batch([{"id": i, "title": f"寒武纪{c}", "source_name": "x"} for i, c in
+                           ((analyzed, "A"), (low, "B"), (pending_l2, "C"))])
+    with SessionLocal() as session:
+        session.add(NewsAiScreen(news_id=analyzed, importance=3, overseas=False, deep_read=True, status="ok", attempts=1))
+        session.add(NewsAiAnalysis(news_id=analyzed, major=False, status="ok", attempts=1))
+        session.add(NewsAiScreen(news_id=low, importance=1, overseas=False, deep_read=False, status="ok", attempts=1))
+        session.add(NewsAiScreen(news_id=pending_l2, importance=3, overseas=False, deep_read=True, status="ok",
+                                 attempts=1))
+        session.commit()
+
+    assert service.sweep_deferred() == 0
+    assert _deferrals() == [pending_l2]  # AI 已有结论的两条提前清掉
+    clock.now += timedelta(minutes=16)
+    assert service.sweep_deferred() == 1  # 等精读超时 → 关键词补发
+    assert [alert.dedupe_key for alert in _alerts()] == [f"news:{pending_l2}:688256.SH"]

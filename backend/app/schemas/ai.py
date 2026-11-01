@@ -109,7 +109,12 @@ class AiFunnelErrorView(BaseModel):
 class AiFunnelStatusView(BaseModel):
     enabled: bool
     active: bool
-    inactive_reason: Literal["disabled", "no_default_model", "over_budget", "worker_not_running"] | None = None
+    inactive_reason: (
+        Literal[
+            "disabled", "no_default_model", "budget_unpriced", "over_budget", "quota_exhausted", "worker_not_running"
+        ]
+        | None
+    ) = None
     model_name: str | None = None
     model_display_name: str | None = None
     today: AiFunnelTodayView

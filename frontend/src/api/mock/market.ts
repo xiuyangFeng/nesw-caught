@@ -1,10 +1,12 @@
 // 行情 + 自选股(watchlist)域 mock 数据：实时快照、自选股列表/候选、K 线、迷你走势、
-// 及自选股研究简报(WatchlistResearchBrief)。
+// 及自选股研究简报(WatchlistResearchBrief)、AI 漏斗（P3）的关注板块与个股影响（离线为空）。
 
 import type {
+  FocusSector,
   FundFlow,
   MarketSnapshot,
   NewsEventMarker,
+  StockImpact,
   SparklineSeries,
   StockKlineResponse,
   StockQuoteDetail,
@@ -371,3 +373,7 @@ export const mockFundFlow: FundFlow = {
   points: [],
   note: '离线模式：暂无资金流数据。',
 };
+
+// AI 漏斗（P3）离线兜底：没有关注板块，也没有个股 AI 影响判断。
+export const mockFocusSectors: FocusSector[] = [];
+export const mockStockImpacts: Record<string, StockImpact[]> = {};

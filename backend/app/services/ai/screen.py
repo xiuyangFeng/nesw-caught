@@ -14,6 +14,7 @@ from app.models.news_ai import STATUS_ERROR, STATUS_OK, NewsAiScreen
 from app.models.news_item import NewsItem
 from app.services.ai.context import PortfolioContext
 from app.services.ai.llm_json import complete_json
+from app.services.alert_service import stock_title_patterns
 from app.services.llm_providers import LLMProviderError
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,11 @@ class NewsScreenService:
             )
         }
         now = self.clock()
+        holding_patterns = [
+            pattern
+            for stock in context.holdings
+            for pattern in stock_title_patterns(stock.name, stock.symbol, stock.market)
+        ]
         for item in items:
             row = existing.get(item.id)
             if row is None:
@@ -147,6 +153,10 @@ class NewsScreenService:
             row.screened_at = now
             result = parsed.get(item.id)
             if result is not None:
+                if any(pattern.search(item.title or "") for pattern in holding_patterns):
+                    # 标题点名持仓股：无论 L1 怎么评，都交给 L2 精读判断是否提醒。
+                    result["deep_read"] = True
+                    result["importance"] = max(result["importance"], 2)
                 for key, value in result.items():
                     setattr(row, key, value)
                 row.status, row.error = STATUS_OK, None

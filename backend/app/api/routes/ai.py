@@ -20,6 +20,7 @@ from app.schemas.ai import (
     NewsImpactView,
     StockImpactView,
 )
+from app.services.ai.context import load_portfolio_context
 from app.services.ai.impact import replace_impacts_by_user
 from app.services.ai.sectors import add_focus_sector, list_focus_sectors, remove_focus_sector
 from app.services.ai.status import funnel_status
@@ -73,7 +74,13 @@ def correct_news_impacts(
     """用户修正影响列表（整表替换）；修正会作为后续 AI 判断的示例。"""
     _require_news(session, news_id)
     try:
-        replace_impacts_by_user(session, news_id, [item.model_dump() for item in payload.impacts], note=payload.note)
+        replace_impacts_by_user(
+            session,
+            news_id,
+            [item.model_dump() for item in payload.impacts],
+            note=payload.note,
+            context=load_portfolio_context(session),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     session.commit()

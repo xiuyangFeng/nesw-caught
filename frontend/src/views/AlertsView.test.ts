@@ -82,6 +82,57 @@ describe('AlertsView', () => {
     expect(targets).toEqual(expect.arrayContaining(['/watchlist/688256.SH', '/news/101', '/news/55']));
   });
 
+  it('labels the AI funnel alert kinds and shows digest item details', async () => {
+    getAlerts.mockResolvedValue({
+      data: [
+        buildAlert({ id: 14, kind: 'overseas_major', symbol: null, title: '海外重大：美联储意外降息', payload: { news_id: 301 } }),
+        buildAlert({
+          id: 13,
+          kind: 'sector_news_digest',
+          symbol: null,
+          title: '关注板块新闻 1 条：白酒',
+          payload: {
+            items: [{ news_id: 302, symbol: '白酒', name: '白酒', title: '白酒需求回暖', detail: '利多·中 需求回暖' }],
+          },
+        }),
+        buildAlert({
+          id: 12,
+          kind: 'opportunity_digest',
+          symbol: null,
+          title: 'AI 发现的新机会 1 条：宁德时代',
+          payload: { items: [{ news_id: 303, symbol: '300750.SZ', name: '宁德时代', title: '获大单', detail: '利多·强 订单超预期' }] },
+        }),
+        buildAlert({
+          id: 11,
+          kind: 'watch_news_digest',
+          symbol: null,
+          title: '自选股新闻 1 条：茅台',
+          payload: { items: [{ news_id: 304, symbol: '600519.SH', name: '茅台', title: '提价' }] },
+        }),
+      ],
+      degraded: false,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+
+    const items = wrapper.findAll('[data-role="alert-item"]');
+    expect(items[0].text()).toContain('海外重大');
+    expect(items[0].find('.text-warning').exists()).toBe(true);
+    expect(items[1].text()).toContain('关注板块');
+    expect(items[2].text()).toContain('新机会');
+    expect(items[3].text()).toContain('自选股新闻');
+    expect(wrapper.text()).not.toContain('关注股新闻');
+
+    const digestItems = wrapper.findAll('[data-role="alert-digest-item"]');
+    expect(digestItems[0].text()).toBe('白酒（利多·中 需求回暖）：白酒需求回暖');
+    expect(digestItems[1].text()).toBe('宁德时代（利多·强 订单超预期）：获大单');
+    expect(digestItems[2].text()).toBe('茅台：提价');
+    expect(digestItems[2].find('[data-role="alert-digest-detail"]').exists()).toBe(false);
+
+    const targets = wrapper.findAllComponents(RouterLinkStub).map((link) => link.props('to'));
+    expect(targets).toEqual(expect.arrayContaining(['/news/301', '/news/302', '/news/303', '/news/304']));
+  });
+
   it('marks a single alert read and can mark everything read', async () => {
     getAlerts.mockResolvedValue({ data: [buildAlert({ id: 9 }), buildAlert({ id: 8 })], degraded: false });
     markAlertRead.mockResolvedValue({ data: buildAlert({ id: 9, read_at: '2026-11-02T03:00:00Z' }), degraded: false });

@@ -162,3 +162,22 @@ def test_invalid_or_missing_items_fail_individually_and_retry_until_exhausted() 
         assert sorted(third.exhausted) == sorted([missing, broken])
         assert service.screen_once(CONTEXT).screened == 0  # 用尽后不再重试
         assert len(provider.calls) == 3
+
+
+def test_holding_title_hit_is_always_deep_read() -> None:
+    """L1 低估了点名持仓股的新闻也要进 L2（持仓提醒不能只靠最便宜的一步）。"""
+    with SessionLocal() as session:
+        hit = _news(session, "寒武纪获得大额订单", market="cn")
+        other = _news(session, "某公司发布公告", market="cn")
+        session.commit()
+
+    provider = FakeProvider([{"items": [
+        {"id": hit, "importance": 1, "overseas": False, "deep_read": False, "reason": "一般"},
+        {"id": other, "importance": 1, "overseas": False, "deep_read": False, "reason": "一般"},
+    ]}])
+    with SessionLocal() as session:
+        _service(session, provider).screen_once(CONTEXT)
+        session.commit()
+        rows = {row.news_id: row for row in session.scalars(select(NewsAiScreen))}
+        assert rows[hit].deep_read and rows[hit].importance == 2
+        assert not rows[other].deep_read and rows[other].importance == 1

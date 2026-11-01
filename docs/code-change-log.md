@@ -5,6 +5,31 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P3-T9/T10：前端 AI 面板、评审修复、开发热重载卡死修复
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端新闻详情/个股详情/自选页/模型设置/提醒页；后端提醒兜底、漏斗在线判定、L1/L2 细节；开发启动脚本；文档。
+- 变更内容：
+  - **前端（T9）**：新闻详情"AI 影响"卡（`NewsAiImpactCard`，替换旧"LLM 标的分析"卡）：重要度、海外、译文标题、摘要、明确看法、影响列表（利多用涨色、利空用跌色），可修正（改方向/强度、删除、新增、说明）；个股详情"AI 影响"区块（`StockAiImpactPanel`）；自选页"关注板块"条（`FocusSectorsBar`，增删）；模型设置顶部漏斗状态卡（`AiFunnelStatusCard`）与"gpt-6.1-terra（中转）"预设（地址留空、单价 0.15/0.75）；提醒页新增"海外重大""关注板块""新机会"标签，"关注股新闻"改名"自选股新闻"，合并条目显示方向·强度。`http.ts` 新增 `putJson`，`client.ts` 新增 7 个方法。
+  - **独立评审修复（逐条复现后先写失败测试）**：
+    - 漏斗周期持续报错时心跳照样刷新，提醒仍按"AI 在线"跳过关键词 → 持仓新闻两头落空。改为看最近一次成功周期。
+    - 当天精读额度用完、月中超预算、取消默认模型时，已被跳过关键词的新闻再无人处理 → 新增 `ai_alert_deferral` 表（迁移 `c8b5d2e6f0a3`）：AI 在线时有关键词命中的新闻先记下，AI 已有结论（精读完成或粗筛判为不重要）则丢弃，15 分钟仍无结论按关键词补发；队列 worker 每 30 秒扫一次。L1/L2 重试用尽也走这条路。额度用完、"设了预算没填单价"计为不在线。
+    - 板块推断一只股票反复失败会每 30 秒花钱重试并挡住后面的股票 → 失败满 3 次不再尝试。
+    - 用户修正后 L2 精读会覆盖修正并发提醒 → 修正过的新闻只更新文字结论。用户修正的股票代码按自选股归一。
+    - 单条提醒写库失败会中断同周期其他提醒 → 逐条 try/except。
+    - L1 低估点名持仓股的新闻就不会进精读 → 标题点名持仓股的一律进精读（重要度至少 2）。
+    - 前端：后端不可用时 client 退回演示数据，卡片会显示"未处理"并允许修正、保存后整表覆盖真实结果 → 演示数据按加载失败处理；保存途中切换新闻时丢弃旧结果。
+  - **开发热重载卡死（根因）**：页面开着时 SSE 长连接永不结束，uvicorn 热重载在优雅关停时无限等待连接关闭，旧进程不再接请求、新进程起不来，所有接口无响应（本日出现两次）。`Makefile` 与 `scripts/dev.sh` 的 uvicorn 加 `--timeout-graceful-shutdown 3`。
+  - 文档：README 新增"AI 漏斗"一节并更新提醒规则表；`docs/current-state.md`、设计文档状态、P3 计划（含相对计划的调整）同步。
+- 影响文件：`frontend/src/components/news/NewsAiImpactCard.vue`（新）、`frontend/src/components/watchlist/StockAiImpactPanel.vue`（新）、`frontend/src/components/watchlist/FocusSectorsBar.vue`（新）、`frontend/src/components/llm/AiFunnelStatusCard.vue`（新）、`frontend/src/utils/aiImpact.ts`（新）及对应测试；`frontend/src/api/{client,http}.ts`、`frontend/src/api/mock/{llm,market}.ts`、`frontend/src/types/api.ts`、`frontend/src/types/generated/api.d.ts`、`frontend/openapi.json`、`frontend/src/components/llm/{LlmConfigForm.vue,providerPresets.ts}`、`frontend/src/views/{NewsDetailView,WatchlistDetailView,WatchlistView,LlmSettingsView,AlertsView}.vue` 及测试、`frontend/src/smoke/app-navigation.test.ts`；`backend/app/models/news_ai.py`、`backend/alembic/versions/c8b5d2e6f0a3_add_ai_alert_deferral.py`（新）、`backend/app/services/alert_service.py`、`backend/app/services/ai/{status,impact,screen,sectors}.py`、`backend/app/workers/{ai_funnel_worker,queue_worker}.py`、`backend/app/api/routes/ai.py`、`backend/app/schemas/ai.py`、后端测试；`Makefile`、`scripts/dev.sh`；`README.md`、`docs/current-state.md`、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`docs/superpowers/plans/2026-11-01-focus-p3-ai-funnel-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：**有**。新增表 `ai_alert_deferral`；`/api/ai/funnel/status` 的 `inactive_reason` 增加 `budget_unpriced`、`quota_exhausted`；`AiFunnelWorker` 不再直接调用关键词兜底（由 `AlertService.sweep_deferred` 统一负责）。
+- 验证情况：`pytest backend/tests` 1080 passed，7 failed（已知种子污染）；`ruff check backend` 通过；`npx vitest run` 84 文件 498 passed；`npm run build` 通过；`check:api-drift` 一致。本地库已迁移到 `c8b5d2e6f0a3`（迁移前备份 `backend/data/backups/app-before-focus-p3-20261101.db`）；实测 `/api/ai/funnel/status` 返回 `no_default_model`、`/api/focus-sectors` 为空；保持一个 SSE 连接时触发热重载，新进程 15 秒内起来、接口正常。未在浏览器里手动点过新页面。
+- 风险或后续事项：
+  - 真实运行未验证（需用户配置 terra 并设为默认）：中转地址的 JSON 模式兼容性、真实 token 用量与时延。
+  - 兜底补发最多晚 15 分钟；`ai_alert_deferral` 只记有关键词命中的新闻。
+  - 板块推断失败计数在进程内，重启后每只失败股票会再试 3 次。
+  - 重启开发服务时用了 `pkill -9 -f "multiprocessing.spawn import spawn_main"` 清理卡死的 uvicorn 子进程，该匹配也可能命中本机其他 Python 多进程程序。
+
 ## 2026-11-01 聚焦改造 P3-T1～T8：AI 漏斗后端（L1 粗筛、L2 精读、板块、提醒接管、接口）
 
 - 修改人：Claude Code（Opus 5.5）

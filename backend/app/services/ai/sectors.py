@@ -95,20 +95,28 @@ class SectorInferenceService:
     def __init__(self, session: Session, provider) -> None:
         self.session = session
         self.provider = provider
+        self.failed_symbols: list[str] = []
 
-    def _stocks_without_sectors(self, limit: int) -> list[WatchlistItem]:
+    def _stocks_without_sectors(self, limit: int, exclude: set[str]) -> list[WatchlistItem]:
         known = set(self.session.scalars(select(StockSector.symbol).distinct()))
         items = self.session.scalars(
             select(WatchlistItem).where(WatchlistItem.is_active.is_(True)).order_by(WatchlistItem.id)
         )
-        return [item for item in items if item.symbol.upper() not in known][:limit]
+        return [item for item in items if item.symbol.upper() not in known and item.symbol.upper() not in exclude][
+            :limit
+        ]
 
-    def infer_missing(self, *, limit: int = 1) -> int:
-        """给还没有板块的自选股各推断一次，返回成功推断的股票数；LLM 失败的下次再试。"""
+    def infer_missing(self, *, limit: int = 1, exclude: set[str] | frozenset[str] = frozenset()) -> int:
+        """给还没有板块的自选股各推断一次，返回成功推断的股票数。
+
+        失败（LLM 报错或没给出可用板块）的代码记在 ``failed_symbols``，由调用方决定是否
+        放进 ``exclude`` 不再重试，避免一只股票反复失败、每个周期都花钱还挡住后面的股票。
+        """
         from app.services.ai.llm_json import complete_json
 
+        self.failed_symbols = []
         inferred = 0
-        for item in self._stocks_without_sectors(limit):
+        for item in self._stocks_without_sectors(limit, {symbol.upper() for symbol in exclude}):
             symbol = item.symbol.upper()
             try:
                 payload = complete_json(
@@ -119,6 +127,7 @@ class SectorInferenceService:
                 )
             except LLMProviderError as exc:
                 logger.warning("sector inference failed for %s: %s", symbol, exc)
+                self.failed_symbols.append(symbol)
                 continue
             raw = payload.get("sectors") if isinstance(payload, dict) else None
             names: list[str] = []
@@ -127,6 +136,7 @@ class SectorInferenceService:
                 if name and name not in names:
                     names.append(name)
             if not names:
+                self.failed_symbols.append(symbol)
                 continue
             for name in names[:MAX_SECTORS_PER_STOCK]:
                 self.session.add(StockSector(symbol=symbol, sector=name, source="ai"))

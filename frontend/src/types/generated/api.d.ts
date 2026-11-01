@@ -1090,7 +1090,7 @@ export interface components {
             /** Enabled */
             enabled: boolean;
             /** Inactive Reason */
-            inactive_reason?: ("disabled" | "no_default_model" | "over_budget" | "worker_not_running") | null;
+            inactive_reason?: ("disabled" | "no_default_model" | "budget_unpriced" | "over_budget" | "quota_exhausted" | "worker_not_running") | null;
             last_error?: components["schemas"]["AiFunnelErrorView"] | null;
             /** Model Display Name */
             model_display_name?: string | null;

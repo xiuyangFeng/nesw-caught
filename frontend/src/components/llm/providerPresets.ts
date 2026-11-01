@@ -3,10 +3,15 @@ export interface LlmProviderPreset {
   name: string;
   shortName: string;
   description: string;
+  /** 为空表示地址因人而异（如中转服务），由用户自行填写。 */
   baseUrl: string;
+  /** 为空表示没有公开文档，表单不显示文档链接。 */
   docsUrl: string;
   defaultModel: string;
   models: string[];
+  /** 可选：预填的每百万 tokens 输入/输出单价（美元）。 */
+  inputPricePer1m?: number;
+  outputPricePer1m?: number;
 }
 
 export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
@@ -69,5 +74,17 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
     docsUrl: 'https://ai.google.dev/gemini-api/docs/openai',
     defaultModel: 'gemini-2.5-flash',
     models: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+  },
+  {
+    id: 'terra',
+    name: 'gpt-6.1-terra（中转）',
+    shortName: 'Terra',
+    description: 'OpenAI 兼容中转服务，AI 漏斗默认模型；请填写中转方提供的地址和 Key',
+    baseUrl: '',
+    docsUrl: '',
+    defaultModel: 'gpt-6.1-terra',
+    models: ['gpt-6.1-terra'],
+    inputPricePer1m: 0.15,
+    outputPricePer1m: 0.75,
   },
 ];

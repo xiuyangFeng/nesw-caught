@@ -206,3 +206,32 @@ def test_user_correction_validates_payload() -> None:
         with pytest.raises(ValueError):
             replace_impacts_by_user(session, news_id, [{"target_type": "stock", "name": "x", "direction": "up",
                                                        "strength": "strong"}])
+
+
+def test_reanalysis_keeps_user_corrections() -> None:
+    """用户先修正（哪怕改成"无影响"），之后的 L2 精读只更新文字结论，不覆盖影响、不再提醒。"""
+    with SessionLocal() as session:
+        news_id = _news(session, "corrected first")
+        session.commit()
+        replace_impacts_by_user(session, news_id, [], note="这条与我无关")
+        session.commit()
+
+    with SessionLocal() as session:
+        [outcome] = _service(session, FakeProvider([GOOD])).analyze_pending(CONTEXT, limit=1)
+        session.commit()
+        assert outcome.ok and outcome.user_corrected and outcome.impacts == []
+        assert session.scalars(select(NewsImpact).where(NewsImpact.news_id == news_id)).all() == []
+        analysis = session.scalar(select(NewsAiAnalysis).where(NewsAiAnalysis.news_id == news_id))
+        assert analysis.view.startswith("利好")
+
+
+def test_user_correction_codes_are_normalized_to_watchlist_symbols() -> None:
+    with SessionLocal() as session:
+        news_id = _news(session, "normalize")
+        session.commit()
+        rows = replace_impacts_by_user(
+            session, news_id,
+            [{"target_type": "stock", "code": "688256", "name": "寒武纪", "direction": "bullish", "strength": "strong"}],
+            context=CONTEXT,
+        )
+        assert rows[0].target_code == "688256.SH"

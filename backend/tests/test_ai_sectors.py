@@ -121,3 +121,23 @@ def test_infer_missing_sectors_skips_on_llm_failure() -> None:
     with SessionLocal() as session:
         assert SectorInferenceService(session, provider).infer_missing(limit=5) == 0
         assert session.scalars(select(StockSector)).all() == []
+
+
+def test_infer_missing_reports_failures_and_honours_exclude() -> None:
+    with SessionLocal() as session:
+        _watch(session, "688256.SH", "寒武纪")
+        _watch(session, "600519.SH", "贵州茅台")
+        session.commit()
+
+    provider = FakeProvider([{"sectors": ["白酒"]}])
+    with SessionLocal() as session:
+        service = SectorInferenceService(session, provider)
+        assert service.infer_missing(limit=1, exclude={"688256.SH"}) == 1
+        assert service.failed_symbols == []
+        assert "贵州茅台" in provider.calls[0]["messages"][1]["content"]
+
+    provider = FakeProvider([{"sectors": []}])
+    with SessionLocal() as session:
+        service = SectorInferenceService(session, provider)
+        assert service.infer_missing(limit=1) == 0
+        assert service.failed_symbols == ["688256.SH"]

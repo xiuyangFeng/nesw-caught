@@ -10,7 +10,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -20,13 +19,13 @@ from app.services.ai.impact import NewsImpactService, impact_to_dict
 from app.services.ai.llm_json import FunnelModel, resolve_funnel_model
 from app.services.ai.screen import NewsScreenService
 from app.services.ai.sectors import SectorInferenceService
-from app.services.ai.status import FUNNEL_WORKER_NAME
-from app.services.llm_cost import budget_status
+from app.services.ai.status import FUNNEL_WORKER_NAME, spend_blocked_reason
 from app.workers.base_worker import BaseWorker
 
 # 超过这个时长的新闻只分析不提醒：首次启用时会补跑 24 小时内的存量新闻，避免一次性刷出旧提醒。
 ALERT_MAX_NEWS_AGE = timedelta(hours=6)
 SCREEN_BATCHES_PER_CYCLE = 3
+MAX_SECTOR_ATTEMPTS = 3
 
 
 def _utc_now() -> datetime:
@@ -67,6 +66,8 @@ class AiFunnelWorker(BaseWorker):
         self._model_resolver = model_resolver
         self._clock = clock
         self._max_attempts = max_attempts
+        # 板块推断失败次数（进程内）：同一只股票失败满 3 次就不再尝试，重启后重新给机会。
+        self._sector_failures: dict[str, int] = {}
 
     def get_interval(self) -> float:
         return get_settings().ai_funnel_interval_seconds
@@ -86,10 +87,16 @@ class AiFunnelWorker(BaseWorker):
         now = self._clock()
         with self.session_factory() as session:
             model = self._model_resolver(session)
-            if model is None or budget_status(session, now).over_budget:
+            if model is None or spend_blocked_reason(session, now) is not None:
                 return 0
 
-            SectorInferenceService(session, model.provider).infer_missing(limit=1)
+            sector_service = SectorInferenceService(session, model.provider)
+            sector_service.infer_missing(
+                limit=1,
+                exclude={symbol for symbol, count in self._sector_failures.items() if count >= MAX_SECTOR_ATTEMPTS},
+            )
+            for symbol in sector_service.failed_symbols:
+                self._sector_failures[symbol] = self._sector_failures.get(symbol, 0) + 1
             session.commit()
             context = load_portfolio_context(session)
 
@@ -103,12 +110,10 @@ class AiFunnelWorker(BaseWorker):
                 clock=self._clock,
             )
             processed = 0
-            fallback_ids: list[int] = []
             for _ in range(SCREEN_BATCHES_PER_CYCLE):
                 outcome = screen_service.screen_once(context)
                 session.commit()
                 processed += outcome.screened
-                fallback_ids.extend(outcome.exhausted)
                 if outcome.screened + outcome.failed < settings.ai_screen_batch_size:
                     break
 
@@ -126,36 +131,36 @@ class AiFunnelWorker(BaseWorker):
             outcomes = impact_service.analyze_pending(context, limit=settings.ai_impact_per_cycle)
             session.commit()
 
+            # L1/L2 重试用尽的新闻不在这里补发：关键词兜底统一由 AlertService.sweep_deferred 负责。
             alert_calls: list[dict[str, Any]] = []
             for outcome in outcomes:
-                if not self._is_fresh(outcome.news, now):
-                    continue
                 if outcome.ok:
                     processed += 1
-                    alert_calls.append(
-                        {
-                            "news": _news_payload(outcome.news, outcome.screen.title_zh if outcome.screen else None),
-                            "overseas": bool(outcome.screen and outcome.screen.overseas),
-                            "major": bool(outcome.analysis.major),
-                            "view": outcome.analysis.view,
-                            "impacts": [impact_to_dict(impact) for impact in outcome.impacts],
-                        }
-                    )
-                elif outcome.exhausted:
-                    fallback_ids.append(outcome.news.id)
-            fallback_items = [
-                _news_payload(item)
-                for item in session.scalars(select(NewsItem).where(NewsItem.id.in_(fallback_ids)))
-                if self._is_fresh(item, now)
-            ] if fallback_ids else []
+                if not outcome.ok or outcome.user_corrected or not self._is_fresh(outcome.news, now):
+                    continue
+                alert_calls.append(
+                    {
+                        "news": _news_payload(outcome.news, outcome.screen.title_zh if outcome.screen else None),
+                        "overseas": bool(outcome.screen and outcome.screen.overseas),
+                        "major": bool(outcome.analysis.major),
+                        "view": outcome.analysis.view,
+                        "impacts": [impact_to_dict(impact) for impact in outcome.impacts],
+                    }
+                )
 
         alerts = self._alerts()
         for call in alert_calls:
-            alerts.on_news_impacts(
-                call["news"], overseas=call["overseas"], major=call["major"], view=call["view"], impacts=call["impacts"]
-            )
-        if fallback_items:
-            alerts.on_news_keyword_fallback(fallback_items)
+            try:
+                alerts.on_news_impacts(
+                    call["news"],
+                    overseas=call["overseas"],
+                    major=call["major"],
+                    view=call["view"],
+                    impacts=call["impacts"],
+                )
+            except Exception:
+                # 单条失败不影响其他新闻的提醒。
+                self.logger.warning("ai alert failed for news %s", call["news"]["id"], exc_info=True)
         return processed
 
     @staticmethod

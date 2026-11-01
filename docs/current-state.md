@@ -25,8 +25,9 @@
 | 自选股 | `/watchlist`、`/watchlist/:symbol`：全量 A 股检索、真实行情、K 线、关联新闻、情绪时间线；"行情"标签内填写持仓数量与成本，有持仓的股票以警示色条和"持仓"标签高亮；"组合"标签展示市值、盈亏与按仓位加权的新闻；A 股详情含资金流面板（`GET /api/market/symbols/{symbol}/fund-flow`，东财按需拉取 + 10 分钟缓存，约 60 个交易日） |
 | 每日复盘 | `/digest`，盘前/盘后简报（P4 将升级为 AI 盘后简报 + 明日关注 + 早间隔夜简报） |
 | 日历 | `/calendar`，财报等事件（P4 将并入首页与简报后删除页面） |
-| LLM 设置 | `/settings/llm`，多模型配置、连接测试、Token 用量账本 |
-| 提醒中心 | `/alerts` + 侧栏未读角标 + 页面内弹窗（SSE `alert.created`）：持仓全天涨跌 ±5%（交易时段内、当天行情在动、每股每天一次）、持仓股新闻立即提醒，仅关注股新闻每 30 分钟合并；北京时间 22:00～08:00 静默，早上归入"隔夜汇总"。规则在 `app/services/alert_service.py`，"重大新闻"暂为标题关键词规则 |
+| LLM 设置 | `/settings/llm`，多模型配置、连接测试、Token 用量账本（单价为美元/百万 token）、AI 漏斗状态卡（是否在线、今日处理量与费用） |
+| AI 漏斗 | `AiFunnelWorker`：自选股板块推断 → L1 粗筛（标题+摘要，批量）→ L2 精读（全文，每天 ≤300 条）→ 提醒；只用明确设为默认的模型。新闻详情"AI 影响"卡可修正（`PUT /api/news/{id}/impacts`），修正作为后续示例；个股详情有 AI 影响列表；自选页"关注板块"可增删（`/api/focus-sectors`）。代码在 `app/services/ai/` |
+| 提醒中心 | `/alerts` + 侧栏未读角标 + 页面内弹窗（SSE `alert.created`）：持仓全天涨跌 ±5%（交易时段内、当天行情在动、每股每天一次）、持仓股新闻立即提醒，仅关注股新闻每 30 分钟合并；北京时间 22:00～08:00 静默，早上归入"隔夜汇总"。AI 在线时持仓新闻由 AI 判断（利多/利空且强度 ≥ 中），另有海外重大、关注板块、新机会提醒；AI 不在线或 15 分钟内没结论时回退标题关键词规则。规则在 `app/services/alert_service.py` |
 | 系统健康 | `/ops`，worker、新闻源、LLM 用量、事件层、数据库体积与告警 |
 
 后端还包括：新闻调度 worker、正文/评分 pipeline、行情 producer、市场总览 producer、结构化日志与请求链路、Redis 混合事件层（不可用时降级进程内总线）、SSE 推送、每日备份与数据清理。
@@ -39,9 +40,12 @@
 
 站内提醒（`alert` 表、`/api/alerts*`、`AlertService`）取代飞书推送；删除 `/settings/notify`、`feishu_notify_config` / `notification_job` 表、独立的 `/portfolio` 页面、自选股单股阈值（`alert_threshold` / `alert_mode` 列）。备份：`backend/data/backups/app-before-focus-p2-20261101.db`。
 
+## P3 代码已完成（2026-11-01），待真实运行验收
+
+AI 漏斗（`news_ai_screen` / `news_ai_analysis` / `news_impact` / `impact_correction` / `stock_sector` / `focus_sector_override` / `ai_alert_deferral` 表，`/api/news/{id}/ai`、`/api/news/{id}/impacts`、`/api/watchlist/{symbol}/impacts`、`/api/focus-sectors`、`/api/ai/funnel/status`）。LLM 单价改为每百万 token。事件聚类收紧：无关键词新闻不再落进兜底事件，通用词不再把无关新闻串成巨型事件。备份：`backend/data/backups/app-before-focus-p3-20261101.db`、`app-before-topic-prune-20261101.db`。验收还差：用户在模型设置配好 terra 后跑一个真实交易日的 token 统计。板块行情异动提醒未做（放到 P4）。
+
 ## 后续分期（见设计文档 §7）
 
-- **P3 AI 分层**：单模型（`gpt-6.1-terra`）分层处理新闻，结构化输出影响的 A 股板块/个股、方向、强度；用户可修正并沉淀为传导规则；用 AI 判断替换 P2 的标题关键词规则，并补上海外重大事件、板块异动、自选外新机会三类提醒。
 - **P4 盯盘台与简报**：首页仪表盘、盘后简报 + 明日关注、早间隔夜简报；日历与复盘页并入后删除。
 
 ## 权威来源（按优先级）

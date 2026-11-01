@@ -30,6 +30,8 @@ REASON_DISABLED = "disabled"
 REASON_NO_MODEL = "no_default_model"
 REASON_OVER_BUDGET = "over_budget"
 REASON_WORKER_DOWN = "worker_not_running"
+REASON_QUOTA = "quota_exhausted"
+REASON_BUDGET_UNPRICED = "budget_unpriced"
 
 
 def _utc_now() -> datetime:
@@ -42,21 +44,49 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
+def spend_blocked_reason(session: Session, now: datetime | None = None) -> str | None:
+    """花费闸：设了预算却没填单价（费用算不出、预算形同虚设），或本月已达预算。"""
+    config = get_explicit_default_config(session)
+    if (
+        config is not None
+        and config.monthly_budget_usd is not None
+        and config.input_price_per_1m is None
+        and config.output_price_per_1m is None
+    ):
+        return REASON_BUDGET_UNPRICED
+    if budget_status(session, now or _utc_now()).over_budget:
+        return REASON_OVER_BUDGET
+    return None
+
+
 def inactive_reason(session: Session, now: datetime | None = None, *, check_worker: bool = True) -> str | None:
     """漏斗不在线的原因；在线返回 None。"""
     now = now or _utc_now()
-    if not get_settings().ai_funnel_enabled:
+    settings = get_settings()
+    if not settings.ai_funnel_enabled:
         return REASON_DISABLED
     if get_explicit_default_config(session) is None:
         return REASON_NO_MODEL
-    if budget_status(session, now).over_budget:
-        return REASON_OVER_BUDGET
-    if check_worker:
-        heartbeat = session.scalar(
-            select(WorkerRuntimeStatus.last_heartbeat_at).where(WorkerRuntimeStatus.worker_name == FUNNEL_WORKER_NAME)
+    blocked = spend_blocked_reason(session, now)
+    if blocked is not None:
+        return blocked
+    analyzed_today = int(
+        session.scalar(
+            select(func.count())
+            .select_from(NewsAiAnalysis)
+            .where(NewsAiAnalysis.analyzed_at >= _local_day_start(now))
         )
-        heartbeat = _as_utc(heartbeat)
-        if heartbeat is None or now - heartbeat > timedelta(seconds=HEARTBEAT_FRESH_SECONDS):
+        or 0
+    )
+    if analyzed_today >= settings.ai_impact_daily_limit:
+        return REASON_QUOTA
+    if check_worker:
+        # 看最近一次"成功"周期而不是心跳：周期持续报错时心跳照样刷新。
+        last_success = session.scalar(
+            select(WorkerRuntimeStatus.last_success_at).where(WorkerRuntimeStatus.worker_name == FUNNEL_WORKER_NAME)
+        )
+        last_success = _as_utc(last_success)
+        if last_success is None or now - last_success > timedelta(seconds=HEARTBEAT_FRESH_SECONDS):
             return REASON_WORKER_DOWN
     return None
 

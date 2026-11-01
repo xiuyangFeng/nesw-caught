@@ -98,6 +98,10 @@ vi.mock('../api/client', async () => {
     getAlertUnreadCount: () => ok({ unread: 0 }),
     getLatestDigest: () => ok({ available: false, digest: null }),
     getFundFlow: (symbol) => ok({ ...mock.mockFundFlow, symbol: String(symbol ?? mock.mockFundFlow.symbol) }),
+    getNewsAi: (id) => ok(mock.buildMockNewsAi(Number(id))),
+    getStockImpacts: (symbol) => ok(mock.mockStockImpacts[symbol as string] ?? []),
+    getFocusSectors: () => ok(mock.mockFocusSectors),
+    getAiFunnelStatus: () => ok(mock.mockAiFunnelStatus),
   };
 
   const apiClient = new Proxy(explicit, {

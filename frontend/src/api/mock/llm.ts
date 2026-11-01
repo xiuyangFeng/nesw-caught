@@ -1,7 +1,16 @@
 // LLM 域 mock 数据：大模型接入配置、翻译、新闻个股映射分析(NewsAnalysis)，
-// 自选股 AI 投研简报文本(WatchlistAiInsight)，以及 Token 用量统计(LLMStats)。
+// 自选股 AI 投研简报文本(WatchlistAiInsight)，Token 用量统计(LLMStats)，
+// 以及 AI 漏斗（P3）的新闻 AI 结论与漏斗状态（离线时一律为“未处理/未运行”）。
 
-import type { LLMConfigSummary, LLMStats, LLMTranslateResponse, NewsAnalysis, WatchlistAiInsight } from '../../types/api';
+import type {
+  AiFunnelStatus,
+  LLMConfigSummary,
+  LLMStats,
+  LLMTranslateResponse,
+  NewsAi,
+  NewsAnalysis,
+  WatchlistAiInsight,
+} from '../../types/api';
 import { isoMinutesAgo } from './shared';
 
 export const mockLlmConfig: LLMConfigSummary = {
@@ -144,3 +153,33 @@ export const buildMockWatchlistAiInsight = (symbol: string): WatchlistAiInsight 
   insight_text: `这是关于 ${symbol} 的模拟 AI 洞察报告。该个股近期展现了一定的增长潜力。`,
   generated_at: new Date().toISOString(),
 });
+
+// AI 漏斗（P3）离线兜底：新闻一律视为“AI 尚未处理”。
+export const buildMockNewsAi = (newsId: number): NewsAi => ({
+  news_id: newsId,
+  screen: null,
+  analysis: null,
+  impacts: [],
+});
+
+export const mockAiFunnelStatus: AiFunnelStatus = {
+  enabled: false,
+  active: false,
+  inactive_reason: 'worker_not_running',
+  model_name: null,
+  model_display_name: null,
+  today: {
+    screened: 0,
+    screen_errors: 0,
+    analyzed: 0,
+    analysis_errors: 0,
+    impacts: 0,
+    analysis_daily_limit: 0,
+    cost_usd: 0,
+  },
+  usage: [],
+  month_cost_usd: 0,
+  monthly_budget_usd: null,
+  over_budget: false,
+  last_error: null,
+};

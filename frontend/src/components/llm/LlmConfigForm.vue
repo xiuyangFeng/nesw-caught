@@ -59,6 +59,12 @@ function applyPreset(presetId: string) {
   formState.display_name = preset.name;
   formState.base_url = preset.baseUrl;
   formState.model_name = preset.defaultModel;
+  if (preset.inputPricePer1m !== undefined) {
+    formState.input_price_per_1m = String(preset.inputPricePer1m);
+  }
+  if (preset.outputPricePer1m !== undefined) {
+    formState.output_price_per_1m = String(preset.outputPricePer1m);
+  }
 }
 
 function useCustomConfig() {
@@ -142,7 +148,9 @@ function startEdit(cfg: LLMConfigSummary) {
   formState.output_price_per_1m = cfg.output_price_per_1m != null ? String(cfg.output_price_per_1m) : '';
   formState.monthly_budget_usd = cfg.monthly_budget_usd != null ? String(cfg.monthly_budget_usd) : '';
   originalBaseUrl.value = trimText(cfg.base_url);
-  selectedPresetId.value = LLM_PROVIDER_PRESETS.find((preset) => preset.baseUrl === originalBaseUrl.value)?.id ?? null;
+  selectedPresetId.value = LLM_PROVIDER_PRESETS.find(
+    (preset) => preset.baseUrl !== '' && preset.baseUrl === originalBaseUrl.value,
+  )?.id ?? null;
 }
 
 function resetForm() {
@@ -229,6 +237,7 @@ defineExpose({ startEdit, resetForm });
         <div v-if="activePreset" class="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-bg/40 px-3 py-2">
           <p class="min-w-0 text-[11px] leading-5 text-text-faint">{{ activePreset.description }}</p>
           <a
+            v-if="activePreset.docsUrl"
             class="shrink-0 text-[11px] font-semibold text-accent hover:underline"
             :href="activePreset.docsUrl"
             target="_blank"
@@ -324,7 +333,7 @@ defineExpose({ startEdit, resetForm });
             step="0.0001"
             min="0"
             :disabled="llmStore.loading || llmStore.saving"
-            placeholder="例如 0.0002"
+            placeholder="例如 0.15"
             :aria-invalid="Boolean(validationErrors.input_price_per_1m)"
           />
           <small v-if="validationErrors.input_price_per_1m" class="text-danger">{{ validationErrors.input_price_per_1m }}</small>
@@ -340,7 +349,7 @@ defineExpose({ startEdit, resetForm });
             step="0.0001"
             min="0"
             :disabled="llmStore.loading || llmStore.saving"
-            placeholder="例如 0.002"
+            placeholder="例如 0.75"
             :aria-invalid="Boolean(validationErrors.output_price_per_1m)"
           />
           <small v-if="validationErrors.output_price_per_1m" class="text-danger">{{ validationErrors.output_price_per_1m }}</small>

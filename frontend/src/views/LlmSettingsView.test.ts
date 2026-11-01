@@ -43,6 +43,11 @@ vi.mock('../stores/toastStore', () => ({
   useToastStore: () => toastStore,
 }));
 
+// AiFunnelStatusCard 自行经 apiClient 取数，行为由组件单测覆盖；这里只验证接线。
+vi.mock('../components/llm/AiFunnelStatusCard.vue', () => ({
+  default: { template: '<section data-role="ai-funnel-status-stub" />' },
+}));
+
 async function openConfigDialog(wrapper: ReturnType<typeof mount>) {
   await wrapper.get('[data-role="open-llm-config"]').trigger('click');
   await flushPromises();
@@ -117,6 +122,28 @@ describe('LlmSettingsView', () => {
     expect(docsLink.attributes('href')).toContain('aliyun.com');
     expect(docsLink.attributes('target')).toBe('_blank');
     expect(docsLink.attributes('rel')).toContain('noreferrer');
+  });
+
+  it('shows the AI funnel status card at the top of the page', () => {
+    const wrapper = mount(LlmSettingsView);
+
+    const html = wrapper.html();
+    const funnelAt = html.indexOf('data-role="ai-funnel-status-stub"');
+    expect(funnelAt).toBeGreaterThan(-1);
+    expect(funnelAt).toBeLessThan(html.indexOf('data-role="llm-config-launcher"'));
+  });
+
+  it('applies the terra relay preset with an empty base url and per-1M prices', async () => {
+    const wrapper = mount(LlmSettingsView);
+    await openConfigDialog(wrapper);
+
+    await wrapper.get('[data-testid="provider-preset-terra"]').trigger('click');
+
+    expect((wrapper.find('input[name="model_name"]').element as HTMLInputElement).value).toBe('gpt-6.1-terra');
+    expect((wrapper.find('input[name="base_url"]').element as HTMLInputElement).value).toBe('');
+    expect((wrapper.find('input[name="input_price_per_1m"]').element as HTMLInputElement).value).toBe('0.15');
+    expect((wrapper.find('input[name="output_price_per_1m"]').element as HTMLInputElement).value).toBe('0.75');
+    expect(wrapper.find('[data-testid="provider-docs-link"]').exists()).toBe(false);
   });
 
   it('shows a load error when llm config cannot be fetched', () => {

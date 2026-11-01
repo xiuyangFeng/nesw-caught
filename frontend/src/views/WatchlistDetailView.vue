@@ -6,6 +6,7 @@ import LoadingBlock from '../components/common/LoadingBlock.vue';
 import StockDetailPanel from '../components/watchlist/StockDetailPanel.vue';
 import SentimentTimelinePanel from '../components/watchlist/SentimentTimelinePanel.vue';
 import FundFlowPanel from '../components/watchlist/FundFlowPanel.vue';
+import StockAiImpactPanel from '../components/watchlist/StockAiImpactPanel.vue';
 import { HttpError } from '../api/http';
 import StaleBadge from '../components/common/StaleBadge.vue';
 import { useWatchlistStore } from '../stores/watchlistStore';
@@ -181,6 +182,11 @@ watch(symbol, async (nextSymbol, previousSymbol) => {
     <section v-if="symbol" class="grid gap-2" data-role="watchlist-detail-sentiment-timeline">
       <FundFlowPanel v-if="/\.(SH|SZ|BJ)$/.test(symbol)" :symbol="symbol" />
       <SentimentTimelinePanel :symbol="symbol" />
+    </section>
+
+    <!-- AI 漏斗（P3）：AI 精读新闻对这只股票的影响判断 -->
+    <section v-if="symbol" class="grid gap-2" data-role="watchlist-detail-ai-impacts">
+      <StockAiImpactPanel :symbol="symbol" />
     </section>
 
     <!-- 个股 AI 综合研判（结构化研报） -->

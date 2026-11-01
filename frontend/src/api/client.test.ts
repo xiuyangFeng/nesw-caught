@@ -685,3 +685,51 @@ describe('apiClient market overview endpoints', () => {
     await expect(apiClient.deleteMarketIndexConfig(1)).rejects.toThrow('backend offline');
   });
 });
+
+describe('apiClient AI funnel requests', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('PUTs impact corrections and URL-encodes focus sector names', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ news_id: 7, screen: null, analysis: null, impacts: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const payload = {
+      impacts: [{ target_type: 'sector' as const, name: '白酒', direction: 'bullish' as const, strength: 'medium' as const }],
+      note: '需求回暖',
+    };
+    await apiClient.updateNewsImpacts(7, payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/news/7/impacts',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(payload) }),
+    );
+
+    await apiClient.removeFocusSector('白酒/饮料');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/focus-sectors/${encodeURIComponent('白酒/饮料')}`,
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+
+    await apiClient.addFocusSector('半导体');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/focus-sectors',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: '半导体' }) }),
+    );
+
+    await apiClient.getStockImpacts('600519.SH');
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/watchlist/600519.SH/impacts?limit=20', expect.anything());
+  });
+
+  it('never fakes a successful impact correction when the backend is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('backend offline')));
+
+    await expect(apiClient.updateNewsImpacts(7, { impacts: [] })).rejects.toThrow('backend offline');
+    await expect(apiClient.addFocusSector('白酒')).rejects.toThrow('backend offline');
+    await expect(apiClient.removeFocusSector('白酒')).rejects.toThrow('backend offline');
+  });
+});

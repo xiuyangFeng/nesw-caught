@@ -87,3 +87,18 @@ class ImpactCorrection(Base):
     after_json: Mapped[str] = mapped_column(Text())
     note: Mapped[str | None] = mapped_column(Text(), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)
+
+
+class AiAlertDeferral(Base):
+    """AI 模式下被跳过的关键词命中：AI 15 分钟内没给出结论就按关键词补发提醒。
+
+    不设外键：关键词判定发生在新闻入库回调里，记录要尽量轻；新闻被清理后由兜底扫描顺带删除。
+    """
+
+    __tablename__ = "ai_alert_deferral"
+
+    news_id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=False)
+    title: Mapped[str] = mapped_column(Text())
+    source_name: Mapped[str | None] = mapped_column(String(128), default=None)
+    market: Mapped[str | None] = mapped_column(String(16), default=None)
+    deferred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, index=True)

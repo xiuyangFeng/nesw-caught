@@ -12,8 +12,11 @@ const alertStore = useAlertStore();
 const KIND_LABELS: Record<string, string> = {
   holding_price_move: '持仓异动',
   holding_news: '持仓新闻',
-  watch_news_digest: '关注股新闻',
+  watch_news_digest: '自选股新闻',
   sentiment_divergence: '情绪背离',
+  overseas_major: '海外重大',
+  sector_news_digest: '关注板块',
+  opportunity_digest: '新机会',
 };
 
 const KIND_TONES: Record<string, string> = {
@@ -21,9 +24,13 @@ const KIND_TONES: Record<string, string> = {
   holding_news: 'border-accent/40 bg-accent/10 text-accent',
   watch_news_digest: 'border-border bg-panel-strong text-muted',
   sentiment_divergence: 'border-warning/40 bg-warning/10 text-warning',
+  overseas_major: 'border-warning/40 bg-warning/10 text-warning',
+  sector_news_digest: 'border-system/40 bg-system/10 text-system',
+  opportunity_digest: 'border-ai/40 bg-ai/10 text-ai',
 };
 
-type DigestItem = { news_id: number; symbol: string; name: string; title: string };
+// 合并提醒条目；AI 模式下带 detail（如“利多·强 理由”），关键词兜底时没有。
+type DigestItem = { news_id: number; symbol: string; name: string; title: string; detail?: string | null };
 
 function kindLabel(alert: Alert) {
   return KIND_LABELS[alert.kind] ?? alert.kind;
@@ -80,7 +87,7 @@ onMounted(() => {
       <div>
         <h1 class="page-title">提醒中心</h1>
         <p class="page-subtitle">
-          持仓股全天涨跌超过 ±5%、持仓股新闻会立即提醒；只关注的股票每 30 分钟合并一次；22:00～08:00 不打扰，夜间提醒早上归入"隔夜汇总"。
+          持仓股全天涨跌超过 ±5% 立即提醒；AI 在线时由 AI 判断持仓新闻是否值得提醒（利多/利空且强度≥中），海外重大事件立即提醒，自选股、关注板块、新机会每 30 分钟合并一次；AI 不在线时回退关键词规则；22:00～08:00 不打扰，夜间提醒早上归入"隔夜汇总"。
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -161,9 +168,9 @@ onMounted(() => {
             </RouterLink>
             <p v-else class="m-0 text-sm font-semibold text-text">{{ alert.title }}</p>
             <ul v-if="digestItems(alert).length > 0" class="grid gap-1 text-sm text-muted">
-              <li v-for="item in digestItems(alert)" :key="`${item.news_id}-${item.symbol}`">
+              <li v-for="(item, index) in digestItems(alert)" :key="`${item.news_id}-${item.symbol}-${index}`" data-role="alert-digest-item">
                 <RouterLink :to="`/news/${item.news_id}`" class="hover:text-accent" @click="handleMarkRead(alert)">
-                  {{ item.name }}：{{ item.title }}
+                  {{ item.name }}<span v-if="item.detail" class="text-text-faint" data-role="alert-digest-detail">（{{ item.detail }}）</span>：{{ item.title }}
                 </RouterLink>
               </li>
             </ul>

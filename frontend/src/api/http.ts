@@ -96,6 +96,20 @@ export async function patchJson<T>(path: string, payload: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function putJson<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await toHttpError(response, path);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export async function deleteJson(path: string): Promise<void> {
   const response = await fetch(path, {
     method: 'DELETE',

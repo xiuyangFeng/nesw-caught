@@ -4,7 +4,13 @@ from app.models.llm_classification_cache import LLMClassificationCache
 from app.models.llm_provider_config import LLMProviderConfig
 from app.models.llm_token_usage import LLMTokenUsage
 from app.models.market_index_config import MarketIndexConfig
-from app.models.news_ai import ImpactCorrection, NewsAiAnalysis, NewsAiScreen, NewsImpact
+from app.models.news_ai import (
+    AiAlertDeferral,
+    ImpactCorrection,
+    NewsAiAnalysis,
+    NewsAiScreen,
+    NewsImpact,
+)
 from app.models.news_analysis_result import NewsAnalysisResult
 from app.models.news_item import NewsItem
 from app.models.news_signal_result import NewsSignalResult
@@ -18,6 +24,7 @@ from app.models.watchlist_item import WatchlistItem
 from app.models.worker_runtime_status import WorkerRuntimeStatus
 
 __all__ = [
+    "AiAlertDeferral",
     "Alert",
     "ArticleContent",
     "FocusSectorOverride",

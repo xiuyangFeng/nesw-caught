@@ -46,7 +46,9 @@
                 "enum": [
                   "disabled",
                   "no_default_model",
+                  "budget_unpriced",
                   "over_budget",
+                  "quota_exhausted",
                   "worker_not_running"
                 ],
                 "type": "string"
