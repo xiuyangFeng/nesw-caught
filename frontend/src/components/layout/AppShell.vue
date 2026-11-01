@@ -48,16 +48,16 @@ type NavGroup = {
 
 const navGroups: NavGroup[] = [
   {
-    title: '情报',
+    title: '盯盘',
     items: [
-      { label: '最新事件', en: 'Events', to: '/news' },
       { label: '仪表盘', en: 'Dashboard', to: '/dashboard' },
+      { label: '最新事件', en: 'Events', to: '/news' },
       { label: '每日复盘', en: 'Digest', to: '/digest' },
       { label: '日历', en: 'Calendar', to: '/calendar' },
     ],
   },
   {
-    title: '交易',
+    title: '持仓',
     items: [
       { label: '自选股', en: 'Watchlist', to: '/watchlist' },
       { label: '组合', en: 'Portfolio', to: '/portfolio' },

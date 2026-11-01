@@ -191,6 +191,21 @@ describe('AppShell', () => {
     expect(activeLink.find('[data-role="nav-active-signal"]').exists()).toBe(true);
   });
 
+  it('groups the focused nav into monitoring, holdings and system', () => {
+    routeState.path = '/dashboard';
+    const wrapper = mount(AppShell);
+
+    const hrefs = wrapper.findAll('a[href]').map((link) => link.attributes('href'));
+    expect(hrefs).toEqual(
+      expect.arrayContaining(['/dashboard', '/news', '/digest', '/calendar', '/watchlist', '/portfolio', '/settings/llm', '/settings/notify', '/ops']),
+    );
+    for (const removed of ['/chat', '/x-monitor', '/analytics/backtest', '/eval/sentiment']) {
+      expect(hrefs).not.toContain(removed);
+    }
+    expect(wrapper.text()).toContain('盯盘');
+    expect(wrapper.text()).toContain('持仓');
+  });
+
   it('no longer lists the removed trading-desk pages in the nav', () => {
     routeState.path = '/dashboard';
     const wrapper = mount(AppShell);

@@ -294,7 +294,7 @@ def run(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m app.workers.pipeline_worker_main",
-        description="独立进程运行 BackgroundQueueWorker / TakeawayWorker / X 健康探针",
+        description="独立进程运行 BackgroundQueueWorker / TakeawayWorker",
     )
     parser.add_argument(
         "--force",

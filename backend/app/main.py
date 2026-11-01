@@ -150,7 +150,7 @@ async def lifespan(_: FastAPI):
         # 单机单进程默认形态（README 推荐）：重活 worker 随 web 进程一起启停。
         logger.info(
             "pipeline workers mode: IN-PROCESS (PIPELINE_WORKERS_ENABLED=true) — "
-            "BackgroundQueueWorker/TakeawayWorker/X 健康探针跑在 web 进程里；"
+            "BackgroundQueueWorker/TakeawayWorker跑在 web 进程里；"
             "如需把它们移出 GIL，请设 PIPELINE_WORKERS_ENABLED=false 并单独运行 "
             "`python -m app.workers.pipeline_worker_main`"
         )
@@ -160,7 +160,7 @@ async def lifespan(_: FastAPI):
         # 独立进程侧同时打出「exclusive ownership OK」才说明两边配置一致。
         logger.info(
             "pipeline workers mode: OUT-OF-PROCESS (PIPELINE_WORKERS_ENABLED=false) — "
-            "本进程不启动 BackgroundQueueWorker/TakeawayWorker/X 健康探针；"
+            "本进程不启动 BackgroundQueueWorker/TakeawayWorker；"
             "请确保 `python -m app.workers.pipeline_worker_main` 正在运行，否则"
             "新闻只会入库、不会被评分"
         )

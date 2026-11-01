@@ -1,6 +1,8 @@
 # News Caught
 
-后续优化和开发请先读 [docs/current-state.md](/Users/xiuyang/Desktop/news-caught/docs/current-state.md)。已完成的设计、启动期计划和旧优化清单在 `docs/archive/`，只读，不作为当前待办。
+后续优化和开发请先读 [docs/current-state.md](docs/current-state.md)。已完成的设计、启动期计划和旧优化清单在 `docs/archive/`，只读，不作为当前待办。
+
+> **2026-11 聚焦改造**：项目正在收敛为"A 股盯盘与复盘台"（设计见 [docs/superpowers/specs/2026-10-31-focus-redesign-design.md](docs/superpowers/specs/2026-10-31-focus-redesign-design.md)）。第一期已下线量化交易台（含模拟盘、`market_data.db`）、AI 对话、X 监控、信号统计与情绪评测工具；下文与这些模块相关的历史说明已删除。
 
 本项目包含：
 
@@ -18,7 +20,7 @@
 推荐直接用根目录的 `environment.yml` 创建 conda 环境：
 
 ```bash
-cd /Users/xiuyang/Desktop/news-caught
+cd news-caught   # 进入仓库根目录
 conda env create -f environment.yml
 conda activate news-caught
 ```
@@ -252,67 +254,24 @@ curl http://127.0.0.1:8000/api/stream/status
 - `news.analysis_completed`
 - `market.watchlist_refreshed`
 
-## X Monitor 增强模块
+## 多模型配置管理 (Multi-Model Management)
 
-项目已新增一个可选的 `X Monitor` 模块，用于通过 `twitterapi.io` 拉取关注账号的近期市场相关推文，并提供关键词搜索能力。它是独立增强层，不参与现有 `news` 主采集链路。
-
-1. 在项目根目录 `.env` 中开启模块并配置 API key：
-
-```bash
-X_MONITOR_ENABLED=true
-TWITTERAPI_IO_API_KEY=your_api_key_here
-TWITTERAPI_IO_TIMEOUT_SECONDS=60
-X_MONITOR_ACCOUNTS_FILE=/Users/xiuyang/Desktop/news-caught/backend/data/x_monitor_accounts.example.json
-```
-
-2. 启动后端和前端后，可使用以下接口或页面：
-
-```bash
-curl http://127.0.0.1:8000/api/health/x
-curl http://127.0.0.1:8000/api/x/accounts
-curl http://127.0.0.1:8000/api/x/posts
-curl "http://127.0.0.1:8000/api/x/search?q=NVDA"
-curl -X POST http://127.0.0.1:8000/api/x/refresh
-```
-
-前端入口：
-
-- `http://127.0.0.1:5174/x-monitor`
-
-账号白名单文件格式参考：
-
-- [backend/data/x_monitor_accounts.example.json](/Users/xiuyang/Desktop/news-caught/backend/data/x_monitor_accounts.example.json)
-
-## 多模型配置管理与流式 AI 对话助手 (Multi-Model Management & AI Chat)
-
-项目已升级大模型（LLM）配置体系，支持多模型配置同时接入与切换，并新增了一个面向终端用户的流式 AI 聊天问答页面。
+项目已升级大模型（LLM）配置体系，支持多模型配置同时接入与切换。
 
 1. **多模型接入与状态管理**：
    - 数据库与 Repository 层已升级，允许同时存储和配置多套大模型参数（包括 Provider 名称、显示名称、Base URL、Model 名称和 API Key）。
    - 支持设置单个模型为**默认模型**，并在列表上进行“启用/禁用”、“设为默认”、“编辑”和“删除”的精细化状态控制。
    - 配置列表配备状态呼吸指示灯，提升操作过程中的 Terminal 科技感。
 
-2. **流式 AI 对话室 (`ChatView.vue`) 与会话持久化**：
-   - **多会话历史管理**：支持左侧历史会话抽屉列表。提供新建对话、重命名会话、一键删除会话功能，对话记录和所选模型均保存在浏览器的 `localStorage` 中，刷新或切页不会丢失历史。
-   - **Markdown 渲染与金融数据表格**：内置轻量级、零依赖的高性能 Markdown 渲染，支持粗体、斜体、列表、段落划分、代码块与“一键复制”功能，并专门适配渲染 LLM 输出的金融对比数据表格。
-   - **流式输出中止控制 (Abort Stream)**：引入 `AbortController` 绑定流式请求，前端提供“停止生成”按钮。同时后端支持异步捕捉客户端 TCP 断开事件（`request.is_disconnected()`），及时中止上游大模型请求以达到双向省流效果。
-   - **快捷追问选项**：提供了预设的金融投资分析快捷追问选项（如“简述股票影响”、“分析潜在风险”等）。
-
-3. **全局高科技质感毛玻璃消息反馈系统 (Toaster)**：
+2. **全局高科技质感毛玻璃消息反馈系统 (Toaster)**：
    - 引入全局 Pinia Toast 管理，适配支持 Success、Error、Warning、Info 四种高对比度发光呼吸指示灯 Toast 反馈。
    - 全局界面（如模型测试连接、配置删除等）均已接入，提供一致的高品质操作交互反馈。
-
-3. **新闻上下文融合问答**：
-   - 在新闻详情页 (`NewsDetailView.vue`) 添加了紫粉色渐变发光的 **“关于此新闻问 AI”** 按钮。
-   - 点击可直达 AI Chat 页面，自动将新闻详情（包含标题、摘要、来源、时间以及爬取到的**文章正文完整内容**）装载为首条 System 上下文。
-   - 支持随时在聊天顶部面板中一键清除新闻上下文，随时切换至普通聊天模式。
 
 新增接口：
 - `GET /api/llm/config/all`：获取所有已配置的 LLM 配置列表
 - `DELETE /api/llm/config/{id}`：删除指定的 LLM 配置
 - `POST /api/llm/config/{id}/default`：将指定配置设为系统默认模型
 - `POST /api/llm/config/{id}/active`：启用/禁用特定配置
-- `POST /api/llm/chat`：异步对话核心端点（支持 `stream=true` 实时流式响应）
 
 ## 大仪表盘与新闻可见性增强 (Dashboard View Upgrade)
 
@@ -343,8 +302,8 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
 
 1. **LLM 主备故障自愈的前端可视化感知 (Failover Alert)**：
    - **机制**：当默认的“主大模型”发生网络超时、不可达或认证失败等故障时，后端会自动调用备用模型配置进行请求重试。
-   - **流式感知**：在 SSE 流式接口 `/api/llm/chat` 中，当触发切换时，后端先下发一帧包含切换源、备选模型及异常原因的 failover 元数据；普通 JSON 接口则在响应 Payload 中附加该元数据。
-   - **UI 呈现**：前端捕获到该事件后，右上角会弹出毛玻璃警告 Toast，并且在聊天对话框顶部或 AI 研报板块上方，呈现出带呼吸灯发光动效的橙黄色**“降级接管横幅”**（如：`⚡ 降级接管中：由于默认模型 ... 访问异常，已无缝切换至备选模型 ...`），极大提升了系统异常自愈的透明度与交互体验。
+   - **感知方式**：触发切换时，JSON 接口在响应 Payload 中附加包含切换源、备选模型及异常原因的 failover 元数据。
+   - **UI 呈现**：前端捕获到该事件后，右上角会弹出毛玻璃警告 Toast，并且在 AI 研报板块上方，呈现出带呼吸灯发光动效的橙黄色**“降级接管横幅”**（如：`⚡ 降级接管中：由于默认模型 ... 访问异常，已无缝切换至备选模型 ...`），极大提升了系统异常自愈的透明度与交互体验。
 
 2. **LLM 额度审计控制台 SVG 历史时序消耗看板 (Token Trend Chart)**：
    - **后端统计**：升级了 `GET /api/llm/stats` 接口，数据库 `llm_token_usage` 聚合统计过去 7 天内每天产生的 Token 时序用量。
@@ -393,11 +352,7 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
    - 新增 `SkeletonFeed.vue` 专属骨架屏，并为 `NewsFeedView.vue`、`DashboardView.vue`、`WatchlistView.vue` 显式分发与其最终渲染卡片高度一致的 `skeletonType`（如新闻卡片、多指标仪表盘和自选股列表卡片样式）。
    - 结合全局 `<transition name="fade-cross">`，使页面加载与真实内容就绪之间实现 300ms 交叉淡入淡出（Cross-fade）转场，杜绝了数据展现时的生硬闪跳。
 
-4. **AI 对话打字机匀速缓动与智能滚动锁定**：
-   - 升级 `ChatView.vue`。对大模型 SSE 流式输出进行前端 30ms 分段吐字缓动处理（当缓冲区积压过大时动态调速防延迟），实现流水般打字动效，消除包大小不均引发的卡顿。
-   - 监听窗口滚动事件，智能判定用户行为。一旦用户向上拉阅历史记录（距离底部超过 50px），自动释放强制置底锁，并在右下角淡入毛玻璃高斯模糊的“⬇ 回到底部”浮动玻璃按钮，点击或重新触底时重置锁定。
-
-5. **Delta 增量新闻顶部浮条与平滑置入效果**：
+4. **Delta 增量新闻顶部浮条与平滑置入效果**：
    - 在 `NewsFeedView.vue` 引入 `displayedFeedItems` 本地缓冲状态。
    - 在 SSE 监听到 `news.created` 背景新增时，不再强刷引起页面跳动，而是在证据流顶部浮现优雅的高斯模糊 Delta 提示条。用户点击更新时，新资讯通过 `transition-group` 动画平滑展开向下置入，阅读心流不受打扰。
 
@@ -439,12 +394,12 @@ curl -X POST http://127.0.0.1:8000/api/x/refresh
 
 ## 变更记录要求
 
-协作规范见根目录 [AGENTS.md](/Users/xiuyang/Desktop/news-caught/AGENTS.md)。仓库不要求安装 Superpowers 套件；历史上曾因拼写错误存在 `ANGENT.md`，现仅保留指向 `AGENTS.md` 的占位说明。
+协作规范见根目录 [AGENTS.md](AGENTS.md)。仓库不要求安装 Superpowers 套件；历史上曾因拼写错误存在 `ANGENT.md`，现仅保留指向 `AGENTS.md` 的占位说明。
 
-后续优化和开发请先读 [docs/current-state.md](/Users/xiuyang/Desktop/news-caught/docs/current-state.md)。`docs/archive/` 中的旧计划、优化清单和已完成设计稿都是只读历史，不构成当前待办。
+后续优化和开发请先读 [docs/current-state.md](docs/current-state.md)。`docs/archive/` 中的旧计划、优化清单和已完成设计稿都是只读历史，不构成当前待办。
 
 任何代码、配置、文档、脚本、接口或测试修改，都必须同步回填到：
 
-- [docs/code-change-log.md](/Users/xiuyang/Desktop/news-caught/docs/code-change-log.md)
+- [docs/code-change-log.md](docs/code-change-log.md)
 
 如果修改完成但没有更新该记录文件，则该修改视为不完整。

@@ -5,6 +5,21 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P1-T7：导航收敛、遗漏入口清理与文档更新
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端导航与新闻详情页、README、现状快照、启动脚本与日志文案。
+- 变更内容：
+  - 导航收敛为三组：**盯盘**（仪表盘、最新事件、每日复盘、日历）、**持仓**（自选股、组合）、**系统**（模型设置、通知、系统健康），并新增导航测试。
+  - **补删 T4 遗漏**：新闻详情页的"关于此新闻问 AI"按钮仍跳转已删除的 `/chat`（T4 的检索写法没匹配到 `path: '/chat'`），删除按钮及其样式；复查前端源码已无指向已删页面的链接。
+  - 删除 X 监控遗留的 `backend/data/x_monitor_accounts.example.json`；`scripts/dev.sh`、`main.py`、`pipeline_worker_main.py` 中的启动日志/注释去掉"X 健康探针"。
+  - README：顶部加聚焦改造说明；删除 X 监控整节、AI 对话页与"问 AI"、打字机动效等说明及 `/api/llm/chat` 接口；LLM 故障切换说明改为只描述 JSON 接口；所有 `/Users/xiuyang/Desktop/news-caught/...` 旧绝对路径改为相对仓库根目录。
+  - `docs/current-state.md` 按 P1 之后的实际能力重写，列出已下线模块、备份位置与 P2～P4 分期。
+- 影响文件：`frontend/src/components/layout/AppShell.{vue,test.ts}`、`frontend/src/views/NewsDetailView.vue`、`backend/data/x_monitor_accounts.example.json`（删）、`backend/app/main.py`、`backend/app/workers/pipeline_worker_main.py`、`scripts/dev.sh`、`README.md`、`docs/current-state.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：`ruff check backend scripts` 通过；前端 `vitest run` 79 个文件、460 passed（新增 1 个导航测试），`npm run build` 通过。
+- 风险或后续事项：`AGENTS.md` 中仍有 `/Users/xiuyang/Desktop/news-caught` 旧绝对路径（属于协作规范文件，本次未改，留给用户决定）。侧栏品牌文字"Quant Intelligence"留到 P4 首页改版时一起调整。
+
 ## 2026-11-01 聚焦改造 P1-T6：删除信号统计与情绪评测工具
 
 - 修改人：Claude Code（Opus 5.5）

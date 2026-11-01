@@ -7,7 +7,7 @@ BACKEND_PID=""
 FRONTEND_PID=""
 PIPELINE_PID=""
 
-# 后台重活 worker（BackgroundQueueWorker / TakeawayWorker / X 健康探针）的进程归属。
+# 后台重活 worker（BackgroundQueueWorker / TakeawayWorker）的进程归属。
 #   NEWS_CAUGHT_SPLIT_PIPELINE=0（默认）：单机单进程，全部随 uvicorn lifespan 启停。
 #   NEWS_CAUGHT_SPLIT_PIPELINE=1        ：多进程，重活跑在独立的
 #                                         `python -m app.workers.pipeline_worker_main`。
