@@ -5,6 +5,18 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 协作文档路径修正与审计文档入库
+
+- 修改人：Claude Code（Opus 5.5），按用户要求
+- 修改范围：文档（纯文档）。
+- 变更内容：
+  - `AGENTS.md`、`ANGENT.md` 中指向 `/Users/xiuyang/Desktop/news-caught/...` 的旧绝对路径改为相对仓库根目录的链接（仓库已迁到 `/Users/xiuyang/研究生学习/news-caught`，旧链接全部失效）。
+  - 此前未提交的 `docs/superpowers/specs/2026-09-28-audit-fixes-design.md` 与 `docs/superpowers/plans/2026-09-28-audit-fixes-plan.md` 入库；两份文档顶部各加一段 P1 之后的状态说明，列出已失效条目（量化、X 监控、AI 对话相关）与仍然有效的条目，原文未改。
+- 影响文件：`AGENTS.md`、`ANGENT.md`、`docs/superpowers/specs/2026-09-28-audit-fixes-design.md`（新入库）、`docs/superpowers/plans/2026-09-28-audit-fixes-plan.md`（新入库）、`docs/code-change-log.md`。
+- 接口/数据结构变化：无。
+- 验证情况：未运行测试（纯文档）；`git grep "Desktop/news-caught"` 在 `docs/archive` 与变更记录之外已无匹配。
+- 风险或后续事项：审计文档中仍然有效的条目待后续单独排期，不自动视为当前待办。
+
 ## 2026-11-01 聚焦改造 P1 计划归档
 
 - 修改人：Claude Code（Opus 5.5）
