@@ -403,7 +403,34 @@ export type NewsQuery = {
 // 站内提醒（聚焦改造 P2）
 // ---------------------------------------------------------------------------
 export type Alert = Schemas['AlertView'];
-export type AlertKind = 'holding_price_move' | 'holding_news' | 'watch_news_digest' | 'sentiment_divergence';
+export type AlertKind =
+  | 'holding_price_move'
+  | 'holding_news'
+  | 'watch_news_digest'
+  | 'sentiment_divergence'
+  | 'overseas_major'
+  | 'sector_news_digest'
+  | 'opportunity_digest';
+
+// ---------------------------------------------------------------------------
+// AI 漏斗（聚焦改造 P3）：新闻粗筛/精读结论、影响判断、关注板块、漏斗状态
+// ---------------------------------------------------------------------------
+export type NewsAi = Schemas['NewsAiView'];
+export type NewsAiScreen = Schemas['NewsAiScreenView'];
+export type NewsAiAnalysis = Schemas['NewsAiAnalysisView'];
+export type NewsImpact = Schemas['NewsImpactView'];
+export type ImpactInput = Schemas['ImpactInput'];
+export type ImpactCorrectionRequest = Schemas['ImpactCorrectionRequest'];
+export type ImpactDirection = NewsImpact['direction'];
+export type ImpactStrength = NewsImpact['strength'];
+export type ImpactTargetType = NewsImpact['target_type'];
+export type StockImpact = Schemas['StockImpactView'];
+export type FocusSector = Schemas['FocusSectorView'];
+export type FocusSectorCreate = Schemas['FocusSectorCreate'];
+export type AiFunnelStatus = Schemas['AiFunnelStatusView'];
+export type AiFunnelToday = Schemas['AiFunnelTodayView'];
+export type AiFunnelUsage = Schemas['AiFunnelUsageView'];
+export type AiFunnelInactiveReason = NonNullable<AiFunnelStatus['inactive_reason']>;
 
 // ---------------------------------------------------------------------------
 // 每日盘前/盘后 AI 简报（Daily Digest）

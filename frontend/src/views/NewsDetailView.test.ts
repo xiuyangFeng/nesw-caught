@@ -34,25 +34,16 @@ const detail: NewsDetail = {
 };
 
 const newsStore = {
-  detailMap: { 1: detail },
-  analysisMap: {} as Record<number, any>,
-  analysisLoadingMap: {} as Record<number, boolean>,
-  analysisErrorMap: {} as Record<number, string | null>,
+  detailMap: { 1: detail } as Record<number, NewsDetail>,
   detailLoading: false,
   stale: false,
   loadDetail: vi.fn(),
   loadAnalysis: vi.fn(),
-  analyzeNews: vi.fn(),
 };
 
 const topicStore = {
   detailMap: {},
   loadDetail: vi.fn(),
-};
-
-const llmStore = {
-  config: null as any,
-  loadConfig: vi.fn(),
 };
 
 vi.mock('vue-router', () => ({
@@ -70,8 +61,12 @@ vi.mock('../stores/topicStore', () => ({
   useTopicStore: () => topicStore,
 }));
 
-vi.mock('../stores/llmStore', () => ({
-  useLlmStore: () => llmStore,
+// NewsAiImpactCard 自行经 apiClient 取数，行为由组件单测覆盖；这里只验证接线。
+vi.mock('../components/news/NewsAiImpactCard.vue', () => ({
+  default: {
+    props: ['newsId'],
+    template: '<section data-role="news-ai-card-stub">{{ newsId }}</section>',
+  },
 }));
 
 describe('NewsDetailView', () => {
@@ -79,13 +74,8 @@ describe('NewsDetailView', () => {
     mockPush.mockReset();
     newsStore.loadDetail.mockReset();
     newsStore.loadAnalysis.mockReset();
-    newsStore.analyzeNews.mockReset();
     topicStore.loadDetail.mockReset();
-    llmStore.loadConfig.mockReset();
-    newsStore.analysisMap = {};
-    newsStore.analysisLoadingMap = {};
-    newsStore.analysisErrorMap = {};
-    llmStore.config = null;
+    newsStore.detailMap = { 1: detail };
   });
 
   it('keeps source link but hides the redundant article body section', () => {
@@ -115,66 +105,12 @@ describe('NewsDetailView', () => {
     expect(wrapper.find('[data-role="open-source-link"]').exists()).toBe(false);
   });
 
-  it('shows an explicit empty state when llm is not configured', () => {
-    llmStore.config = {
-      configured: false,
-      provider_name: null,
-      display_name: null,
-      model_name: null,
-      base_url: null,
-      api_key_set: false,
-      updated_at: null,
-    };
-
+  it('renders the AI impact card for the current news instead of the old LLM analysis card', () => {
     const wrapper = mount(NewsDetailView);
 
-    expect(wrapper.text()).toContain('尚未配置 LLM');
-  });
-
-  it('renders the top pick and recommendation reason when analysis exists', () => {
-    llmStore.config = {
-      configured: true,
-      provider_name: 'openai_compatible',
-      display_name: 'OpenAI Compatible',
-      model_name: 'deepseek-chat',
-      base_url: 'https://example-llm.test/v1',
-      api_key_set: true,
-      updated_at: '2026-03-17T09:00:00Z',
-    };
-    newsStore.analysisMap = {
-      1: {
-        news_id: 1,
-        provider_name: 'openai_compatible',
-        model_name: 'deepseek-chat',
-        analysis_status: 'success',
-        top_pick: {
-          symbol: 'AAPL',
-          market: 'us',
-          company_name: 'Apple',
-          confidence: 0.81,
-          reason: '供应链波动最直接映射到 Apple 的短期预期修正。',
-        },
-        candidates: [
-          {
-            symbol: 'AAPL',
-            market: 'us',
-            company_name: 'Apple',
-            confidence: 0.81,
-            reason: '供应链波动最直接映射到 Apple 的短期预期修正。',
-          },
-        ],
-        summary: '供应链波动首先传导到 Apple。',
-        risk_notes: '单一来源新闻仍需二次验证。',
-        sentiment: 'negative',
-        context_limitations: null,
-        analyzed_at: '2026-03-17T09:10:00Z',
-        analysis_error: null,
-      },
-    };
-
-    const wrapper = mount(NewsDetailView);
-
-    expect(wrapper.text()).toContain('AAPL');
-    expect(wrapper.text()).toContain('供应链波动最直接映射到 Apple 的短期预期修正。');
+    const card = wrapper.get('[data-role="news-ai-card-stub"]');
+    expect(card.text()).toBe('1');
+    expect(wrapper.text()).not.toContain('LLM 标的分析');
+    expect(newsStore.loadAnalysis).not.toHaveBeenCalled();
   });
 });

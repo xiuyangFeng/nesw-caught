@@ -14,6 +14,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 
 vi.mock('../api/client', () => ({
   apiClient: {
+    getFocusSectors: vi.fn(async () => ({ data: [{ name: '白酒', source: 'ai', symbols: ['600519.SH'] }], degraded: false })),
     searchMarketSymbols: vi.fn(async (q: string) => {
       const candidates = [
         { symbol: '0700.HK', market: 'hk', display_name: 'Tencent', aliases: ['腾讯'] },
@@ -246,6 +247,16 @@ describe('WatchlistView', () => {
     expect(wrapper.get('[data-role="stock-card-0700.HK"]').attributes('data-density')).toBe('compact');
     expect(wrapper.text()).toContain('Tencent');
     expect(wrapper.text()).toContain('0700.HK');
+  });
+
+  it('shows the focus sectors bar at the top of the watchlist page', async () => {
+    const wrapper = mount(WatchlistView);
+    await flushPromises();
+
+    const bar = wrapper.get('[data-role="focus-sectors-bar"]');
+    expect(bar.text()).toContain('关注板块');
+    expect(bar.findAll('[data-role="focus-sector-chip"]')).toHaveLength(1);
+    expect(bar.text()).toContain('白酒');
   });
 
   it('selects a stock card when the user clicks the sidebar item', async () => {

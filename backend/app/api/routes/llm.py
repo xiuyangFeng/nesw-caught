@@ -1,4 +1,5 @@
 import time
+from dataclasses import asdict
 from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,7 @@ from app.schemas.llm import (
     LLMTranslateRequest,
     LLMTranslateView,
 )
+from app.services.llm_cost import budget_status, compute_cost_usd, load_pricing
 from app.services.llm_providers import LLMProviderError, build_provider
 
 router = APIRouter()
@@ -45,8 +47,8 @@ def _to_config_view(config, configured: bool = True) -> LLMConfigView:
         api_key_set=bool(config.api_key),
         is_active=config.is_active,
         is_default=config.is_default,
-        input_price_per_1k=config.input_price_per_1k,
-        output_price_per_1k=config.output_price_per_1k,
+        input_price_per_1m=config.input_price_per_1m,
+        output_price_per_1m=config.output_price_per_1m,
         monthly_budget_usd=config.monthly_budget_usd,
         updated_at=config.updated_at,
     )
@@ -82,8 +84,8 @@ def upsert_llm_config(
             api_key=payload.api_key.strip() if payload.api_key is not None else None,
             is_active=payload.is_active,
             is_default=payload.is_default,
-            input_price_per_1k=payload.input_price_per_1k,
-            output_price_per_1k=payload.output_price_per_1k,
+            input_price_per_1m=payload.input_price_per_1m,
+            output_price_per_1m=payload.output_price_per_1m,
             monthly_budget_usd=payload.monthly_budget_usd,
         )
     except ValueError as exc:
@@ -187,38 +189,13 @@ def test_llm_connection(session: Session = Depends(get_db_session)) -> LLMConnec
     )
 
 
-def _compute_cost_usd(
-    prompt_tokens: int,
-    completion_tokens: int,
-    input_price_per_1k: float | None,
-    output_price_per_1k: float | None,
-) -> float | None:
-    """按每 1K tokens 单价换算花费（美元）。
-
-    完全没有配置单价（输入/输出单价均为 None）时返回 None，由调用方标注
-    “成本不可用”；只要配置了其中之一，缺失项按 0 计入。
-    """
-    if input_price_per_1k is None and output_price_per_1k is None:
-        return None
-    return (
-        (prompt_tokens / 1000.0) * (input_price_per_1k or 0.0)
-        + (completion_tokens / 1000.0) * (output_price_per_1k or 0.0)
-    )
-
-
 @router.get("/stats", response_model=LLMStatsView)
 def get_llm_stats(session: Session = Depends(get_db_session)):
     from datetime import datetime, timedelta
 
     from app.models.llm_token_usage import LLMTokenUsage
 
-    repository = LLMProviderConfigRepository(session)
-    # 模型名 -> (输入单价, 输出单价)：优先采用配置了单价的记录。
-    pricing: dict[str, tuple[float | None, float | None]] = {}
-    for cfg in repository.list_all():
-        prices = (cfg.input_price_per_1k, cfg.output_price_per_1k)
-        if cfg.model_name not in pricing or prices != (None, None):
-            pricing[cfg.model_name] = prices
+    pricing = load_pricing(session)
 
     # Group by model_name
     stmt_model = (
@@ -237,7 +214,7 @@ def get_llm_stats(session: Session = Depends(get_db_session)):
         prompt_tokens = int(row.prompt or 0)
         completion_tokens = int(row.completion or 0)
         input_price, output_price = pricing.get(row.model_name, (None, None))
-        cost_usd = _compute_cost_usd(prompt_tokens, completion_tokens, input_price, output_price)
+        cost_usd = compute_cost_usd(prompt_tokens, completion_tokens, input_price, output_price)
         if cost_usd is not None:
             total_cost = (total_cost or 0.0) + cost_usd
         model_stats.append({
@@ -248,8 +225,8 @@ def get_llm_stats(session: Session = Depends(get_db_session)):
             "call_count": int(row.count or 0),
             "cost_usd": cost_usd,
             "cost_available": cost_usd is not None,
-            "input_price_per_1k": input_price,
-            "output_price_per_1k": output_price,
+            "input_price_per_1m": input_price,
+            "output_price_per_1m": output_price,
         })
 
     # Group by operation_type
@@ -285,42 +262,7 @@ def get_llm_stats(session: Session = Depends(get_db_session)):
 
     # 本月累计花费 vs 月度预算（取默认模型配置上的 monthly_budget_usd）。
     now = datetime.now(UTC)
-    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
-    stmt_month = (
-        select(
-            LLMTokenUsage.model_name,
-            func.sum(LLMTokenUsage.prompt_tokens).label("prompt"),
-            func.sum(LLMTokenUsage.completion_tokens).label("completion"),
-        )
-        .where(LLMTokenUsage.created_at >= month_start)
-        .group_by(LLMTokenUsage.model_name)
-    )
-    month_cost: float | None = None
-    for row in session.execute(stmt_month):
-        input_price, output_price = pricing.get(row.model_name, (None, None))
-        cost_usd = _compute_cost_usd(int(row.prompt or 0), int(row.completion or 0), input_price, output_price)
-        if cost_usd is not None:
-            month_cost = (month_cost or 0.0) + cost_usd
-
-    default_config = repository.get_default()
-    monthly_budget = default_config.monthly_budget_usd if default_config else None
-    budget_available = monthly_budget is not None
-    over_budget = bool(
-        budget_available and month_cost is not None and month_cost > monthly_budget
-    )
-    usage_ratio = (
-        month_cost / monthly_budget
-        if (budget_available and monthly_budget and month_cost is not None)
-        else None
-    )
-    budget = {
-        "month": now.strftime("%Y-%m"),
-        "month_cost_usd": month_cost,
-        "monthly_budget_usd": monthly_budget,
-        "budget_available": budget_available,
-        "over_budget": over_budget,
-        "usage_ratio": usage_ratio,
-    }
+    budget = asdict(budget_status(session, now, pricing=pricing))
 
     # Group by daily trend (last 7 days)
     seven_days_ago = now - timedelta(days=7)

@@ -13,6 +13,7 @@ from app.models.news_item import NewsItem
 from app.models.news_signal_result import NewsSignalResult
 from app.models.topic_cluster import TopicCluster
 from app.models.topic_news_link import TopicNewsLink
+from app.services.topic_matching import keywords_match_topic
 
 
 class NewsSignalRepository:
@@ -73,11 +74,7 @@ class NewsSignalRepository:
             return None
 
         for topic in self._get_topic_candidates():
-            existing_keywords = {item.strip().lower() for item in (topic.keywords or "").split(",") if item.strip()}
-            if not existing_keywords:
-                continue
-            overlap = len(existing_keywords.intersection(keywords))
-            if overlap >= min(2, len(keywords)):
+            if keywords_match_topic(keywords, (topic.keywords or "").split(",")):
                 return topic
         return None
 

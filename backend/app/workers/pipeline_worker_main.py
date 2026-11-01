@@ -51,6 +51,7 @@ from app.core.logging import configure_logging
 from app.db.initializer import initialize_database
 from app.db.session import SessionLocal
 from app.services.event_bus import HybridEventBus, build_event_bus, set_event_bus
+from app.workers.ai_funnel_worker import AiFunnelWorker
 from app.workers.base_worker import BaseWorker
 from app.workers.queue_worker import BackgroundQueueWorker, analysis_queue
 from app.workers.takeaway_worker import TakeawayWorker
@@ -181,6 +182,7 @@ def build_pipeline_workers(
             session_factory=session_factory,
             fallback_scan_interval_seconds=takeaway_fallback,
         ),
+        AiFunnelWorker(session_factory=session_factory),
     ]
     return workers
 

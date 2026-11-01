@@ -12,9 +12,9 @@ class LLMConfigUpsertRequest(BaseModel):
     api_key: str | None = None
     is_active: bool = True
     is_default: bool = False
-    # 成本治理（非敏感、可选）：每 1K tokens 输入/输出单价与月度预算（美元）。
-    input_price_per_1k: float | None = None
-    output_price_per_1k: float | None = None
+    # 成本治理（非敏感、可选）：每百万 tokens 输入/输出单价与月度预算（美元）。
+    input_price_per_1m: float | None = None
+    output_price_per_1m: float | None = None
     monthly_budget_usd: float | None = None
 
 
@@ -29,8 +29,8 @@ class LLMConfigView(BaseModel):
     api_key_set: bool = False
     is_active: bool = True
     is_default: bool = False
-    input_price_per_1k: float | None = None
-    output_price_per_1k: float | None = None
+    input_price_per_1m: float | None = None
+    output_price_per_1m: float | None = None
     monthly_budget_usd: float | None = None
     updated_at: UTCDateTime | None = None
 
@@ -53,8 +53,8 @@ class LLMModelStatView(BaseModel):
     # 该模型换算后的花费（美元）；未配置单价时为 null 并以 cost_available 标注。
     cost_usd: float | None = None
     cost_available: bool = False
-    input_price_per_1k: float | None = None
-    output_price_per_1k: float | None = None
+    input_price_per_1m: float | None = None
+    output_price_per_1m: float | None = None
 
 
 class LLMOperationStatView(BaseModel):

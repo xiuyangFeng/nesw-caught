@@ -24,8 +24,8 @@ interface LlmConfigFormState {
   api_key: string;
   is_active: boolean;
   is_default: boolean;
-  input_price_per_1k: NumericInput;
-  output_price_per_1k: NumericInput;
+  input_price_per_1m: NumericInput;
+  output_price_per_1m: NumericInput;
   monthly_budget_usd: NumericInput;
 }
 
@@ -38,9 +38,9 @@ const formState = reactive<LlmConfigFormState>({
   api_key: '',
   is_active: true,
   is_default: false,
-  // 成本治理：每 1K tokens 输入/输出单价与月度预算（美元），字符串输入，留空表示未设置。
-  input_price_per_1k: '',
-  output_price_per_1k: '',
+  // 成本治理：每百万 tokens 输入/输出单价与月度预算（美元），字符串输入，留空表示未设置。
+  input_price_per_1m: '',
+  output_price_per_1m: '',
   monthly_budget_usd: '',
 });
 
@@ -59,6 +59,12 @@ function applyPreset(presetId: string) {
   formState.display_name = preset.name;
   formState.base_url = preset.baseUrl;
   formState.model_name = preset.defaultModel;
+  if (preset.inputPricePer1m !== undefined) {
+    formState.input_price_per_1m = String(preset.inputPricePer1m);
+  }
+  if (preset.outputPricePer1m !== undefined) {
+    formState.output_price_per_1m = String(preset.outputPricePer1m);
+  }
 }
 
 function useCustomConfig() {
@@ -109,8 +115,8 @@ const baseUrlChanged = computed(() => (
   formState.id !== null && trimText(formState.base_url) !== originalBaseUrl.value
 ));
 const requiresKey = computed(() => formState.id === null || baseUrlChanged.value);
-const inputPrice = computed(() => parseOptionalNonNegativeNumber(formState.input_price_per_1k, '输入单价'));
-const outputPrice = computed(() => parseOptionalNonNegativeNumber(formState.output_price_per_1k, '输出单价'));
+const inputPrice = computed(() => parseOptionalNonNegativeNumber(formState.input_price_per_1m, '输入单价'));
+const outputPrice = computed(() => parseOptionalNonNegativeNumber(formState.output_price_per_1m, '输出单价'));
 const monthlyBudget = computed(() => parseOptionalNonNegativeNumber(formState.monthly_budget_usd, '月度预算'));
 const validationErrors = computed(() => ({
   provider_name: trimText(formState.provider_name) ? null : '请输入 Provider 名称',
@@ -119,8 +125,8 @@ const validationErrors = computed(() => ({
   api_key: requiresKey.value && !trimText(formState.api_key)
     ? (baseUrlChanged.value ? '修改 Base URL 后必须重新输入明文 API Key' : '新模型配置必须填写 API Key')
     : null,
-  input_price_per_1k: inputPrice.value.error,
-  output_price_per_1k: outputPrice.value.error,
+  input_price_per_1m: inputPrice.value.error,
+  output_price_per_1m: outputPrice.value.error,
   monthly_budget_usd: monthlyBudget.value.error,
 }));
 const canSave = computed(() => {
@@ -138,11 +144,13 @@ function startEdit(cfg: LLMConfigSummary) {
   formState.api_key = ''; // 不回显 key
   formState.is_active = cfg.is_active ?? true;
   formState.is_default = cfg.is_default ?? false;
-  formState.input_price_per_1k = cfg.input_price_per_1k != null ? String(cfg.input_price_per_1k) : '';
-  formState.output_price_per_1k = cfg.output_price_per_1k != null ? String(cfg.output_price_per_1k) : '';
+  formState.input_price_per_1m = cfg.input_price_per_1m != null ? String(cfg.input_price_per_1m) : '';
+  formState.output_price_per_1m = cfg.output_price_per_1m != null ? String(cfg.output_price_per_1m) : '';
   formState.monthly_budget_usd = cfg.monthly_budget_usd != null ? String(cfg.monthly_budget_usd) : '';
   originalBaseUrl.value = trimText(cfg.base_url);
-  selectedPresetId.value = LLM_PROVIDER_PRESETS.find((preset) => preset.baseUrl === originalBaseUrl.value)?.id ?? null;
+  selectedPresetId.value = LLM_PROVIDER_PRESETS.find(
+    (preset) => preset.baseUrl !== '' && preset.baseUrl === originalBaseUrl.value,
+  )?.id ?? null;
 }
 
 function resetForm() {
@@ -154,8 +162,8 @@ function resetForm() {
   formState.api_key = '';
   formState.is_active = true;
   formState.is_default = false;
-  formState.input_price_per_1k = '';
-  formState.output_price_per_1k = '';
+  formState.input_price_per_1m = '';
+  formState.output_price_per_1m = '';
   formState.monthly_budget_usd = '';
   originalBaseUrl.value = '';
   selectedPresetId.value = null;
@@ -176,8 +184,8 @@ async function submitConfig() {
     api_key: trimmedKey ? trimmedKey : undefined,
     is_active: formState.is_active,
     is_default: formState.is_default,
-    input_price_per_1k: inputPrice.value.value,
-    output_price_per_1k: outputPrice.value.value,
+    input_price_per_1m: inputPrice.value.value,
+    output_price_per_1m: outputPrice.value.value,
     monthly_budget_usd: monthlyBudget.value.value,
   };
 
@@ -229,6 +237,7 @@ defineExpose({ startEdit, resetForm });
         <div v-if="activePreset" class="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-bg/40 px-3 py-2">
           <p class="min-w-0 text-[11px] leading-5 text-text-faint">{{ activePreset.description }}</p>
           <a
+            v-if="activePreset.docsUrl"
             class="shrink-0 text-[11px] font-semibold text-accent hover:underline"
             :href="activePreset.docsUrl"
             target="_blank"
@@ -314,36 +323,36 @@ defineExpose({ startEdit, resetForm });
 
       <div class="grid gap-3 md:grid-cols-3">
         <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-          <span>输入单价（$/1K tokens）</span>
+          <span>输入单价（$/百万 tokens）</span>
           <input
-            v-model="formState.input_price_per_1k"
+            v-model="formState.input_price_per_1m"
             data-surface="terminal-field"
             class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-            name="input_price_per_1k"
+            name="input_price_per_1m"
             type="number"
             step="0.0001"
             min="0"
             :disabled="llmStore.loading || llmStore.saving"
-            placeholder="例如 0.0002"
-            :aria-invalid="Boolean(validationErrors.input_price_per_1k)"
+            placeholder="例如 0.15"
+            :aria-invalid="Boolean(validationErrors.input_price_per_1m)"
           />
-          <small v-if="validationErrors.input_price_per_1k" class="text-danger">{{ validationErrors.input_price_per_1k }}</small>
+          <small v-if="validationErrors.input_price_per_1m" class="text-danger">{{ validationErrors.input_price_per_1m }}</small>
         </label>
         <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
-          <span>输出单价（$/1K tokens）</span>
+          <span>输出单价（$/百万 tokens）</span>
           <input
-            v-model="formState.output_price_per_1k"
+            v-model="formState.output_price_per_1m"
             data-surface="terminal-field"
             class="rounded-xl border border-border bg-field px-[14px] py-2 text-text text-sm"
-            name="output_price_per_1k"
+            name="output_price_per_1m"
             type="number"
             step="0.0001"
             min="0"
             :disabled="llmStore.loading || llmStore.saving"
-            placeholder="例如 0.002"
-            :aria-invalid="Boolean(validationErrors.output_price_per_1k)"
+            placeholder="例如 0.75"
+            :aria-invalid="Boolean(validationErrors.output_price_per_1m)"
           />
-          <small v-if="validationErrors.output_price_per_1k" class="text-danger">{{ validationErrors.output_price_per_1k }}</small>
+          <small v-if="validationErrors.output_price_per_1m" class="text-danger">{{ validationErrors.output_price_per_1m }}</small>
         </label>
         <label class="grid gap-1.5 font-semibold text-text-faint text-xs">
           <span>月度预算（$）</span>

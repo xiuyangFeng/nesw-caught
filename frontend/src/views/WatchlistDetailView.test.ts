@@ -157,7 +157,7 @@ vi.mock('../components/watchlist/RelatedNewsSidebar.vue', () => ({
   },
 }));
 
-// SentimentTimelinePanel / FundFlowPanel 自行经 apiClient 取数（不进 watchlistStore），
+// SentimentTimelinePanel / FundFlowPanel / StockAiImpactPanel 自行经 apiClient 取数（不进 watchlistStore），
 // 本测试文件只关心 WatchlistDetailView 的接线，数据加载行为由组件自身的单测覆盖。
 vi.mock('../components/watchlist/SentimentTimelinePanel.vue', () => ({
   default: {
@@ -170,6 +170,13 @@ vi.mock('../components/watchlist/FundFlowPanel.vue', () => ({
   default: {
     props: ['symbol'],
     template: '<section data-role="stock-fund-flow-stub">{{ symbol }}</section>',
+  },
+}));
+
+vi.mock('../components/watchlist/StockAiImpactPanel.vue', () => ({
+  default: {
+    props: ['symbol'],
+    template: '<section data-role="stock-ai-impacts-stub">{{ symbol }}</section>',
   },
 }));
 
@@ -223,6 +230,21 @@ describe('WatchlistDetailView', () => {
     const panel = wrapper.find('[data-role="stock-fund-flow-stub"]');
     expect(panel.exists()).toBe(true);
     expect(panel.text()).toBe('600519.SH');
+  });
+
+  it('places the AI impact panel between the sentiment section and the AI research section', async () => {
+    const wrapper = mount(WatchlistDetailView);
+    await flushPromises();
+
+    const panel = wrapper.get('[data-role="stock-ai-impacts-stub"]');
+    expect(panel.text()).toBe('AAPL');
+    const html = wrapper.html();
+    const sentimentAt = html.indexOf('data-role="watchlist-detail-sentiment-timeline"');
+    const impactsAt = html.indexOf('data-role="watchlist-detail-ai-impacts"');
+    const researchAt = html.indexOf('data-role="stock-ai-research"');
+    expect(sentimentAt).toBeGreaterThan(-1);
+    expect(impactsAt).toBeGreaterThan(sentimentAt);
+    expect(researchAt).toBeGreaterThan(impactsAt);
   });
 
   it('falls back to the watchlist list when the route symbol is missing', async () => {

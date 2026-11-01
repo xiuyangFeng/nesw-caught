@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.repositories.llm_provider_config_repository import LLMProviderConfigRepository
 from app.services.llm_providers import build_provider
 from app.services.news_structured_summary import build_structured_takeaway
+from app.services.topic_matching import FALLBACK_TOPIC_KEY
 from app.services.topic_naming import resolve_topic_display_name
 
 logger = logging.getLogger(__name__)
@@ -390,11 +391,11 @@ class NewsSignalClassifier:
 
     def _topic_key(self, tokens: list[str], keywords: list[str]) -> str:
         if not keywords:
-            return "general-market-update"
+            return FALLBACK_TOPIC_KEY
 
         entity = keywords[0]
         theme = [token for token in keywords[1:] if token in THEME_TERMS or token in THEME_ZH][:2]
         if not theme:
             theme = keywords[1:3]
         candidate = [entity, *theme]
-        return " ".join(candidate[:3]) if candidate else "general-market-update"
+        return " ".join(candidate[:3]) if candidate else FALLBACK_TOPIC_KEY

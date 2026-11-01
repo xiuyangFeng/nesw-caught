@@ -1,5 +1,10 @@
 import type {
+  AiFunnelStatus,
   Alert,
+  FocusSector,
+  ImpactCorrectionRequest,
+  NewsAi,
+  StockImpact,
   FundFlow,
   Digest,
   DigestLatest,
@@ -45,7 +50,7 @@ import type {
   WatchlistQuoteSummary,
   WatchlistResearchBrief,
 } from '../types/api';
-import { HttpError, deleteJson, getJson, isAbortError, patchJson, postJson } from './http';
+import { HttpError, deleteJson, getJson, isAbortError, patchJson, postJson, putJson } from './http';
 type MockModule = typeof import('./mock');
 
 const withQuery = (base: string, query?: Record<string, string | number | boolean | undefined>) => {
@@ -358,6 +363,31 @@ export const apiClient = {
   },
   markAllAlertsRead() {
     return postJson<{ updated: number }>('/api/alerts/read-all', {}).then((data) => ({ data, degraded: false }));
+  },
+  // --- AI 漏斗（聚焦改造 P3）---
+  getNewsAi(id: number) {
+    return withMockFallback<NewsAi>(() => getJson(`/api/news/${id}/ai`), (mock) => mock.buildMockNewsAi(id));
+  },
+  updateNewsImpacts(id: number, payload: ImpactCorrectionRequest) {
+    return putJson<NewsAi>(`/api/news/${id}/impacts`, payload).then((data) => ({ data, degraded: false }));
+  },
+  getStockImpacts(symbol: string, limit = 20) {
+    return withMockFallback<StockImpact[]>(
+      () => getJson(withQuery(`/api/watchlist/${encodeURIComponent(symbol)}/impacts`, { limit })),
+      (mock) => mock.mockStockImpacts[symbol] ?? [],
+    );
+  },
+  getFocusSectors() {
+    return withMockFallback<FocusSector[]>(() => getJson('/api/focus-sectors'), (mock) => mock.mockFocusSectors);
+  },
+  addFocusSector(name: string) {
+    return postJson<FocusSector[]>('/api/focus-sectors', { name }).then((data) => ({ data, degraded: false }));
+  },
+  removeFocusSector(name: string) {
+    return deleteJson(`/api/focus-sectors/${encodeURIComponent(name)}`).then((data) => ({ data, degraded: false }));
+  },
+  getAiFunnelStatus() {
+    return withMockFallback<AiFunnelStatus>(() => getJson('/api/ai/funnel/status'), (mock) => mock.mockAiFunnelStatus);
   },
   getLatestDigest() {
     return getJson<DigestLatest>('/api/digest/latest').then((data) => ({ data, degraded: false }));

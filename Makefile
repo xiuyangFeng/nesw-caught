@@ -10,8 +10,9 @@ setup:
 
 # --no-access-log：访问日志改由 RequestLoggingMiddleware 输出（带 request_id、
 # 遵循 LOG_FORMAT/文件轮转配置），uvicorn 自带的控制台访问行会重复，关掉。
+# --timeout-graceful-shutdown：页面开着时 SSE 长连接永不结束，热重载会一直等它关闭、接口全部无响应。
 backend:
-	conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 --no-access-log
+	conda run -n news-caught uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000 --no-access-log --timeout-graceful-shutdown 3
 
 frontend:
 	$(NPM) run dev

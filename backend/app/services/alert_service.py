@@ -16,7 +16,12 @@
 - **静默时段**（默认北京时间 22:00～08:00）：提醒照常写库，``overnight=True``，
   ``visible_at`` 推迟到静默结束时刻，不发布 SSE。
 
-P2 的"重大新闻"判断只是标题关键词规则，会有误报；P3 由 AI 判断替换。
+P3（AI 为主，关键词兜底）：
+- AI 模式（漏斗启用、明确设了默认模型、未超预算）下 ``on_news_batch`` 不再按关键词提醒，
+  由漏斗在 L2 精读完成后调用 ``on_news_impacts``：持仓股利多/利空且强度 ≥ 中 → 立即提醒
+  （每只每天上限，超出进合并窗口）；只关注的股票 → 合并窗口；关注板块 → 板块合并；
+  自选外"利多·强" → 新机会合并；海外重大事件 → 立即提醒（每天上限）。
+- AI 不在线时照旧走关键词规则；漏斗最终处理失败的新闻由漏斗调 ``on_news_keyword_fallback`` 补发。
 """
 
 from __future__ import annotations
@@ -31,11 +36,12 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, or_, select
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.alert import Alert
+from app.models.news_ai import AiAlertDeferral, NewsAiAnalysis, NewsAiScreen
 from app.models.news_stock_mention import NewsStockMention
 from app.models.watchlist_item import WatchlistItem
 from app.repositories.alert_repository import AlertRepository
@@ -49,6 +55,17 @@ KIND_HOLDING_PRICE_MOVE = "holding_price_move"
 KIND_HOLDING_NEWS = "holding_news"
 KIND_WATCH_NEWS_DIGEST = "watch_news_digest"
 KIND_SENTIMENT_DIVERGENCE = "sentiment_divergence"
+KIND_OVERSEAS_MAJOR = "overseas_major"
+KIND_SECTOR_NEWS_DIGEST = "sector_news_digest"
+KIND_OPPORTUNITY_DIGEST = "opportunity_digest"
+GROUP_WATCH = "watch"
+GROUP_SECTOR = "sector"
+GROUP_OPPORTUNITY = "opportunity"
+_DIRECTION_LABELS = {"bullish": "利多", "bearish": "利空", "neutral": "中性"}
+_STRENGTH_LABELS = {"strong": "强", "medium": "中", "weak": "弱"}
+_SIGNIFICANT_STRENGTHS = {"strong", "medium"}
+# AI 模式下关键词命中的新闻，AI 这么久还没给出结论就按关键词补发。
+DEFERRAL_TIMEOUT = timedelta(minutes=15)
 SEVERITY_IMMEDIATE = "immediate"
 SEVERITY_DIGEST = "digest"
 ALERT_CREATED_EVENT = "alert.created"
@@ -107,13 +124,33 @@ class _DigestHit:
     name: str
     title: str
     source_name: str | None
+    group: str = GROUP_WATCH
+    detail: str | None = None
+
+    @property
+    def key(self) -> tuple[str, int, str]:
+        return (self.group, self.news_id, self.symbol)
 
 
 @dataclass
 class _DigestWindow:
     start: datetime
     hits: list[_DigestHit] = field(default_factory=list)
-    keys: set[tuple[int, str]] = field(default_factory=set)
+    keys: set[tuple[str, int, str]] = field(default_factory=set)
+
+
+# 合并提醒：分组 -> (kind, 去重键前缀, 标题前缀)
+_DIGEST_GROUPS: dict[str, tuple[str, str, str]] = {
+    GROUP_WATCH: (KIND_WATCH_NEWS_DIGEST, "watch_digest", "自选股新闻"),
+    GROUP_SECTOR: (KIND_SECTOR_NEWS_DIGEST, "sector_digest", "关注板块新闻"),
+    GROUP_OPPORTUNITY: (KIND_OPPORTUNITY_DIGEST, "opportunity_digest", "AI 发现的新机会"),
+}
+
+
+def _impact_label(impact: dict[str, Any]) -> str:
+    direction = _DIRECTION_LABELS.get(str(impact.get("direction")), str(impact.get("direction")))
+    strength = _STRENGTH_LABELS.get(str(impact.get("strength")), str(impact.get("strength")))
+    return f"{direction}·{strength}"
 
 
 def _name_patterns(name: str) -> list[re.Pattern[str]]:
@@ -149,6 +186,11 @@ def _code_patterns(symbol: str, market: str) -> list[re.Pattern[str]]:
     return []
 
 
+def stock_title_patterns(name: str, symbol: str, market: str) -> list[re.Pattern[str]]:
+    """标题里点名某只股票（简称或代码）的匹配规则，与关键词提醒同一套口径。"""
+    return _name_patterns(name) + _code_patterns(symbol, market)
+
+
 class AlertService:
     def __init__(
         self,
@@ -160,8 +202,21 @@ class AlertService:
         quiet_hours: tuple[str, str] | None = None,
         tz_name: str | None = None,
         watch_digest_minutes: int | None = None,
+        ai_mode_checker: Callable[[], bool] | None = None,
+        ai_stock_alert_daily_limit: int | None = None,
+        ai_overseas_alert_daily_limit: int | None = None,
     ) -> None:
         settings = get_settings()
+        # 未注入时恒为关键词模式（测试与旧调用方行为不变）；单例由 get_alert_service 注入真实判定。
+        self._ai_mode_checker = ai_mode_checker
+        self._ai_stock_daily_limit = int(
+            settings.ai_stock_alert_daily_limit if ai_stock_alert_daily_limit is None else ai_stock_alert_daily_limit
+        )
+        self._ai_overseas_daily_limit = int(
+            settings.ai_overseas_alert_daily_limit
+            if ai_overseas_alert_daily_limit is None
+            else ai_overseas_alert_daily_limit
+        )
         self._session_factory = session_factory
         self._event_bus = event_bus
         self._clock = clock
@@ -214,27 +269,123 @@ class AlertService:
             return len(created)
 
     def on_news_batch(self, news_items: Iterable[dict[str, Any]]) -> int:
-        """新闻评分完成回调：持仓命中立即写提醒，关注股命中进合并窗口；返回立即提醒条数。"""
+        """新闻评分完成回调。AI 模式下交给漏斗（这里只推进合并窗口），否则走关键词规则。"""
+        items = list(news_items)
+        if self._ai_mode():
+            self.flush_watch_digest()
+            self._defer_keyword_hits(items)
+            return 0
+        return self.on_news_keyword_fallback(items)
+
+    def sweep_deferred(self) -> int:
+        """兜底扫描：AI 模式下跳过的关键词命中，AI 已有结论的直接丢弃；
+        超过 ``DEFERRAL_TIMEOUT`` 仍没结论的按关键词补发。返回补发的立即提醒条数。"""
+        now = self._clock()
+        min_importance = get_settings().ai_impact_min_importance
+        with self._session_factory() as session:
+            rows = list(session.scalars(select(AiAlertDeferral)))
+            if not rows:
+                return 0
+            ids = [row.news_id for row in rows]
+            analyzed = set(
+                session.scalars(
+                    select(NewsAiAnalysis.news_id).where(
+                        NewsAiAnalysis.news_id.in_(ids), NewsAiAnalysis.status == "ok"
+                    )
+                )
+            )
+            screened_low = set(
+                session.scalars(
+                    select(NewsAiScreen.news_id).where(
+                        NewsAiScreen.news_id.in_(ids),
+                        NewsAiScreen.status == "ok",
+                        or_(NewsAiScreen.importance < min_importance, NewsAiScreen.deep_read.is_(False)),
+                    )
+                )
+            )
+            handled = analyzed | screened_low
+            fallback: list[dict[str, Any]] = []
+            done: list[int] = []
+            for row in rows:
+                if row.news_id in handled:
+                    done.append(row.news_id)
+                    continue
+                deferred_at = row.deferred_at if row.deferred_at.tzinfo else row.deferred_at.replace(tzinfo=UTC)
+                if now - deferred_at >= DEFERRAL_TIMEOUT:
+                    done.append(row.news_id)
+                    fallback.append(
+                        {"id": row.news_id, "title": row.title, "source_name": row.source_name, "market": row.market}
+                    )
+            if done:
+                session.execute(delete(AiAlertDeferral).where(AiAlertDeferral.news_id.in_(done)))
+                session.commit()
+        if not fallback:
+            return 0
+        logger.info("ai deferral timeout: %s news fall back to keyword alerts", len(fallback))
+        return self.on_news_keyword_fallback(fallback)
+
+    def _keyword_matches(self, session: Any, items: list[dict[str, Any]]) -> tuple[dict[str, _Stock], dict[int, set[str]]]:
+        stocks = self._load_stocks(session)
+        if not stocks or not items:
+            return {}, {}
+        by_symbol = {stock.symbol: stock for stock in stocks}
+        mention_hits = self._load_rule_mentions(session, [int(item["id"]) for item in items], by_symbol)
+        matches: dict[int, set[str]] = {}
+        for item in items:
+            news_id = int(item["id"])
+            title = str(item["title"])
+            matched = {stock.symbol for stock in stocks if any(pattern.search(title) for pattern in stock.patterns)}
+            matched |= mention_hits.get(news_id, set())
+            if matched:
+                matches[news_id] = matched
+        return by_symbol, matches
+
+    def _defer_keyword_hits(self, items: list[dict[str, Any]]) -> None:
+        items = [item for item in items if item.get("id") is not None and item.get("title")]
+        if not items:
+            return
+        now = self._clock()
+        try:
+            with self._session_factory() as session:
+                _, matches = self._keyword_matches(session, items)
+                if not matches:
+                    return
+                existing = set(
+                    session.scalars(select(AiAlertDeferral.news_id).where(AiAlertDeferral.news_id.in_(list(matches))))
+                )
+                for item in items:
+                    news_id = int(item["id"])
+                    if news_id in matches and news_id not in existing:
+                        session.add(
+                            AiAlertDeferral(
+                                news_id=news_id,
+                                title=str(item["title"]),
+                                source_name=item.get("source_name"),
+                                market=item.get("market"),
+                                deferred_at=now,
+                            )
+                        )
+                session.commit()
+        except Exception:
+            # 记不下来就当场走关键词，宁可提醒早一点也不能漏。
+            logger.warning("recording ai deferrals failed; using keyword alerts now", exc_info=True)
+            self.on_news_keyword_fallback(items)
+
+    def on_news_keyword_fallback(self, news_items: Iterable[dict[str, Any]]) -> int:
+        """关键词规则：持仓命中立即写提醒，关注股命中进合并窗口；返回立即提醒条数。"""
         now = self._clock()
         items = [item for item in news_items if item.get("id") is not None and item.get("title")]
         self.flush_watch_digest()
         if not items:
             return 0
         with self._session_factory() as session:
-            stocks = self._load_stocks(session)
-            if not stocks:
+            by_symbol, matches = self._keyword_matches(session, items)
+            if not by_symbol:
                 return 0
-            by_symbol = {stock.symbol: stock for stock in stocks}
-            mention_hits = self._load_rule_mentions(session, [int(item["id"]) for item in items], by_symbol)
             repo = AlertRepository(session)
             created: list[Alert] = []
             for item in items:
-                news_id = int(item["id"])
-                title = str(item["title"])
-                matched = {
-                    stock.symbol for stock in stocks if any(pattern.search(title) for pattern in stock.patterns)
-                }
-                matched |= mention_hits.get(news_id, set())
+                matched = matches.get(int(item["id"]), set())
                 for symbol in sorted(matched):
                     stock = by_symbol[symbol]
                     if stock.is_holding:
@@ -247,8 +398,79 @@ class AlertService:
             self._publish(created)
             return len(created)
 
+    def on_news_impacts(
+        self,
+        news: dict[str, Any],
+        *,
+        overseas: bool,
+        major: bool,
+        view: str | None,
+        impacts: Iterable[dict[str, Any]],
+    ) -> int:
+        """L2 精读完成回调（AI 模式）：按影响判断写提醒，返回立即提醒条数。"""
+        from app.services.ai.sectors import list_focus_sectors
+
+        now = self._clock()
+        self.flush_watch_digest()
+        news_id = int(news["id"])
+        title = str(news.get("title_zh") or news.get("title") or "")
+        created: list[Alert] = []
+        with self._session_factory() as session:
+            stocks = self._load_stocks(session)
+            focus = {sector.name for sector in list_focus_sectors(session)}
+            repo = AlertRepository(session)
+            for impact in impacts:
+                if impact.get("direction") not in ("bullish", "bearish"):
+                    continue
+                if impact.get("strength") not in _SIGNIFICANT_STRENGTHS:
+                    continue
+                name = str(impact.get("name") or "").strip()
+                if impact.get("target_type") == "sector":
+                    if name in focus:
+                        self._buffer_hit(_DigestHit(news_id, name, name, title, news.get("source_name"),
+                                                    GROUP_SECTOR, self._impact_detail(impact)))
+                    continue
+                stock = self._match_stock(stocks, impact.get("code"), name)
+                if stock is None:
+                    if impact.get("direction") == "bullish" and impact.get("strength") == "strong":
+                        code = str(impact.get("code") or name).upper()
+                        self._buffer_hit(_DigestHit(news_id, code, name or code, title, news.get("source_name"),
+                                                    GROUP_OPPORTUNITY, self._impact_detail(impact)))
+                    continue
+                if stock.is_holding and self._count_today(session, KIND_HOLDING_NEWS, now, stock.symbol) < (
+                    self._ai_stock_daily_limit
+                ):
+                    alert = self._create_ai_news_alert(repo, stock, news, title, impact, view, now)
+                    if alert is not None:
+                        created.append(alert)
+                    continue
+                self._buffer_hit(_DigestHit(news_id, stock.symbol, stock.name, title, news.get("source_name"),
+                                            GROUP_WATCH, self._impact_detail(impact)))
+            if overseas and major and self._count_today(session, KIND_OVERSEAS_MAJOR, now) < (
+                self._ai_overseas_daily_limit
+            ):
+                overnight, visible_at = self._visibility(now)
+                alert = repo.create_if_absent(
+                    kind=KIND_OVERSEAS_MAJOR,
+                    severity=SEVERITY_IMMEDIATE,
+                    symbol=None,
+                    title=f"海外重大：{title}",
+                    body=str(view or news.get("source_name") or ""),
+                    payload={"news_id": news_id, "news_title": news.get("title"), "view": view,
+                             "source_name": news.get("source_name"), "market": news.get("market")},
+                    dedupe_key=f"overseas:{news_id}",
+                    overnight=overnight,
+                    visible_at=visible_at,
+                    created_at=now,
+                )
+                if alert is not None:
+                    created.append(alert)
+            session.commit()
+            self._publish(created)
+        return len(created)
+
     def flush_watch_digest(self) -> int:
-        """把已结束的合并窗口各写成一条 ``watch_news_digest`` 提醒，返回写入条数。"""
+        """把已结束的合并窗口按分组（自选股 / 关注板块 / 新机会）各写成一条合并提醒，返回写入条数。"""
         with self._digest_lock:
             now = self._clock()
             due = [
@@ -265,11 +487,13 @@ class AlertService:
             with self._session_factory() as session:
                 repo = AlertRepository(session)
                 for window in sorted(due, key=lambda w: w.start):
-                    if not window.hits:
-                        continue
-                    alert = self._create_digest_alert(repo, window, now)
-                    if alert is not None:
-                        created.append(alert)
+                    for group in _DIGEST_GROUPS:
+                        hits = [hit for hit in window.hits if hit.group == group]
+                        if not hits:
+                            continue
+                        alert = self._create_digest_alert(repo, window.start, group, hits, now)
+                        if alert is not None:
+                            created.append(alert)
                 session.commit()
                 self._publish(created)
         except Exception:
@@ -398,23 +622,25 @@ class AlertService:
         )
 
     def _buffer_digest_hit(self, stock: _Stock, item: dict[str, Any]) -> None:
-        key = (int(item["id"]), stock.symbol)
+        self._buffer_hit(
+            _DigestHit(
+                news_id=int(item["id"]),
+                symbol=stock.symbol,
+                name=stock.name,
+                title=str(item["title"]),
+                source_name=item.get("source_name"),
+            )
+        )
+
+    def _buffer_hit(self, hit: _DigestHit) -> None:
         with self._digest_lock:
             # 锁内读时钟：flush 也在锁内读时钟并弹出到期窗口，因此命中不会落进已落库的旧窗口。
             window_start = self._window_start(self._clock())
             window = self._digest_windows.setdefault(window_start, _DigestWindow(start=window_start))
-            if key in window.keys:
+            if hit.key in window.keys:
                 return
-            window.keys.add(key)
-            window.hits.append(
-                _DigestHit(
-                    news_id=int(item["id"]),
-                    symbol=stock.symbol,
-                    name=stock.name,
-                    title=str(item["title"]),
-                    source_name=item.get("source_name"),
-                )
-            )
+            window.keys.add(hit.key)
+            window.hits.append(hit)
 
     def _restore_windows(self, windows: list[_DigestWindow]) -> None:
         with self._digest_lock:
@@ -424,35 +650,118 @@ class AlertService:
                     self._digest_windows[window.start] = window
                     continue
                 for hit in window.hits:
-                    key = (hit.news_id, hit.symbol)
-                    if key not in existing.keys:
-                        existing.keys.add(key)
+                    if hit.key not in existing.keys:
+                        existing.keys.add(hit.key)
                         existing.hits.append(hit)
 
-    def _create_digest_alert(self, repo: AlertRepository, window: _DigestWindow, now: datetime) -> Alert | None:
+    def _create_digest_alert(
+        self, repo: AlertRepository, window_start: datetime, group: str, hits: list[_DigestHit], now: datetime
+    ) -> Alert | None:
+        kind, key_prefix, title_prefix = _DIGEST_GROUPS[group]
         names: list[str] = []
-        for hit in window.hits:
+        for hit in hits:
             if hit.name not in names:
                 names.append(hit.name)
         overnight, visible_at = self._visibility(now)
+
+        def line(hit: _DigestHit) -> str:
+            return f"{hit.name}（{hit.detail}）：{hit.title}" if hit.detail else f"{hit.name}：{hit.title}"
+
         return repo.create_if_absent(
-            kind=KIND_WATCH_NEWS_DIGEST,
+            kind=kind,
             severity=SEVERITY_DIGEST,
             symbol=None,
-            title=f"关注股新闻 {len(window.hits)} 条：{'、'.join(names[:3])}{' 等' if len(names) > 3 else ''}",
-            body="\n".join(f"{hit.name}：{hit.title}" for hit in window.hits[:20]),
+            title=f"{title_prefix} {len(hits)} 条：{'、'.join(names[:3])}{' 等' if len(names) > 3 else ''}",
+            body="\n".join(line(hit) for hit in hits[:20]),
             payload={
-                "window_start": window.start.isoformat(),
+                "window_start": window_start.isoformat(),
                 "items": [
-                    {"news_id": hit.news_id, "symbol": hit.symbol, "name": hit.name, "title": hit.title}
-                    for hit in window.hits
+                    {"news_id": hit.news_id, "symbol": hit.symbol, "name": hit.name, "title": hit.title,
+                     "detail": hit.detail}
+                    for hit in hits
                 ],
             },
-            dedupe_key=f"watch_digest:{window.start.isoformat()}",
+            dedupe_key=f"{key_prefix}:{window_start.isoformat()}",
             overnight=overnight,
             visible_at=visible_at,
             created_at=now,
         )
+
+    def _create_ai_news_alert(
+        self,
+        repo: AlertRepository,
+        stock: _Stock,
+        news: dict[str, Any],
+        title: str,
+        impact: dict[str, Any],
+        view: str | None,
+        now: datetime,
+    ) -> Alert | None:
+        news_id = int(news["id"])
+        overnight, visible_at = self._visibility(now)
+        body_lines = [self._impact_detail(impact)]
+        if view:
+            body_lines.append(f"AI 看法：{view}")
+        return repo.create_if_absent(
+            kind=KIND_HOLDING_NEWS,
+            severity=SEVERITY_IMMEDIATE,
+            symbol=stock.symbol,
+            title=f"{stock.name}：{title}",
+            body="\n".join(body_lines),
+            payload={
+                "news_id": news_id,
+                "news_title": news.get("title"),
+                "source_name": news.get("source_name"),
+                "market": news.get("market"),
+                "direction": impact.get("direction"),
+                "strength": impact.get("strength"),
+                "rationale": impact.get("rationale"),
+                "view": view,
+                "ai": True,
+            },
+            dedupe_key=f"news:{news_id}:{stock.symbol}",
+            overnight=overnight,
+            visible_at=visible_at,
+            created_at=now,
+        )
+
+    @staticmethod
+    def _impact_detail(impact: dict[str, Any]) -> str:
+        rationale = str(impact.get("rationale") or "").strip()
+        label = _impact_label(impact)
+        return f"{label} {rationale}".strip()
+
+    def _ai_mode(self) -> bool:
+        if self._ai_mode_checker is None:
+            return False
+        try:
+            return bool(self._ai_mode_checker())
+        except Exception:
+            logger.warning("ai mode check failed; falling back to keyword alerts", exc_info=True)
+            return False
+
+    def _count_today(self, session: Any, kind: str, now: datetime, symbol: str | None = None) -> int:
+        local_day = self._local_date(now)
+        start = datetime.combine(local_day, time.min, tzinfo=self._tz).astimezone(UTC)
+        stmt = select(func.count()).select_from(Alert).where(Alert.kind == kind, Alert.created_at >= start)
+        if symbol is not None:
+            stmt = stmt.where(Alert.symbol == symbol)
+        return int(session.scalar(stmt) or 0)
+
+    @staticmethod
+    def _match_stock(stocks: list[_Stock], code: Any, name: str) -> _Stock | None:
+        code_text = str(code or "").strip().upper()
+        digits = "".join(ch for ch in code_text if ch.isdigit()).lstrip("0")
+        for stock in stocks:
+            if code_text and code_text == stock.symbol:
+                return stock
+            stock_digits = "".join(ch for ch in stock.symbol if ch.isdigit()).lstrip("0")
+            if digits and digits == stock_digits:
+                return stock
+        for stock in stocks:
+            if name and name.lower() == stock.name.lower():
+                return stock
+        return None
 
     # ------------------------------------------------------------------ 工具
 
@@ -541,7 +850,9 @@ def get_alert_service() -> AlertService:
     global _service
     with _service_lock:
         if _service is None:
-            _service = AlertService()
+            from app.services.ai.status import AiModeChecker
+
+            _service = AlertService(ai_mode_checker=AiModeChecker())
         return _service
 
 

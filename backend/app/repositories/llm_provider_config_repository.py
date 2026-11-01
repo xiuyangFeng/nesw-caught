@@ -102,8 +102,8 @@ class LLMProviderConfigRepository:
         api_key: str | None = None,
         is_active: bool = True,
         is_default: bool = False,
-        input_price_per_1k: float | None = None,
-        output_price_per_1k: float | None = None,
+        input_price_per_1m: float | None = None,
+        output_price_per_1m: float | None = None,
         monthly_budget_usd: float | None = None,
     ) -> LLMProviderConfig:
         normalized_base_url = _normalize_base_url(provider_name, model_name, base_url)
@@ -147,8 +147,8 @@ class LLMProviderConfigRepository:
                 api_key=effective_api_key,
                 is_active=is_active,
                 is_default=is_default,
-                input_price_per_1k=input_price_per_1k,
-                output_price_per_1k=output_price_per_1k,
+                input_price_per_1m=input_price_per_1m,
+                output_price_per_1m=output_price_per_1m,
                 monthly_budget_usd=monthly_budget_usd,
             )
             self.session.add(config)
@@ -162,10 +162,10 @@ class LLMProviderConfigRepository:
             config.is_default = is_default
             # 价格/预算为可选、非敏感字段：仅在显式传入时更新，避免不感知
             # 价格的调用方（如 upsert_active）把已配置的单价意外清空。
-            if input_price_per_1k is not None:
-                config.input_price_per_1k = input_price_per_1k
-            if output_price_per_1k is not None:
-                config.output_price_per_1k = output_price_per_1k
+            if input_price_per_1m is not None:
+                config.input_price_per_1m = input_price_per_1m
+            if output_price_per_1m is not None:
+                config.output_price_per_1m = output_price_per_1m
             if monthly_budget_usd is not None:
                 config.monthly_budget_usd = monthly_budget_usd
 

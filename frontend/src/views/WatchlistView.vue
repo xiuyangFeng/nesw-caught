@@ -7,6 +7,7 @@ import SectionCard from '../components/common/SectionCard.vue';
 import MarketOverviewPanel from '../components/watchlist/MarketOverviewPanel.vue';
 import WatchlistAddModal from '../components/watchlist/WatchlistAddModal.vue';
 import WatchlistSidebar from '../components/watchlist/WatchlistSidebar.vue';
+import FocusSectorsBar from '../components/watchlist/FocusSectorsBar.vue';
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import { useMarketOverviewStore } from '../stores/marketOverviewStore';
 import { useRuntimeStatusStore } from '../stores/runtimeStatusStore';
@@ -342,6 +343,9 @@ onUnmounted(() => {
 
       <StaleBadge :stale="watchlistStore.stale" label="行情列表" />
     </header>
+
+    <!-- 关注板块（AI 推断 + 手动维护，P3） -->
+    <FocusSectorsBar />
 
     <!-- 市场总览区块(五市场指数/板块/情绪,Tab 切换之上) -->
     <MarketOverviewPanel />

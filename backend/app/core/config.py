@@ -216,6 +216,19 @@ class Settings(BaseSettings):
     alert_quiet_hours_end: str | None = "08:00"
     alert_tz: str = "Asia/Shanghai"
     alert_watch_digest_minutes: int = 30
+    # AI 漏斗（聚焦改造 P3）：只在"模型设置"里明确设了默认模型（is_default）时才调用 LLM。
+    ai_funnel_enabled: bool = True
+    ai_funnel_interval_seconds: float = 30.0
+    ai_screen_batch_size: int = 20
+    ai_screen_lookback_hours: int = 24
+    ai_impact_per_cycle: int = 5
+    ai_impact_daily_limit: int = 300
+    ai_impact_min_importance: int = 2
+    ai_max_attempts: int = 3
+    ai_body_max_chars: int = 4000
+    ai_correction_examples: int = 8
+    ai_stock_alert_daily_limit: int = 5
+    ai_overseas_alert_daily_limit: int = 5
     # 情绪-价格背离提醒开关及参数（默认关闭，不改变旧行为）。
     sentiment_divergence_alert_enabled: bool = False
     sentiment_divergence_window_days: int = 3

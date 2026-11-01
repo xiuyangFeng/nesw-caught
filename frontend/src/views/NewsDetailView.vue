@@ -5,27 +5,21 @@ import { useRoute, useRouter } from 'vue-router';
 import LoadingBlock from '../components/common/LoadingBlock.vue';
 import SectionCard from '../components/common/SectionCard.vue';
 import StaleBadge from '../components/common/StaleBadge.vue';
-import { useLlmStore } from '../stores/llmStore';
+import NewsAiImpactCard from '../components/news/NewsAiImpactCard.vue';
 import { useNewsStore } from '../stores/newsStore';
 import { useTopicStore } from '../stores/topicStore';
 import { sentimentText } from '../utils/format';
 import { getNewsSummary } from '../utils/news';
 import { formatMarketTime, getMarketTimezoneLabel, getNewsDisplayTimestamp } from '../utils/time';
-import { logger } from '../utils/logger';
 
 const route = useRoute();
 const router = useRouter();
 const newsStore = useNewsStore();
 const topicStore = useTopicStore();
-const llmStore = useLlmStore();
 
 const newsId = computed(() => Number(route.params.id));
 const detail = computed(() => newsStore.detailMap[newsId.value] ?? null);
 const detailSummary = computed(() => (detail.value ? getNewsSummary(detail.value) : null));
-const analysis = computed(() => newsStore.analysisMap[newsId.value] ?? null);
-const analysisLoading = computed(() => newsStore.analysisLoadingMap[newsId.value] ?? false);
-const analysisError = computed(() => newsStore.analysisErrorMap[newsId.value] ?? null);
-const llmConfig = computed(() => llmStore.config);
 const topicDetail = computed(() => {
   const topicId = detail.value?.topic?.id;
   return topicId ? topicStore.detailMap[topicId] ?? null : null;
@@ -53,23 +47,10 @@ function openSibling(newsIdToOpen: number) {
   router.push({ name: 'news-detail', params: { id: newsIdToOpen } });
 }
 
-async function runAnalysis() {
-  try {
-    await newsStore.analyzeNews(newsId.value);
-  } catch (e) {
-    // 错误信息已写入 newsStore.analysisErrorMap 供模板展示，这里只吞掉 rejection。
-    logger.error('Failed to analyze news', e);
-  }
-}
-
 onMounted(async () => {
   if (!detail.value) {
     await newsStore.loadDetail(newsId.value);
   }
-  if (!llmConfig.value) {
-    await llmStore.loadConfig();
-  }
-  await newsStore.loadAnalysis(newsId.value);
 });
 
 watch(
@@ -88,7 +69,6 @@ watch(
     if (!newsStore.detailMap[id]) {
       await newsStore.loadDetail(id);
     }
-    await newsStore.loadAnalysis(id);
   },
 );
 </script>
@@ -98,7 +78,7 @@ watch(
     <header class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
         <h1 class="page-title">News Detail</h1>
-        <p class="page-subtitle">查看单条新闻的正文、情绪、关联股票和所属主题。</p>
+        <p class="page-subtitle">查看单条新闻的情绪、AI 影响判断、关联股票和所属主题。</p>
       </div>
       <StaleBadge :stale="newsStore.stale" label="新闻详情" />
     </header>
@@ -144,81 +124,7 @@ watch(
           </button>
         </SectionCard>
 
-        <SectionCard title="LLM 标的分析" subtitle="手动触发单条新闻分析，返回首选标的和候选列表">
-          <div v-if="llmConfig && !llmConfig.configured" class="grid gap-2 rounded-[18px] border border-border bg-panel-stronger px-4 py-3.5">
-            <strong>尚未配置 LLM</strong>
-            <p class="text-text-faint">请先在后端保存 provider、model 和 API key，之后再回来分析这条新闻。</p>
-          </div>
-          <div v-else class="grid gap-[14px]">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="text-text-faint">
-                <template v-if="analysis">
-                  {{ analysis.provider_name }} / {{ analysis.model_name }} · {{ formatMarketTime(analysis.analyzed_at, detail.market) }}
-                </template>
-                <template v-else-if="llmConfig?.configured">
-                  当前模型：{{ llmConfig.provider_name }} / {{ llmConfig.model_name }}
-                </template>
-              </div>
-              <button
-                class="rounded-full bg-accent px-[14px] py-2.5 font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-45"
-                type="button"
-                :disabled="analysisLoading"
-                @click="runAnalysis"
-              >
-                {{ analysis ? '重新分析' : '分析标的' }}
-              </button>
-            </div>
-
-            <p v-if="analysisLoading" class="text-text-faint">正在调用模型分析这条新闻...</p>
-            <p v-else-if="analysisError" class="text-text-faint">{{ analysisError }}</p>
-            <div v-else-if="analysis" class="grid gap-[14px]">
-              <div
-                v-if="analysis.top_pick"
-                class="grid gap-2 rounded-[18px] border border-border bg-panel-stronger px-4 py-3.5"
-              >
-                <div class="text-xs uppercase tracking-[0.12em] text-neutral">Top Pick</div>
-                <h3>{{ analysis.top_pick.symbol }}</h3>
-                <p class="text-text-faint">
-                  {{ analysis.top_pick.company_name ?? '未提供公司名' }} · {{ Math.round((analysis.top_pick.confidence ?? 0) * 100) }}%
-                </p>
-                <p>{{ analysis.top_pick.reason }}</p>
-              </div>
-              <div v-else class="grid gap-2 rounded-[18px] border border-border bg-panel-stronger px-4 py-3.5">
-                <strong>暂无明确首选标的</strong>
-                <p class="text-text-faint">模型没有给出单一最值得关注的上市公司映射。</p>
-              </div>
-
-              <div class="grid gap-3">
-                <div>
-                  <strong>摘要</strong>
-                  <p class="text-text-faint">{{ analysis.summary ?? '暂无摘要' }}</p>
-                </div>
-                <div>
-                  <strong>风险提示</strong>
-                  <p class="text-text-faint">{{ analysis.risk_notes ?? '暂无风险提示' }}</p>
-                </div>
-              </div>
-
-              <div v-if="analysis.candidates.length" class="grid gap-3">
-                <article
-                  v-for="candidate in analysis.candidates"
-                  :key="`${candidate.symbol}-${candidate.market}`"
-                  class="grid gap-2 rounded-[18px] border border-border bg-panel-stronger px-4 py-3.5"
-                >
-                  <div class="flex justify-between gap-2.5">
-                    <strong>{{ candidate.symbol }}</strong>
-                    <span class="num text-text-faint">{{ Math.round((candidate.confidence ?? 0) * 100) }}%</span>
-                  </div>
-                  <p class="text-text-faint">{{ candidate.company_name ?? '未提供公司名' }}</p>
-                  <p>{{ candidate.reason }}</p>
-                </article>
-              </div>
-
-              <p v-if="analysis.context_limitations" class="text-text-faint">上下文限制：{{ analysis.context_limitations }}</p>
-            </div>
-            <p v-else class="text-text-faint">还没有这条新闻的分析结果，点击右侧按钮开始分析。</p>
-          </div>
-        </SectionCard>
+        <NewsAiImpactCard :news-id="newsId" />
 
         <SectionCard title="同主题来源导航" subtitle="在同一主题下顺序切换不同来源，便于横向对比">
           <div v-if="topicDetail && currentTopicIndex >= 0" class="grid gap-3">

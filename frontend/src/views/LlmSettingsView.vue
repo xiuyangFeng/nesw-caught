@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
+import AiFunnelStatusCard from '../components/llm/AiFunnelStatusCard.vue';
 import LlmConfigModal from '../components/llm/LlmConfigModal.vue';
 import LlmConfigList from '../components/llm/LlmConfigList.vue';
 import TokenUsageConsole from '../components/llm/TokenUsageConsole.vue';
@@ -92,6 +93,9 @@ onMounted(() => {
         </button>
       </div>
     </header>
+
+    <!-- AI 新闻漏斗（P3）运行状态：在线与否、今日处理量、费用与预算 -->
+    <AiFunnelStatusCard />
 
     <!-- Model usage token auditing dashboard -->
     <TokenUsageConsole v-if="stats" :stats="stats" :loading="loadingStats" @refresh="loadStats" />

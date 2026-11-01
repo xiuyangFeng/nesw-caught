@@ -5,6 +5,70 @@
 > **阅读范围：** 开始较大改动前，只读本文件顶部近期条目，确认是否与正在改的模块冲突。
 > 不要把本文件或历史归档当作待办清单。2026-07 及更早的记录见 [archive/code-change-log-before-2026-08.md](./archive/code-change-log-before-2026-08.md)。
 
+## 2026-11-01 聚焦改造 P3-T9/T10：前端 AI 面板、评审修复、开发热重载卡死修复
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：前端新闻详情/个股详情/自选页/模型设置/提醒页；后端提醒兜底、漏斗在线判定、L1/L2 细节；开发启动脚本；文档。
+- 变更内容：
+  - **前端（T9）**：新闻详情"AI 影响"卡（`NewsAiImpactCard`，替换旧"LLM 标的分析"卡）：重要度、海外、译文标题、摘要、明确看法、影响列表（利多用涨色、利空用跌色），可修正（改方向/强度、删除、新增、说明）；个股详情"AI 影响"区块（`StockAiImpactPanel`）；自选页"关注板块"条（`FocusSectorsBar`，增删）；模型设置顶部漏斗状态卡（`AiFunnelStatusCard`）与"gpt-6.1-terra（中转）"预设（地址留空、单价 0.15/0.75）；提醒页新增"海外重大""关注板块""新机会"标签，"关注股新闻"改名"自选股新闻"，合并条目显示方向·强度。`http.ts` 新增 `putJson`，`client.ts` 新增 7 个方法。
+  - **独立评审修复（逐条复现后先写失败测试）**：
+    - 漏斗周期持续报错时心跳照样刷新，提醒仍按"AI 在线"跳过关键词 → 持仓新闻两头落空。改为看最近一次成功周期。
+    - 当天精读额度用完、月中超预算、取消默认模型时，已被跳过关键词的新闻再无人处理 → 新增 `ai_alert_deferral` 表（迁移 `c8b5d2e6f0a3`）：AI 在线时有关键词命中的新闻先记下，AI 已有结论（精读完成或粗筛判为不重要）则丢弃，15 分钟仍无结论按关键词补发；队列 worker 每 30 秒扫一次。L1/L2 重试用尽也走这条路。额度用完、"设了预算没填单价"计为不在线。
+    - 板块推断一只股票反复失败会每 30 秒花钱重试并挡住后面的股票 → 失败满 3 次不再尝试。
+    - 用户修正后 L2 精读会覆盖修正并发提醒 → 修正过的新闻只更新文字结论。用户修正的股票代码按自选股归一。
+    - 单条提醒写库失败会中断同周期其他提醒 → 逐条 try/except。
+    - L1 低估点名持仓股的新闻就不会进精读 → 标题点名持仓股的一律进精读（重要度至少 2）。
+    - 前端：后端不可用时 client 退回演示数据，卡片会显示"未处理"并允许修正、保存后整表覆盖真实结果 → 演示数据按加载失败处理；保存途中切换新闻时丢弃旧结果。
+  - **开发热重载卡死（根因）**：页面开着时 SSE 长连接永不结束，uvicorn 热重载在优雅关停时无限等待连接关闭，旧进程不再接请求、新进程起不来，所有接口无响应（本日出现两次）。`Makefile` 与 `scripts/dev.sh` 的 uvicorn 加 `--timeout-graceful-shutdown 3`。
+  - 文档：README 新增"AI 漏斗"一节并更新提醒规则表；`docs/current-state.md`、设计文档状态、P3 计划（含相对计划的调整）同步。
+- 影响文件：`frontend/src/components/news/NewsAiImpactCard.vue`（新）、`frontend/src/components/watchlist/StockAiImpactPanel.vue`（新）、`frontend/src/components/watchlist/FocusSectorsBar.vue`（新）、`frontend/src/components/llm/AiFunnelStatusCard.vue`（新）、`frontend/src/utils/aiImpact.ts`（新）及对应测试；`frontend/src/api/{client,http}.ts`、`frontend/src/api/mock/{llm,market}.ts`、`frontend/src/types/api.ts`、`frontend/src/types/generated/api.d.ts`、`frontend/openapi.json`、`frontend/src/components/llm/{LlmConfigForm.vue,providerPresets.ts}`、`frontend/src/views/{NewsDetailView,WatchlistDetailView,WatchlistView,LlmSettingsView,AlertsView}.vue` 及测试、`frontend/src/smoke/app-navigation.test.ts`；`backend/app/models/news_ai.py`、`backend/alembic/versions/c8b5d2e6f0a3_add_ai_alert_deferral.py`（新）、`backend/app/services/alert_service.py`、`backend/app/services/ai/{status,impact,screen,sectors}.py`、`backend/app/workers/{ai_funnel_worker,queue_worker}.py`、`backend/app/api/routes/ai.py`、`backend/app/schemas/ai.py`、后端测试；`Makefile`、`scripts/dev.sh`；`README.md`、`docs/current-state.md`、`docs/superpowers/specs/2026-10-31-focus-redesign-design.md`、`docs/superpowers/plans/2026-11-01-focus-p3-ai-funnel-plan.md`、`docs/code-change-log.md`。
+- 接口/数据结构变化：**有**。新增表 `ai_alert_deferral`；`/api/ai/funnel/status` 的 `inactive_reason` 增加 `budget_unpriced`、`quota_exhausted`；`AiFunnelWorker` 不再直接调用关键词兜底（由 `AlertService.sweep_deferred` 统一负责）。
+- 验证情况：`pytest backend/tests` 1080 passed，7 failed（已知种子污染）；`ruff check backend` 通过；`npx vitest run` 84 文件 498 passed；`npm run build` 通过；`check:api-drift` 一致。本地库已迁移到 `c8b5d2e6f0a3`（迁移前备份 `backend/data/backups/app-before-focus-p3-20261101.db`）；实测 `/api/ai/funnel/status` 返回 `no_default_model`、`/api/focus-sectors` 为空；保持一个 SSE 连接时触发热重载，新进程 15 秒内起来、接口正常。未在浏览器里手动点过新页面。
+- 风险或后续事项：
+  - 真实运行未验证（需用户配置 terra 并设为默认）：中转地址的 JSON 模式兼容性、真实 token 用量与时延。
+  - 兜底补发最多晚 15 分钟；`ai_alert_deferral` 只记有关键词命中的新闻。
+  - 板块推断失败计数在进程内，重启后每只失败股票会再试 3 次。
+  - 重启开发服务时用了 `pkill -9 -f "multiprocessing.spawn import spawn_main"` 清理卡死的 uvicorn 子进程，该匹配也可能命中本机其他 Python 多进程程序。
+
+## 2026-11-01 聚焦改造 P3-T1～T8：AI 漏斗后端（L1 粗筛、L2 精读、板块、提醒接管、接口）
+
+- 修改人：Claude Code（Opus 5.5）
+- 修改范围：后端 LLM 计费、数据模型与迁移、AI 漏斗服务与 worker、站内提醒、接口；前端仅同步单价字段改名与生成类型。
+- 变更内容（计划见 `docs/superpowers/plans/2026-11-01-focus-p3-ai-funnel-plan.md`）：
+  - **单价单位**：`llm_provider_config.input/output_price_per_1k` 改为 `*_per_1m`（美元/百万 token），数值保留；费用计算抽到 `app/services/llm_cost.py`，`/api/llm/stats` 与漏斗预算闸共用。存量 DeepSeek 配置按新口径为 $0.02 / $1.0 每百万。
+  - **新表**（迁移 `c7e4a1b9d3f6`）：`news_ai_screen`、`news_ai_analysis`、`news_impact`、`impact_correction`、`stock_sector`、`focus_sector_override`，外键随新闻级联删除。
+  - **`app/services/ai/`**：`context`（持仓/关注/关注板块上下文）、`llm_json`（只用明确设为默认且启用的模型，JSON 模式）、`sectors`（关注板块 = 自选股板块并集 + 手动增删；AI 推断个股板块）、`screen`（L1：24 小时内新闻每批 20 条，标题+摘要 → 重要度/海外/精读/译文标题，逐条校验，失败最多重试 3 次）、`impact`（L2：重要度 ≥ 2 且需精读，每日上限 300，全文截 4,000 字 + 最近 8 条用户修正作示例 → 摘要/看法/重大/影响列表；用户修正整表替换并记录）、`status`（AI 在线判定与状态卡数据）。
+  - **`AiFunnelWorker`**（30 秒一周期：板块推断 1 只 → L1 最多 3 批 → L2 最多 5 条 → 提醒），单进程与多进程形态都启动；无明确默认模型、开关关闭或超月度预算时空转。超过 6 小时的新闻只分析不提醒。
+  - **提醒接管**：AI 在线（开关开、有明确默认模型、未超预算、漏斗心跳 10 分钟内）时，`on_news_batch` 不再按关键词提醒，改由 `on_news_impacts`：持仓利多/利空且强度 ≥ 中立即提醒（正文带方向·强度、理由、AI 看法，每只每天最多 5 条，超出进合并）；只关注股票、关注板块、自选外"利多·强"新机会分别合并为 `watch_news_digest` / `sector_news_digest` / `opportunity_digest`；海外重大事件 `overseas_major` 立即提醒（每天最多 5 条）。AI 不在线时回退关键词；L1/L2 重试用尽的新闻由漏斗调 `on_news_keyword_fallback` 补发。合并提醒标题由"关注股新闻"改为"自选股新闻"。
+  - **接口**：`GET /api/news/{id}/ai`、`PUT /api/news/{id}/impacts`、`GET /api/watchlist/{symbol}/impacts`、`GET/POST/DELETE /api/focus-sectors`、`GET /api/ai/funnel/status`。
+  - 配置：`AI_FUNNEL_ENABLED` 等 12 项 `ai_*`（见 `config.py`）。
+- 影响文件：`backend/app/services/ai/*`（新）、`backend/app/services/llm_cost.py`（新）、`backend/app/workers/ai_funnel_worker.py`（新）、`backend/app/models/news_ai.py`、`backend/app/models/sector.py`（新）、`backend/app/models/__init__.py`、`backend/app/models/llm_provider_config.py`、`backend/alembic/versions/c7e4a1b9d3f6_ai_funnel_tables_and_price_per_1m.py`（新）、`backend/app/schemas/ai.py`（新）、`backend/app/schemas/llm.py`、`backend/app/api/routes/ai.py`（新）、`backend/app/api/routes/llm.py`、`backend/app/api/router.py`、`backend/app/repositories/llm_provider_config_repository.py`、`backend/app/services/alert_service.py`、`backend/app/core/config.py`、`backend/app/main.py`、`backend/app/workers/pipeline_worker_main.py`、测试 `test_ai_*.py`、`test_alert_ai.py`、`test_focus_p3_migrations.py`、`test_llm_cost.py`、`test_alert_service.py`；`frontend/openapi.json`、`frontend/src/types/generated/api.d.ts`、`frontend/src/components/llm/*`、`frontend/src/api/mock/llm.ts`、`frontend/src/views/LlmSettingsView.test.ts`（单价字段改名）；`docs/superpowers/plans/2026-11-01-focus-p3-ai-funnel-plan.md`（新）。
+- 接口/数据结构变化：**有**。LLM 配置接口与 `/api/llm/stats` 的 `input/output_price_per_1k` 改名为 `*_per_1m`（前端已同步）；新增 6 张表与上述接口；新增提醒 kind `overseas_major`、`sector_news_digest`、`opportunity_digest`。
+- 验证情况：新增测试均先确认失败再实现（LLM 全部 mock）；`pytest backend/tests` 1069 passed，7 failed（已知种子污染，与本改动无关）；`ruff check backend` 通过；`test_migration_parity` 通过；`npm run generate:api` 已重新生成。
+- 风险或后续事项：
+  - 尚未用真实 terra 跑过：中转地址对 JSON 模式的兼容性未知。用户在"模型设置"添加 terra 并设为默认后漏斗才会启动。
+  - AI 模式下持仓新闻提醒要等 L1 + L2 完成（预计 1 分钟内），比关键词规则慢；AI 判定"不重要"的持仓新闻不再提醒（用户选择的"AI 为主"）。
+  - 计划中"板块名从东财候选列表里选"改为提示词约束（东财叫法 + 沿用关注板块名），不依赖实时网络。
+  - 前端（T9）另行提交。
+
+## 2026-11-01 收紧事件聚类：去掉兜底事件与通用词串起来的伪事件
+
+- 修改人：Claude Code（Opus 5.5），按用户要求（截图中的 "General-market-update" 事件：1,894 条来源、上百只股票代码）
+- 修改范围：后端新闻信号管线的事件（topic）聚类；存量事件数据清理；本地分支清理。
+- 变更内容：
+  - **根因**：没有关键词的新闻全部落进兜底事件 `general-market-update`；关键词重合 ≥2 即并入同一事件，而重合的常是 "stock / just / why / non / gaap / eps / beats / corp / 2026" 这类通用词。实测前 30 大事件几乎全是伪事件，如 "supermicro stock just" 886 条里只有 1 条提到 Supermicro，"baker hughes non" 829 条里只有 5 条提到 Baker。
+  - 新增 `app/services/topic_matching.py`：通用词表（标题模板词、行情动词、财报样板词、公司后缀、星期等）与纯数字视为无效词，A 股 6 位代码、港股 0 打头 5 位代码视为有效；兜底 key 与无效词打头的 key 不聚类；关键词重合只计有效词，且必须包含事件主体（事件第一个有效关键词），有效重合 ≥2 才并入。单关键词主题（如"半导体"）仍靠 topic_key 精确匹配。
+  - `news_signal_pipeline._apply_result`：key 不可聚类时不建、不挂事件，情绪、信号结果、个股关联照常写入。`news_signal_repository.find_topic` 改用新匹配规则。分类器兜底 key 改用共享常量。
+  - 新增一次性清理脚本 `backend/scripts/prune_topic_clusters.py`（默认 dry-run，`--apply` 写库，幂等）：删除不可聚类事件，其余事件中标题+摘要不含事件主体的成员解除关联，并刷新统计；`topic_key` 为空的非分类器事件不动；新闻本身不删。
+  - 已对本地库执行：删除伪事件 1,163 个，解除无关成员 8,253 条，清空事件 1 个；第二次运行无改动。执行前备份 `backend/data/backups/app-before-topic-prune-20261101.db`。清理后最大事件为"半导体"99 条、"federal reserve board"51 条。
+  - 本地已合并分支（`refactor/focus-p1`、`feature/focus-p2`、`feature/market-overview`、`redesign/smart-quant-desk`、两个 `backup/main-before-*`）与远程 `origin/feature/focus-p2` 已删除，均已完全并入 `main`。
+- 影响文件：`backend/app/services/topic_matching.py`（新）、`backend/app/services/news_signal_pipeline.py`、`backend/app/services/news_signal_classifier.py`、`backend/app/repositories/news_signal_repository.py`、`backend/scripts/prune_topic_clusters.py`（新）、`backend/tests/test_topic_matching.py`（新）、`backend/tests/test_prune_topic_clusters.py`（新）、`backend/tests/test_news_signal_repository.py`、`backend/tests/test_news_signal_pipeline.py`、`docs/code-change-log.md`。
+- 接口/数据结构变化：无接口与表结构变化。行为变化：部分新闻不再归属任何事件（新闻列表照常显示，只是事件页不聚合）；`find_topic` 不再因单个关键词重合而并入。
+- 验证情况：新增/改写测试先确认失败再实现；`pytest backend/tests` 1035 passed，7 failed（即 `test_news.py` 3 个、`test_news_analysis.py` 4 个已知种子污染失败，与本改动无关）；`ruff check backend` 通过。重启开发服务后实测 `/api/topics`、`/api/news/feed`、`/api/news/events` 均不再出现兜底事件。
+- 风险或后续事项：
+  - 通用词表是规则，仍会漏掉少量通用词打头的 key（如 "see which recent"），也会误伤少数以通用词开头的真实主体（如 "first horizon bank"）。P3 的 AI 漏斗会接管"哪些新闻值得看"，届时可再评估是否由 AI 生成事件归属。
+  - 开发服务在本次后端文件修改后热重载卡住（所有接口无响应、CPU 为 0），重启后恢复且未复现；如再出现需排查 `--reload` 与后台 worker 的关停顺序。
+
 ## 2026-11-01 移除误提交的 Vitest 缓存并忽略根目录 node_modules
 
 - 修改人：Claude Code（Opus 5.5），按用户要求
